@@ -180,7 +180,145 @@ exports.getVariants = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-;
+
+exports.downloadItemImportTemplate = async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Template_Barang');
+
+        sheet.columns = [
+            { header: 'Kategori', key: 'cat', width: 20 },
+            { header: 'Jenis Pakaian', key: 'type', width: 20 },
+            { header: 'Unit', key: 'unit', width: 15 },
+            { header: 'Gender', key: 'gender', width: 15 },
+            { header: 'Ukuran', key: 'size', width: 15 },
+            { header: 'Vendor (Opsional)', key: 'vendor', width: 20 }
+        ];
+
+        // Sample Data
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', '']);
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.importItems = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
+        const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak valid' });
+
+        const dataRows = rows.slice(1).filter(r => r.length > 0 && r[0]);
+        let successCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+            const [catIn, clothIn, unitIn, genderIn, sizeIn, vendorIn] = dataRows[i];
+            
+            if (!catIn || !clothIn || !unitIn || !genderIn || !sizeIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Unit, Gender, dan Ukuran wajib diisi.` });
+            }
+
+            // Upsert Master Data
+            const cat = await prisma.uniformCategory.upsert({
+                where: { name: String(catIn).trim() },
+                create: { name: String(catIn).trim() },
+                update: {}
+            });
+            const cloth = await prisma.uniformClothingType.upsert({
+                where: { name: String(clothIn).trim() },
+                create: { name: String(clothIn).trim() },
+                update: {}
+            });
+            const unit = await prisma.uniformUnit.upsert({
+                where: { name: String(unitIn).trim() },
+                create: { name: String(unitIn).trim() },
+                update: {}
+            });
+            const size = await prisma.uniformSize.upsert({
+                where: { name: String(sizeIn).trim().toUpperCase() },
+                create: { name: String(sizeIn).trim().toUpperCase() },
+                update: {}
+            });
+            
+            let vendor = null;
+            if (vendorIn) {
+                vendor = await prisma.uniformVendor.upsert({
+                    where: { name: String(vendorIn).trim() },
+                    create: { name: String(vendorIn).trim() },
+                    update: {}
+                });
+            }
+
+            // Find or Create Item
+            const gender = String(genderIn).trim().toUpperCase();
+            const itemName = `${cat.name} ${cloth.name} ${gender} ${unit.name}`;
+            
+            let item = await prisma.uniformItem.findFirst({
+                where: {
+                    categoryId: cat.id,
+                    clothingTypeId: cloth.id,
+                    unitId: unit.id,
+                    gender: gender,
+                    vendorId: vendor ? vendor.id : null
+                }
+            });
+
+            if (!item) {
+                const prefix = `SRG/${unit.name.toUpperCase()}/${gender}/`;
+                const lastItem = await prisma.uniformItem.findFirst({
+                    where: { code: { startsWith: prefix } },
+                    orderBy: { code: 'desc' }
+                });
+                let seq = 1;
+                if (lastItem) {
+                    const lastSeq = parseInt(lastItem.code.replace(prefix, ''), 10);
+                    if (!isNaN(lastSeq)) seq = lastSeq + 1;
+                }
+                const code = `${prefix}${String(seq).padStart(3, '0')}`;
+
+                item = await prisma.uniformItem.create({
+                    data: {
+                        name: itemName,
+                        code: code,
+                        categoryId: cat.id,
+                        clothingTypeId: cloth.id,
+                        unitId: unit.id,
+                        gender: gender,
+                        vendorId: vendor ? vendor.id : null,
+                        sellPrice: 0,
+                        targetUnit: unit.name
+                    }
+                });
+            }
+
+            // Find or Create Variant
+            let variant = await prisma.uniformVariant.findUnique({
+                where: {
+                    itemId_sizeName: { itemId: item.id, sizeName: size.name }
+                }
+            });
+
+            if (!variant) {
+                const sku = `${item.code}-${size.name}`;
+                variant = await prisma.uniformVariant.create({
+                    data: { itemId: item.id, sizeName: size.name, sku: sku }
+                });
+            }
+            successCount++;
+        }
+
+        res.json({ message: `Berhasil mengimpor ${successCount} data barang master.` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
 exports.createSize = async (req, res) => {
     try {
@@ -359,162 +497,7 @@ exports.applyPricingRules = async (req, res) => {
     }
 };
 
-// ========== ITEM IMPORT ==========
-exports.downloadItemImportTemplate = (req, res) => {
-    try {
-        const wb = xlsx.utils.book_new();
-        const wsData = [
-            ['Kode (Kosongi untuk Auto)', 'Kategori *', 'Jenis Pakaian *', 'Gender *', 'Unit *', 'Vendor', 'Harga Modal *', 'Stok Minimal *', 'Ukuran (pisahkan koma) *'],
-            ['', 'Nasional', 'Kemeja', 'IKHWAN', 'SMP', 'Konveksi Berkah', '150000', '5', 'S, M, L, XL']
-        ];
-        const ws = xlsx.utils.aoa_to_sheet(wsData);
-        xlsx.utils.book_append_sheet(wb, ws, "Template_Barang");
-        
-        const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
-        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang_Seragam.xlsx"');
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.send(buf);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
 
-exports.importItems = async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
-        
-        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-        const sheetName = workbook.SheetNames[0];
-        const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
-        
-        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak ada data (hanya header)' });
-        
-        const headers = rows[0];
-        const dataRows = rows.slice(1);
-        
-        // Fetch all masters mapping
-        const cats = await prisma.uniformCategory.findMany();
-        const cTypes = await prisma.uniformClothingType.findMany();
-        const units = await prisma.uniformUnit.findMany();
-        const vendors = await prisma.uniformVendor.findMany();
-        const sizes = await prisma.uniformSize.findMany();
-        
-        let successCount = 0;
-        
-        // We'll use a transaction for safety? We can do it one by one to avoid large transaction failures or bulk.
-        // Doing sequentially to generate code and find relations
-        for (let i = 0; i < dataRows.length; i++) {
-            const r = dataRows[i];
-            if (!r.length) continue; // skip empty rows
-            
-            const [codeIn, catIn, typeIn, genderIn, unitIn, vendorIn, priceIn, minStockIn, sizesIn] = r;
-            if (!catIn || !typeIn || !genderIn || !unitIn || !priceIn || !sizesIn) {
-                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ada kolom wajib (Kategori, Jenis, Gender, Unit, Harga, Ukuran) yang kosong.` });
-            }
-            
-            // Validate relations strictly
-            const catMatch = cats.find(c => c.name.toLowerCase() === String(catIn).trim().toLowerCase());
-            if (!catMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori '${catIn}' tidak ditemukan di Master Data.` });
-            
-            const typeMatch = cTypes.find(c => c.name.toLowerCase() === String(typeIn).trim().toLowerCase());
-            if (!typeMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Jenis Pakaian '${typeIn}' tidak ditemukan di Master Data.` });
-            
-            const unitMatch = units.find(u => u.name.toLowerCase() === String(unitIn).trim().toLowerCase());
-            if (!unitMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Unit '${unitIn}' tidak ditemukan di Master Data.` });
-            
-            let vendorMatch = null;
-            if (vendorIn) {
-                vendorMatch = vendors.find(v => v.name.toLowerCase() === String(vendorIn).trim().toLowerCase());
-                if (!vendorMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Vendor '${vendorIn}' tidak ditemukan di Master Data.` });
-            }
-            
-            const genderStr = String(genderIn).trim().toUpperCase();
-            if (genderStr !== 'IKHWAN' && genderStr !== 'AKHWAT') {
-                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gender harus 'IKHWAN' atau 'AKHWAT'.` });
-            }
-            
-            const parsedSizes = String(sizesIn).split(',').map(s => s.trim()).filter(Boolean);
-            if (parsedSizes.length === 0) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ukuran tidak valid.` });
-            
-            const sizeMap = [];
-            for (let sn of parsedSizes) {
-                const sMatch = sizes.find(s => s.name.toLowerCase() === sn.toLowerCase());
-                if (!sMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ukuran '${sn}' tidak ditemukan di Master Data.` });
-                sizeMap.push(sMatch);
-            }
-            
-            let finalCode = codeIn;
-            if (!finalCode) {
-                finalCode = await generateCode('SRG', 'uniformItem');
-            } else {
-                const existing = await prisma.uniformItem.findUnique({ where: { code: String(finalCode) } });
-                if (existing) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kode barang '${finalCode}' sudah digunakan.` });
-            }
-            
-            const generatedName = [typeMatch.name, catMatch.name, genderStr === 'IKHWAN' ? 'Ikhwan' : 'Akhwat', unitMatch.name].filter(Boolean).join(' ');
-            
-            const newItem = await prisma.uniformItem.create({
-                data: {
-                    code: finalCode,
-                    name: generatedName,
-                    categoryId: catMatch.id,
-                    clothingTypeId: typeMatch.id,
-                    gender: genderStr,
-                    unitId: unitMatch.id,
-                    vendorId: vendorMatch?.id || null,
-                    sellPrice: parseFloat(priceIn) || 0,
-                    minStock: parseInt(minStockIn) || 5
-                }
-            });
-            
-            const variantsData = sizeMap.map(sm => ({
-                itemId: newItem.id,
-                sizeId: sm.id,
-                sizeName: sm.name,
-                sku: `${newItem.code}-${sm.name}`
-            }));
-            
-            await prisma.uniformVariant.createMany({ data: variantsData });
-            
-            // Get the newly created variants to apply pricing rules
-            const newVariants = await prisma.uniformVariant.findMany({ where: { itemId: newItem.id } });
-            
-            const rules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
-            if (rules.length > 0) {
-                const sortedRules = rules.sort((a, b) => {
-                    const scoreA = (a.categoryId ? 1 : 0) + (a.clothingTypeId ? 1 : 0) + (a.unitId ? 1 : 0) + (a.gender ? 1 : 0) + (a.sizeNames ? 1 : 0);
-                    const scoreB = (b.categoryId ? 1 : 0) + (b.clothingTypeId ? 1 : 0) + (b.unitId ? 1 : 0) + (b.gender ? 1 : 0) + (b.sizeNames ? 1 : 0);
-                    return scoreB - scoreA;
-                });
-                
-                for (const nv of newVariants) {
-                    for (const rule of sortedRules) {
-                        let match = true;
-                        if (rule.categoryId && newItem.categoryId !== rule.categoryId) match = false;
-                        if (rule.clothingTypeId && newItem.clothingTypeId !== rule.clothingTypeId) match = false;
-                        if (rule.unitId && newItem.unitId !== rule.unitId) match = false;
-                        if (rule.gender && newItem.gender !== rule.gender) match = false;
-                        if (rule.sizeNames) {
-                            const sizeList = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
-                            if (!sizeList.includes(nv.sizeName.toLowerCase())) match = false;
-                        }
-                        if (match) {
-                            await prisma.uniformVariant.update({ where: { id: nv.id }, data: { sellPrice: rule.price } });
-                            break;
-                        }
-                    }
-                }
-            }
-
-            successCount++;
-        }
-        
-        res.json({ message: `Berhasil mengimport ${successCount} barang.` });
-    } catch (err) {
-        console.error('Import error:', err);
-        res.status(500).json({ error: err.message });
-    }
-};
 
 // ========== ITEM & VARIANT ==========
 
