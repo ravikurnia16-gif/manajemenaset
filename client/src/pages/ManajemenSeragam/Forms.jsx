@@ -190,48 +190,89 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
         </div>
     );
 };
-export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [], sizes = [], warehouses = [], vendors = [], onSave }) => {
-    const [form, setForm] = useState({
-        kategori: '',
-        jenisPakaian: '',
-        unit: '',
-        gender: '',
-        ukuran: '',
-        gudang: '',
-        vendor: '',
-        stok: 0,
-        stokMinimal: 3
-    });
+export const ManualStockForm = ({ variants = [], warehouses = [], vendors = [], onSave }) => {
+    const [form, setForm] = useState({ variantId: '', gudang: '', vendor: '', stok: 0, stokMinimal: 3 });
+    const [kategori, setKategori] = useState('');
+    const [jenisPakaian, setJenisPakaian] = useState('');
+    const [unit, setUnit] = useState('');
+    const [gender, setGender] = useState('');
+    const [ukuran, setUkuran] = useState('');
 
+    const availableCategories = Array.from(new Set(variants.map(v => v.item?.category?.name))).filter(Boolean);
+    
+    const availableJenis = Array.from(new Set(
+        variants.filter(v => v.item?.category?.name === kategori)
+        .map(v => v.item?.clothingType?.name)
+    )).filter(Boolean);
+
+    const availableUnits = Array.from(new Set(
+        variants.filter(v => v.item?.category?.name === kategori && v.item?.clothingType?.name === jenisPakaian)
+        .map(v => v.item?.unit?.name)
+    )).filter(Boolean);
+
+    const availableGenders = Array.from(new Set(
+        variants.filter(v => v.item?.category?.name === kategori && v.item?.clothingType?.name === jenisPakaian && v.item?.unit?.name === unit)
+        .map(v => v.item?.gender)
+    )).filter(Boolean);
+
+    const availableSizes = Array.from(new Set(
+        variants.filter(v => v.item?.category?.name === kategori && v.item?.clothingType?.name === jenisPakaian && v.item?.unit?.name === unit && v.item?.gender === gender)
+        .map(v => v.sizeName)
+    )).filter(Boolean);
+
+    useEffect(() => {
+        if (kategori && jenisPakaian && unit && gender && ukuran) {
+            const match = variants.find(v => 
+                v.item?.category?.name === kategori && 
+                v.item?.clothingType?.name === jenisPakaian && 
+                v.item?.unit?.name === unit && 
+                v.item?.gender === gender && 
+                v.sizeName === ukuran
+            );
+            if (match) setForm(f => ({ ...f, variantId: match.id }));
+            else setForm(f => ({ ...f, variantId: '' }));
+        } else {
+            setForm(f => ({ ...f, variantId: '' }));
+        }
+    }, [kategori, jenisPakaian, unit, gender, ukuran, variants]);
+
+    // Handle cascading resets
+    const handleKategoriChange = (e) => { setKategori(e.target.value); setJenisPakaian(''); setUnit(''); setGender(''); setUkuran(''); };
+    const handleJenisChange = (e) => { setJenisPakaian(e.target.value); setUnit(''); setGender(''); setUkuran(''); };
+    const handleUnitChange = (e) => { setUnit(e.target.value); setGender(''); setUkuran(''); };
+    const handleGenderChange = (e) => { setGender(e.target.value); setUkuran(''); };
+    const handleUkuranChange = (e) => { setUkuran(e.target.value); };
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Kategori *" name="kategori" value={form.kategori} onChange={handleChange} required>
-                    <option value="">Pilih Kategori</option>
-                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </SelectField>
-                <SelectField label="Jenis Pakaian *" name="jenisPakaian" value={form.jenisPakaian} onChange={handleChange} required>
-                    <option value="">Pilih Jenis Pakaian</option>
-                    {clothingTypes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </SelectField>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
-                <SelectField label="Unit *" name="unit" value={form.unit} onChange={handleChange} required>
-                    <option value="">Pilih Unit</option>
-                    {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                </SelectField>
-                <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} required>
-                    <option value="">Pilih Gender</option>
-                    <option value="IKHWAN">Ikhwan</option>
-                    <option value="AKHWAT">Akhwat</option>
-                </SelectField>
-                <SelectField label="Ukuran *" name="ukuran" value={form.ukuran} onChange={handleChange} required>
-                    <option value="">Pilih Ukuran</option>
-                    {sizes.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </SelectField>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4 space-y-4">
+                <div className="text-xs font-bold text-slate-500 uppercase">Pilih Barang (Berdasarkan Data Master)</div>
+                <div className="grid grid-cols-2 gap-4">
+                    <SelectField label="Kategori *" value={kategori} onChange={handleKategoriChange} required>
+                        <option value="">Pilih Kategori</option>
+                        {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </SelectField>
+                    <SelectField label="Jenis Pakaian *" value={jenisPakaian} onChange={handleJenisChange} disabled={!kategori} required>
+                        <option value="">Pilih Jenis Pakaian</option>
+                        {availableJenis.map(c => <option key={c} value={c}>{c}</option>)}
+                    </SelectField>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                    <SelectField label="Unit *" value={unit} onChange={handleUnitChange} disabled={!jenisPakaian} required>
+                        <option value="">Pilih Unit</option>
+                        {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+                    </SelectField>
+                    <SelectField label="Gender *" value={gender} onChange={handleGenderChange} disabled={!unit} required>
+                        <option value="">Pilih Gender</option>
+                        {availableGenders.map(g => <option key={g} value={g}>{g === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'}</option>)}
+                    </SelectField>
+                    <SelectField label="Ukuran *" value={ukuran} onChange={handleUkuranChange} disabled={!gender} required>
+                        <option value="">Pilih Ukuran</option>
+                        {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                    </SelectField>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -250,7 +291,11 @@ export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [
                 <InputField label="Stok Minimal" type="number" name="stokMinimal" value={form.stokMinimal} onChange={handleChange} />
             </div>
 
-            <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4">
+            <button 
+                onClick={() => onSave(form)} 
+                disabled={!form.variantId || !form.gudang || !form.stok}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4 disabled:opacity-50"
+            >
                 Simpan Stok
             </button>
         </div>
