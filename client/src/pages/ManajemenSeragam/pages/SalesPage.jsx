@@ -9,7 +9,7 @@ import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
 
 const TABS = [
-    { key: 'sales', label: 'Penjualan', icon: <ShoppingCart size={16} /> },
+    { key: 'sales', label: 'Pesanan', icon: <ShoppingCart size={16} /> },
     { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
     { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
 ];
@@ -99,8 +99,8 @@ export default function SalesPage() {
                     <ShoppingCart size={24} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Penjualan & Distribusi</h1>
-                    <p className="text-slate-500">Kelola pesanan penjualan, paket SPMB, dan retur/tukar ukuran</p>
+                    <h1 className="text-2xl font-bold text-slate-800">Pesanan & Distribusi</h1>
+                    <p className="text-slate-500">Kelola pesanan, paket SPMB, dan retur/tukar ukuran</p>
                 </div>
             </div>
 
@@ -132,7 +132,7 @@ export default function SalesPage() {
 
             <Modal isOpen={modal.open} onClose={closeModal} title={
                 modal.type === 'package' ? (modal.data ? 'Edit Paket' : 'Buat Paket SPMB') :
-                modal.type === 'sale' ? 'Buat Penjualan' :
+                modal.type === 'sale' ? 'Buat Pesanan' :
                 modal.type === 'exchange' ? 'Tukar Ukuran' : ''
             } wide={modal.type === 'package'}>
                 {modal.type === 'package' && (

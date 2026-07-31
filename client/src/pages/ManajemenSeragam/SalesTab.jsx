@@ -8,8 +8,8 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input type="text" placeholder="Cari kode, nama pelanggan, atau siswa..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <button onClick={() => openModal('sale')} className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-green-500/20">
-                <ShoppingCart size={14} /> Buat Penjualan
+            <button onClick={() => openModal('sale')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">
+                <ShoppingCart size={14} /> Buat Pesanan
             </button>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -29,7 +29,7 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
                     {loading ? (
                         <tr><td colSpan="7" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
                     ) : sales.length === 0 ? (
-                        <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi penjualan.</td></tr>
+                        <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi pesanan.</td></tr>
                     ) : sales.map(s => (
                         <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="p-3 font-mono text-xs text-slate-400">{s.code}</td>

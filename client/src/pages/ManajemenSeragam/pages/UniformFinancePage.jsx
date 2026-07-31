@@ -49,7 +49,7 @@ export default function UniformFinancePage() {
                         <div className="p-2 bg-green-100 text-green-600 rounded-lg"><TrendingUp size={16} /></div>
                     </div>
                     <h3 className="text-2xl font-bold text-slate-800">{formatRupiah(summary.totalRevenue)}</h3>
-                    <p className="text-xs text-slate-500 mt-1">Dari Penjualan Seragam</p>
+                    <p className="text-xs text-slate-500 mt-1">Dari Pesanan Seragam</p>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">

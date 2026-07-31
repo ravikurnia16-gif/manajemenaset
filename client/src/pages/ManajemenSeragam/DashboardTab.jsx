@@ -7,7 +7,7 @@ export const DashboardTab = ({ stats }) => (
             <StatCard title="Total Item" value={stats.totalItems || 0} icon={<Shirt size={20} />} color="bg-blue-500" sub={`${stats.totalVariants || 0} variasi ukuran`} />
             <StatCard title="Total Stok" value={(stats.totalStock || 0).toLocaleString('id-ID')} icon={<Package size={20} />} color="bg-green-500" sub={`${stats.warehouses || 0} gudang aktif`} />
             <StatCard title="Stok Menipis" value={stats.lowStockCount || 0} icon={<AlertCircle size={20} />} color="bg-orange-500" sub="Perlu restock" />
-            <StatCard title="Penjualan" value={stats.totalSales || 0} icon={<ShoppingCart size={20} />} color="bg-purple-500" sub={`${stats.pendingSales || 0} pending`} />
+            <StatCard title="Pesanan" value={stats.totalSales || 0} icon={<ShoppingCart size={20} />} color="bg-purple-500" sub={`${stats.pendingSales || 0} pending`} />
         </div>
 
         {stats.lowStockItems && stats.lowStockItems.length > 0 && (

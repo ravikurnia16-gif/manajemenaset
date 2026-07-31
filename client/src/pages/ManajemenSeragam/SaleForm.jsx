@@ -41,15 +41,19 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
     const handlePackageSelect = (pkgId) => {
         const pkg = packages.find(p => String(p.id) === String(pkgId));
         if (pkg) {
-            // Populate form items from package
-            const pkgItems = pkg.items.map(pi => ({
-                itemId: pi.itemId,
-                itemName: pi.item?.name || '',
-                qty: pi.qty,
-                unitPrice: 0, // Should probably come from package price or divided
-                size: '', // Needs to be selected by user later
-                variantId: '' // Needs to be matched with selected size
-            }));
+            const pkgItems = [];
+            pkg.items.forEach(pi => {
+                const itemVariants = variants.filter(v => String(v.itemId) === String(pi.itemId));
+                itemVariants.forEach(v => {
+                    pkgItems.push({
+                        variantId: v.id,
+                        itemName: v.item?.name || pi.item?.name || '',
+                        size: v.size?.name || v.sizeName,
+                        qty: 0,
+                        unitPrice: 0 
+                    });
+                });
+            });
             setForm({ ...form, packageId: pkgId, items: pkgItems, subtotal: pkg.price, isFixedPrice: pkg.isFixedPrice });
         } else {
             setForm({ ...form, packageId: '', items: [] });
@@ -97,7 +101,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Tipe Penjualan" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, items: [] })}>
+                <SelectField label="Tipe Pesanan" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, items: [] })}>
                     <option value="RETAIL">Eceran (Retail)</option>
                     <option value="SPMB">Paket Siswa Baru (SPMB)</option>
                 </SelectField>
@@ -130,25 +134,34 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                     </SelectField>
                     
                     {form.items.length > 0 && (
-                        <div className="space-y-2">
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Tentukan Ukuran per Barang</label>
-                            {form.items.map((item, idx) => {
-                                // Find available sizes for this itemId
-                                const availableSizes = variants.filter(v => String(v.itemId) === String(item.itemId)).map(v => v.sizeName);
-                                return (
-                                    <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                        <div className="flex-1 text-sm font-medium">{item.itemName} (x{item.qty})</div>
-                                        <select 
-                                            className="w-32 border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
-                                            value={item.size}
-                                            onChange={e => updateItemSize(idx, e.target.value)}
-                                        >
-                                            <option value="">- Ukuran -</option>
-                                            {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
+                        <div className="space-y-4">
+                            <label className="block text-xs font-bold text-slate-500 uppercase">Tentukan Jumlah per Ukuran</label>
+                            {Object.entries(form.items.reduce((acc, curr) => {
+                                acc[curr.itemName] = acc[curr.itemName] || [];
+                                acc[curr.itemName].push(curr);
+                                return acc;
+                            }, {})).map(([name, itemVariants]) => (
+                                <div key={name} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                                    <div className="text-sm font-bold text-slate-800">{name}</div>
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                        {itemVariants.map((iv) => {
+                                            const idx = form.items.findIndex(x => x.variantId === iv.variantId);
+                                            return (
+                                                <div key={iv.variantId} className="flex items-center gap-1 bg-white border border-slate-200 rounded p-1">
+                                                    <span className="text-xs text-slate-600 font-medium w-8 text-center">{iv.size}</span>
+                                                    <input 
+                                                        type="number" min="0" 
+                                                        className="w-full border-l border-slate-200 pl-1 py-1 text-xs outline-none bg-transparent" 
+                                                        value={iv.qty || ''} 
+                                                        onChange={e => updateItemQty(idx, e.target.value)} 
+                                                        placeholder="0" 
+                                                    />
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                );
-                            })}
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -224,11 +237,14 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
 
             <div className="pt-2">
                 <button 
-                    onClick={() => onSave(form)} 
-                    disabled={form.items.length === 0 || !form.warehouseId || (form.type === 'SPMB' && form.items.some(i => !i.variantId))}
+                    onClick={() => {
+                        const dataToSave = { ...form, items: form.items.filter(i => i.qty > 0) };
+                        onSave(dataToSave);
+                    }} 
+                    disabled={form.items.filter(i => i.qty > 0).length === 0 || !form.warehouseId || (form.type === 'SPMB' && !form.packageId)}
                     className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:grayscale"
                 >
-                    Simpan Penjualan
+                    Simpan Pesanan
                 </button>
             </div>
         </div>

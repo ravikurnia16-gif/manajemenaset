@@ -83,69 +83,73 @@ export const TransactionForm = ({ variants = [], warehouses = [], vendors = [], 
 
 export const PackageForm = ({ items: initialItems, units, initialData, onSave }) => {
     const [form, setForm] = useState(initialData || { isFixedPrice: true, items: [] });
-    const [selectedItem, setSelectedItem] = useState('');
-    const [itemSearch, setItemSearch] = useState('');
-    const [items, setItems] = useState(initialItems || []);
+    const items = initialItems || [];
+    
+    // Derive unique categories from items
+    const categories = Array.from(new Set(items.map(i => i.category?.name))).filter(Boolean);
 
-    const getItemLabel = (item) => {
-        if (!item) return '';
-        return `${item.category?.name || ''} ${item.gender || ''} ${item.unit?.name || ''}`.trim();
-    };
+    // State for the new fields (used when creating a new package)
+    const [kategori, setKategori] = useState('');
+    const [gender, setGender] = useState('');
+    const [unit, setUnit] = useState('');
+    const [harga, setHarga] = useState(initialData?.price || '');
 
-    const addItem = () => {
-        if (!selectedItem) return;
-        const item = items.find(i => String(i.id) === String(selectedItem));
-        if (!item || form.items?.some(fi => fi.itemId === item.id)) return;
-        setForm({ ...form, items: [...(form.items || []), { itemId: item.id, itemName: getItemLabel(item), qty: 1 }] });
-        setSelectedItem('');
-        setItemSearch('');
+    const handleSave = () => {
+        let packageData = { ...form, price: parseFloat(harga) || 0 };
+        
+        if (!initialData) {
+            const displayGender = gender === 'IKHWAN' ? 'Ikhwan' : gender === 'AKHWAT' ? 'Akhwat' : gender;
+            const generatedName = `${kategori} ${displayGender} ${unit}`.trim();
+            
+            const matchingItems = items.filter(i => 
+                i.category?.name === kategori && 
+                i.gender === gender && 
+                i.unit?.name === unit
+            );
+
+            packageData = {
+                ...packageData,
+                name: generatedName,
+                targetUnit: unit,
+                gender: gender,
+                items: matchingItems.map(i => ({ itemId: i.id, qty: 1 }))
+            };
+        }
+        
+        onSave(packageData);
     };
 
     return (
         <div className="space-y-4">
-            <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Paket Siswa Baru SMP Putra" required />
-            <div className="grid grid-cols-3 gap-4">
-                <SelectField label="Jenjang / Unit" value={form.targetUnit || ''} onChange={e => setForm({ ...form, targetUnit: e.target.value })}>
-                    <option value="">Semua</option>
-                    {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                </SelectField>
-                <SelectField label="Gender" value={form.gender || ''} onChange={e => setForm({ ...form, gender: e.target.value })}>
-                    <option value="">Semua</option>
-                    <option value="IKHWAN">Ikhwan</option><option value="AKHWAT">Akhwat</option>
-                </SelectField>
-                <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} />
-            </div>
-            <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1.5">Isi Paket</label>
-                {(form.items || []).map((fi, idx) => (
-                    <div key={idx} className="flex items-center gap-2 mb-1.5 bg-slate-50 p-2 rounded-lg">
-                        <span className="flex-1 text-sm font-medium">{fi.itemName || items.find(i => i.id === fi.itemId)?.name}</span>
-                        <input type="number" min="1" className="w-16 border rounded-lg px-2 py-1 text-sm text-center" value={fi.qty} onChange={e => { const newItems = [...form.items]; newItems[idx].qty = parseInt(e.target.value) || 1; setForm({ ...form, items: newItems }); }} />
-                        <button onClick={() => setForm({ ...form, items: form.items.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600"><X size={14} /></button>
-                    </div>
-                ))}
-                <div className="flex gap-2 mt-2">
-                    <input 
-                        list="pkg-variants-list" 
-                        value={itemSearch} 
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            const match = items.find(v => getItemLabel(v) === val);
-                            setItemSearch(val);
-                            setSelectedItem(match ? match.id : '');
-                        }} 
-                        placeholder="Ketik untuk mencari Barang..." 
-                        className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white" 
-                    />
-                    <datalist id="pkg-variants-list">
-                        {items.map(v => (
-                            <option key={v.id} value={getItemLabel(v)} />
-                        ))}
-                    </datalist>
-                    <button onClick={addItem} className="px-3 py-2 bg-slate-100 rounded-xl hover:bg-slate-200"><Plus size={14} /></button>
+            {!initialData && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <SelectField label="Kategori" value={kategori} onChange={e => setKategori(e.target.value)}>
+                        <option value="">Pilih Kategori</option>
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </SelectField>
+                    <SelectField label="Gender" value={gender} onChange={e => setGender(e.target.value)}>
+                        <option value="">Pilih Gender</option>
+                        <option value="IKHWAN">Ikhwan</option>
+                        <option value="AKHWAT">Akhwat</option>
+                    </SelectField>
+                    <SelectField label="Jenjang / Unit" value={unit} onChange={e => setUnit(e.target.value)}>
+                        <option value="">Pilih Unit</option>
+                        {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                    </SelectField>
                 </div>
-            </div>
-            <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20">Simpan Paket</button>
+            )}
+            {initialData && (
+                <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} required />
+            )}
+            <InputField label="Harga Paket (Rp)" type="number" value={harga} onChange={e => setHarga(e.target.value)} required />
+            
+            <button 
+                onClick={handleSave} 
+                disabled={!initialData && (!kategori || !gender || !unit || harga === '')} 
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50"
+            >
+                Simpan Paket
+            </button>
         </div>
     );
 };
