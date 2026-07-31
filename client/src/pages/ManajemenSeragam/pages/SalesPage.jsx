@@ -11,13 +11,14 @@ import { ExchangesTab } from '../ExchangesTab';
 import { ExchangeForm } from '../ExchangeForm';
 
 const TABS = [
-    { key: 'sales', label: 'Pesanan', icon: <ShoppingCart size={16} /> },
+    { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> },
+    { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> },
     { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
     { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
 ];
 
 export default function SalesPage() {
-    const [activeTab, setActiveTab] = useState('sales');
+    const [activeTab, setActiveTab] = useState('sales_spmb');
     
     // Data states
     const [sales, setSales] = useState([]);
@@ -56,7 +57,7 @@ export default function SalesPage() {
             setWarehouses(commonRes[3].data);
             setAllPackages(commonRes[4].data);
 
-            if (activeTab === 'sales') {
+            if (activeTab === 'sales_spmb' || activeTab === 'sales_retail') {
                 const r = await api.get('/uniforms/sales', { params: { search } });
                 setSales(r.data);
             } else if (activeTab === 'packages') {
@@ -161,9 +162,21 @@ export default function SalesPage() {
                 </div>
 
                 <div className="p-4 sm:p-5">
-                    {activeTab === 'sales' && (
+                    {activeTab === 'sales_spmb' && (
                         <SalesTab 
-                            sales={sales} 
+                            sales={sales.filter(s => s.type === 'SPMB')} 
+                            loading={loading} 
+                            search={search} 
+                            setSearch={setSearch} 
+                            openModal={openModal} 
+                            canFulfill={canFulfill}
+                            onDelete={handleDeleteSale}
+                            onUpdatePayment={handleUpdatePayment}
+                        />
+                    )}
+                    {activeTab === 'sales_retail' && (
+                        <SalesTab 
+                            sales={sales.filter(s => s.type !== 'SPMB')} 
                             loading={loading} 
                             search={search} 
                             setSearch={setSearch} 
