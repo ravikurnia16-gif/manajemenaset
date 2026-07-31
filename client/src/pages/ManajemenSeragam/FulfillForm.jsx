@@ -30,9 +30,9 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
         setItemsToFulfill(prev => prev.map(item => ({ ...item, warehouseId: whId })));
     };
 
-    const updateItem = (id, field, value) => {
+    const updateGroupWarehouse = (itemName, whId) => {
         setItemsToFulfill(prev => prev.map(item => 
-            item.saleItemId === id ? { ...item, [field]: value } : item
+            item.name === itemName ? { ...item, warehouseId: whId } : item
         ));
     };
 
@@ -46,6 +46,20 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
         }
         onSave(validFulfillments);
     };
+
+    // Group items by name for a simplified UI
+    const groupedItems = Object.values(itemsToFulfill.reduce((acc, item) => {
+        if (!acc[item.name]) {
+            acc[item.name] = { 
+                name: item.name, 
+                totalNeeded: 0, 
+                warehouseId: item.warehouseId || ''
+            };
+        }
+        acc[item.name].totalNeeded += item.needed;
+        if (item.warehouseId) acc[item.name].warehouseId = item.warehouseId;
+        return acc;
+    }, {}));
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -69,34 +83,26 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                 <table className="w-full text-sm">
                     <thead className="bg-slate-100 text-slate-600 font-bold sticky top-0">
                         <tr>
-                            <th className="p-3 text-left">Rincian Barang</th>
-                            <th className="p-3 text-center w-24">Jumlah</th>
+                            <th className="p-3 text-left">Kategori Barang</th>
+                            <th className="p-3 text-center w-24">Total Kurang</th>
                             <th className="p-3 text-left w-48">Gudang Pengeluaran</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {itemsToFulfill.map(item => (
-                            <tr key={item.saleItemId} className="bg-white">
+                        {groupedItems.map((group, idx) => (
+                            <tr key={idx} className="bg-white">
                                 <td className="p-3">
-                                    <div className="font-bold text-slate-800">{item.name}</div>
-                                    <div className="text-xs text-slate-500">Ukuran: {item.size} | Kurang: <span className="font-bold text-rose-500">{item.needed}</span></div>
+                                    <div className="font-bold text-slate-800">{group.name}</div>
                                 </td>
-                                <td className="p-3">
-                                    <input 
-                                        type="number" 
-                                        min="0" 
-                                        max={item.needed}
-                                        className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-center focus:ring-2 focus:ring-blue-500 outline-none" 
-                                        value={item.qty} 
-                                        onChange={e => updateItem(item.saleItemId, 'qty', parseInt(e.target.value) || 0)}
-                                    />
+                                <td className="p-3 text-center font-bold text-rose-500">
+                                    {group.totalNeeded}
                                 </td>
                                 <td className="p-3">
                                     <select 
                                         className="w-full border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                        value={item.warehouseId} 
-                                        onChange={e => updateItem(item.saleItemId, 'warehouseId', e.target.value)}
-                                        required={item.qty > 0}
+                                        value={group.warehouseId} 
+                                        onChange={e => updateGroupWarehouse(group.name, e.target.value)}
+                                        required
                                     >
                                         <option value="">-- Gudang --</option>
                                         {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
