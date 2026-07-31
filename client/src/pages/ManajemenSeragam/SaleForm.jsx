@@ -139,42 +139,29 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             {form.type === 'SPMB' && (
                 <div className="space-y-4">
                     {form.items.length > 0 && (
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-800">Tentukan Jumlah Paket per Ukuran</label>
-                                <p className="text-xs text-slate-500">Pilih jumlah ukuran untuk masing-masing kategori pakaian.</p>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                            <label className="block text-sm font-bold text-slate-800">Tentukan Jumlah Paket per Ukuran</label>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                                {[...new Set(form.items.map(i => i.size))].map(sizeName => {
+                                    const sampleItem = form.items.find(i => i.size === sizeName);
+                                    return (
+                                        <div key={sizeName} className="flex items-center gap-2 bg-white border border-slate-200 rounded p-1.5 shadow-sm">
+                                            <span className="text-xs font-bold text-slate-700 w-10 text-center">{sizeName}</span>
+                                            <input 
+                                                type="number" min="0" 
+                                                className="w-full border-l border-slate-200 pl-2 py-1 text-sm font-bold text-blue-700 outline-none" 
+                                                value={sampleItem?.qty || ''} 
+                                                onChange={e => {
+                                                    const newQty = parseInt(e.target.value) || 0;
+                                                    const newItems = form.items.map(i => i.size === sizeName ? { ...i, qty: newQty } : i);
+                                                    setForm({ ...form, items: newItems });
+                                                }} 
+                                                placeholder="0" 
+                                            />
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            
-                            {Object.entries(form.items.reduce((acc, curr) => {
-                                acc[curr.categoryName] = acc[curr.categoryName] || [];
-                                acc[curr.categoryName].push(curr);
-                                return acc;
-                            }, {})).map(([category, catItems]) => (
-                                <div key={category} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
-                                    <div className="text-sm font-bold text-slate-800">Kategori: {category}</div>
-                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                                        {[...new Set(catItems.map(i => i.size))].map(sizeName => {
-                                            const sampleItem = catItems.find(i => i.size === sizeName);
-                                            return (
-                                                <div key={sizeName} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded p-1.5 shadow-sm">
-                                                    <span className="text-xs font-bold text-slate-700 w-10 text-center">{sizeName}</span>
-                                                    <input 
-                                                        type="number" min="0" 
-                                                        className="w-full border-l border-slate-200 pl-2 py-1 text-sm font-bold text-blue-700 outline-none bg-transparent" 
-                                                        value={sampleItem?.qty || ''} 
-                                                        onChange={e => {
-                                                            const newQty = parseInt(e.target.value) || 0;
-                                                            const newItems = form.items.map(i => (i.categoryName === category && i.size === sizeName) ? { ...i, qty: newQty } : i);
-                                                            setForm({ ...form, items: newItems });
-                                                        }} 
-                                                        placeholder="0" 
-                                                    />
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
                         </div>
                     )}
                 </div>
