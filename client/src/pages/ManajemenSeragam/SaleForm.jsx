@@ -113,7 +113,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Tipe Pesanan" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, items: [] })}>
+                <SelectField label="Tipe Pesanan" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, items: [], status: e.target.value === 'SPMB' ? 'PENDING' : 'COMPLETED' })}>
                     <option value="RETAIL">Eceran (Retail)</option>
                     <option value="SPMB">Paket Siswa Baru (SPMB)</option>
                 </SelectField>
