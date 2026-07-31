@@ -1,8 +1,8 @@
-import { Search, ShoppingCart } from 'lucide-react';
+import { Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { Badge } from './UIComponents';
 import React from 'react';
 
-export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulfill }) => (
+export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulfill, onDelete }) => (
     <div className="space-y-4">
         <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -56,9 +56,16 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulf
                                     </td>
                                     <td className="p-3 text-center">
                                         <div className="text-xs text-slate-500 mb-1">{new Date(s.createdAt).toLocaleDateString('id-ID')}</div>
-                                        <a href={`/public/invoice-seragam/${s.id}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
-                                            Lihat Invoice
-                                        </a>
+                                        <div className="flex items-center justify-center gap-2">
+                                            <a href={`/public/invoice-seragam/${s.id}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
+                                                Lihat Invoice
+                                            </a>
+                                            {s.status === 'PENDING' && onDelete && (
+                                                <button onClick={() => onDelete(s.id)} className="text-[10px] font-bold text-red-500 hover:text-red-700 p-1 bg-red-50 rounded" title="Batalkan Pesanan">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                                 {hasPackages && s.salePackages.map((pkg, idx) => {

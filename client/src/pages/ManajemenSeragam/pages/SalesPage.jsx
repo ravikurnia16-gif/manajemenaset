@@ -108,6 +108,16 @@ export default function SalesPage() {
         } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan penjualan'); }
     };
 
+    const handleDeleteSale = async (id) => {
+        if (!confirm('Yakin ingin membatalkan/menghapus pesanan ini?')) return;
+        try {
+            await api.delete(`/uniforms/sales/${id}`);
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal menghapus pesanan');
+        }
+    };
+
     const handleSaveExchange = async (formData) => {
         try {
             await api.post('/uniforms/exchanges', formData);
@@ -150,6 +160,7 @@ export default function SalesPage() {
                             setSearch={setSearch} 
                             openModal={openModal} 
                             canFulfill={canFulfill}
+                            onDelete={handleDeleteSale}
                         />
                     )}
                     {activeTab === 'packages' && (

@@ -1462,6 +1462,34 @@ exports.updateSalePayment = async (req, res) => {
     }
 };
 
+exports.deleteSale = async (req, res) => {
+    try {
+        const saleId = parseInt(req.params.id);
+        
+        const sale = await prisma.uniformSale.findUnique({
+            where: { id: saleId },
+            include: { items: true }
+        });
+
+        if (!sale) {
+            return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+        }
+
+        if (sale.status !== 'PENDING') {
+            return res.status(400).json({ error: 'Pesanan yang sudah diproses (sebagian/seluruhnya) tidak dapat dihapus. Harap kembalikan stok secara manual jika ingin membatalkan.' });
+        }
+
+        await prisma.uniformSale.delete({
+            where: { id: saleId }
+        });
+
+        res.json({ message: 'Pesanan berhasil dihapus' });
+    } catch (error) {
+        console.error('Delete Sale Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Fulfill Pending Sale
 exports.fulfillSale = async (req, res) => {
     const { warehouseId, fulfillments } = req.body;
