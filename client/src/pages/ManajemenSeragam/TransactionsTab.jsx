@@ -43,7 +43,7 @@ export const TransactionsTab = ({ transactions, loading, selectedWarehouse, setS
                             </td>
                             <td className="p-3 text-center font-bold">{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
                             <td className="p-3 text-center text-xs text-slate-500">{new Date(t.createdAt).toLocaleDateString('id-ID')}</td>
-                            <td className="p-3 text-xs text-slate-500 italic max-w-[200px] truncate" title={t.notes}>{t.notes || '-'}</td>
+                            <td className="p-3 text-xs text-slate-500 italic max-w-[200px] truncate" title={t.note}>{t.note || '-'}</td>
                         </tr>
                     ))}
                 </tbody>
