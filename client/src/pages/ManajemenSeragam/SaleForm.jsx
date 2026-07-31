@@ -272,7 +272,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                         }
                         onSave(dataToSave);
                     }} 
-                    disabled={form.items.filter(i => i.qty > 0).length === 0 || (form.type === 'RETAIL' && !form.warehouseId) || (form.type === 'SPMB' && (!form.packageId || !form.dueDate))}
+                    disabled={form.items.filter(i => i.qty > 0).length === 0 || (form.type === 'RETAIL' && !form.warehouseId) || (form.type === 'SPMB' && !form.packageId)}
                     className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:grayscale"
                 >
                     Simpan Pesanan
