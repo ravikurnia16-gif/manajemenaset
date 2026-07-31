@@ -3,6 +3,7 @@ import { ShoppingCart, Package, RefreshCw } from 'lucide-react';
 import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
 import { PackageForm } from '../Forms';
+import { SaleForm } from '../SaleForm';
 import { SalesTab } from '../SalesTab';
 import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
@@ -25,6 +26,9 @@ export default function SalesPage() {
     const [units, setUnits] = useState([]);
     const [items, setItems] = useState([]);
     const [variants, setVariants] = useState([]);
+    const [warehouses, setWarehouses] = useState([]);
+    // also keep all packages globally for SaleForm
+    const [allPackages, setAllPackages] = useState([]);
     
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -33,20 +37,25 @@ export default function SalesPage() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // Fetch dropdown data needed for package form
+            // Fetch dropdown data needed for forms
             const commonRes = await Promise.all([
                 api.get('/uniforms/units'),
-                api.get('/uniforms/items')
+                api.get('/uniforms/items'),
+                api.get('/uniforms/variants'),
+                api.get('/uniforms/warehouses'),
+                api.get('/uniforms/packages')
             ]);
             setUnits(commonRes[0].data);
             setItems(commonRes[1].data);
+            setVariants(commonRes[2].data);
+            setWarehouses(commonRes[3].data);
+            setAllPackages(commonRes[4].data);
 
             if (activeTab === 'sales') {
                 const r = await api.get('/uniforms/sales', { params: { search } });
                 setSales(r.data);
             } else if (activeTab === 'packages') {
-                const r = await api.get('/uniforms/packages');
-                setPackages(r.data);
+                setPackages(commonRes[4].data);
             } else if (activeTab === 'exchanges') {
                 const r = await api.get('/uniforms/exchanges');
                 setExchanges(r.data);
@@ -68,16 +77,19 @@ export default function SalesPage() {
 
     const handleSavePackage = async (formData) => {
         try {
-            if (formData.id) {
-                await api.put(`/uniforms/packages/${formData.id}`, formData);
-            } else {
-                await api.post('/uniforms/packages', formData);
-            }
+            if (formData.id) await api.put(`/uniforms/packages/${formData.id}`, formData);
+            else await api.post('/uniforms/packages', formData);
             closeModal();
             fetchData();
-        } catch (err) {
-            alert(err.response?.data?.error || 'Gagal menyimpan');
-        }
+        } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan'); }
+    };
+
+    const handleSaveSale = async (formData) => {
+        try {
+            await api.post('/uniforms/sales', formData);
+            closeModal();
+            fetchData();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan penjualan'); }
     };
 
     return (
@@ -125,6 +137,12 @@ export default function SalesPage() {
             } wide={modal.type === 'package'}>
                 {modal.type === 'package' && (
                     <PackageForm items={items} units={units} onSave={handleSavePackage} initialData={modal.data} />
+                )}
+                {modal.type === 'sale' && (
+                    <SaleForm 
+                        warehouses={warehouses} packages={allPackages} variants={variants} units={units}
+                        onSave={handleSaveSale} initialData={modal.data} 
+                    />
                 )}
             </Modal>
         </div>
