@@ -164,18 +164,35 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                 <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Daftar Isi Paket</label>
                     <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2">
-                        {form.items.map((fi, idx) => {
-                            const actualItem = items.find(i => i.id === fi.itemId);
-                            const displayName = fi.itemName || `${actualItem?.category?.name || ''} ${actualItem?.gender || ''} ${actualItem?.unit?.name || ''} ${actualItem?.clothingType?.name || ''}`.trim();
-                            return (
+                        {(() => {
+                            const groupedItems = (form.items || []).reduce((acc, fi) => {
+                                const actualItem = items.find(i => i.id === fi.itemId);
+                                if (!actualItem) return acc;
+                                const genderFormat = actualItem.gender === 'IKHWAN' ? 'Ikhwan' : actualItem.gender === 'AKHWAT' ? 'Akhwat' : actualItem.gender;
+                                const groupName = `${actualItem.category?.name || ''} ${genderFormat || ''} ${actualItem.unit?.name || ''}`.trim();
+                                
+                                if (!acc[groupName]) {
+                                    acc[groupName] = [];
+                                }
+                                acc[groupName].push(fi.itemId);
+                                return acc;
+                            }, {});
+
+                            return Object.entries(groupedItems).map(([groupName, itemIds], idx) => (
                                 <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                    <span className="flex-1 text-sm font-medium text-slate-700">{displayName}</span>
-                                    <button onClick={() => setForm({ ...form, items: form.items.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600 p-1">
+                                    <span className="flex-1 text-sm font-medium text-slate-700">{groupName}</span>
+                                    <button 
+                                        onClick={() => setForm({ 
+                                            ...form, 
+                                            items: form.items.filter(fi => !itemIds.includes(fi.itemId)) 
+                                        })} 
+                                        className="text-red-400 hover:text-red-600 p-1"
+                                    >
                                         <X size={14} />
                                     </button>
                                 </div>
-                            );
-                        })}
+                            ));
+                        })()}
                     </div>
                 </div>
             )}
