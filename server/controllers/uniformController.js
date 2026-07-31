@@ -1649,7 +1649,7 @@ exports.getExchanges = async (req, res) => {
 };
 
 exports.createExchange = async (req, res) => {
-    const { reason, note, warehouseId, exchanges, fromVariantId, toVariantId, qty } = req.body;
+    const { reason, note, warehouseId, exchanges, fromVariantId, toVariantId, qty, studentName } = req.body;
     try {
         const code = await generateCode('EXC/SRG', 'uniformExchange');
         const whId = parseInt(warehouseId);
@@ -1674,7 +1674,7 @@ exports.createExchange = async (req, res) => {
                     data: {
                         code, 
                         customerName: '-', // removed from form
-                        studentName: '-', // removed from form
+                        studentName: studentName || '-', // restored from form
                         fromVariantId: fVId,
                         toVariantId: tVId,
                         qty: quantity, 

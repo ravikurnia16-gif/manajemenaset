@@ -46,6 +46,7 @@ const VariantInput = ({ label, value, onChange, variants, placeholder }) => {
 
 export const ExchangeForm = ({ warehouses = [], variants = [], onSave }) => {
     const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || '');
+    const [studentName, setStudentName] = useState('');
     const [reason, setReason] = useState('SIZE_MISMATCH');
     const [note, setNote] = useState('');
     const [exchanges, setExchanges] = useState([{ fromVariantId: '', toVariantId: '', qty: 1 }]);
@@ -54,6 +55,7 @@ export const ExchangeForm = ({ warehouses = [], variants = [], onSave }) => {
         e.preventDefault();
         onSave({
             warehouseId,
+            studentName,
             reason,
             note,
             exchanges
@@ -77,10 +79,13 @@ export const ExchangeForm = ({ warehouses = [], variants = [], onSave }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            <SelectField label="Lokasi Gudang Penukaran *" value={warehouseId} onChange={e => setWarehouseId(e.target.value)} required>
-                <option value="">-- Pilih Gudang --</option>
-                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </SelectField>
+            <div className="grid grid-cols-2 gap-4">
+                <InputField label="Nama Siswa *" value={studentName} onChange={e => setStudentName(e.target.value)} required placeholder="Ketik nama siswa..." />
+                <SelectField label="Lokasi Gudang Penukaran *" value={warehouseId} onChange={e => setWarehouseId(e.target.value)} required>
+                    <option value="">-- Pilih Gudang --</option>
+                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </SelectField>
+            </div>
 
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
