@@ -180,145 +180,7 @@ exports.getVariants = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
-exports.downloadItemImportTemplate = async (req, res) => {
-    try {
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Template_Barang');
-
-        sheet.columns = [
-            { header: 'Kategori', key: 'cat', width: 20 },
-            { header: 'Jenis Pakaian', key: 'type', width: 20 },
-            { header: 'Unit', key: 'unit', width: 15 },
-            { header: 'Gender', key: 'gender', width: 15 },
-            { header: 'Ukuran', key: 'size', width: 15 },
-            { header: 'Vendor (Opsional)', key: 'vendor', width: 20 }
-        ];
-
-        // Sample Data
-        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', '']);
-        
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang.xlsx"');
-        await workbook.xlsx.write(res);
-        res.end();
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-exports.importItems = async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
-        const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
-        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak valid' });
-
-        const dataRows = rows.slice(1).filter(r => r.length > 0 && r[0]);
-        let successCount = 0;
-
-        for (let i = 0; i < dataRows.length; i++) {
-            const [catIn, clothIn, unitIn, genderIn, sizeIn, vendorIn] = dataRows[i];
-            
-            if (!catIn || !clothIn || !unitIn || !genderIn || !sizeIn) {
-                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Unit, Gender, dan Ukuran wajib diisi.` });
-            }
-
-            // Upsert Master Data
-            const cat = await prisma.uniformCategory.upsert({
-                where: { name: String(catIn).trim() },
-                create: { name: String(catIn).trim() },
-                update: {}
-            });
-            const cloth = await prisma.uniformClothingType.upsert({
-                where: { name: String(clothIn).trim() },
-                create: { name: String(clothIn).trim() },
-                update: {}
-            });
-            const unit = await prisma.uniformUnit.upsert({
-                where: { name: String(unitIn).trim() },
-                create: { name: String(unitIn).trim() },
-                update: {}
-            });
-            const size = await prisma.uniformSize.upsert({
-                where: { name: String(sizeIn).trim().toUpperCase() },
-                create: { name: String(sizeIn).trim().toUpperCase() },
-                update: {}
-            });
-            
-            let vendor = null;
-            if (vendorIn) {
-                vendor = await prisma.uniformVendor.upsert({
-                    where: { name: String(vendorIn).trim() },
-                    create: { name: String(vendorIn).trim() },
-                    update: {}
-                });
-            }
-
-            // Find or Create Item
-            const gender = String(genderIn).trim().toUpperCase();
-            const itemName = `${cat.name} ${cloth.name} ${gender} ${unit.name}`;
-            
-            let item = await prisma.uniformItem.findFirst({
-                where: {
-                    categoryId: cat.id,
-                    clothingTypeId: cloth.id,
-                    unitId: unit.id,
-                    gender: gender,
-                    vendorId: vendor ? vendor.id : null
-                }
-            });
-
-            if (!item) {
-                const prefix = `SRG/${unit.name.toUpperCase()}/${gender}/`;
-                const lastItem = await prisma.uniformItem.findFirst({
-                    where: { code: { startsWith: prefix } },
-                    orderBy: { code: 'desc' }
-                });
-                let seq = 1;
-                if (lastItem) {
-                    const lastSeq = parseInt(lastItem.code.replace(prefix, ''), 10);
-                    if (!isNaN(lastSeq)) seq = lastSeq + 1;
-                }
-                const code = `${prefix}${String(seq).padStart(3, '0')}`;
-
-                item = await prisma.uniformItem.create({
-                    data: {
-                        name: itemName,
-                        code: code,
-                        categoryId: cat.id,
-                        clothingTypeId: cloth.id,
-                        unitId: unit.id,
-                        gender: gender,
-                        vendorId: vendor ? vendor.id : null,
-                        sellPrice: 0,
-                        targetUnit: unit.name
-                    }
-                });
-            }
-
-            // Find or Create Variant
-            let variant = await prisma.uniformVariant.findUnique({
-                where: {
-                    itemId_sizeName: { itemId: item.id, sizeName: size.name }
-                }
-            });
-
-            if (!variant) {
-                const sku = `${item.code}-${size.name}`;
-                variant = await prisma.uniformVariant.create({
-                    data: { itemId: item.id, sizeName: size.name, sku: sku }
-                });
-            }
-            successCount++;
-        }
-
-        res.json({ message: `Berhasil mengimpor ${successCount} data barang master.` });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
+;
 
 exports.createSize = async (req, res) => {
     try {
@@ -498,7 +360,7 @@ exports.applyPricingRules = async (req, res) => {
 };
 
 // ========== ITEM IMPORT ==========
-exports.downloadImportTemplate = (req, res) => {
+exports.downloadItemImportTemplate = (req, res) => {
     try {
         const wb = xlsx.utils.book_new();
         const wsData = [
