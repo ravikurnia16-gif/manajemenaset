@@ -1828,8 +1828,9 @@ model UniformPackage {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  items       UniformPackageItem[]
-  sales       UniformSale[]
+  items         UniformPackageItem[]
+  sales         UniformSale[]
+  salePackages  UniformSalePackage[]
 }
 
 // Item di dalam paket
