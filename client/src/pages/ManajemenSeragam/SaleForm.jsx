@@ -218,16 +218,21 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             <div className="border-t pt-4 grid grid-cols-2 gap-4">
                 <div className="space-y-4">
                     {form.type === 'RETAIL' && (
-                        <SelectField label="Status Pengambilan" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-                            <option value="COMPLETED">Diambil Semua Sekarang (Stok Keluar)</option>
-                            <option value="PENDING">Diambil Nanti (Backorder)</option>
-                        </SelectField>
+                        <>
+                            <SelectField label="Status Pengambilan" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                                <option value="COMPLETED">Diambil Semua Sekarang (Stok Keluar)</option>
+                                <option value="PENDING">Diambil Nanti (Backorder)</option>
+                            </SelectField>
+                            <SelectField label="Metode Pembayaran" value={form.paymentMethod} onChange={e => setForm({ ...form, paymentMethod: e.target.value })}>
+                                <option value="CASH">Tunai (Cash)</option>
+                                <option value="TRANSFER">Transfer Bank</option>
+                                <option value="QRIS">QRIS</option>
+                            </SelectField>
+                        </>
                     )}
-                    <SelectField label="Metode Pembayaran" value={form.paymentMethod} onChange={e => setForm({ ...form, paymentMethod: e.target.value })}>
-                        <option value="CASH">Tunai (Cash)</option>
-                        <option value="TRANSFER">Transfer Bank</option>
-                        <option value="QRIS">QRIS</option>
-                    </SelectField>
+                    {form.type === 'SPMB' && (
+                        <InputField type="date" label="Tenggat Pelunasan Tagihan *" value={form.dueDate || ''} onChange={e => setForm({ ...form, dueDate: e.target.value })} required />
+                    )}
                 </div>
                 
                 <div className="bg-blue-50 p-4 rounded-xl space-y-2">
@@ -235,18 +240,22 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                         <span className="text-slate-500">Subtotal</span>
                         <span className="font-bold">Rp {form.subtotal.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm items-center">
-                        <span className="text-slate-500">Diskon</span>
-                        <input type="number" className="w-24 border rounded px-2 py-1 text-right text-sm" value={form.discount} onChange={e => setForm({ ...form, discount: e.target.value })} />
-                    </div>
+                    {form.type === 'RETAIL' && (
+                        <div className="flex justify-between text-sm items-center">
+                            <span className="text-slate-500">Diskon</span>
+                            <input type="number" className="w-24 border rounded px-2 py-1 text-right text-sm" value={form.discount} onChange={e => setForm({ ...form, discount: e.target.value })} />
+                        </div>
+                    )}
                     <div className="flex justify-between text-lg font-black text-blue-700 pt-2 border-t border-blue-100">
-                        <span>Total</span>
+                        <span>Total Tagihan</span>
                         <span>Rp {form.totalAmount.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm items-center pt-2">
-                        <span className="text-slate-500 font-bold">Dibayar</span>
-                        <input type="number" className="w-32 border border-blue-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-2 py-1 text-right font-bold text-slate-700" value={form.paidAmount} onChange={e => setForm({ ...form, paidAmount: e.target.value })} />
-                    </div>
+                    {form.type === 'RETAIL' && (
+                        <div className="flex justify-between text-sm items-center pt-2">
+                            <span className="text-slate-500 font-bold">Dibayar</span>
+                            <input type="number" className="w-32 border border-blue-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-2 py-1 text-right font-bold text-slate-700" value={form.paidAmount} onChange={e => setForm({ ...form, paidAmount: e.target.value })} />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -258,10 +267,16 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                             if (!dataToSave.customerName) dataToSave.customerName = `Pesanan SPMB ${form.targetUnit || ''}`;
                             if (!dataToSave.warehouseId && warehouses.length > 0) dataToSave.warehouseId = warehouses[0].id;
                             dataToSave.status = 'PENDING';
+                            dataToSave.paidAmount = 0; // Ensure it's marked as UNPAID
+                            dataToSave.discount = 0;
+                            dataToSave.paymentMethod = '';
+                            if (form.dueDate) {
+                                dataToSave.note = (dataToSave.note || '') + `\n[DEADLINE:${form.dueDate}]`;
+                            }
                         }
                         onSave(dataToSave);
                     }} 
-                    disabled={form.items.filter(i => i.qty > 0).length === 0 || (form.type === 'RETAIL' && !form.warehouseId) || (form.type === 'SPMB' && !form.packageId)}
+                    disabled={form.items.filter(i => i.qty > 0).length === 0 || (form.type === 'RETAIL' && !form.warehouseId) || (form.type === 'SPMB' && (!form.packageId || !form.dueDate))}
                     className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:grayscale"
                 >
                     Simpan Pesanan

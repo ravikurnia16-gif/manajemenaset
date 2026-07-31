@@ -86,9 +86,12 @@ export default function SalesPage() {
 
     const handleSaveSale = async (formData) => {
         try {
-            await api.post('/uniforms/sales', formData);
+            const res = await api.post('/uniforms/sales', formData);
             closeModal();
             fetchData();
+            if (formData.type === 'SPMB' && res.data?.id) {
+                window.open(`/public/invoice-seragam/${res.data.id}`, '_blank');
+            }
         } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan penjualan'); }
     };
 

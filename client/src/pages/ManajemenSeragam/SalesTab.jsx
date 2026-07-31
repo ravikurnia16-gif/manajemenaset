@@ -50,7 +50,12 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
                                     </button>
                                 )}
                             </td>
-                            <td className="p-3 text-center text-xs text-slate-500">{new Date(s.createdAt).toLocaleDateString('id-ID')}</td>
+                            <td className="p-3 text-center">
+                                <div className="text-xs text-slate-500 mb-1">{new Date(s.createdAt).toLocaleDateString('id-ID')}</div>
+                                <a href={`/public/invoice-seragam/${s.id}`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
+                                    Lihat Invoice
+                                </a>
+                            </td>
                         </tr>
                     ))}
                 </tbody>
