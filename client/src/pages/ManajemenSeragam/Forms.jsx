@@ -89,7 +89,7 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
 
     const getItemLabel = (item) => {
         if (!item) return '';
-        return `${item.category?.name || ''}_${item.clothingType?.name || ''}_${item.unit?.name || ''}`;
+        return `${item.category?.name || ''} ${item.gender || ''} ${item.unit?.name || ''}`.trim();
     };
 
     const addItem = () => {
