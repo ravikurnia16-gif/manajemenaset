@@ -257,7 +257,7 @@ exports.importItems = async (req, res) => {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gender harus IKHWAN atau AKHWAT.` });
             }
 
-            const itemName = `${cat.name} ${cloth.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit.name}`;
+            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit.name}`;
             
             // Find or Create Item
             let item = await prisma.uniformItem.findFirst({
@@ -575,8 +575,11 @@ exports.addManualStock = async (req, res) => {
                 });
 
                 if (!item) {
+                    const prefix = `SRG/${unitObj.name.toUpperCase()}/${gender.toUpperCase()}/`;
                     const count = await tx.uniformItem.count({ where: { code: { startsWith: prefix } } });
-                    const code = `${prefix}/${String(count + 1).padStart(3, '0')}`;
+                    const code = `${prefix}${String(count + 1).padStart(3, '0')}`;
+                    const itemName = `${typeObj.name} ${catObj.name} ${gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()} ${unitObj.name}`.trim();
+
                     item = await tx.uniformItem.create({
                         data: {
                             code, name: itemName, categoryId: catObj.id, clothingTypeId: typeObj.id,
@@ -828,7 +831,7 @@ exports.importStocks = async (req, res) => {
 
             // Find or Create Item
             const gender = String(genderIn).trim().toUpperCase();
-            const itemName = `${cat.name} ${cloth.name} ${gender} ${unit.name}`;
+            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit.name}`;
             
             let item = await prisma.uniformItem.findFirst({
                 where: {
