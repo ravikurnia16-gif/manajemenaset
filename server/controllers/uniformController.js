@@ -1266,7 +1266,7 @@ exports.getSaleById = async (req, res) => {
 const { generateDocumentNumber } = require('../services/documentNumberingService');
 
 exports.createSale = async (req, res) => {
-    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status } = req.body;
+    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status, dueDate } = req.body;
     try {
         let code;
         if (type === 'SPMB') {
@@ -1280,6 +1280,11 @@ exports.createSale = async (req, res) => {
             let subtotal = 0;
             const saleItems = [];
             const isPending = status === 'PENDING';
+            let pkg = null;
+
+            if (type === 'SPMB' && packageId) {
+                pkg = await tx.uniformPackage.findUnique({ where: { id: parseInt(packageId) } });
+            }
 
             for (const item of items) {
                 const variant = await tx.uniformVariant.findUnique({
@@ -1288,10 +1293,16 @@ exports.createSale = async (req, res) => {
                 });
                 if (!variant) throw new Error(`Variant ID ${item.variantId} tidak ditemukan`);
 
-                const unitPrice = variant.sellPrice || variant.item.sellPrice || 0;
+                let unitPrice = variant.sellPrice || variant.item.sellPrice || 0;
+                if (type === 'SPMB') {
+                    unitPrice = 0;
+                }
+
                 const qty = parseInt(item.qty);
                 const totalPrice = unitPrice * qty;
-                subtotal += totalPrice;
+                if (type !== 'SPMB') {
+                    subtotal += totalPrice;
+                }
 
                 // Check stock availability
                 const stock = await tx.uniformStock.findUnique({
@@ -1341,6 +1352,15 @@ exports.createSale = async (req, res) => {
                 }
             }
 
+            if (type === 'SPMB' && pkg) {
+                const uniqueSizes = [...new Set(items.map(i => i.size))];
+                const totalPackages = uniqueSizes.reduce((sum, size) => {
+                    const sample = items.find(i => i.size === size);
+                    return sum + (sample ? parseInt(sample.qty) : 0);
+                }, 0);
+                subtotal = totalPackages * pkg.price;
+            }
+
             const disc = parseFloat(discount || 0);
             const totalAmount = subtotal - disc;
             const paid = parseFloat(paidAmount || 0);
@@ -1359,6 +1379,7 @@ exports.createSale = async (req, res) => {
                     status: isPending ? 'PENDING' : (allDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED'),
                     scheduleId: scheduleId ? parseInt(scheduleId) : null,
                     note,
+                    dueDate: dueDate ? new Date(dueDate) : null,
                     items: { create: saleItems }
                 },
                 include: { items: true, warehouse: true }

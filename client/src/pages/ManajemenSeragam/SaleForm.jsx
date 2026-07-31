@@ -29,14 +29,25 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
     const [selectedVariant, setSelectedVariant] = useState('');
 
     useEffect(() => {
-        const subtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
+        let subtotal = 0;
+        if (form.type === 'SPMB' && form.packagePrice) {
+            const uniqueSizes = [...new Set(form.items.map(i => i.size))];
+            const totalPackages = uniqueSizes.reduce((sum, size) => {
+                const sample = form.items.find(i => i.size === size);
+                return sum + (sample ? sample.qty : 0);
+            }, 0);
+            subtotal = totalPackages * form.packagePrice;
+        } else {
+            subtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
+        }
+        
         const totalAmount = subtotal - (parseFloat(form.discount) || 0);
         let paymentStatus = 'UNPAID';
         if (parseFloat(form.paidAmount) >= totalAmount && totalAmount > 0) paymentStatus = 'PAID';
         else if (parseFloat(form.paidAmount) > 0) paymentStatus = 'PARTIAL';
 
         setForm(f => ({ ...f, subtotal, totalAmount, paymentStatus }));
-    }, [form.items, form.discount, form.paidAmount]);
+    }, [form.items, form.discount, form.paidAmount, form.type, form.packagePrice]);
 
     const handlePackageSelect = (pkgId) => {
         const pkg = packages.find(p => String(p.id) === String(pkgId));
@@ -55,9 +66,9 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                     });
                 });
             });
-            setForm({ ...form, packageId: pkgId, items: pkgItems, subtotal: pkg.price, isFixedPrice: pkg.isFixedPrice });
+            setForm({ ...form, packageId: pkgId, items: pkgItems, packagePrice: pkg.price, subtotal: 0, isFixedPrice: pkg.isFixedPrice });
         } else {
-            setForm({ ...form, packageId: '', items: [] });
+            setForm({ ...form, packageId: '', items: [], packagePrice: 0 });
         }
     };
 
