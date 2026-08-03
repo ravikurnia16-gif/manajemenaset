@@ -437,6 +437,8 @@ model Setting {
   busInitialFund  Float    @default(0) // Dana awal operasional Bus
   surveyEnabled   Boolean  @default(false)
   aiAllowedGroups String?  @db.Text
+  workshopPicKayu String?  // Nama Penanggung Jawab Workshop Kayu
+  workshopPicBesi String?  // Nama Penanggung Jawab Workshop Besi
   updatedAt       DateTime @updatedAt
 }
 

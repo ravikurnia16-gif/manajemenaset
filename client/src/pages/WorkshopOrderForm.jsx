@@ -11,6 +11,10 @@ const WorkshopOrderForm = () => {
     const userStr = localStorage.getItem('user');
     const userObj = userStr ? JSON.parse(userStr) : null;
     const isAdminUnit21 = userObj?.role === 'ADMIN_UNIT' && userObj?.unitId === 21;
+    const isAdminOrSarpras = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(userObj?.role) || isAdminUnit21;
+
+    // PIC Workshop dari Settings (diambil sekali dari server)
+    const [workshopPics, setWorkshopPics] = useState({ KAYU: '', BESI: '' });
 
     const location = useLocation();
     const fromMaintenance = location.state?.fromMaintenance;
@@ -28,15 +32,22 @@ const WorkshopOrderForm = () => {
     const [units, setUnits] = useState([]);
 
     useEffect(() => {
-        const fetchUnits = async () => {
+        const fetchData = async () => {
             try {
-                const res = await api.get('/master/units');
-                setUnits(res.data);
+                const [unitsRes, settingsRes] = await Promise.all([
+                    api.get('/master/units'),
+                    api.get('/settings')
+                ]);
+                setUnits(unitsRes.data);
+                setWorkshopPics({
+                    KAYU: settingsRes.data?.workshopPicKayu || '',
+                    BESI: settingsRes.data?.workshopPicBesi || ''
+                });
             } catch (err) {
-                console.error('Failed to fetch units:', err);
+                console.error('Failed to fetch data:', err);
             }
         };
-        fetchUnits();
+        fetchData();
     }, []);
 
     const [items, setItems] = useState([
@@ -44,7 +55,16 @@ const WorkshopOrderForm = () => {
     ]);
 
     const handleFormChange = (field, value) => {
-        setForm(prev => ({ ...prev, [field]: value }));
+        if (field === 'workshopType') {
+            // Auto-set PIC dari Settings global jika field PIC belum diisi manual
+            setForm(prev => ({
+                ...prev,
+                [field]: value,
+                picName: prev.picName || workshopPics[value] || ''
+            }));
+        } else {
+            setForm(prev => ({ ...prev, [field]: value }));
+        }
     };
 
     const handleItemChange = (index, field, value) => {
@@ -148,21 +168,26 @@ const WorkshopOrderForm = () => {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {isAdminUnit21 && (
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tipe Workshop *</label>
-                                    <select
-                                        className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                                        value={form.workshopType}
-                                        onChange={e => handleFormChange('workshopType', e.target.value)}
-                                        required
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tipe Workshop *</label>
+                                <select
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                    value={form.workshopType}
+                                    onChange={e => handleFormChange('workshopType', e.target.value)}
+                                    required={isAdminOrSarpras}
+                                >
+                                    <option value="">-- Pilih Tipe --</option>
+                                    <option value="KAYU">🪵 Workshop Kayu</option>
+                                    <option value="BESI">⚙️ Workshop Besi</option>
+                                </select>
+                                {form.workshopType && (
+                                    <p className="text-[10px] mt-1 font-semibold"
+                                        style={{ color: form.workshopType === 'KAYU' ? '#c2410c' : '#475569' }}
                                     >
-                                        <option value="">-- Pilih Tipe --</option>
-                                        <option value="KAYU">Workshop Kayu</option>
-                                        <option value="BESI">Workshop Besi</option>
-                                    </select>
-                                </div>
-                            )}
+                                        PJ Default: {workshopPics[form.workshopType] || 'Belum diatur'}
+                                    </p>
+                                )}
+                            </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Prioritas</label>
                                 <select
@@ -186,13 +211,26 @@ const WorkshopOrderForm = () => {
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">PIC Workshop (Opsional)</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block flex items-center gap-1">
+                                    PIC / Penanggung Jawab
+                                    {form.workshopType && (
+                                        <span className="ml-1 px-1.5 py-0.5 text-[9px] rounded font-bold"
+                                            style={{
+                                                background: form.workshopType === 'KAYU' ? '#fff7ed' : '#f1f5f9',
+                                                color: form.workshopType === 'KAYU' ? '#c2410c' : '#475569',
+                                            }}
+                                        >
+                                            {form.workshopType}
+                                        </span>
+                                    )}
+                                </label>
                                 <input
                                     className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    placeholder="Nama PIC / Kepala Workshop"
+                                    placeholder={form.workshopType ? (workshopPics[form.workshopType] || 'Nama PIC') : 'Nama PIC / Kepala Workshop'}
                                     value={form.picName}
                                     onChange={e => handleFormChange('picName', e.target.value)}
                                 />
+                                <p className="text-[10px] text-slate-400 mt-1">Kosongkan untuk pakai PIC default sesuai tipe workshop.</p>
                             </div>
                         </div>
 

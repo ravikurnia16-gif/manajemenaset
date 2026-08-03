@@ -101,7 +101,14 @@ function WorkshopOrderList() {
                     </button>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-800">Daftar Pesanan Workshop</h1>
-                        <p className="text-sm text-gray-500">Kelola pesanan pekerjaan Workshop Kayu & Besi</p>
+                        <p className="text-sm text-gray-500">
+                            Kelola pesanan pekerjaan Workshop Kayu & Besi
+                            {userObj?.unit?.name && (
+                                <span className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100 font-semibold">
+                                    Unit: {userObj.unit.name}
+                                </span>
+                            )}
+                        </p>
                     </div>
                 </div>
                 <div className="flex space-x-2">
@@ -177,7 +184,7 @@ function WorkshopOrderList() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pemohon</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tgl / Deadline</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                                <th className="px-6 py-3 text-right pr-12 text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -236,8 +243,8 @@ function WorkshopOrderList() {
                                             {getStatusBadge(order.status)}
                                             {order.priority === 'URGENT' && <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 text-[10px] rounded uppercase font-bold">Urgent</span>}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex justify-end space-x-2">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <div className="flex justify-end pr-6 space-x-2">
                                                 <Link to={`/workshop/orders/${order.id}`} className="text-blue-600 hover:text-blue-900 p-1.5 hover:bg-blue-50 rounded" title="Lihat Detail">
                                                     <Eye size={18} />
                                                 </Link>

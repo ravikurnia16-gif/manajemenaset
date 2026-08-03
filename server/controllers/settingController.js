@@ -33,7 +33,8 @@ exports.updateSettings = async (req, res) => {
     const {
         orgName, orgAddress, orgPhone, orgEmail,
         orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-        busInitialFund, surveyEnabled, aiAllowedGroups
+        busInitialFund, surveyEnabled, aiAllowedGroups,
+        workshopPicKayu, workshopPicBesi
     } = req.body;
 
     const settings = await prisma.setting.upsert({
@@ -41,13 +42,15 @@ exports.updateSettings = async (req, res) => {
         update: {
             orgName, orgAddress, orgPhone, orgEmail,
             orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-            busInitialFund, surveyEnabled, aiAllowedGroups
+            busInitialFund, surveyEnabled, aiAllowedGroups,
+            workshopPicKayu, workshopPicBesi
         },
         create: {
             id: SETTING_ID,
             orgName, orgAddress, orgPhone, orgEmail,
             orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-            busInitialFund, surveyEnabled, aiAllowedGroups
+            busInitialFund, surveyEnabled, aiAllowedGroups,
+            workshopPicKayu, workshopPicBesi
         }
     });
 
@@ -57,3 +60,4 @@ exports.updateSettings = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+

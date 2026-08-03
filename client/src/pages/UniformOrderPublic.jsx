@@ -100,12 +100,27 @@ export default function UniformOrderPublic() {
                 itemName: `${v.item?.name} (${v.size?.name || v.sizeName})`,
                 size: v.size?.name || v.sizeName,
                 qty: parseInt(retailInput.qty),
-                unitPrice: v.item?.sellPrice || 0
+                unitPrice: (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)
             });
         });
 
         setForm({ ...form, items: newItems });
         setRetailInput({ ...retailInput, size: '', qty: 1 });
+    };
+
+    const getSizePriceStr = (sizeName) => {
+        let targets = [];
+        if (retailInput.clothingType === 'SEMUA_SETELAN') {
+            targets = availableVariants.filter(v => v.item?.category?.name === retailInput.category && (v.size?.name || v.sizeName) === sizeName);
+        } else {
+            targets = availableVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType && (v.size?.name || v.sizeName) === sizeName);
+        }
+        if (targets.length === 0) return '';
+        const totalPrice = targets.reduce((sum, v) => {
+            const price = (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0);
+            return sum + price;
+        }, 0);
+        return ` - Rp ${totalPrice.toLocaleString('id-ID')}`;
     };
 
     const updateItemQty = (idx, qty) => {
@@ -195,7 +210,11 @@ export default function UniformOrderPublic() {
 
                             <SelectField label="Ukuran" value={retailInput.size} onChange={e => setRetailInput({ ...retailInput, size: e.target.value })} disabled={!retailInput.clothingType}>
                                 <option value="">-- Ukuran --</option>
-                                {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                                {availableSizes.map(s => (
+                                    <option key={s} value={s}>
+                                        {s}{getSizePriceStr(s)}
+                                    </option>
+                                ))}
                             </SelectField>
 
                             <InputField type="number" min="1" label="Jumlah" value={retailInput.qty} onChange={e => setRetailInput({ ...retailInput, qty: e.target.value })} disabled={!retailInput.size} />
@@ -206,6 +225,12 @@ export default function UniformOrderPublic() {
                                 </button>
                             </div>
                         </div>
+
+                        {retailInput.size && (
+                            <div className="text-sm font-bold text-slate-700 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 inline-block">
+                                Estimasi Harga Satuan: <span className="text-blue-600 text-lg font-black">{getSizePriceStr(retailInput.size).replace(' - ', '')}</span>
+                            </div>
+                        )}
 
                         {/* Keranjang */}
                         {form.items.length > 0 && (

@@ -142,6 +142,7 @@ exports.getAllOrders = async (req, res) => {
         if (priority) whereClause.priority = priority;
 
         if (!isWorkshopAdmin) {
+            // Jika user memilih filter myUnitOnly atau default untuk non-admin
             if (user.unitId) {
                 whereClause.unitId = user.unitId;
             } else {

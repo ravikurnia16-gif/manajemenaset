@@ -14,7 +14,9 @@ const Settings = () => {
         orgHeadNip: '',
         assetCodePrefix: 'AST',
         surveyEnabled: false,
-        aiAllowedGroups: ''
+        aiAllowedGroups: '',
+        workshopPicKayu: '',
+        workshopPicBesi: ''
     });
     const [myProfile, setMyProfile] = useState({
         name: '',
@@ -599,6 +601,43 @@ const Settings = () => {
                                 </div>
                             </div>
                             <p className="text-xs text-slate-400">Data ini akan muncul pada kolom tanda tangan di laporan aset.</p>
+                        </div>
+
+                        {/* Workshop PIC Section */}
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 space-y-5">
+                            <div className="flex items-center gap-2 pb-2 border-b border-slate-50 text-emerald-600">
+                                <Wrench size={20} />
+                                <h2 className="font-semibold uppercase tracking-wider text-xs">Penanggung Jawab Workshop</h2>
+                            </div>
+                            <p className="text-xs text-slate-500">Nama PIC ini akan otomatis terisi di setiap form pesanan workshop sesuai tipenya. Bisa dioverride manual per pesanan jika perlu.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] rounded font-bold">🪵 KAYU</span>
+                                        Nama PJ Workshop Kayu
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.workshopPicKayu || ''}
+                                        onChange={e => setSettings({ ...settings, workshopPicKayu: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        placeholder="Contoh: Bapak Ahmad"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <span className="inline-block px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] rounded font-bold">⚙️ BESI</span>
+                                        Nama PJ Workshop Besi
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={settings.workshopPicBesi || ''}
+                                        onChange={e => setSettings({ ...settings, workshopPicBesi: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        placeholder="Contoh: Bapak Budi"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
