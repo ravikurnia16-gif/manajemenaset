@@ -190,7 +190,7 @@ export default function UniformOrderPublic() {
                             <SelectField label="Jenis Pakaian" value={retailInput.clothingType} onChange={e => setRetailInput({ ...retailInput, clothingType: e.target.value, size: '' })} disabled={!retailInput.category}>
                                 <option value="">-- Jenis --</option>
                                 {availableClothingTypes.map(c => <option key={c} value={c}>{c}</option>)}
-                                {availableClothingTypes.length > 1 && <option value="SEMUA_SETELAN" className="font-bold text-blue-600">Baju & Celana (Setelan)</option>}
+                                {availableClothingTypes.length > 1 && <option value="SEMUA_SETELAN" className="font-bold text-blue-600">Seragam Lengkap</option>}
                             </SelectField>
 
                             <SelectField label="Ukuran" value={retailInput.size} onChange={e => setRetailInput({ ...retailInput, size: e.target.value })} disabled={!retailInput.clothingType}>
