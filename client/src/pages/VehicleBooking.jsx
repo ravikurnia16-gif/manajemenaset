@@ -2389,6 +2389,7 @@ const VehicleBooking = () => {
                                                         <div className="font-bold text-slate-700">{b.vehicle?.name}</div>
                                                         <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                     </td>
+                                                    <td className="px-6 py-4">
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
                                                             <Clock size={12} className="text-blue-500" />
                                                             Jadwal: {new Date(b.startDate).toLocaleString('id-ID')}
