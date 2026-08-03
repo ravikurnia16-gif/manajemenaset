@@ -621,10 +621,13 @@ const Settings = () => {
                                         onChange={e => setSettings({ ...settings, workshopPicKayu: e.target.value })}
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                                     >
-                                        <option value="">-- Pilih User --</option>
-                                        {users.map(u => (
-                                            <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
-                                        ))}
+                                        <option value="">-- Pilih User Workshop --</option>
+                                        {users
+                                            .filter(u => (u.unit?.name || '').toLowerCase().includes('workshop') || u.unitId === 21)
+                                            .map(u => (
+                                                <option key={u.id} value={u.name}>{u.name} ({u.unit?.name || 'Workshop'})</option>
+                                            ))
+                                        }
                                     </select>
                                 </div>
                                 <div>
@@ -637,10 +640,13 @@ const Settings = () => {
                                         onChange={e => setSettings({ ...settings, workshopPicBesi: e.target.value })}
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                                     >
-                                        <option value="">-- Pilih User --</option>
-                                        {users.map(u => (
-                                            <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
-                                        ))}
+                                        <option value="">-- Pilih User Workshop --</option>
+                                        {users
+                                            .filter(u => (u.unit?.name || '').toLowerCase().includes('workshop') || u.unitId === 21)
+                                            .map(u => (
+                                                <option key={u.id} value={u.name}>{u.name} ({u.unit?.name || 'Workshop'})</option>
+                                            ))
+                                        }
                                     </select>
                                 </div>
                             </div>
