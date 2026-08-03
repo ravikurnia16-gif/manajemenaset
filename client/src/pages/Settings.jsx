@@ -616,26 +616,32 @@ const Settings = () => {
                                         <span className="inline-block px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] rounded font-bold">🪵 KAYU</span>
                                         Nama PJ Workshop Kayu
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={settings.workshopPicKayu || ''}
                                         onChange={e => setSettings({ ...settings, workshopPicKayu: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                        placeholder="Contoh: Bapak Ahmad"
-                                    />
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                    >
+                                        <option value="">-- Pilih User --</option>
+                                        {users.map(u => (
+                                            <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
                                         <span className="inline-block px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] rounded font-bold">⚙️ BESI</span>
                                         Nama PJ Workshop Besi
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={settings.workshopPicBesi || ''}
                                         onChange={e => setSettings({ ...settings, workshopPicBesi: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                        placeholder="Contoh: Bapak Budi"
-                                    />
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                    >
+                                        <option value="">-- Pilih User --</option>
+                                        {users.map(u => (
+                                            <option key={u.id} value={u.name}>{u.name} ({u.role})</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                         </div>
