@@ -592,6 +592,7 @@ model Vehicle {
   photo              String? @db.LongText // Foto Kendaraan (Base64 support)
   status             String  @default("ACTIVE") // ACTIVE / INACTIVE
   isRentable         Boolean @default(false) // Bisa disewa atau tidak
+  rentalPrice12Hours Float?
   defaultRentalPrice Float? // Biaya Sewa Default per hari
   lastPosition       String? // Posisi terakhir kendaraan (Lapai, Islamic, dll)
   lastFuelCondition  String? // Kondisi BBM terakhir (LOW, MEDIUM, HIGH)

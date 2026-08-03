@@ -26,6 +26,7 @@ const VehicleForm = () => {
         kirDueDate: '',
         picIds: [],
         isRentable: false,
+        rentalPrice12Hours: '',
         defaultRentalPrice: '',
         requireDailyChecklist: false,
         requireWeeklyChecklist: false,
@@ -61,6 +62,7 @@ const VehicleForm = () => {
                 kirDueDate: formatDate(data.kirDueDate),
                 picIds: data.pics?.map(p => p.id) || [],
                 isRentable: !!data.isRentable,
+                rentalPrice12Hours: data.rentalPrice12Hours || '',
                 defaultRentalPrice: data.defaultRentalPrice || '',
                 requireDailyChecklist: !!data.requireDailyChecklist,
                 requireWeeklyChecklist: !!data.requireWeeklyChecklist,
@@ -420,16 +422,28 @@ const VehicleForm = () => {
                             </div>
                         </div>
                         {form.isRentable && (
-                            <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biaya Sewa / Hari (Default)</label>
-                                <input
-                                    type="number"
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
-                                    placeholder="Contoh: 500000"
-                                    value={form.defaultRentalPrice}
-                                    onChange={e => setForm({ ...form, defaultRentalPrice: e.target.value })}
-                                />
-                            </div>
+                            <>
+                                <div className="md:col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biaya Sewa 12 Jam</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                        placeholder="Contoh: 250000"
+                                        value={form.rentalPrice12Hours}
+                                        onChange={e => setForm({ ...form, rentalPrice12Hours: e.target.value })}
+                                    />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biaya Sewa 1 Hari (24 Jam)</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                        placeholder="Contoh: 500000"
+                                        value={form.defaultRentalPrice}
+                                        onChange={e => setForm({ ...form, defaultRentalPrice: e.target.value })}
+                                    />
+                                </div>
+                            </>
                         )}
                     </div>
 

@@ -86,7 +86,7 @@ const VehicleBooking = () => {
         passengerCount: 1,
         driverId: JSON.parse(localStorage.getItem('user') || '{}').id || '',
         isRented: false,
-        rentalDays: 1,
+        rentalDuration: 24, // in hours
         startKm: ''
     });
 
@@ -296,11 +296,12 @@ const VehicleBooking = () => {
     }, [showDriverDropdown]);
 
     useEffect(() => {
-        if (formData.isRented && formData.startDate && formData.startTime && formData.rentalDays) {
+        if (formData.isRented && formData.startDate && formData.startTime && formData.rentalDuration) {
             try {
                 const start = new Date(`${formData.startDate}T${formData.startTime}`);
                 if (!isNaN(start.getTime())) {
-                    const end = new Date(start.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000));
+                    const durationMs = parseInt(formData.rentalDuration) * 60 * 60 * 1000;
+                    const end = new Date(start.getTime() + durationMs);
                     
                     // Gunakan local time, jangan toISOString() karena menggunakan UTC (Jam Internasional)
                     const year = end.getFullYear();
@@ -320,7 +321,7 @@ const VehicleBooking = () => {
                 console.error('Error calculating rental end date:', err);
             }
         }
-    }, [formData.isRented, formData.startDate, formData.startTime, formData.rentalDays]);
+    }, [formData.isRented, formData.startDate, formData.startTime, formData.rentalDuration]);
 
     useEffect(() => {
         fetchVehicles();
@@ -546,11 +547,18 @@ const VehicleBooking = () => {
                 return;
             }
 
+            let calculatedRentalPrice = null;
+            if (formData.isRented && selectedVehicle) {
+                const duration = parseInt(formData.rentalDuration);
+                if (duration === 12) calculatedRentalPrice = selectedVehicle.rentalPrice12Hours;
+                else calculatedRentalPrice = (selectedVehicle.defaultRentalPrice || 0) * (duration / 24);
+            }
+
             await api.post('/vehicles/booking/request', {
                 ...formData,
                 startDate: startDateObj,
                 endDate: new Date(endStr),
-                rentalPrice: formData.isRented ? selectedVehicle?.defaultRentalPrice : null,
+                rentalPrice: calculatedRentalPrice,
                 startKm: formData.startKm || null
             });
             showToast('Permohonan berhasil dikirim!', 'success');
@@ -563,7 +571,7 @@ const VehicleBooking = () => {
                 endDate: new Date().toISOString().split('T')[0],
                 endTime: '17:00',
                 destination: '', purpose: '', passengerCount: 1, driverId: user.id || '',
-                isRented: false, rentalDays: 1, startKm: ''
+                isRented: false, rentalDuration: 24, startKm: ''
             });
         } catch (err) {
             showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
@@ -934,6 +942,13 @@ const VehicleBooking = () => {
         const checkedVehicleIds = todayChecklists.map(c => c.vehicleId);
         return vehicles.filter(v => v.status === 'ACTIVE' && v.requireDailyChecklist !== false && !checkedVehicleIds.includes(v.id));
     }, [isStaffKendaraan, vehicles, checklists]);
+
+    const getRentalPrice = () => {
+        if (!selectedVehicle || !formData.isRented) return 0;
+        const duration = parseInt(formData.rentalDuration) || 24;
+        if (duration === 12) return selectedVehicle.rentalPrice12Hours || 0;
+        return (selectedVehicle.defaultRentalPrice || 0) * (duration / 24);
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -1571,26 +1586,27 @@ const VehicleBooking = () => {
                                         {/* Selesai / Lama Sewa */}
                                         {formData.isRented ? (
                                             <>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Lama Sewa (Hari)</label>
-                                                    <div className="relative">
-                                                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" size={16} />
-                                                        <input
-                                                            type="number" min="1" required
-                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                                                            value={formData.rentalDays}
-                                                            onChange={e => setFormData({ ...formData, rentalDays: parseInt(e.target.value) || 1 })}
-                                                        />
-                                                    </div>
+                                                <div className="md:col-span-1">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Durasi Sewa</label>
+                                                    <select
+                                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm"
+                                                        value={formData.rentalDuration}
+                                                        onChange={e => setFormData({ ...formData, rentalDuration: parseInt(e.target.value) || 24 })}
+                                                    >
+                                                        <option value="12">12 Jam</option>
+                                                        {[...Array(30)].map((_, i) => (
+                                                            <option key={i} value={(i + 1) * 24}>{i + 1} Hari</option>
+                                                        ))}
+                                                    </select>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Biaya Sewa per Hari</label>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Biaya Sewa</label>
                                                     <div className="relative">
                                                         <Receipt className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" size={16} />
                                                         <input
                                                             type="text" readOnly
                                                             className="w-full bg-slate-100 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-indigo-600 cursor-not-allowed"
-                                                            value={selectedVehicle?.defaultRentalPrice ? `Rp ${selectedVehicle.defaultRentalPrice.toLocaleString('id-ID')}` : 'Rp 0'}
+                                                            value={`Rp ${getRentalPrice().toLocaleString('id-ID')}`}
                                                         />
                                                     </div>
                                                 </div>

@@ -97,6 +97,7 @@ exports.createVehicle = async (req, res) => {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
             taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice,
+            rentalPrice12Hours,
             requireDailyChecklist, requireWeeklyChecklist, requireMonthlyChecklist
         } = req.body;
 
@@ -116,6 +117,8 @@ exports.createVehicle = async (req, res) => {
                 photo: req.fileUrl || null,
                 status: status || 'ACTIVE',
                 isRentable: isRentable === true || isRentable === 'true',
+
+                rentalPrice12Hours: rentalPrice12Hours ? parseFloat(rentalPrice12Hours) : null,
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
                 requireDailyChecklist: requireDailyChecklist === true || requireDailyChecklist === 'true',
                 requireWeeklyChecklist: requireWeeklyChecklist === true || requireWeeklyChecklist === 'true',
@@ -148,6 +151,7 @@ exports.updateVehicle = async (req, res) => {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
             taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice,
+            rentalPrice12Hours,
             requireDailyChecklist, requireWeeklyChecklist, requireMonthlyChecklist
         } = req.body;
 
@@ -185,6 +189,7 @@ exports.updateVehicle = async (req, res) => {
                 photo: (req.fileUrl && req.fileUrl !== 'undefined' && req.fileUrl !== 'null') ? req.fileUrl : oldVehicle.photo,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
+                rentalPrice12Hours: rentalPrice12Hours ? parseFloat(rentalPrice12Hours) : null,
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
                 requireDailyChecklist: requireDailyChecklist === true || requireDailyChecklist === 'true',
                 requireWeeklyChecklist: requireWeeklyChecklist === true || requireWeeklyChecklist === 'true',

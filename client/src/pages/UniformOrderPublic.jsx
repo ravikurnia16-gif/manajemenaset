@@ -58,15 +58,15 @@ export default function UniformOrderPublic() {
         setForm(f => ({ ...f, subtotal, totalAmount: subtotal }));
     }, [form.items]);
 
-    const availableVariants = form.targetUnit && form.gender 
+    const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => v.item?.unit?.name === form.targetUnit && v.item?.gender === form.gender)
         : [];
-    
+
     const availableCategories = [...new Set(availableVariants.map(v => v.item?.category?.name))].filter(Boolean);
     const availableClothingTypes = retailInput.category
         ? [...new Set(availableVariants.filter(v => v.item?.category?.name === retailInput.category).map(v => v.item?.clothingType?.name))].filter(Boolean)
         : [];
-        
+
     let availableSizes = [];
     if (retailInput.clothingType === 'SEMUA_SETELAN') {
         availableSizes = [...new Set(availableVariants.filter(v => v.item?.category?.name === retailInput.category).map(v => v.size?.name || v.sizeName))].filter(Boolean);
@@ -105,7 +105,7 @@ export default function UniformOrderPublic() {
         });
 
         setForm({ ...form, items: newItems });
-        setRetailInput({ ...retailInput, size: '', qty: 1 }); 
+        setRetailInput({ ...retailInput, size: '', qty: 1 });
     };
 
     const updateItemQty = (idx, qty) => {
@@ -113,7 +113,7 @@ export default function UniformOrderPublic() {
         newItems[idx].qty = parseInt(qty) || 1;
         setForm({ ...form, items: newItems });
     };
-    
+
     const removeItem = (idx) => {
         setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
     };
@@ -150,7 +150,7 @@ export default function UniformOrderPublic() {
     return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans">
             <div className="max-w-4xl mx-auto bg-white p-6 md:p-10 rounded-[2rem] shadow-xl border border-slate-100">
-                
+
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center p-4 bg-blue-100 text-blue-600 rounded-full mb-4">
                         <ShoppingCart size={32} />
@@ -197,9 +197,9 @@ export default function UniformOrderPublic() {
                                 <option value="">-- Ukuran --</option>
                                 {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
                             </SelectField>
-                            
+
                             <InputField type="number" min="1" label="Jumlah" value={retailInput.qty} onChange={e => setRetailInput({ ...retailInput, qty: e.target.value })} disabled={!retailInput.size} />
-                            
+
                             <div className="flex items-end pt-1">
                                 <button type="button" onClick={addItem} className="w-full h-[46px] flex items-center justify-center gap-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50" disabled={!retailInput.size}>
                                     <Plus size={18} /> Tambah
@@ -231,9 +231,8 @@ export default function UniformOrderPublic() {
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                             <div className="w-full md:w-1/2">
                                 <SelectField label="Rencana Metode Pembayaran" value={form.paymentMethod} onChange={e => setForm({ ...form, paymentMethod: e.target.value })}>
-                                    <option value="CASH">Tunai (Bayar di Sekolah)</option>
-                                    <option value="TRANSFER">Transfer Bank</option>
-                                    <option value="QRIS">QRIS</option>
+                                    <option value="CASH">Tunai</option>
+                                    <option value="TRANSFER">Transfer Bank (7311412188 an Syafrian, BSI)</option>
                                 </SelectField>
                             </div>
                             <div className="text-right w-full md:w-1/2">
@@ -247,7 +246,7 @@ export default function UniformOrderPublic() {
                             <div>Pesanan ini bersifat Pre-Order / Backorder (Belum Diambil). Silakan simpan invoice yang muncul setelah ini untuk diserahkan ke bagian admin aset sekolah saat pengambilan barang.</div>
                         </div>
 
-                        <button 
+                        <button
                             type="submit"
                             disabled={form.items.length === 0}
                             className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-xl hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all disabled:opacity-50 disabled:grayscale"
