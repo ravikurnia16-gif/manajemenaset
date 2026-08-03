@@ -26,6 +26,7 @@ const VehicleForm = () => {
         kirDueDate: '',
         picIds: [],
         isRentable: false,
+        rentalPrice6Hours: '',
         rentalPrice12Hours: '',
         defaultRentalPrice: '',
         requireDailyChecklist: false,
@@ -62,6 +63,7 @@ const VehicleForm = () => {
                 kirDueDate: formatDate(data.kirDueDate),
                 picIds: data.pics?.map(p => p.id) || [],
                 isRentable: !!data.isRentable,
+                rentalPrice6Hours: data.rentalPrice6Hours || '',
                 rentalPrice12Hours: data.rentalPrice12Hours || '',
                 defaultRentalPrice: data.defaultRentalPrice || '',
                 requireDailyChecklist: !!data.requireDailyChecklist,
@@ -423,6 +425,16 @@ const VehicleForm = () => {
                         </div>
                         {form.isRentable && (
                             <>
+                                <div className="md:col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biaya Sewa 6 Jam</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                        placeholder="Contoh: 150000"
+                                        value={form.rentalPrice6Hours}
+                                        onChange={e => setForm({ ...form, rentalPrice6Hours: e.target.value })}
+                                    />
+                                </div>
                                 <div className="md:col-span-1">
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biaya Sewa 12 Jam</label>
                                     <input

@@ -550,7 +550,8 @@ const VehicleBooking = () => {
             let calculatedRentalPrice = null;
             if (formData.isRented && selectedVehicle) {
                 const duration = parseInt(formData.rentalDuration);
-                if (duration === 12) calculatedRentalPrice = selectedVehicle.rentalPrice12Hours;
+                if (duration === 6) calculatedRentalPrice = selectedVehicle.rentalPrice6Hours;
+                else if (duration === 12) calculatedRentalPrice = selectedVehicle.rentalPrice12Hours;
                 else calculatedRentalPrice = (selectedVehicle.defaultRentalPrice || 0) * (duration / 24);
             }
 
@@ -946,6 +947,7 @@ const VehicleBooking = () => {
     const getRentalPrice = () => {
         if (!selectedVehicle || !formData.isRented) return 0;
         const duration = parseInt(formData.rentalDuration) || 24;
+        if (duration === 6) return selectedVehicle.rentalPrice6Hours || 0;
         if (duration === 12) return selectedVehicle.rentalPrice12Hours || 0;
         return (selectedVehicle.defaultRentalPrice || 0) * (duration / 24);
     };
@@ -1593,6 +1595,7 @@ const VehicleBooking = () => {
                                                         value={formData.rentalDuration}
                                                         onChange={e => setFormData({ ...formData, rentalDuration: parseInt(e.target.value) || 24 })}
                                                     >
+                                                        <option value="6">6 Jam</option>
                                                         <option value="12">12 Jam</option>
                                                         {[...Array(30)].map((_, i) => (
                                                             <option key={i} value={(i + 1) * 24}>{i + 1} Hari</option>
