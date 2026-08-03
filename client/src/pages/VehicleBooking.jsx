@@ -2316,8 +2316,13 @@ const VehicleBooking = () => {
                                                     <Car size={14} className="text-blue-500" /> {b.vehicle?.name}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                                                    <Clock size={14} className="text-slate-400" /> {new Date(b.startDate).toLocaleString('id-ID')}
+                                                    <Clock size={14} className="text-slate-400" /> Mulai: {new Date(b.startDate).toLocaleString('id-ID')}
                                                 </div>
+                                                {b.tripEndTime && (
+                                                    <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-bold">
+                                                        <CheckCircle size={14} className="text-emerald-500" /> Selesai: {new Date(b.tripEndTime).toLocaleString('id-ID')}
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center gap-2 text-[11px] text-blue-600 font-bold">
                                                     <MapPin size={14} /> {b.destination}
                                                 </div>
@@ -2384,11 +2389,16 @@ const VehicleBooking = () => {
                                                         <div className="font-bold text-slate-700">{b.vehicle?.name}</div>
                                                         <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                     </td>
-                                                    <td className="px-6 py-4">
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
                                                             <Clock size={12} className="text-blue-500" />
-                                                            {new Date(b.startDate).toLocaleString('id-ID')}
+                                                            Jadwal: {new Date(b.startDate).toLocaleString('id-ID')}
                                                         </div>
+                                                        {b.tripEndTime && (
+                                                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold mt-1">
+                                                                <CheckCircle size={12} className="text-emerald-500" />
+                                                                Kembali: {new Date(b.tripEndTime).toLocaleString('id-ID')}
+                                                            </div>
+                                                        )}
                                                         <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
                                                             <MapPin size={12} /> {b.destination}
                                                         </div>
