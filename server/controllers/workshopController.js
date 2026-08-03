@@ -259,22 +259,19 @@ exports.createOrder = async (req, res) => {
             }
         });
 
+        let unitName = '-';
+        if (newOrder.unitId) {
+            const ut = await prisma.unit.findUnique({ where: { id: newOrder.unitId } });
+            if (ut) unitName = ut.name;
+        }
+        const senderName = newOrder.requestedBy ? (newOrder.requestedBy.name || newOrder.requestedBy.username) : 'Pemohon';
+        let itemDetails = '';
+        if (newOrder.items && newOrder.items.length > 0) {
+            itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
+        }
+        const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+
         if (recipients.length > 0) {
-            let unitName = '-';
-            if (newOrder.unitId) {
-                const ut = await prisma.unit.findUnique({ where: { id: newOrder.unitId } });
-                if (ut) unitName = ut.name;
-            }
-
-            const senderName = newOrder.requestedBy ? (newOrder.requestedBy.name || newOrder.requestedBy.username) : 'Pemohon';
-
-            let itemDetails = '';
-            if (newOrder.items && newOrder.items.length > 0) {
-                itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
-            }
-
-            const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
-
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
                 `Kode: *${newOrder.code}*\n` +
                 `Dari: *${senderName}* (${unitName})\n` +
@@ -290,6 +287,43 @@ exports.createOrder = async (req, res) => {
                     whatsappService.sendMessage(recipient.phone, msg).catch(console.error);
                 }, 5000);
             });
+        }
+
+        // Notify Assigned PIC directly if present in system
+        if (newOrder.picName) {
+            const picUser = await prisma.user.findFirst({
+                where: {
+                    name: newOrder.picName,
+                    phone: { not: null, not: '' }
+                }
+            });
+
+            if (picUser) {
+                // Buat notifikasi internal system
+                await createNotification(
+                    picUser.id,
+                    `Tugas Baru: ${newOrder.code}`,
+                    `Anda ditugaskan sebagai PIC untuk pesanan "${newOrder.title}" (${newOrder.workshopType})`,
+                    'TASK',
+                    `/workshop/orders/${newOrder.id}`
+                );
+
+                // Kirim notifikasi WA Langsung ke PIC
+                const picMsg = `Bismillah.\n*Penugasan Workshop Baru* \u{1F6E0}\n\n` +
+                    `Halo *${picUser.name}*, Anda ditugaskan sebagai *PIC Workshop ${newOrder.workshopType}* untuk pesanan berikut:\n\n` +
+                    `Kode: *${newOrder.code}*\n` +
+                    `Dari: *${senderName}* (${unitName})\n` +
+                    `Order: *${newOrder.title}*\n` +
+                    `Prioritas: *${newOrder.priority}*\n` +
+                    `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
+                    `*Rincian Item*:\n${itemDetails}\n\n` +
+                    `🔗 Detail & Update Progres:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
+                    `Semoga dimudahkan dalam penyelesaian tugas.`;
+
+                setTimeout(() => {
+                    whatsappService.sendMessage(picUser.phone, picMsg).catch(console.error);
+                }, 3000);
+            }
         }
 
         res.json({ message: 'Order created successfully', data: newOrder });
