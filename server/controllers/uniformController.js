@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const xlsx = require('xlsx');
+const ExcelJS = require('exceljs');
 
 // ========== HELPER: Generate Code ==========
 const generateCode = async (prefix, model) => {
@@ -715,7 +716,7 @@ exports.getStocks = async (req, res) => {
     }
 };
 
-const ExcelJS = require('exceljs');
+// ExcelJS is required at the top of the file
 
 exports.downloadStockImportTemplate = async (req, res) => {
     try {
@@ -1569,7 +1570,7 @@ exports.getStocks = async (req, res) => {
     }
 };
 
-const ExcelJS = require('exceljs');
+// ExcelJS is required at the top of the file
 
 exports.downloadStockImportTemplate = async (req, res) => {
     try {
