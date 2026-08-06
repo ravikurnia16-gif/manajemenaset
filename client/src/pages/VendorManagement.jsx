@@ -897,6 +897,7 @@ const VendorManagement = () => {
                                                             </button>
                                                         </div>
                                                         <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
+                                                    </div>
                                                     {canManageVendor && (
                                                         <div className="flex items-center justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-all">
                                                             <button
