@@ -60,31 +60,27 @@ export default function UniformOrderPublic() {
 
     const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => {
+            const categoryName = v.item?.category?.name || '';
+            const isPeci = categoryName.toLowerCase().includes('peci');
+            
+            // 1. Aturan KHUSUS hanya untuk kategori Peci
+            if (isPeci) {
+                const allowedPeciUnits = ['SD', 'SMP', 'SMA', 'PonPes'];
+                return form.gender === 'IKHWAN' && allowedPeciUnits.includes(form.targetUnit);
+            }
+            
+            // 2. Aturan untuk barang selain Peci
             const unitName = v.item?.unit?.name || '';
             const isGeneralUnit = !v.item?.unit || unitName.toLowerCase() === 'umum';
 
-            // 1. Jika barang memiliki Unit spesifik (Bukan Umum)
-            if (!isGeneralUnit) {
-                return unitName === form.targetUnit && 
-                       (v.item.gender === form.gender || v.item.gender === 'UMUM');
-            }
-            
-            // 2. Jika barang adalah Barang Umum (Unit Kosong atau Unit = 'Umum')
+            // Jika barang umum (tanpa unit / unit 'Umum'), cocokkan berdasarkan gender saja
             if (isGeneralUnit) {
-                const categoryName = v.item?.category?.name || '';
-                const isPeci = categoryName.toLowerCase().includes('peci');
-                
-                if (isPeci) {
-                    // Logika khusus HANYA untuk Peci
-                    const allowedPeciUnits = ['SD', 'SMP', 'SMA', 'PonPes'];
-                    return form.gender === 'IKHWAN' && allowedPeciUnits.includes(form.targetUnit);
-                }
-                
-                // Jika ada barang umum lainnya (selain Peci), cukup cocokkan gendernya saja
                 return v.item?.gender === form.gender || v.item?.gender === 'UMUM';
             }
             
-            return false;
+            // Jika punya unit spesifik, unit dan gender wajib cocok
+            return unitName === form.targetUnit && 
+                   (v.item.gender === form.gender || v.item.gender === 'UMUM');
         })
         : [];
 
