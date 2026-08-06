@@ -976,11 +976,21 @@ const VendorManagement = () => {
                                                 </span>
                                             </div>
                                             <div className="flex flex-col items-end">
-                                                <span className="text-lg font-black text-blue-600">Rp {h.price.toLocaleString()}</span>
-                                                {idx < priceHistory.length - 1 && (
-                                                    <span className={`text-[10px] font-bold ${h.price > priceHistory[idx+1].price ? 'text-red-500' : 'text-green-500'}`}>
-                                                        {h.price > priceHistory[idx+1].price ? '↑ Naik' : '↓ Turun'}
-                                                    </span>
+                                                {idx < priceHistory.length - 1 ? (
+                                                    <>
+                                                        <span className="text-[10px] text-slate-400 font-bold line-through mb-0.5">Rp {priceHistory[idx+1].price.toLocaleString()}</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-lg font-black text-blue-600">Rp {h.price.toLocaleString()}</span>
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${h.price > priceHistory[idx+1].price ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
+                                                                {h.price > priceHistory[idx+1].price ? '↑ Naik' : '↓ Turun'}
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-[10px] text-slate-400 font-bold mb-0.5 uppercase tracking-wider">Harga Awal</span>
+                                                        <span className="text-lg font-black text-slate-600">Rp {h.price.toLocaleString()}</span>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
