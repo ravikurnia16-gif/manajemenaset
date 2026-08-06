@@ -4,7 +4,7 @@ import { getMediaUrl } from '../lib/media';
 import {
     Users, Plus, Search, MapPin, Phone, Mail, Globe,
     MoreVertical, Edit2, Trash2, Package, CheckCircle,
-    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock
+    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign
 } from 'lucide-react';
 
 const VendorManagement = () => {
