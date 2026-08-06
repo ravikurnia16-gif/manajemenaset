@@ -66,16 +66,18 @@ export default function UniformOrderPublic() {
                        (v.item.gender === form.gender || v.item.gender === 'UMUM');
             }
             
-            // 2. Jika barang TIDAK memiliki Unit (Barang Umum seperti Peci)
+            // 2. Jika barang TIDAK memiliki Unit (Barang Umum)
             if (!v.item?.unit) {
-                // Sesuai request: Peci/Barang Umum muncul jika Unit SD/SMP/SMA/PonPes dan Gender Ikhwan
-                const allowedPeciUnits = ['SD', 'SMP', 'SMA', 'PonPes'];
-                if (form.gender === 'IKHWAN' && allowedPeciUnits.includes(form.targetUnit)) {
-                    // Pastikan barang umumnya juga untuk Ikhwan atau Umum
-                    return v.item?.gender === 'IKHWAN' || v.item?.gender === 'UMUM';
+                const categoryName = v.item?.category?.name || '';
+                const isPeci = categoryName.toLowerCase().includes('peci');
+                
+                if (isPeci) {
+                    // Logika khusus HANYA untuk Peci
+                    const allowedPeciUnits = ['SD', 'SMP', 'SMA', 'PonPes'];
+                    return form.gender === 'IKHWAN' && allowedPeciUnits.includes(form.targetUnit);
                 }
                 
-                // Fallback untuk barang umum lainnya di luar Peci
+                // Jika ada barang umum lainnya (selain Peci), cukup cocokkan gendernya saja
                 return v.item?.gender === form.gender || v.item?.gender === 'UMUM';
             }
             
