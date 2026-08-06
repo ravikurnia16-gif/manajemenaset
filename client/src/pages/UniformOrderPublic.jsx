@@ -60,14 +60,17 @@ export default function UniformOrderPublic() {
 
     const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => {
-            // 1. Jika barang memiliki Unit spesifik, wajib cocok dengan pilihan user
-            if (v.item?.unit) {
-                return v.item.unit.name === form.targetUnit && 
+            const unitName = v.item?.unit?.name || '';
+            const isGeneralUnit = !v.item?.unit || unitName.toLowerCase() === 'umum';
+
+            // 1. Jika barang memiliki Unit spesifik (Bukan Umum)
+            if (!isGeneralUnit) {
+                return unitName === form.targetUnit && 
                        (v.item.gender === form.gender || v.item.gender === 'UMUM');
             }
             
-            // 2. Jika barang TIDAK memiliki Unit (Barang Umum)
-            if (!v.item?.unit) {
+            // 2. Jika barang adalah Barang Umum (Unit Kosong atau Unit = 'Umum')
+            if (isGeneralUnit) {
                 const categoryName = v.item?.category?.name || '';
                 const isPeci = categoryName.toLowerCase().includes('peci');
                 
