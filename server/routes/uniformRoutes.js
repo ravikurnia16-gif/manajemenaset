@@ -106,7 +106,7 @@ router.get('/sales', c.getSales);
 router.post('/sales', c.createSale);
 router.delete('/sales/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.deleteSale);
 // Hanya Super Admin & Admin Aset yang boleh memproses/mengeluarkan barang dari gudang
-router.post('/sales/:id/fulfill', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.fulfillSale);
+router.post('/sales/:id/fulfill', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.manageSaleItems);
 router.put('/sales/:id/payment', c.updateSalePayment);
 
 // Exchange (Tukar Ukuran)

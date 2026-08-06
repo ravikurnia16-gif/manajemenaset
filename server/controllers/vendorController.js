@@ -234,6 +234,36 @@ exports.updateProduct = async (req, res) => {
     }
 };
 
+exports.updateProductPrice = async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const { price } = req.body;
+
+        const oldProduct = await prisma.vendorProduct.findUnique({ where: { id: parseInt(productId) } });
+        const newPrice = price !== "" && price !== null && price !== undefined ? parseFloat(price) : null;
+
+        const product = await prisma.vendorProduct.update({
+            where: { id: parseInt(productId) },
+            data: { price: newPrice }
+        });
+
+        // Record price history if price has changed
+        if (newPrice !== null && oldProduct.price !== newPrice) {
+            await prisma.vendorPriceHistory.create({
+                data: {
+                    productId: parseInt(productId),
+                    price: newPrice
+                }
+            });
+        }
+
+        res.json(product);
+    } catch (error) {
+        console.error('Error updating product price:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.deleteProduct = async (req, res) => {
     try {
         const { productId } = req.params;

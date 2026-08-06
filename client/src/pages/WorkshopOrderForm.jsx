@@ -169,12 +169,11 @@ const WorkshopOrderForm = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tipe Workshop *</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tipe Workshop</label>
                                 <select
                                     className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                                     value={form.workshopType}
                                     onChange={e => handleFormChange('workshopType', e.target.value)}
-                                    required={isAdminOrSarpras}
                                 >
                                     <option value="">-- Pilih Tipe --</option>
                                     <option value="KAYU">🪵 Workshop Kayu</option>

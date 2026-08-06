@@ -205,10 +205,15 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
     const isSchoolUnit = ['SD', 'SMP', 'SMA'].includes(selectedUnit);
     const tkAllowedCats = ['hijau', 'olahraga', 'batik', 'navy'];
     const taudAllowedCats = ['batik', 'kotak kotak', 'kotak-kotak', 'olahraga', 'muslim', 'jubah'];
+    const standardCategories = [...tkAllowedCats, ...taudAllowedCats, 'hitam', 'putih'];
     
     const availableCategories = categories.filter(c => {
         const catName = c.name.toLowerCase();
         
+        if (!standardCategories.includes(catName)) {
+            return true; // Izinkan kategori baru (custom) tampil di semua unit
+        }
+
         if (selectedUnit === 'TK') {
             return tkAllowedCats.includes(catName);
         }
@@ -224,11 +229,16 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
     // Jenis Pakaian Filter
     const allowedTypesIkhwan = ['baju', 'celana', 'jubah'];
     const allowedTypesAkhwat = ['jilbab', 'baju', 'celana', 'rok celana'];
+    const standardTypes = [...allowedTypesIkhwan, ...allowedTypesAkhwat];
+
     const availableJenis = clothingTypes.filter(c => {
         const nameLower = c.name.toLowerCase();
         const catSelected = form.kategori?.toLowerCase();
         if (catSelected === 'hitam' || catSelected === 'putih') {
             return nameLower === 'jubah';
+        }
+        if (!standardTypes.includes(nameLower)) {
+            return true; // Izinkan jenis pakaian baru seperti Peci, Sabuk, dll.
         }
         if (form.gender === 'IKHWAN') {
             return allowedTypesIkhwan.includes(nameLower);
@@ -277,14 +287,14 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
                         <option value="IKHWAN">Ikhwan</option>
                         <option value="AKHWAT">Akhwat</option>
                     </SelectField>
-                    <SelectField label="Unit *" value={form.unit} onChange={handleUnitChange} disabled={!form.gender} required>
-                        <option value="">Pilih Unit</option>
+                    <SelectField label="Unit (Kosongkan jika Umum)" value={form.unit} onChange={handleUnitChange} disabled={!form.gender}>
+                        <option value="">Semua Unit (Umum)</option>
                         {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </SelectField>
                 </div>
                 
                 <div className="grid grid-cols-3 gap-4">
-                    <SelectField label="Kategori *" value={form.kategori} onChange={handleKategoriChange} disabled={!form.unit} required>
+                    <SelectField label="Kategori *" value={form.kategori} onChange={handleKategoriChange} disabled={!form.gender} required>
                         <option value="">Pilih Kategori</option>
                         {availableCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </SelectField>
@@ -317,7 +327,7 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
 
             <button 
                 onClick={() => onSave(form)} 
-                disabled={!form.gender || !form.unit || !form.kategori || !form.jenisPakaian || !form.ukuran || !form.gudang || !form.stok}
+                disabled={!form.gender || !form.kategori || !form.jenisPakaian || !form.ukuran || !form.gudang || !form.stok}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4 disabled:opacity-50"
             >
                 Simpan Stok

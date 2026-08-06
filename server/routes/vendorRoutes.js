@@ -20,6 +20,7 @@ router.get('/products/:productId/history', vendorController.getProductPriceHisto
 router.get('/:vendorId/products', vendorController.getVendorProducts);
 router.post('/:vendorId/products', handleUpload('image', 'vendors/products'), vendorController.addProduct);
 router.put('/:vendorId/products/:productId', handleUpload('image', 'vendors/products'), vendorController.updateProduct);
+router.patch('/:vendorId/products/:productId/price', vendorController.updateProductPrice);
 router.delete('/:vendorId/products/:productId', vendorController.deleteProduct);
 
 module.exports = router;

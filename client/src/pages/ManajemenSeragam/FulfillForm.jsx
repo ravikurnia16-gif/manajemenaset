@@ -2,120 +2,185 @@ import { useState, useEffect } from 'react';
 import { PackageCheck } from 'lucide-react';
 
 export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
-    const [itemsToFulfill, setItemsToFulfill] = useState([]);
-    const [masterWarehouse, setMasterWarehouse] = useState('');
+    const [itemUpdates, setItemUpdates] = useState([]);
 
     useEffect(() => {
-        if (sale) {
-            let pending = sale.items.filter(i => i.qty > i.qtyDelivered);
-            if (sale.selectedPackageId) {
-                pending = pending.filter(i => String(i.salePackageId) === String(sale.selectedPackageId));
-            }
-            
-            setItemsToFulfill(pending.map(i => ({
+        if (sale && sale.items) {
+            setItemUpdates(sale.items.map(i => ({
                 saleItemId: i.id,
                 variantId: i.variantId,
                 name: i.itemName,
                 size: i.size,
-                needed: i.qty - i.qtyDelivered,
-                qty: i.qty - i.qtyDelivered,
-                warehouseId: ''
+                qty: i.qty,
+                oldStatus: i.status || 'PENDING',
+                status: i.status || 'PENDING',
+                sourceWarehouseId: '',
+                transitWarehouseId: '',
+                returnWarehouseId: ''
             })));
         }
     }, [sale]);
 
-    const handleMasterWarehouseChange = (e) => {
-        const whId = e.target.value;
-        setMasterWarehouse(whId);
-        setItemsToFulfill(prev => prev.map(item => ({ ...item, warehouseId: whId })));
+    const handleStatusChange = (index, newStatus) => {
+        const newUpdates = [...itemUpdates];
+        newUpdates[index].status = newStatus;
+        setItemUpdates(newUpdates);
     };
 
-    const updateGroupWarehouse = (itemName, whId) => {
-        setItemsToFulfill(prev => prev.map(item => 
-            item.name === itemName ? { ...item, warehouseId: whId } : item
-        ));
+    const handleWhChange = (index, field, value) => {
+        const newUpdates = [...itemUpdates];
+        newUpdates[index][field] = value;
+        setItemUpdates(newUpdates);
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Filter out items with 0 qty or no warehouse selected
-        const validFulfillments = itemsToFulfill.filter(i => i.qty > 0 && i.warehouseId);
-        if (validFulfillments.length === 0) {
-            alert('Pilih setidaknya 1 gudang pengeluaran untuk barang yang akan diproses.');
+        
+        // Validation
+        for (const item of itemUpdates) {
+            if (item.status === item.oldStatus) continue;
+
+            if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
+                if (!item.sourceWarehouseId || !item.transitWarehouseId) {
+                    alert(`Pilih gudang asal dan gudang transit untuk mengubah ${item.name} ke SEDIA`);
+                    return;
+                }
+            } else if (item.status === 'DIAMBIL') {
+                if (item.oldStatus === 'SEDIA' && !item.transitWarehouseId) {
+                    alert(`Pilih gudang transit (asal ambil) untuk ${item.name}`);
+                    return;
+                } else if (item.oldStatus !== 'SEDIA' && !item.sourceWarehouseId) {
+                    alert(`Pilih gudang asal untuk ${item.name} yang terjual langsung`);
+                    return;
+                }
+            } else if (item.status === 'BATAL' && item.oldStatus === 'SEDIA') {
+                if (!item.transitWarehouseId || !item.returnWarehouseId) {
+                    alert(`Pilih gudang transit dan gudang pengembalian untuk membatalkan ${item.name}`);
+                    return;
+                }
+            } else if (item.status === 'BATAL' && item.oldStatus === 'DIAMBIL') {
+                if (!item.returnWarehouseId) {
+                    alert(`Pilih gudang pengembalian untuk ${item.name}`);
+                    return;
+                }
+            } else if (item.status === 'SEDIA' && item.oldStatus === 'DIAMBIL') {
+                if (!item.returnWarehouseId) { // acting as transit
+                    alert(`Pilih gudang transit (pengembalian) untuk ${item.name}`);
+                    return;
+                }
+            }
+        }
+
+        const payload = itemUpdates
+            .filter(i => i.status !== i.oldStatus)
+            .map(i => ({
+                saleItemId: i.saleItemId,
+                status: i.status,
+                sourceWarehouseId: i.sourceWarehouseId,
+                transitWarehouseId: i.transitWarehouseId || i.returnWarehouseId,
+                returnWarehouseId: i.returnWarehouseId
+            }));
+
+        if (payload.length === 0) {
+            alert('Tidak ada perubahan status item.');
             return;
         }
-        onSave(validFulfillments);
-    };
 
-    // Group items by name for a simplified UI
-    const groupedItems = Object.values(itemsToFulfill.reduce((acc, item) => {
-        if (!acc[item.name]) {
-            acc[item.name] = { 
-                name: item.name, 
-                totalNeeded: 0, 
-                warehouseId: item.warehouseId || ''
-            };
-        }
-        acc[item.name].totalNeeded += item.needed;
-        if (item.warehouseId) acc[item.name].warehouseId = item.warehouseId;
-        return acc;
-    }, {}));
+        onSave(payload);
+    };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-slate-600 mb-4">
-                Silakan tentukan gudang pengeluaran untuk setiap barang pada pesanan <strong>{sale?.code}</strong> ({sale?.customerName}).
+                Kelola status setiap barang pada pesanan <strong>{sale?.code}</strong> ({sale?.customerName}).
             </p>
-            
-            <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl flex items-center justify-between gap-4">
-                <label className="text-sm font-bold text-blue-800 whitespace-nowrap">Terapkan ke semua barang:</label>
-                <select 
-                    className="w-full border border-blue-200 rounded-lg px-3 py-1.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={masterWarehouse} 
-                    onChange={handleMasterWarehouseChange}
-                >
-                    <option value="">-- Pilih Gudang untuk Semua --</option>
-                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-            </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[40vh] overflow-y-auto">
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-100 text-slate-600 font-bold sticky top-0">
-                        <tr>
-                            <th className="p-3 text-left">Kategori Barang</th>
-                            <th className="p-3 text-center w-24">Total Kurang</th>
-                            <th className="p-3 text-left w-48">Gudang Pengeluaran</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {groupedItems.map((group, idx) => (
-                            <tr key={idx} className="bg-white">
-                                <td className="p-3">
-                                    <div className="font-bold text-slate-800">{group.name}</div>
-                                </td>
-                                <td className="p-3 text-center font-bold text-rose-500">
-                                    {group.totalNeeded}
-                                </td>
-                                <td className="p-3">
+            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[60vh] overflow-y-auto bg-slate-50">
+                {itemUpdates.map((item, idx) => {
+                    const changed = item.status !== item.oldStatus;
+                    return (
+                        <div key={item.saleItemId} className={`p-4 border-b border-slate-200 \${changed ? 'bg-blue-50/50' : 'bg-white'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <div className="font-bold text-slate-800">{item.name}</div>
+                                    <div className="text-xs text-slate-500">Ukuran: {item.size} | Qty: {item.qty}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-slate-500 mb-1">Status Lama: <span className="font-bold">{item.oldStatus}</span></div>
                                     <select 
-                                        className="w-full border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none" 
-                                        value={group.warehouseId} 
-                                        onChange={e => updateGroupWarehouse(group.name, e.target.value)}
-                                        required
+                                        className="border border-slate-300 rounded px-2 py-1 text-sm font-bold shadow-sm"
+                                        value={item.status}
+                                        onChange={(e) => handleStatusChange(idx, e.target.value)}
                                     >
-                                        <option value="">-- Gudang --</option>
-                                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        <option value="PENDING">PENDING</option>
+                                        <option value="SEDIA">SEDIA (Masuk Transit)</option>
+                                        <option value="TIDAK_TERSEDIA">TIDAK TERSEDIA</option>
+                                        <option value="INDENT">INDENT</option>
+                                        <option value="DIAMBIL">DIAMBIL (Diserahkan)</option>
+                                        <option value="BATAL">BATAL</option>
                                     </select>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                </div>
+                            </div>
+                            
+                            {/* Dynamic Dropdowns Based on Selection */}
+                            <div className="mt-3 space-y-2 text-sm">
+                                {(['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
+                                    <div className="flex gap-2">
+                                        <select className="flex-1 border border-slate-200 rounded p-1.5" required
+                                            value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
+                                            <option value="">-- Gudang Asal --</option>
+                                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        </select>
+                                        <select className="flex-1 border border-slate-200 rounded p-1.5" required
+                                            value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
+                                            <option value="">-- Gudang Transit --</option>
+                                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                
+                                {item.status === 'DIAMBIL' && (
+                                    <div>
+                                        {item.oldStatus === 'SEDIA' ? (
+                                            <select className="w-full border border-slate-200 rounded p-1.5" required
+                                                value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
+                                                <option value="">-- Ambil Dari Gudang Transit Mana? --</option>
+                                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                            </select>
+                                        ) : (
+                                            <select className="w-full border border-slate-200 rounded p-1.5" required
+                                                value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
+                                                <option value="">-- Terjual Langsung Dari Gudang Mana? --</option>
+                                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                            </select>
+                                        )}
+                                    </div>
+                                )}
+
+                                {(item.status === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(item.oldStatus)) && (
+                                    <div className="flex gap-2">
+                                        {item.oldStatus === 'SEDIA' && (
+                                            <select className="flex-1 border border-slate-200 rounded p-1.5" required
+                                                value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
+                                                <option value="">-- Berada di Gudang Transit Mana? --</option>
+                                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                            </select>
+                                        )}
+                                        <select className="flex-1 border border-slate-200 rounded p-1.5" required
+                                            value={item.returnWarehouseId} onChange={(e) => handleWhChange(idx, 'returnWarehouseId', e.target.value)}>
+                                            <option value="">-- Gudang Tujuan Pengembalian --</option>
+                                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
             <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2">
-                <PackageCheck size={18} /> Proses & Keluarkan Stok
+                <PackageCheck size={18} /> Simpan Perubahan Status
             </button>
         </form>
     );

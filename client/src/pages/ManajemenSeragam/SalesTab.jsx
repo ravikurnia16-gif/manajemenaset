@@ -60,10 +60,10 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulf
                                         )}
                                     </td>
                                     <td className="p-3 text-center">
-                                        <Badge color={s.status === 'COMPLETED' ? 'green' : s.status === 'PARTIAL_DELIVERED' ? 'orange' : s.status === 'PENDING' ? 'yellow' : 'slate'}>{s.status}</Badge>
-                                        {!hasPackages && s.status === 'PENDING' && canFulfill && (
-                                            <button onClick={() => openModal('fulfill', s)} className="mt-2 text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 block mx-auto">
-                                                Proses
+                                        <Badge color={s.status === 'SELESAI' ? 'green' : s.status === 'PROSES' ? 'blue' : s.status === 'PENDING' ? 'yellow' : 'slate'}>{s.status}</Badge>
+                                        {canFulfill && s.status !== 'CANCELLED' && (
+                                            <button onClick={() => openModal('fulfill', s)} className="mt-2 text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 block mx-auto whitespace-nowrap">
+                                                Kelola Item
                                             </button>
                                         )}
                                     </td>
@@ -100,18 +100,12 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulf
                                             </td>
                                             <td colSpan="2" className="p-3">
                                                 {isPkgPending ? (
-                                                    canFulfill ? (
-                                                        <button onClick={() => openModal('fulfill', { ...s, selectedPackageId: pkg.id })} className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-200 shadow-sm block w-full text-center">
-                                                            Proses Paket Ini
-                                                        </button>
-                                                    ) : (
-                                                        <div className="text-[10px] font-bold text-yellow-600 text-center bg-yellow-50 rounded py-1 border border-yellow-100">
-                                                            Menunggu Diproses
-                                                        </div>
-                                                    )
+                                                    <div className="text-[10px] font-bold text-yellow-600 text-center bg-yellow-50 rounded py-1 border border-yellow-100">
+                                                        Ada Item Pending/Proses
+                                                    </div>
                                                 ) : (
                                                     <div className="text-[10px] font-bold text-green-600 text-center bg-green-50 rounded py-1 border border-green-100">
-                                                        Selesai Diproses
+                                                        Semua Item Selesai
                                                     </div>
                                                 )}
                                             </td>

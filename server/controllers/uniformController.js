@@ -226,21 +226,17 @@ exports.importItems = async (req, res) => {
         const vendors = await prisma.uniformVendor.findMany();
 
         for (let i = 0; i < dataRows.length; i++) {
-            const [catIn, clothIn, unitIn, genderIn, sizeIn, vendorIn] = dataRows[i];
+            const [catIn, clothIn, unitInRaw, genderIn, sizeIn, vendorIn] = dataRows[i];
             
-            if (!catIn || !clothIn || !unitIn || !genderIn || !sizeIn) {
-                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Unit, Gender, dan Ukuran wajib diisi.` });
+            if (!catIn || !clothIn || !genderIn || !sizeIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, dan Ukuran wajib diisi.` });
             }
 
-            // Validate Master Data (Case-insensitive matching)
             const cat = cats.find(c => c.name.toLowerCase() === String(catIn).trim().toLowerCase());
             if (!cat) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori '${catIn}' tidak ditemukan di Master Data.` });
 
             const cloth = cTypes.find(c => c.name.toLowerCase() === String(clothIn).trim().toLowerCase());
             if (!cloth) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Jenis Pakaian '${clothIn}' tidak ditemukan di Master Data.` });
-
-            const unit = units.find(u => u.name.toLowerCase() === String(unitIn).trim().toLowerCase());
-            if (!unit) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Unit '${unitIn}' tidak ditemukan di Master Data.` });
 
             const sizeNameInput = String(sizeIn).trim().toUpperCase();
             const size = sizes.find(s => s.name.toUpperCase() === sizeNameInput);
@@ -257,21 +253,886 @@ exports.importItems = async (req, res) => {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gender harus IKHWAN atau AKHWAT.` });
             }
 
-            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit.name}`;
+            let rawUnit = String(unitInRaw || '').trim();
+            let unitList = [null];
+            if (rawUnit && rawUnit.toUpperCase() !== 'UMUM' && rawUnit !== '-') {
+                unitList = rawUnit.split(',').map(u => u.trim()).filter(Boolean);
+            }
+
+            for (const singleUnit of unitList) {
+                let unit = null;
+                if (singleUnit) {
+                    unit = units.find(u => u.name.toLowerCase() === singleUnit.toLowerCase());
+                    if (!unit) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Unit '${singleUnit}' tidak ditemukan di Master Data.` });
+                }
+
+                const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
+                
+                let item = await prisma.uniformItem.findFirst({
+                    where: {
+                        categoryId: cat.id,
+                        clothingTypeId: cloth.id,
+                        unitId: unit ? unit.id : null,
+                        gender: gender,
+                        vendorId: vendor ? vendor.id : null
+                    }
+                });
+
+                if (!item) {
+                    const prefix = `SRG/${unit ? unit.name.toUpperCase() : 'ALL'}/${gender}/`;
+                    const lastItem = await prisma.uniformItem.findFirst({
+                        where: { code: { startsWith: prefix } },
+                        orderBy: { code: 'desc' }
+                    });
+                    let seq = 1;
+                    if (lastItem) {
+                        const lastSeq = parseInt(lastItem.code.replace(prefix, ''), 10);
+                        if (!isNaN(lastSeq)) seq = lastSeq + 1;
+                    }
+                    const code = `${prefix}${String(seq).padStart(3, '0')}`;
+
+                    item = await prisma.uniformItem.create({
+                        data: {
+                            name: itemName,
+                            code: code,
+                            categoryId: cat.id,
+                            clothingTypeId: cloth.id,
+                            unitId: unit ? unit.id : null,
+                            gender: gender,
+                            vendorId: vendor ? vendor.id : null,
+                            sellPrice: 0,
+                        }
+                    });
+                }
+
+                let variant = await prisma.uniformVariant.findUnique({
+                    where: { itemId_sizeName: { itemId: item.id, sizeName: size.name } }
+                });
+
+                if (!variant) {
+                    const sku = `${item.code}-${size.name}`;
+                    variant = await prisma.uniformVariant.create({
+                        data: { itemId: item.id, sizeName: size.name, sku: sku }
+                    });
+                }
+                successCount++;
+            }
+        }
+
+        res.json({ message: `Berhasil mengimpor ${successCount} data barang master.` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+exports.createSize = async (req, res) => {
+    try {
+        const { name, sortOrder } = req.body;
+        const data = await prisma.uniformSize.create({ data: { name, sortOrder: parseInt(sortOrder || 0) } });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateSize = async (req, res) => {
+    try {
+        const { name, sortOrder } = req.body;
+        const data = await prisma.uniformSize.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name, sortOrder: sortOrder !== undefined ? parseInt(sortOrder) : undefined }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteSize = async (req, res) => {
+    try {
+        await prisma.uniformSize.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Ukuran berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== UNIT (JENJANG SEKOLAH) ==========
+
+exports.getUnits = async (req, res) => {
+    try {
+        const data = await prisma.uniformUnit.findMany({
+            orderBy: { id: 'asc' },
+            include: { _count: { select: { items: true } } }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createUnit = async (req, res) => {
+    try {
+        const data = await prisma.uniformUnit.create({ data: { name: req.body.name } });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateUnit = async (req, res) => {
+    try {
+        const data = await prisma.uniformUnit.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name: req.body.name }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteUnit = async (req, res) => {
+    try {
+        await prisma.uniformUnit.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Unit berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== PRICING RULES ==========
+
+exports.getPricingRules = async (req, res) => {
+    try {
+        const rules = await prisma.uniformPricingRule.findMany({
+            include: { category: true, clothingType: true, unit: true },
+            orderBy: { id: 'desc' }
+        });
+        res.json(rules);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createPricingRule = async (req, res) => {
+    try {
+        const { categoryId, clothingTypeId, unitId, gender, sizeNames, price } = req.body;
+        if (!price) return res.status(400).json({ error: 'Harga harus diisi' });
+
+        const data = await prisma.uniformPricingRule.create({
+            data: {
+                categoryId: categoryId ? parseInt(categoryId) : null,
+                clothingTypeId: clothingTypeId ? parseInt(clothingTypeId) : null,
+                unitId: unitId ? parseInt(unitId) : null,
+                gender: gender || null,
+                sizeNames: sizeNames || null,
+                price: parseFloat(price) || 0
+            },
+            include: { category: true, clothingType: true, unit: true }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deletePricingRule = async (req, res) => {
+    try {
+        await prisma.uniformPricingRule.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Aturan berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.applyPricingRules = async (req, res) => {
+    try {
+        const rules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
+        if (!rules.length) return res.json({ message: 'Tidak ada aturan harga aktif yang ditemukan.' });
+
+        // Sort rules by specificity (most specific first)
+        const sortedRules = rules.sort((a, b) => {
+            const scoreA = (a.categoryId ? 1 : 0) + (a.clothingTypeId ? 1 : 0) + (a.unitId ? 1 : 0) + (a.gender ? 1 : 0) + (a.sizeNames ? 1 : 0);
+            const scoreB = (b.categoryId ? 1 : 0) + (b.clothingTypeId ? 1 : 0) + (b.unitId ? 1 : 0) + (b.gender ? 1 : 0) + (b.sizeNames ? 1 : 0);
+            return scoreB - scoreA;
+        });
+
+        const variants = await prisma.uniformVariant.findMany({
+            include: { item: true }
+        });
+
+        let updateCount = 0;
+        
+        for (const variant of variants) {
+            let matchedPrice = null;
+            
+            for (const rule of sortedRules) {
+                let match = true;
+                
+                if (rule.categoryId && variant.item.categoryId !== rule.categoryId) match = false;
+                if (rule.clothingTypeId && variant.item.clothingTypeId !== rule.clothingTypeId) match = false;
+                if (rule.unitId && variant.item.unitId !== rule.unitId) match = false;
+                if (rule.gender && variant.item.gender !== rule.gender) match = false;
+                
+                if (rule.sizeNames) {
+                    const sizes = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
+                    if (!sizes.includes(variant.sizeName.toLowerCase())) match = false;
+                }
+                
+                if (match) {
+                    matchedPrice = rule.price;
+                    break;
+                }
+            }
+
+            if (matchedPrice !== null && variant.sellPrice !== matchedPrice) {
+                await prisma.uniformVariant.update({
+                    where: { id: variant.id },
+                    data: { sellPrice: matchedPrice }
+                });
+                updateCount++;
+            }
+        }
+
+        res.json({ message: `Berhasil menerapkan harga ke ${updateCount} varian barang.` });
+    } catch (error) {
+        console.error('Apply Pricing Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+
+// ========== ITEM & VARIANT ==========
+
+exports.getItems = async (req, res) => {
+    try {
+        const items = await prisma.uniformItem.findMany({
+            orderBy: { name: 'asc' },
+            include: { category: true, clothingType: true, unit: true }
+        });
+        res.json(items);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getVariants = async (req, res) => {
+    try {
+        const variants = await prisma.uniformVariant.findMany({
+            include: { item: { include: { category: true, clothingType: true, unit: true } }, size: true },
+            orderBy: { sku: 'asc' }
+        });
+        res.json(variants);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.addManualStock = async (req, res) => {
+    try {
+        const {
+            variantId,
+            kategori, jenisPakaian, unit, gender, ukuran,
+            gudang, vendor, hargaModal, stok, stokMinimal
+        } = req.body;
+
+        if (!gudang || !stok) {
+            return res.status(400).json({ error: 'Gudang dan Stok wajib diisi.' });
+        }
+        if (!variantId && (!kategori || !jenisPakaian || !gender || !ukuran)) {
+            return res.status(400).json({ error: 'Pilih Barang atau isi atribut lengkap jika barang baru.' });
+        }
+
+        const qty = parseInt(stok) || 0;
+        const minStock = parseInt(stokMinimal) || 0;
+        const cost = parseFloat(hargaModal) || 0;
+
+        await prisma.$transaction(async (tx) => {
+            let whObj = await tx.uniformWarehouse.findFirst({ where: { name: gudang } });
+            if (!whObj) whObj = await tx.uniformWarehouse.create({ data: { name: gudang, location: '' } });
+            
+            let vendorObj = null;
+            if (vendor && vendor.trim()) {
+                vendorObj = await tx.uniformVendor.findFirst({ where: { name: vendor } });
+                if (!vendorObj) vendorObj = await tx.uniformVendor.create({ data: { name: vendor } });
+            }
+
+            let variant;
+            if (variantId) {
+                variant = await tx.uniformVariant.findUnique({ where: { id: parseInt(variantId) }, include: { item: true } });
+                if (!variant) throw new Error('Variant tidak ditemukan');
+            } else {
+                // Master Data (Upsert)
+                const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
+                const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
+                const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
+                
+                let unitObj = null;
+                if (unit && unit.trim() !== '') {
+                    unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
+                }
+                
+                const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
+                const unitName = unitObj ? unitObj.name : 'ALL';
+                const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
+                
+                let item = await tx.uniformItem.findFirst({
+                    where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj ? unitObj.id : null }
+                });
+
+                if (!item) {
+                    const prefix = `SRG/${unitName.toUpperCase()}/${genderCode}/`;
+                    const count = await tx.uniformItem.count({ where: { code: { startsWith: prefix } } });
+                    const code = `${prefix}${String(count + 1).padStart(3, '0')}`;
+                    const itemName = `${typeObj.name} ${catObj.name} ${genderName} ${unitName === 'ALL' ? 'Umum' : unitName}`.trim();
+
+                    item = await tx.uniformItem.create({
+                        data: {
+                            code, name: itemName, categoryId: catObj.id, clothingTypeId: typeObj.id,
+                            gender: gender.toUpperCase(), unitId: unitObj ? unitObj.id : null,
+                            vendorId: vendorObj ? vendorObj.id : null, sellPrice: 0, minStock
+                        }
+                    });
+                } else if (minStock > 0 && item.minStock !== minStock) {
+                    await tx.uniformItem.update({ where: { id: item.id }, data: { minStock } });
+                }
+
+                const sku = `${item.code}-${sizeObj.name}`;
+                variant = await tx.uniformVariant.upsert({
+                    where: { sku }, update: {},
+                    create: { itemId: item.id, sku, sizeId: sizeObj.id, sizeName: sizeObj.name }
+                });
+
+                // Terapkan Aturan Harga Otomatis jika ada
+                const rules = await tx.uniformPricingRule.findMany({ where: { isActive: true } });
+                if (rules.length > 0) {
+                    const sortedRules = rules.sort((a, b) => {
+                        const scoreA = (a.categoryId ? 1 : 0) + (a.clothingTypeId ? 1 : 0) + (a.unitId ? 1 : 0) + (a.gender ? 1 : 0) + (a.sizeNames ? 1 : 0);
+                        const scoreB = (b.categoryId ? 1 : 0) + (b.clothingTypeId ? 1 : 0) + (b.unitId ? 1 : 0) + (b.gender ? 1 : 0) + (b.sizeNames ? 1 : 0);
+                        return scoreB - scoreA;
+                    });
+                    for (const rule of sortedRules) {
+                        let match = true;
+                        if (rule.categoryId && item.categoryId !== rule.categoryId) match = false;
+                        if (rule.clothingTypeId && item.clothingTypeId !== rule.clothingTypeId) match = false;
+                        if (rule.unitId && item.unitId !== rule.unitId) match = false;
+                        if (rule.gender && item.gender !== rule.gender) match = false;
+                        if (rule.sizeNames) {
+                            const sizeList = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
+                            if (!sizeList.includes(variant.sizeName.toLowerCase())) match = false;
+                        }
+                        if (match) {
+                            await tx.uniformVariant.update({ where: { id: variant.id }, data: { sellPrice: rule.price } });
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Stock
+            if (qty > 0) {
+                const existingStock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: variant.id, warehouseId: whObj.id } }
+                });
+
+                let newAvgCost = cost;
+                if (existingStock && existingStock.quantity > 0) {
+                    const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
+                    newAvgCost = totalValue / (existingStock.quantity + qty);
+                }
+
+                await tx.uniformStock.upsert({
+                    where: { variantId_warehouseId: { variantId: variant.id, warehouseId: whObj.id } },
+                    create: {
+                        variantId: variant.id, warehouseId: whObj.id,
+                        quantity: qty, minStock, avgCost: cost
+                    },
+                    update: {
+                        quantity: { increment: qty },
+                        minStock: minStock > 0 ? minStock : undefined,
+                        avgCost: newAvgCost
+                    }
+                });
+
+                const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                await tx.uniformStockTransaction.create({
+                    data: {
+                        code: trxCode,
+                        variantId: variant.id, warehouseId: whObj.id,
+                        type: 'IN', quantity: qty,
+                        costPerUnit: cost, vendorId: vendorObj ? vendorObj.id : null,
+                        note: 'Manual Entry'
+                    }
+                });
+            }
+        });
+
+        res.json({ message: 'Stok berhasil ditambahkan!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== STOCK (Multi-Warehouse) ==========
+
+exports.getStocks = async (req, res) => {
+    try {
+        const { warehouseId, search } = req.query;
+        const where = {};
+        if (warehouseId) where.warehouseId = parseInt(warehouseId);
+
+        const data = await prisma.uniformStock.findMany({
+            where,
+            include: {
+                variant: {
+                    include: {
+                        item: { include: { category: true, clothingType: true, vendor: true, unit: true } },
+                        size: true
+                    }
+                },
+                warehouse: true
+            },
+            orderBy: { variant: { item: { name: 'asc' } } }
+        });
+
+        // Client-side search filter (on item name or SKU)
+        let filtered = data;
+        if (search) {
+            const q = search.toLowerCase();
+            filtered = data.filter(s =>
+                s.variant.item.name.toLowerCase().includes(q) ||
+                s.variant.sku.toLowerCase().includes(q) ||
+                s.variant.sizeName.toLowerCase().includes(q)
+            );
+        }
+
+        res.json(filtered);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const ExcelJS = require('exceljs');
+
+exports.downloadStockImportTemplate = async (req, res) => {
+    try {
+        const categories = await prisma.uniformCategory.findMany();
+        const types = await prisma.uniformClothingType.findMany();
+        const units = await prisma.uniformUnit.findMany();
+        const sizes = await prisma.uniformSize.findMany();
+        const warehouses = await prisma.uniformWarehouse.findMany();
+        const vendors = await prisma.uniformVendor.findMany();
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Template_Stok');
+
+        sheet.columns = [
+            { header: 'Kategori', key: 'cat', width: 20 },
+            { header: 'Jenis Pakaian', key: 'type', width: 20 },
+            { header: 'Unit', key: 'unit', width: 15 },
+            { header: 'Gender', key: 'gender', width: 15 },
+            { header: 'Ukuran', key: 'size', width: 15 },
+            { header: 'Lokasi Gudang', key: 'wh', width: 20 },
+            { header: 'Vendor', key: 'vendor', width: 20 },
+            { header: 'Stok', key: 'stock', width: 15 },
+            { header: 'Stok minimal', key: 'min', width: 15 }
+        ];
+
+        // Sample Data
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', vendors.length ? vendors[0].name : '', 50, 5]);
+
+        // Helper to format arrays as comma-separated string for excel validation formulas
+        const formatValidation = (arr, maxLen = 250) => {
+            let str = `"${arr.join(',')}"`;
+            if (str.length > maxLen) {
+                // If the list is too long for direct validation formula, we will just use the first few elements and allow custom inputs.
+                // Or better, we could create a hidden sheet. For now, limit the string length to prevent corrupted excel files.
+                return `"${arr.slice(0, 15).join(',')}"`; 
+            }
+            return str;
+        };
+
+        const catList = categories.map(c => c.name);
+        const typeList = types.map(t => t.name);
+        const unitList = units.map(u => u.name);
+        const sizeList = sizes.map(s => s.name);
+        const whList = warehouses.map(w => w.name);
+        const vendorList = vendors.map(v => v.name);
+
+        for (let i = 2; i <= 100; i++) {
+            if (catList.length) sheet.getCell(`A${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(catList)] };
+            if (typeList.length) sheet.getCell(`B${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(typeList)] };
+            if (unitList.length) sheet.getCell(`C${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(unitList)] };
+            sheet.getCell(`D${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"IKHWAN,AKHWAT"'] };
+            if (sizeList.length) sheet.getCell(`E${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(sizeList)] };
+            if (whList.length) sheet.getCell(`F${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(whList)] };
+            if (vendorList.length) sheet.getCell(`G${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(vendorList)] };
+            
+            sheet.getCell(`H${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+            sheet.getCell(`I${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+            sheet.getCell(`J${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+        }
+
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Stok.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.importStocks = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
+        const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak valid' });
+
+        const dataRows = rows.slice(1).filter(r => r.length > 0 && r[0]);
+        let successCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+            const [catIn, clothIn, unitInRaw, genderIn, sizeIn, whIn, vendorIn, qtyIn, minIn] = dataRows[i];
+            
+            if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, Ukuran, Lokasi Gudang, dan Stok wajib diisi.` });
+            }
+
+            const cat = await prisma.uniformCategory.upsert({
+                where: { name: String(catIn).trim() },
+                create: { name: String(catIn).trim() },
+                update: {}
+            });
+            const cloth = await prisma.uniformClothingType.upsert({
+                where: { name: String(clothIn).trim() },
+                create: { name: String(clothIn).trim() },
+                update: {}
+            });
+            const size = await prisma.uniformSize.upsert({
+                where: { name: String(sizeIn).trim().toUpperCase() },
+                create: { name: String(sizeIn).trim().toUpperCase() },
+                update: {}
+            });
+            const wh = await prisma.uniformWarehouse.upsert({
+                where: { name: String(whIn).trim() },
+                create: { name: String(whIn).trim() },
+                update: {}
+            });
+            let vendor = null;
+            if (vendorIn) {
+                vendor = await prisma.uniformVendor.upsert({
+                    where: { name: String(vendorIn).trim() },
+                    create: { name: String(vendorIn).trim() },
+                    update: {}
+                });
+            }
+
+            const gender = String(genderIn).trim().toUpperCase();
+            
+            let rawUnit = String(unitInRaw || '').trim();
+            let unitList = [null];
+            if (rawUnit && rawUnit.toUpperCase() !== 'UMUM' && rawUnit !== '-') {
+                unitList = rawUnit.split(',').map(u => u.trim()).filter(Boolean);
+            }
+
+            for (const singleUnit of unitList) {
+                let unit = null;
+                if (singleUnit) {
+                    unit = await prisma.uniformUnit.upsert({
+                        where: { name: singleUnit },
+                        create: { name: singleUnit },
+                        update: {}
+                    });
+                }
+                
+                const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
+                
+                let item = await prisma.uniformItem.findFirst({
+                    where: {
+                        categoryId: cat.id,
+                        clothingTypeId: cloth.id,
+                        unitId: unit ? unit.id : null,
+                        gender: gender,
+                        vendorId: vendor ? vendor.id : null
+                    }
+                });
+
+                if (!item) {
+                    const prefix = `SRG/${unit ? unit.name.toUpperCase() : 'ALL'}/${gender}/`;
+                    const lastItem = await prisma.uniformItem.findFirst({
+                        where: { code: { startsWith: prefix } },
+                        orderBy: { code: 'desc' }
+                    });
+                    let seq = 1;
+                    if (lastItem) {
+                        const lastSeq = parseInt(lastItem.code.replace(prefix, ''), 10);
+                        if (!isNaN(lastSeq)) seq = lastSeq + 1;
+                    }
+                    const code = `${prefix}${String(seq).padStart(3, '0')}`;
+
+                    item = await prisma.uniformItem.create({
+                        data: {
+                            name: itemName,
+                            code: code,
+                            categoryId: cat.id,
+                            clothingTypeId: cloth.id,
+                            unitId: unit ? unit.id : null,
+                            gender: gender,
+                            vendorId: vendor ? vendor.id : null,
+                            sellPrice: 0,
+                            minStock: parseInt(minIn) || 5
+                        }
+                    });
+                } else if (minIn) {
+                    await prisma.uniformItem.update({ where: { id: item.id }, data: { minStock: parseInt(minIn) } });
+                }
+
+                const sku = `${item.code}-${size.name}`;
+                const variant = await prisma.uniformVariant.upsert({
+                    where: { sku }, update: {},
+                    create: { itemId: item.id, sku, sizeId: size.id, sizeName: size.name }
+                });
+
+                const currentStock = await prisma.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
+                });
+                
+                const addQty = parseInt(qtyIn) || 0;
+                
+                if (currentStock) {
+                    await prisma.uniformStock.update({
+                        where: { id: currentStock.id },
+                        data: { quantity: currentStock.quantity + addQty }
+                    });
+                } else {
+                    await prisma.uniformStock.create({
+                        data: { variantId: variant.id, warehouseId: wh.id, quantity: addQty }
+                    });
+                }
+
+                await prisma.uniformStockTransaction.create({
+                    data: {
+                        variantId: variant.id,
+                        warehouseId: wh.id,
+                        type: 'IN',
+                        quantity: addQty,
+                        costPerUnit: 0,
+                        note: 'Import Excel / Stok Awal'
+                    }
+                });
+                
+                successCount++;
+            }
+        }
+
+        res.json({ message: `Berhasil mengimpor dan menambah stok ${successCount} item.` });
+    } catch (error) {
+        console.error("Excel Import Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+exports.createCategory = async (req, res) => {
+    try {
+        const data = await prisma.uniformCategory.create({ data: req.body });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateCategory = async (req, res) => {
+    try {
+        const data = await prisma.uniformCategory.update({
+            where: { id: parseInt(req.params.id) },
+            data: req.body
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteCategory = async (req, res) => {
+    try {
+        await prisma.uniformCategory.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Kategori berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== JENIS PAKAIAN (CLOTHING TYPE) ==========
+
+exports.getClothingTypes = async (req, res) => {
+    try {
+        const data = await prisma.uniformClothingType.findMany({
+            orderBy: { name: 'asc' },
+            include: { _count: { select: { items: true } } }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createClothingType = async (req, res) => {
+    try {
+        const data = await prisma.uniformClothingType.create({ data: { name: req.body.name } });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateClothingType = async (req, res) => {
+    try {
+        const data = await prisma.uniformClothingType.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name: req.body.name }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteClothingType = async (req, res) => {
+    try {
+        await prisma.uniformClothingType.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Jenis pakaian berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== UKURAN (SIZE) ==========
+
+exports.getSizes = async (req, res) => {
+    try {
+        const data = await prisma.uniformSize.findMany({
+            orderBy: { sortOrder: 'asc' }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getVariants = async (req, res) => {
+    try {
+        const data = await prisma.uniformVariant.findMany({
+            include: {
+                item: { include: { category: true, clothingType: true, unit: true, vendor: true } }
+            },
+            orderBy: { sku: 'asc' }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.downloadItemImportTemplate = async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Template_Barang');
+
+        sheet.columns = [
+            { header: 'Kategori', key: 'cat', width: 20 },
+            { header: 'Jenis Pakaian', key: 'type', width: 20 },
+            { header: 'Unit', key: 'unit', width: 15 },
+            { header: 'Gender', key: 'gender', width: 15 },
+            { header: 'Ukuran', key: 'size', width: 15 },
+            { header: 'Vendor (Opsional)', key: 'vendor', width: 20 }
+        ];
+
+        // Sample Data
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', '']);
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.importItems = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
+        const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak valid' });
+
+        const dataRows = rows.slice(1).filter(r => r.length > 0 && r[0]);
+        let successCount = 0;
+
+        // Pre-fetch master data
+        const cats = await prisma.uniformCategory.findMany();
+        const cTypes = await prisma.uniformClothingType.findMany();
+        const units = await prisma.uniformUnit.findMany();
+        const sizes = await prisma.uniformSize.findMany();
+        const vendors = await prisma.uniformVendor.findMany();
+
+        for (let i = 0; i < dataRows.length; i++) {
+            const [catIn, clothIn, unitIn, genderIn, sizeIn, vendorIn] = dataRows[i];
+            
+            if (!catIn || !clothIn || !genderIn || !sizeIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, dan Ukuran wajib diisi.` });
+            }
+
+            // Validate Master Data (Case-insensitive matching)
+            const cat = cats.find(c => c.name.toLowerCase() === String(catIn).trim().toLowerCase());
+            if (!cat) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori '${catIn}' tidak ditemukan di Master Data.` });
+
+            const cloth = cTypes.find(c => c.name.toLowerCase() === String(clothIn).trim().toLowerCase());
+            if (!cloth) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Jenis Pakaian '${clothIn}' tidak ditemukan di Master Data.` });
+
+            let unit = null;
+            if (unitIn && String(unitIn).trim() !== '' && String(unitIn).trim().toUpperCase() !== 'UMUM' && String(unitIn).trim() !== '-') {
+                unit = units.find(u => u.name.toLowerCase() === String(unitIn).trim().toLowerCase());
+                if (!unit) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Unit '${unitIn}' tidak ditemukan di Master Data.` });
+            }
+
+            const sizeNameInput = String(sizeIn).trim().toUpperCase();
+            const size = sizes.find(s => s.name.toUpperCase() === sizeNameInput);
+            if (!size) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ukuran '${sizeIn}' tidak ditemukan di Master Data.` });
+
+            let vendor = null;
+            if (vendorIn) {
+                vendor = vendors.find(v => v.name.toLowerCase() === String(vendorIn).trim().toLowerCase());
+                if (!vendor) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Vendor '${vendorIn}' tidak ditemukan di Master Data.` });
+            }
+
+            const gender = String(genderIn).trim().toUpperCase();
+            if (gender !== 'IKHWAN' && gender !== 'AKHWAT') {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gender harus IKHWAN atau AKHWAT.` });
+            }
+
+            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
             
             // Find or Create Item
             let item = await prisma.uniformItem.findFirst({
                 where: {
                     categoryId: cat.id,
                     clothingTypeId: cloth.id,
-                    unitId: unit.id,
+                    unitId: unit ? unit.id : null,
                     gender: gender,
                     vendorId: vendor ? vendor.id : null
                 }
             });
 
             if (!item) {
-                const prefix = `SRG/${unit.name.toUpperCase()}/${gender}/`;
+                const prefix = `SRG/${unit ? unit.name.toUpperCase() : 'ALL'}/${gender}/`;
                 const lastItem = await prisma.uniformItem.findFirst({
                     where: { code: { startsWith: prefix } },
                     orderBy: { code: 'desc' }
@@ -289,11 +1150,10 @@ exports.importItems = async (req, res) => {
                         code: code,
                         categoryId: cat.id,
                         clothingTypeId: cloth.id,
-                        unitId: unit.id,
+                        unitId: unit ? unit.id : null,
                         gender: gender,
                         vendorId: vendor ? vendor.id : null,
                         sellPrice: 0,
-
                     }
                 });
             }
@@ -536,7 +1396,7 @@ exports.addManualStock = async (req, res) => {
         if (!gudang || !stok) {
             return res.status(400).json({ error: 'Gudang dan Stok wajib diisi.' });
         }
-        if (!variantId && (!kategori || !jenisPakaian || !unit || !gender || !ukuran)) {
+        if (!variantId && (!kategori || !jenisPakaian || !gender || !ukuran)) {
             return res.status(400).json({ error: 'Pilih Barang atau isi atribut lengkap jika barang baru.' });
         }
 
@@ -562,28 +1422,31 @@ exports.addManualStock = async (req, res) => {
                 // Master Data (Upsert)
                 const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
                 const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
-                const unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
                 const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
                 
+                let unitObj = null;
+                if (unit && unit.trim() !== '') {
+                    unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
+                }
+                
                 const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
-                const prefix = `SRG/${unitObj.name}/${genderCode}`;
+                const unitName = unitObj ? unitObj.name : 'ALL';
                 const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
-                const itemName = `${typeObj.name} ${catObj.name} ${genderName} ${unitObj.name}`.trim();
-
+                
                 let item = await tx.uniformItem.findFirst({
-                    where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj.id }
+                    where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj ? unitObj.id : null }
                 });
 
                 if (!item) {
-                    const prefix = `SRG/${unitObj.name.toUpperCase()}/${gender.toUpperCase()}/`;
+                    const prefix = `SRG/${unitName.toUpperCase()}/${genderCode}/`;
                     const count = await tx.uniformItem.count({ where: { code: { startsWith: prefix } } });
                     const code = `${prefix}${String(count + 1).padStart(3, '0')}`;
-                    const itemName = `${typeObj.name} ${catObj.name} ${gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()} ${unitObj.name}`.trim();
+                    const itemName = `${typeObj.name} ${catObj.name} ${genderName} ${unitName === 'ALL' ? 'Umum' : unitName}`.trim();
 
                     item = await tx.uniformItem.create({
                         data: {
                             code, name: itemName, categoryId: catObj.id, clothingTypeId: typeObj.id,
-                            gender: gender.toUpperCase(), unitId: unitObj.id,
+                            gender: gender.toUpperCase(), unitId: unitObj ? unitObj.id : null,
                             vendorId: vendorObj ? vendorObj.id : null, sellPrice: 0, minStock
                         }
                     });
@@ -790,8 +1653,8 @@ exports.importStocks = async (req, res) => {
         for (let i = 0; i < dataRows.length; i++) {
             const [catIn, clothIn, unitIn, genderIn, sizeIn, whIn, vendorIn, qtyIn, minIn] = dataRows[i];
             
-            if (!catIn || !clothIn || !unitIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
-                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Unit, Gender, Ukuran, Lokasi Gudang, dan Stok wajib diisi.` });
+            if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, Ukuran, Lokasi Gudang, dan Stok wajib diisi.` });
             }
 
             // Upsert Master Data
@@ -805,11 +1668,14 @@ exports.importStocks = async (req, res) => {
                 create: { name: String(clothIn).trim() },
                 update: {}
             });
-            const unit = await prisma.uniformUnit.upsert({
-                where: { name: String(unitIn).trim() },
-                create: { name: String(unitIn).trim() },
-                update: {}
-            });
+            let unit = null;
+            if (unitIn && String(unitIn).trim() !== '' && String(unitIn).trim().toUpperCase() !== 'UMUM' && String(unitIn).trim() !== '-') {
+                unit = await prisma.uniformUnit.upsert({
+                    where: { name: String(unitIn).trim() },
+                    create: { name: String(unitIn).trim() },
+                    update: {}
+                });
+            }
             const size = await prisma.uniformSize.upsert({
                 where: { name: String(sizeIn).trim().toUpperCase() },
                 create: { name: String(sizeIn).trim().toUpperCase() },
@@ -831,13 +1697,13 @@ exports.importStocks = async (req, res) => {
 
             // Find or Create Item
             const gender = String(genderIn).trim().toUpperCase();
-            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit.name}`;
+            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
             
             let item = await prisma.uniformItem.findFirst({
                 where: {
                     categoryId: cat.id,
                     clothingTypeId: cloth.id,
-                    unitId: unit.id,
+                    unitId: unit ? unit.id : null,
                     gender: gender,
                     vendorId: vendor ? vendor.id : null
                 }
@@ -845,7 +1711,7 @@ exports.importStocks = async (req, res) => {
 
             if (!item) {
                 // Generate Code: SRG/UNIT/GENDER/001
-                const prefix = `SRG/${unit.name.toUpperCase()}/${gender}/`;
+                const prefix = `SRG/${unit ? unit.name.toUpperCase() : 'ALL'}/${gender}/`;
                 const lastItem = await prisma.uniformItem.findFirst({
                     where: { code: { startsWith: prefix } },
                     orderBy: { code: 'desc' }
@@ -1458,6 +2324,377 @@ exports.createSale = async (req, res) => {
 };
 
 // Update payment
+exports.updateSalePayment = async (req, res) => {
+    const { paidAmount, paymentMethod } = req.body;
+    try {
+        const sale = await prisma.uniformSale.findUnique({ where: { id: parseInt(req.params.id) } });
+        if (!sale) return res.status(404).json({ error: 'Penjualan tidak ditemukan' });
+
+        const newPaid = parseFloat(paidAmount || 0);
+        const data = await prisma.uniformSale.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                paidAmount: newPaid,
+                paymentMethod,
+                paymentStatus: newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID'
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteSale = async (req, res) => {
+    try {
+        const saleId = parseInt(req.params.id);
+        
+        const sale = await prisma.uniformSale.findUnique({
+            where: { id: saleId },
+            include: { items: true }
+        });
+
+        if (!sale) {
+            return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+        }
+
+        if (sale.status !== 'PENDING') {
+            return res.status(400).json({ error: 'Pesanan yang sudah diproses (sebagian/seluruhnya) tidak dapat dihapus. Harap kembalikan stok secara manual jika ingin membatalkan.' });
+        }
+
+        await prisma.uniformSale.delete({
+            where: { id: saleId }
+        });
+
+        res.json({ message: 'Pesanan berhasil dihapus' });
+    } catch (error) {
+        console.error('Delete Sale Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Fulfill Pending Sale
+exports.manageSaleItems = async (req, res) => {
+    const { itemUpdates } = req.body;
+    try {
+        const saleId = parseInt(req.params.id);
+        
+        if (!itemUpdates || !Array.isArray(itemUpdates)) {
+            return res.status(400).json({ error: 'Data update tidak valid' });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            const sale = await tx.uniformSale.findUnique({
+                where: { id: saleId },
+                include: { items: true }
+            });
+
+            if (!sale) throw new Error('Pesanan tidak ditemukan');
+            
+            const itemsMap = new Map(sale.items.map(i => [i.id, i]));
+            let subtotalAdjustment = 0;
+
+            for (const update of itemUpdates) {
+                const item = itemsMap.get(parseInt(update.saleItemId));
+                if (!item) continue;
+                
+                const oldStatus = item.status;
+                const newStatus = update.status;
+                
+                if (oldStatus === newStatus) continue;
+
+                const qty = item.qty;
+                const generateTrxCode = async (prefix) => {
+                    const latest = await tx.uniformStockTransaction.findFirst({
+                        where: { code: { startsWith: prefix } },
+                        orderBy: { id: 'desc' }
+                    });
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    let nextNum = 1;
+                    if (latest) {
+                        const parts = latest.code.split('/');
+                        if (parts.length === 4 && parts[2] === year.toString()) {
+                            nextNum = parseInt(parts[3]) + 1;
+                        }
+                    }
+                    return `${prefix}/${year}/${nextNum.toString().padStart(3, '0')}`;
+                };
+
+                // PENDING/INDENT/TIDAK_TERSEDIA -> SEDIA (Mutation: Source -> Transit)
+                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(oldStatus) && newStatus === 'SEDIA') {
+                    const sourceWhId = parseInt(update.sourceWarehouseId);
+                    const transitWhId = parseInt(update.transitWarehouseId);
+                    if (!sourceWhId || !transitWhId) throw new Error(`Pilih gudang asal dan gudang transit untuk item ${item.itemName}`);
+                    
+                    const stockSource = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } }
+                    });
+                    if (!stockSource || stockSource.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang asal tidak mencukupi`);
+                    
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } },
+                        data: { quantity: { decrement: qty } }
+                    });
+                    
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } },
+                        create: { variantId: item.variantId, warehouseId: transitWhId, quantity: qty, avgCost: stockSource.avgCost },
+                        update: { quantity: { increment: qty } }
+                    });
+
+                    const trxCode = await generateTrxCode('TRX/SRG');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxCode + '-MUT-' + Math.floor(Math.random()*1000),
+                            type: 'MUTATION',
+                            variantId: item.variantId,
+                            warehouseId: sourceWhId,
+                            toWarehouseId: transitWhId,
+                            quantity: qty,
+                            costPerUnit: stockSource.avgCost,
+                            totalCost: stockSource.avgCost * qty,
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            note: `Pemindahan ke Gudang Transit untuk Pesanan ${sale.code}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
+                }
+                
+                // PENDING/INDENT/TIDAK_TERSEDIA/SEDIA -> DIAMBIL
+                else if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'SEDIA'].includes(oldStatus) && newStatus === 'DIAMBIL') {
+                    let whId;
+                    if (oldStatus === 'SEDIA') {
+                        whId = parseInt(update.transitWarehouseId); // Need to know which transit warehouse it was in
+                        if (!whId) throw new Error(`Pilih gudang transit (asal ambil) untuk item ${item.itemName}`);
+                    } else {
+                        whId = parseInt(update.sourceWarehouseId); // Terjual langsung
+                        if (!whId) throw new Error(`Pilih gudang asal untuk penjualan langsung item ${item.itemName}`);
+                    }
+                    
+                    const stock = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
+                    });
+                    if (!stock || stock.quantity < qty) throw new Error(`Stok ${item.itemName} tidak mencukupi untuk DIAMBIL`);
+                    
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } },
+                        data: { quantity: { decrement: qty } }
+                    });
+                    
+                    const trxCode = await generateTrxCode('TRX/SRG');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxCode + '-OUT-' + Math.floor(Math.random()*1000),
+                            type: 'OUT',
+                            variantId: item.variantId,
+                            warehouseId: whId,
+                            quantity: -qty,
+                            costPerUnit: stock.avgCost,
+                            totalCost: stock.avgCost * qty,
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            note: `Barang DIAMBIL untuk Pesanan ${sale.code}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
+                    
+                    // Increment delivered qty
+                    await tx.uniformSaleItem.update({
+                        where: { id: item.id },
+                        data: { qtyDelivered: qty } // fully delivered
+                    });
+                }
+                
+                // SEDIA -> BATAL
+                else if (oldStatus === 'SEDIA' && newStatus === 'BATAL') {
+                    const transitWhId = parseInt(update.transitWarehouseId);
+                    const returnWhId = parseInt(update.returnWarehouseId);
+                    if (!transitWhId || !returnWhId) throw new Error(`Pilih gudang transit dan gudang pengembalian untuk membatalkan item ${item.itemName}`);
+                    
+                    const stockTransit = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } }
+                    });
+                    if (!stockTransit || stockTransit.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang transit tidak ditemukan untuk dibatalkan`);
+                    
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } },
+                        data: { quantity: { decrement: qty } }
+                    });
+                    
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: returnWhId } },
+                        create: { variantId: item.variantId, warehouseId: returnWhId, quantity: qty, avgCost: stockTransit.avgCost },
+                        update: { quantity: { increment: qty } }
+                    });
+
+                    const trxCode = await generateTrxCode('TRX/SRG');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxCode + '-MUT-' + Math.floor(Math.random()*1000),
+                            type: 'MUTATION',
+                            variantId: item.variantId,
+                            warehouseId: transitWhId,
+                            toWarehouseId: returnWhId,
+                            quantity: qty,
+                            costPerUnit: stockTransit.avgCost,
+                            totalCost: stockTransit.avgCost * qty,
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            note: `Pengembalian barang batal dari Gudang Transit untuk Pesanan ${sale.code}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
+                    
+                    subtotalAdjustment -= item.totalPrice;
+                }
+                
+                // PENDING/INDENT/TIDAK_TERSEDIA -> BATAL
+                else if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(oldStatus) && newStatus === 'BATAL') {
+                    subtotalAdjustment -= item.totalPrice;
+                }
+                
+                // DIAMBIL -> BATAL
+                else if (oldStatus === 'DIAMBIL' && newStatus === 'BATAL') {
+                    const returnWhId = parseInt(update.returnWarehouseId);
+                    if (!returnWhId) throw new Error(`Pilih gudang pengembalian untuk item ${item.itemName}`);
+                    
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: returnWhId } },
+                        create: { variantId: item.variantId, warehouseId: returnWhId, quantity: qty, avgCost: 0 },
+                        update: { quantity: { increment: qty } }
+                    });
+
+                    const trxCode = await generateTrxCode('TRX/SRG');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxCode + '-IN-' + Math.floor(Math.random()*1000),
+                            type: 'IN',
+                            variantId: item.variantId,
+                            warehouseId: returnWhId,
+                            quantity: qty,
+                            costPerUnit: 0,
+                            totalCost: 0,
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            note: `Pengembalian barang batal (sudah diambil) untuk Pesanan ${sale.code}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
+                    
+                    subtotalAdjustment -= item.totalPrice;
+                    await tx.uniformSaleItem.update({
+                        where: { id: item.id },
+                        data: { qtyDelivered: 0 }
+                    });
+                }
+                
+                // DIAMBIL -> SEDIA (Undo pickup)
+                else if (oldStatus === 'DIAMBIL' && newStatus === 'SEDIA') {
+                    const returnWhId = parseInt(update.returnWarehouseId); // Should be transit warehouse
+                    if (!returnWhId) throw new Error(`Pilih gudang transit pengembalian untuk item ${item.itemName}`);
+                    
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: returnWhId } },
+                        create: { variantId: item.variantId, warehouseId: returnWhId, quantity: qty, avgCost: 0 },
+                        update: { quantity: { increment: qty } }
+                    });
+
+                    const trxCode = await generateTrxCode('TRX/SRG');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxCode + '-IN-' + Math.floor(Math.random()*1000),
+                            type: 'IN',
+                            variantId: item.variantId,
+                            warehouseId: returnWhId,
+                            quantity: qty,
+                            costPerUnit: 0,
+                            totalCost: 0,
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            note: `Pembatalan pengambilan, kembali ke Gudang Transit untuk Pesanan ${sale.code}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
+                    
+                    await tx.uniformSaleItem.update({
+                        where: { id: item.id },
+                        data: { qtyDelivered: 0 }
+                    });
+                }
+                
+                // Save item status
+                await tx.uniformSaleItem.update({
+                    where: { id: item.id },
+                    data: { status: newStatus }
+                });
+                
+                // update local map
+                item.status = newStatus;
+            }
+
+            // Update Sale Status and Totals
+            let newStatus = sale.status;
+            let allFinal = true;
+            let anyPending = false;
+            let anySedia = false;
+            
+            for (const item of itemsMap.values()) {
+                if (item.status !== 'DIAMBIL' && item.status !== 'BATAL') {
+                    allFinal = false;
+                }
+                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.status)) {
+                    anyPending = true;
+                }
+                if (item.status === 'SEDIA') {
+                    anySedia = true;
+                }
+            }
+            
+            if (allFinal && itemsMap.size > 0) {
+                newStatus = 'SELESAI';
+            } else if (anySedia || Array.from(itemsMap.values()).some(i => i.status === 'DIAMBIL')) {
+                newStatus = 'PROSES';
+            } else {
+                newStatus = 'PENDING';
+            }
+
+            // Adjust invoice
+            const newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
+            const newTotalAmount = Math.max(0, newSubtotal - sale.discount);
+            let paymentStatus = sale.paymentStatus;
+            if (newTotalAmount === 0) {
+                paymentStatus = 'PAID';
+            } else if (sale.paidAmount >= newTotalAmount) {
+                paymentStatus = 'PAID';
+            } else if (sale.paidAmount > 0) {
+                paymentStatus = 'PARTIAL';
+            } else {
+                paymentStatus = 'UNPAID';
+            }
+
+            const updatedSale = await tx.uniformSale.update({
+                where: { id: saleId },
+                data: {
+                    status: newStatus,
+                    subtotal: newSubtotal,
+                    totalAmount: newTotalAmount,
+                    paymentStatus
+                },
+                include: { items: true }
+            });
+
+            return updatedSale;
+        });
+
+        res.json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.updateSalePayment = async (req, res) => {
     const { paidAmount, paymentMethod } = req.body;
     try {
@@ -2210,9 +3447,33 @@ exports.getFinanceReport = async (req, res) => {
         // Penjualan yang statusnya bukan CANCELLED
         const sales = await prisma.uniformSale.findMany({
             where: { status: { not: 'CANCELLED' } },
-            select: { paidAmount: true, code: true, createdAt: true, customerName: true, totalAmount: true }
+            include: { items: true }
         });
-        const totalRevenue = sales.reduce((sum, sale) => sum + (sale.paidAmount || 0), 0);
+        
+        let totalRevenue = 0;
+        const cashFlow = [];
+        
+        sales.forEach(s => {
+            // Calculate revenue only from DIAMBIL items
+            const revenueFromSale = s.items.reduce((sum, item) => {
+                if (item.status === 'DIAMBIL') {
+                    return sum + item.totalPrice;
+                }
+                return sum;
+            }, 0);
+            
+            totalRevenue += revenueFromSale;
+            
+            if (revenueFromSale > 0) {
+                cashFlow.push({
+                    type: 'IN',
+                    date: s.createdAt,
+                    amount: revenueFromSale,
+                    description: `Pendapatan Barang Diambil: ${s.code} (${s.customerName || 'Pelanggan'})`,
+                    reference: s.code
+                });
+            }
+        });
 
         // 2. Total Pengeluaran (Expenses)
         // Proyek yang sudah SELESAI
@@ -2248,22 +3509,6 @@ exports.getFinanceReport = async (req, res) => {
 
         // 4. Laba / Rugi
         const netProfit = totalRevenue - totalExpenses;
-
-        // 5. Arus Kas (Cash Flow)
-        const cashFlow = [];
-        
-        // Pemasukan dari Penjualan
-        sales.forEach(s => {
-            if (s.paidAmount > 0) {
-                cashFlow.push({
-                    type: 'IN',
-                    date: s.createdAt,
-                    amount: s.paidAmount,
-                    description: `Penerimaan Penjualan: ${s.code} (${s.customerName})`,
-                    reference: s.code
-                });
-            }
-        });
 
         // Pengeluaran dari Proyek
         projectExpenses.forEach(p => {
