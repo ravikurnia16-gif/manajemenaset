@@ -59,7 +59,28 @@ export default function UniformOrderPublic() {
     }, [form.items]);
 
     const availableVariants = form.targetUnit && form.gender
-        ? variants.filter(v => v.item?.unit?.name === form.targetUnit && v.item?.gender === form.gender)
+        ? variants.filter(v => {
+            // 1. Jika barang memiliki Unit spesifik, wajib cocok dengan pilihan user
+            if (v.item?.unit) {
+                return v.item.unit.name === form.targetUnit && 
+                       (v.item.gender === form.gender || v.item.gender === 'UMUM');
+            }
+            
+            // 2. Jika barang TIDAK memiliki Unit (Barang Umum seperti Peci)
+            if (!v.item?.unit) {
+                // Sesuai request: Peci/Barang Umum muncul jika Unit SD/SMP/SMA/PonPes dan Gender Ikhwan
+                const allowedPeciUnits = ['SD', 'SMP', 'SMA', 'PonPes'];
+                if (form.gender === 'IKHWAN' && allowedPeciUnits.includes(form.targetUnit)) {
+                    // Pastikan barang umumnya juga untuk Ikhwan atau Umum
+                    return v.item?.gender === 'IKHWAN' || v.item?.gender === 'UMUM';
+                }
+                
+                // Fallback untuk barang umum lainnya di luar Peci
+                return v.item?.gender === form.gender || v.item?.gender === 'UMUM';
+            }
+            
+            return false;
+        })
         : [];
 
     const availableCategories = [...new Set(availableVariants.map(v => v.item?.category?.name))].filter(Boolean);

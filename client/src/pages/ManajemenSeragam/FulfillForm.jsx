@@ -133,7 +133,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                         </select>
                                         <select className="flex-1 border border-slate-200 rounded p-1.5" required
                                             value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
-                                            <option value="">-- Gudang Transit --</option>
+                                            <option value="">-- Simpan ke Gudang Mana? (Transit/Lainnya) --</option>
                                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                         </select>
                                     </div>
