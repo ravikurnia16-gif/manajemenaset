@@ -309,7 +309,7 @@ const WarehouseStock = () => {
                                     if (!row.isGroup) {
                                         const item = row;
                                         const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : item.gender;
-                                        let parts = [item.name, item.type, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear ? `[${item.purchaseYear}]` : null].filter(Boolean);
+                                        let parts = [item.name, item.type, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null].filter(Boolean);
 
                                         return (
                                             <tr key={`item-${item.id}`} className="border-b border-slate-100 hover:bg-slate-50">

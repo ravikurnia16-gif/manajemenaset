@@ -293,7 +293,28 @@ const MaintenanceList = () => {
         }
     };
 
-    const filtered = reports; // Now filtered by backend
+    const statusOrder = {
+        'SUBMITTED': 1,
+        'APPROVED': 2,
+        'ASSIGNED': 2,
+        'IN_PROGRESS': 3,
+        'COMPLETED': 4,
+        'REJECTED': 5
+    };
+
+    const filtered = [...reports].sort((a, b) => {
+        const statusA = statusOrder[a.status] || 99;
+        const statusB = statusOrder[b.status] || 99;
+        
+        if (statusA !== statusB) {
+            return statusA - statusB;
+        }
+        
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        
+        return dateA - dateB;
+    });
 
     return (
         <div className="p-4 md:p-6 space-y-6">

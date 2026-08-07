@@ -1,41 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, Plus, Trash2, Save, ArrowLeft, Shirt, Package, User, Check, Loader2, Search } from 'lucide-react';
+import { ShoppingBag, Plus, Trash2, ArrowLeft, Package, Search, ShoppingCart, Minus, X, Loader2 } from 'lucide-react';
 import api from '../lib/axios';
-
-const UNITS = ['TK', 'TAUD', 'MIT', 'SD', 'SMP', 'SMA', 'Pondok'];
-const GENDERS = ['Ikhwan', 'Akhwat'];
-const SIZES_STD = ['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', 'Ukuran Khusus'];
-const SIZES_JUBAH = ['38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24', 'Ukuran khusus'];
+import { getMediaUrl } from '../lib/media';
 
 const UnitOrderForm = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [warehouseItems, setWarehouseItems] = useState([]);
-    const [activeCategory, setActiveCategory] = useState('seragam'); // 'seragam' | 'lainnya'
-
-    // Cart
     const [cart, setCart] = useState([]);
-
-    // Seragam Input
-    const [seragam, setSeragam] = useState({
-        unit: '',
-        gender: '',
-        size: '',
-        quantity: 1,
-        studentName: '',
-        types: []
-    });
-
-    // Lainnya Input
-    const [other, setOther] = useState({
-        itemId: '',
-        itemName: '',
-        image: '',
-        quantity: 1
-    });
-
     const [itemSearch, setItemSearch] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('Semua');
+    const [isCartOpen, setIsCartOpen] = useState(false);
 
     useEffect(() => {
         const fetchItems = async () => {
@@ -47,83 +23,69 @@ const UnitOrderForm = () => {
         fetchItems();
     }, []);
 
-    const uniformTypes = useMemo(() => {
-        const types = new Set();
-        // Always include 'Nama Dada' as requested
-        types.add('Nama Dada');
-        
-        warehouseItems.forEach(item => {
-            // Only take from category ID 1 (Seragam) and use the item name
-            if (item.categoryId === 1 && item.name) {
-                types.add(item.name);
-            }
-        });
-
-        const sorted = Array.from(types).sort();
-        return sorted;
+    // Filter out "seragam" globally for this page
+    const baseItems = useMemo(() => {
+        return warehouseItems.filter(i => !i.category?.name?.toLowerCase().includes('seragam'));
     }, [warehouseItems]);
 
+    const categories = useMemo(() => {
+        const cats = new Set(baseItems.map(i => i.category?.name).filter(Boolean));
+        return ['Semua', ...Array.from(cats)];
+    }, [baseItems]);
+
     const filteredItems = useMemo(() => {
-        let items = warehouseItems.filter(i => 
-            !i.category?.name?.toLowerCase().includes('seragam')
-        );
+        let items = baseItems;
+        
+        if (selectedCategory !== 'Semua') {
+            items = items.filter(i => i.category?.name === selectedCategory);
+        }
+
         if (itemSearch) {
             items = items.filter(i =>
                 i.name?.toLowerCase().includes(itemSearch.toLowerCase()) ||
                 i.code?.toLowerCase().includes(itemSearch.toLowerCase())
             );
         }
-        // Jika pencarian kosong, tampilkan semua item (limit 48 supaya tidak berat dirender sekaligus)
-        return items.slice(0, 48);
-    }, [itemSearch, warehouseItems]);
+        return items;
+    }, [itemSearch, selectedCategory, baseItems]);
 
-    const handleAddSeragam = () => {
-        if (!seragam.unit || !seragam.gender || !seragam.size) return alert('Lengkapi data unit, gender, dan ukuran!');
-        if (seragam.types.length === 0) return alert('Pilih minimal satu tipe seragam!');
-        if (!seragam.studentName) return alert('Isi nama siswa!');
-
-        const newItems = seragam.types.map(type => ({
-            id: Date.now() + Math.random(),
-            name: `${type} ${seragam.unit} (${seragam.gender}) - ${seragam.studentName}`,
-            size: seragam.size,
-            quantity: seragam.quantity,
-            type: 'SERAGAM',
-            unit: seragam.unit,
-            gender: seragam.gender,
-            studentName: seragam.studentName
-        }));
-
-        setCart([...cart, ...newItems]);
-        // Reset specific fields but keep unit/gender/name for mass entry convenience
-        setSeragam({ ...seragam, size: '', types: [] });
+    const handleAddToCart = (item) => {
+        const existing = cart.find(c => c.itemId === item.id);
+        if (existing) {
+            setCart(cart.map(c => c.itemId === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+        } else {
+            setCart([...cart, {
+                id: Date.now() + Math.random(),
+                name: item.name,
+                size: item.size || '-',
+                quantity: 1,
+                type: 'LAINNYA',
+                itemId: item.id,
+                image: item.image,
+                stock: item.stock
+            }]);
+        }
     };
 
-    const handleAddOther = () => {
-        if (!other.itemName) return alert('Pilih atau isi nama barang!');
-        const newItem = {
-            id: Date.now(),
-            name: other.itemName,
-            size: '-',
-            quantity: other.quantity,
-            type: 'LAINNYA',
-            itemId: other.itemId || null
-        };
-        setCart([...cart, newItem]);
-        setOther({ itemId: '', itemName: '', image: '', quantity: 1 });
-        setItemSearch('');
+    const handleUpdateQuantity = (itemId, delta) => {
+        setCart(prev => prev.map(c => {
+            if (c.itemId === itemId) {
+                const newQ = c.quantity + delta;
+                return newQ > 0 ? { ...c, quantity: newQ } : c;
+            }
+            return c;
+        }));
     };
 
     const handleRemove = (id) => setCart(cart.filter(c => c.id !== id));
 
     const handleSubmit = async () => {
         if (cart.length === 0) return alert('Keranjang kosong!');
-
         try {
             setLoading(true);
             const userStore = localStorage.getItem('user');
             const user = userStore ? JSON.parse(userStore) : {};
 
-            // Format for existing endpoint
             const itemNote = cart.map((c, i) => `${i + 1}. ${c.name} (${c.size}) x${c.quantity}`).join('\n');
             const fullNote = `PESANAN UNIT INTERNAL\n\nITEM PESANAN:\n${itemNote}`;
 
@@ -152,280 +114,239 @@ const UnitOrderForm = () => {
         }
     };
 
-    const sizes = seragam.unit === 'Pondok' ? SIZES_JUBAH : SIZES_STD;
-    const isSpecialUnit = ['TK', 'TAUD', 'MIT'].includes(seragam.unit);
+    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
     return (
-        <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6 animate-in fade-in duration-500">
-            <div className="flex items-center gap-4">
-                <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-lg transition"><ArrowLeft size={20} /></button>
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Pesanan Unit</h1>
-                    <p className="text-sm text-slate-500">Pesan seragam atau barang gudang lainnya untuk kebutuhan unit</p>
+        <div className="min-h-screen bg-slate-50 pb-24 lg:pb-8">
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-4">
+                    <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition text-slate-600">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div className="flex-1 max-w-2xl relative">
+                        <input
+                            type="text"
+                            placeholder="Cari barang untuk unit..."
+                            value={itemSearch}
+                            onChange={e => setItemSearch(e.target.value)}
+                            className="w-full bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 rounded-full py-2.5 pl-10 pr-4 text-sm outline-none transition-all ring-1 ring-transparent focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                    {/* Mobile Cart Toggle */}
+                    <button 
+                        className="lg:hidden p-2 relative text-slate-600 hover:bg-slate-100 rounded-full transition"
+                        onClick={() => setIsCartOpen(true)}
+                    >
+                        <ShoppingCart size={24} />
+                        {totalItems > 0 && (
+                            <span className="absolute top-0 right-0 w-5 h-5 bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+                                {totalItems}
+                            </span>
+                        )}
+                    </button>
+                </div>
+                
+                {/* Category Pills */}
+                <div className="max-w-7xl mx-auto px-4 py-3 overflow-x-auto custom-scrollbar flex gap-2">
+                    {categories.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${
+                                selectedCategory === cat 
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200' 
+                                    : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50'
+                            }`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Form Section */}
-                <div className="md:col-span-2 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-                        <div className="flex p-1 bg-slate-100 rounded-xl">
-                            <button
-                                onClick={() => setActiveCategory('seragam')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition ${activeCategory === 'seragam' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                <Shirt size={18} /> Seragam
-                            </button>
-                            <button
-                                onClick={() => setActiveCategory('lainnya')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition ${activeCategory === 'lainnya' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                <Package size={18} /> Barang Lainnya
-                            </button>
-                        </div>
-
-                        {activeCategory === 'seragam' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5 md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><User size={14} /> 1. Nama Siswa</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Ketik nama lengkap siswa..."
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        value={seragam.studentName}
-                                        onChange={e => setSeragam({ ...seragam, studentName: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-1.5 md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Check size={14} /> 2. Pilih Unit</label>
-                                    <select
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        value={seragam.unit}
-                                        onChange={e => setSeragam({ ...seragam, unit: e.target.value })}
-                                    >
-                                        <option value="">-- Pilih Unit --</option>
-                                        {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                                    </select>
-                                    {isSpecialUnit && <p className="text-[10px] text-orange-600 font-medium">Note: Data ukuran untuk unit ini masih dalam pengembangan.</p>}
-                                </div>
-                                <div className="space-y-1.5 ">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><User size={14} /> 3. Jenis Kelamin</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {GENDERS.map(g => (
-                                            <button
-                                                key={g}
-                                                onClick={() => setSeragam({ ...seragam, gender: g })}
-                                                className={`py-2.5 rounded-xl text-sm font-bold border transition ${seragam.gender === g ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400'}`}
-                                            >
-                                                {g}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Check size={14} /> 4. Ukuran</label>
-                                    <select
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        value={seragam.size}
-                                        onChange={e => setSeragam({ ...seragam, size: e.target.value })}
-                                        disabled={!seragam.unit}
-                                    >
-                                        <option value="">-- Pilih Ukuran --</option>
-                                        {sizes.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-3 md:col-span-2">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Shirt size={14} /> 5. Tipe Seragam (Ceklis yang dipesan)</label>
-                                        {uniformTypes.length > 0 && (
-                                            <button 
-                                                type="button"
-                                                onClick={() => {
-                                                    const allSelected = seragam.types.length === uniformTypes.length;
-                                                    setSeragam({ ...seragam, types: allSelected ? [] : [...uniformTypes] });
-                                                }}
-                                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md transition border border-indigo-100"
-                                            >
-                                                {seragam.types.length === uniformTypes.length ? 'Hapus Semua' : 'Pilih Semua'}
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                        {uniformTypes.length > 0 ? uniformTypes.map(type => (
-                                            <button
-                                                type="button"
-                                                key={type}
-                                                onClick={() => {
-                                                    const newTypes = seragam.types.includes(type)
-                                                        ? seragam.types.filter(t => t !== type)
-                                                        : [...seragam.types, type];
-                                                    setSeragam({ ...seragam, types: newTypes });
-                                                }}
-                                                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${seragam.types.includes(type) ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
-                                            >
-                                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors ${seragam.types.includes(type) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-slate-50'}`}>
-                                                    {seragam.types.includes(type) && <Check size={10} strokeWidth={4} />}
+            <div className="max-w-7xl mx-auto px-4 py-6">
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Product Grid */}
+                    <div className="flex-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                            {filteredItems.map(item => {
+                                const inCart = cart.find(c => c.itemId === item.id);
+                                return (
+                                    <div key={item.id} className="bg-white rounded-xl overflow-hidden border border-slate-200 hover:border-indigo-300 hover:shadow-lg transition-all group flex flex-col h-full">
+                                        <div className="aspect-square bg-slate-50 relative overflow-hidden flex items-center justify-center">
+                                            {item.image ? (
+                                                <img src={getMediaUrl(item.image)} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                    <Package size={48} strokeWidth={1} />
                                                 </div>
-                                                {type}
-                                            </button>
-                                        )) : (
-                                            <div className="col-span-2 py-3 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-[10px] text-slate-400">
-                                                Belum ada data tipe seragam di gudang.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5 md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase">6. Jumlah per Tipe</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                                        value={seragam.quantity}
-                                        onChange={e => setSeragam({ ...seragam, quantity: parseInt(e.target.value) || 1 })}
-                                    />
-                                </div>
-                                <div className="md:col-span-2 pt-2">
-                                    <button onClick={handleAddSeragam} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg flex items-center justify-center gap-2">
-                                        <Plus size={20} /> Tambah ke Keranjang
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-5">
-                                <div className="space-y-1.5 relative">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Search size={14} /> Cari Barang</label>
-                                    <input
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        placeholder="Ketik nama atau kode barang..."
-                                        value={itemSearch}
-                                        onChange={e => setItemSearch(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-1 pb-4 custom-scrollbar">
-                                    {filteredItems.map(item => {
-                                        const inCart = cart.find(c => c.itemId === item.id);
-                                        return (
-                                            <div key={item.id} className={`bg-white border rounded-xl p-3 flex flex-col gap-2 transition-all ${inCart ? 'border-indigo-400 ring-1 ring-indigo-400 shadow-md' : 'border-slate-200 hover:border-indigo-300 hover:shadow-sm'}`}>
-                                                <div className="aspect-square bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 overflow-hidden relative">
-                                                    {item.image ? (
-                                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <Package size={32} className="text-slate-300" />
-                                                    )}
-                                                    {item.stock <= item.minStock && (
-                                                        <div className="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                                                            Sisa {item.stock}
-                                                        </div>
-                                                    )}
+                                            )}
+                                            {item.stock <= item.minStock && (
+                                                <div className="absolute top-2 left-2 bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-sm">
+                                                    Sisa {item.stock}
                                                 </div>
-                                                
-                                                <div className="flex-1 min-w-0 flex flex-col">
-                                                    <div className="text-[10px] font-mono text-indigo-600 mb-0.5">{item.code}</div>
-                                                    <div className="font-bold text-xs text-slate-800 leading-tight mb-1 line-clamp-2" title={item.name}>
-                                                        {item.name} {item.itemUnit && <span className="text-slate-500 font-bold">({item.itemUnit})</span>}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-500 mt-auto flex items-center justify-between">
-                                                        <span>Stok: <strong className="text-slate-700">{item.stock}</strong></span>
-                                                        {item.size && <span>Ukr: <strong>{item.size}</strong></span>}
-                                                    </div>
-                                                </div>
-
-                                                <div className="pt-2 border-t border-slate-100 mt-1">
-                                                    {inCart ? (
-                                                        <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-lg p-1">
-                                                            <button 
-                                                                onClick={() => {
-                                                                    if (inCart.quantity === 1) handleRemove(inCart.id);
-                                                                    else setCart(cart.map(c => c.id === inCart.id ? { ...c, quantity: c.quantity - 1 } : c));
-                                                                }}
-                                                                className="w-7 h-7 flex items-center justify-center bg-white text-indigo-600 rounded shadow-sm font-bold text-lg hover:bg-slate-50 leading-none"
-                                                            >−</button>
-                                                            <span className="text-sm font-bold text-indigo-700 w-8 text-center">{inCart.quantity}</span>
-                                                            <button 
-                                                                onClick={() => setCart(cart.map(c => c.id === inCart.id ? { ...c, quantity: c.quantity + 1 } : c))}
-                                                                className="w-7 h-7 flex items-center justify-center bg-indigo-600 text-white rounded shadow-sm font-bold text-lg hover:bg-indigo-700 leading-none"
-                                                            >+</button>
-                                                        </div>
-                                                    ) : (
-                                                        <button 
-                                                            onClick={() => {
-                                                                const newItem = {
-                                                                    id: Date.now() + Math.random(),
-                                                                    name: item.name,
-                                                                    size: item.size || '-',
-                                                                    quantity: 1,
-                                                                    type: 'LAINNYA',
-                                                                    itemId: item.id
-                                                                };
-                                                                setCart([...cart, newItem]);
-                                                            }}
-                                                            className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
-                                                        >
-                                                            <Plus size={14} /> Keranjang
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {filteredItems.length === 0 && (
-                                        <div className="col-span-2 lg:col-span-3 py-10 text-center text-slate-400">
-                                            <Package size={32} className="mx-auto mb-2 opacity-50" />
-                                            <p className="text-sm">Tidak ada barang yang cocok.</p>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
+                                        <div className="p-3 flex flex-col flex-1">
+                                            <div className="text-[10px] font-mono text-slate-400 mb-1 truncate">{item.code}</div>
+                                            <h3 className="font-semibold text-xs sm:text-sm text-slate-800 line-clamp-2 mb-1" title={item.name}>
+                                                {item.name} {item.itemUnit && `(${item.itemUnit})`}
+                                            </h3>
+                                            <div className="mt-auto pt-2 flex items-center justify-between">
+                                                <div className="text-indigo-600 font-bold text-sm">
+                                                    Stok: {item.stock}
+                                                </div>
+                                                {inCart ? (
+                                                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg flex items-center">
+                                                        <button 
+                                                            onClick={() => handleUpdateQuantity(item.id, -1)}
+                                                            className="w-7 h-7 flex items-center justify-center text-indigo-600 hover:bg-indigo-100 rounded-l-lg transition"
+                                                        >
+                                                            <Minus size={14} />
+                                                        </button>
+                                                        <span className="w-6 text-center text-xs font-bold text-indigo-700">{inCart.quantity}</span>
+                                                        <button 
+                                                            onClick={() => handleUpdateQuantity(item.id, 1)}
+                                                            className="w-7 h-7 flex items-center justify-center text-indigo-600 hover:bg-indigo-100 rounded-r-lg transition"
+                                                        >
+                                                            <Plus size={14} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => handleAddToCart(item)}
+                                                        className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors"
+                                                    >
+                                                        <ShoppingCart size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {filteredItems.length === 0 && (
+                            <div className="py-20 flex flex-col items-center justify-center text-slate-400">
+                                <Search size={48} className="mb-4 opacity-20" />
+                                <p className="font-medium">Barang tidak ditemukan</p>
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Cart Section */}
-                <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full min-h-[450px]">
-                        <h3 className="font-bold text-slate-800 flex items-center justify-between border-b pb-4 mb-4">
-                            <span className="flex items-center gap-2"><ShoppingBag size={20} className="text-indigo-600" /> Keranjang</span>
-                            <span className="bg-indigo-50 text-indigo-600 text-xs px-2.5 py-1 rounded-full">{cart.length} Item</span>
-                        </h3>
-
-                        <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                            {cart.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 opacity-50 py-10">
-                                    <ShoppingBag size={40} strokeWidth={1.5} />
-                                    <p className="text-xs font-bold uppercase tracking-widest">Keranjang Kosong</p>
-                                </div>
-                            ) : cart.map(c => (
-                                <div key={c.id} className="bg-slate-50 p-3 rounded-xl border border-slate-200 relative group animate-in slide-in-from-right-2">
-                                    <button
-                                        onClick={() => handleRemove(c.id)}
-                                        className="absolute -top-2 -right-2 w-7 h-7 bg-white text-red-500 border border-slate-200 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                    <div className="font-bold text-xs text-slate-800 line-clamp-2 pr-4">{c.name}</div>
-                                    <div className="flex items-center justify-between mt-2">
-                                        <span className="text-[10px] bg-white text-slate-500 px-2.5 py-1 rounded-lg border border-slate-100 font-medium">{c.size}</span>
-                                        <span className="text-sm font-bold text-indigo-600">× {c.quantity}</span>
+                    {/* Desktop Cart Sidebar */}
+                    <div className="hidden lg:block w-80 shrink-0">
+                        <div className="sticky top-24 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-120px)]">
+                            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                                <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <ShoppingBag className="text-indigo-600" size={20} />
+                                    Keranjang Unit
+                                </h2>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                                {cart.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-3 opacity-60">
+                                        <ShoppingCart size={48} strokeWidth={1} />
+                                        <p className="text-sm font-medium">Belum ada barang dipilih</p>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ) : (
+                                    cart.map(c => (
+                                        <div key={c.id} className="flex gap-3">
+                                            <div className="w-16 h-16 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                                {c.image ? <img src={getMediaUrl(c.image)} alt={c.name} className="w-full h-full object-cover" /> : <Package className="w-full h-full p-3 text-slate-300" />}
+                                            </div>
+                                            <div className="flex-1 flex flex-col">
+                                                <div className="font-semibold text-xs text-slate-800 line-clamp-2 leading-tight">{c.name}</div>
+                                                <div className="mt-auto flex items-center justify-between">
+                                                    <div className="flex items-center border border-slate-200 rounded-md bg-white">
+                                                        <button onClick={() => { if(c.quantity === 1) handleRemove(c.id); else handleUpdateQuantity(c.itemId, -1); }} className="px-2 py-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"><Minus size={12}/></button>
+                                                        <span className="px-2 text-xs font-bold text-slate-700 w-6 text-center">{c.quantity}</span>
+                                                        <button onClick={() => handleUpdateQuantity(c.itemId, 1)} className="px-2 py-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"><Plus size={12}/></button>
+                                                    </div>
+                                                    <button onClick={() => handleRemove(c.id)} className="text-slate-400 hover:text-red-500 p-1"><Trash2 size={14}/></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
 
-                        <div className="pt-6 mt-4 border-t border-slate-100">
-                            <button
-                                onClick={handleSubmit}
-                                disabled={cart.length === 0 || loading}
-                                className="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold hover:bg-green-700 transition shadow-lg disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 shadow-green-200"
-                            >
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} KIRIM PESANAN
-                            </button>
-                            <p className="text-[10px] text-slate-400 text-center mt-3">* Pesanan akan otomatis tercatat dan diproses oleh admin gudang.</p>
+                            <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                                <div className="flex justify-between items-center mb-4 text-sm font-bold text-slate-700">
+                                    <span>Total Barang:</span>
+                                    <span className="text-indigo-600 text-lg">{totalItems}</span>
+                                </div>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={cart.length === 0 || loading}
+                                    className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {loading ? <Loader2 className="animate-spin" size={20} /> : 'Kirim Pesanan Sekarang'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Mobile Cart Overlay */}
+            {isCartOpen && (
+                <div className="fixed inset-0 z-50 lg:hidden">
+                    <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>
+                    <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right-full duration-300">
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                            <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                                <ShoppingBag className="text-indigo-600" size={20} />
+                                Keranjang ({totalItems})
+                            </h2>
+                            <button onClick={() => setIsCartOpen(false)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full transition">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {cart.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-3 opacity-60">
+                                    <ShoppingCart size={48} strokeWidth={1} />
+                                    <p className="text-sm font-medium">Belum ada barang dipilih</p>
+                                </div>
+                            ) : (
+                                cart.map(c => (
+                                    <div key={c.id} className="flex gap-3">
+                                        <div className="w-20 h-20 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                            {c.image ? <img src={getMediaUrl(c.image)} alt={c.name} className="w-full h-full object-cover" /> : <Package className="w-full h-full p-4 text-slate-300" />}
+                                        </div>
+                                        <div className="flex-1 flex flex-col">
+                                            <div className="font-semibold text-sm text-slate-800 line-clamp-2 leading-tight mb-2">{c.name}</div>
+                                            <div className="mt-auto flex items-center justify-between">
+                                                <div className="flex items-center border border-slate-200 rounded-md bg-white">
+                                                    <button onClick={() => { if(c.quantity === 1) handleRemove(c.id); else handleUpdateQuantity(c.itemId, -1); }} className="px-3 py-1.5 text-slate-500 hover:text-indigo-600 active:bg-indigo-50"><Minus size={14}/></button>
+                                                    <span className="px-3 text-sm font-bold text-slate-700 w-8 text-center">{c.quantity}</span>
+                                                    <button onClick={() => handleUpdateQuantity(c.itemId, 1)} className="px-3 py-1.5 text-slate-500 hover:text-indigo-600 active:bg-indigo-50"><Plus size={14}/></button>
+                                                </div>
+                                                <button onClick={() => handleRemove(c.id)} className="text-slate-400 hover:text-red-500 p-2"><Trash2 size={18}/></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                            <button
+                                onClick={() => { setIsCartOpen(false); handleSubmit(); }}
+                                disabled={cart.length === 0 || loading}
+                                className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 text-lg"
+                            >
+                                {loading ? <Loader2 className="animate-spin" size={24} /> : `Kirim Pesanan (${totalItems})`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
