@@ -1116,10 +1116,19 @@ exports.addProgress = async (req, res) => {
                 const procurementUrl = `${baseUrl}/pengadaan/${id}`;
 
                 // --- MENTION LOGIC ---
-                const mentionedUsernames = [...new Set(message.match(/@([a-zA-Z0-9_.-]+)/g)?.map(m => m.slice(1)) || [])];
-                const mentionedUsers = mentionedUsernames.length > 0 
-                    ? await prisma.user.findMany({ where: { username: { in: mentionedUsernames } } }) 
-                    : [];
+                const mentionedTags = [...new Set(message.match(/@([a-zA-Z0-9_.-]+)/g)?.map(m => m.slice(1)) || [])];
+                let mentionedUsers = [];
+                if (mentionedTags.length > 0) {
+                    const allUsers = await prisma.user.findMany();
+                    mentionedUsers = allUsers.filter(u => {
+                        const uMention = (u.name || u.username || '').replace(/\s+/g, '_').toLowerCase();
+                        const uUsername = (u.username || '').toLowerCase();
+                        return mentionedTags.some(tag => {
+                            const t = tag.toLowerCase();
+                            return t === uMention || t === uUsername;
+                        });
+                    });
+                }
                 const mentionedUserIds = mentionedUsers.map(u => u.id);
 
                 for (const mUser of mentionedUsers) {

@@ -410,7 +410,7 @@ const ProcurementDetail = () => {
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, unitId: u.unitId })));
+            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, mentionName: (u.name || u.username).replace(/\s+/g, '_'), unitId: u.unitId })));
         } catch (e) { console.error(e); }
     };
 
@@ -660,7 +660,7 @@ const ProcurementDetail = () => {
 
     const handleChatKeyDown = (e) => {
         if (showMentionList) {
-            const filteredUsers = users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase()));
+            const filteredUsers = users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase()));
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setMentionIndex(prev => (prev + 1) % filteredUsers.length);
@@ -670,7 +670,7 @@ const ProcurementDetail = () => {
             } else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (filteredUsers[mentionIndex]) {
-                    handleSelectMention(filteredUsers[mentionIndex].username);
+                    handleSelectMention(filteredUsers[mentionIndex].mentionName);
                 }
             } else if (e.key === 'Escape') {
                 setShowMentionList(false);
@@ -898,17 +898,17 @@ const ProcurementDetail = () => {
                             <div className="p-4 bg-white border-t flex items-end gap-2 relative">
                                 {showMentionList && (
                                     <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
-                                        {users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
+                                        {users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
                                             <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
                                         ) : (
-                                            users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
+                                            users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
                                                 <button
                                                     key={u.id}
-                                                    onClick={() => handleSelectMention(u.username)}
+                                                    onClick={() => handleSelectMention(u.mentionName)}
                                                     className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
                                                 >
-                                                    <div className="font-bold text-slate-800">{u.username}</div>
-                                                    <div className="text-[10px] text-slate-500">{u.name}</div>
+                                                    <div className="font-bold text-slate-800">{u.name}</div>
+                                                    <div className="text-[10px] text-slate-500">{u.username}</div>
                                                 </button>
                                             ))
                                         )}
