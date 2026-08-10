@@ -848,7 +848,7 @@ const ProcurementDetail = () => {
             </div>
 
             {/* ── DISKUSI / CHAT ── */}
-            {req.status !== 'SUBMITTED' && req.status !== 'REJECTED' && (
+            {req.status !== 'REJECTED' && (
                 <div style={{ marginBottom: 24 }}>
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[500px] overflow-hidden">
                         <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
