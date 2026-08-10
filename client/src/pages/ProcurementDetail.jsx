@@ -4,7 +4,7 @@ import {
     CheckCircle, XCircle, FileText, Upload, DollarSign, Store,
     ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera,
     Image, MapPin, ChevronRight, AlertCircle, Package, QrCode,
-    MessageSquare, Clock, Save
+    MessageSquare, Clock, Save, Send, Loader2
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -775,72 +775,78 @@ const ProcurementDetail = () => {
                 />
             </div>
 
-            {/* ── PROGRESS TIMELINE ── */}
+            {/* ── DISKUSI / CHAT ── */}
             {req.status !== 'SUBMITTED' && req.status !== 'REJECTED' && (
                 <div style={{ marginBottom: 24 }}>
-                    <Card>
-                        <CardHeader icon={MessageSquare} title="Log Progress & Catatan" />
-                        <div style={{ padding: '24px 28px', background: T.cream }}>
-                            {/* Input Area */}
-                            {(isAdmin || isAssignedToAny) && activeTab >= 3 && req.status !== 'COMPLETED' && (
-                                <div style={{ marginBottom: 24 }}>
-                                    <Label>Tambah Catatan Progress Baru</Label>
-                                    <div style={{ display: 'flex', gap: 12 }}>
-                                        <Textarea
-                                            placeholder="Cth: Vendor sedang memproses pesanan, estimasi tiba hari Jumat..."
-                                            rows={2}
-                                            value={newProgressMessage}
-                                            onChange={(e) => setNewProgressMessage(e.target.value)}
-                                            style={{ flex: 1 }}
-                                        />
-                                        <Btn
-                                            variant="primary"
-                                            onClick={handleAddProgress}
-                                            disabled={isSubmittingProgress || !newProgressMessage.trim()}
-                                            style={{ height: 'fit-content' }}
-                                        >
-                                            {isSubmittingProgress ? 'Menyimpan...' : 'Kirim Catatan'}
-                                        </Btn>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Timeline Items */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[500px] overflow-hidden">
+                        <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
+                            <MessageSquare className="text-blue-600" size={18} />
+                            <h3 className="text-sm font-semibold text-slate-700 m-0">Diskusi Pengadaan</h3>
+                        </div>
+                        
+                        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
                             {progressLogs.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                    {progressLogs.map((log, idx) => (
-                                        <div key={log.id || idx} style={{ display: 'flex', gap: 16 }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                <div style={{ width: 12, height: 12, borderRadius: '50%', background: T.navy, border: `2px solid ${T.goldSoft}` }} />
-                                                {idx !== progressLogs.length - 1 && <div style={{ flex: 1, width: 2, background: T.border, margin: '4px 0' }} />}
+                                progressLogs.slice().reverse().map((msg, idx) => {
+                                    const isMine = msg.userId === user?.id;
+                                    const isStaff = msg.user?.role !== 'USER' && msg.user?.role !== 'ADMIN_UNIT';
+                                    
+                                    return (
+                                        <div key={msg.id || idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isStaff ? 'text-orange-600' : 'text-slate-500')}`}>
+                                                    {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isStaff && !isMine && '(Admin/Petugas)'}
+                                                </span>
+                                                <span className="text-[9px] text-slate-400">
+                                                    {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                                </span>
                                             </div>
-                                            <div style={{ background: T.white, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, flex: 1 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                                    <span style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>{log.user?.name || log.user?.username || 'Sistem'}</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.slate, fontSize: 11 }}>
-                                                        <Clock size={12} />
-                                                        {new Date(log.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                </div>
-                                                <p style={{ margin: 0, fontSize: 13, color: T.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                                                    {log.message}
-                                                </p>
-                                                {log.stage && (
-                                                    <div style={{ marginTop: 8, display: 'inline-block', padding: '2px 8px', background: T.creamDk, borderRadius: 4, fontSize: 10, color: T.slate, fontWeight: 600 }}>
-                                                        Tahap {log.stage}
+                                            <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
+                                                isMine 
+                                                    ? 'bg-blue-600 text-white rounded-tr-sm' 
+                                                    : (isStaff ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
+                                            }`}>
+                                                <p className="whitespace-pre-wrap m-0">{msg.message}</p>
+                                                {msg.stage && (
+                                                    <div className="mt-2 inline-block px-2 py-0.5 bg-white/20 rounded text-[10px] font-semibold opacity-80">
+                                                        Tahap {msg.stage}
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
+                                    );
+                                })
                             ) : (
-                                <div style={{ textAlign: 'center', color: T.slate, fontSize: 13, fontStyle: 'italic', padding: '20px 0' }}>
-                                    Belum ada log progress untuk pengadaan ini.
+                                <div className="text-center py-6 text-sm text-slate-400 italic flex items-center justify-center h-full">
+                                    Belum ada pesan diskusi.
                                 </div>
                             )}
                         </div>
-                    </Card>
+
+                        {req.status !== 'COMPLETED' && (
+                            <div className="p-4 bg-white border-t flex items-end gap-2">
+                                <textarea
+                                    value={newProgressMessage}
+                                    onChange={e => setNewProgressMessage(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleAddProgress();
+                                        }
+                                    }}
+                                    placeholder="Ketik pesan..."
+                                    rows={1}
+                                    className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                />
+                                <button
+                                    onClick={handleAddProgress}
+                                    disabled={isSubmittingProgress || !newProgressMessage.trim()}
+                                    className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
+                                >
+                                    {isSubmittingProgress ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

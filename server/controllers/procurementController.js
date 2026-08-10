@@ -1086,7 +1086,10 @@ exports.addProgress = async (req, res) => {
 
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) },
-            include: { items: true }
+            include: { 
+                items: true,
+                user: { select: { id: true, name: true, username: true, phone: true } }
+            }
         });
         if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan.' });
 
@@ -1099,41 +1102,93 @@ exports.addProgress = async (req, res) => {
                 stage: stage ? parseInt(stage) : null
             },
             include: {
-                user: { select: { id: true, name: true, username: true } }
+                user: { select: { id: true, name: true, username: true, role: true } }
             }
         });
 
-        res.status(201).json(progress);
-
-        // --- WhatsApp Notification to Submitter (Async) ---
+        // --- Notifikasi Pintar (Smart Notifications) ---
         (async () => {
             try {
-                if (procurement.userId === user.id) return; // Don't notify self
-                const submitter = await prisma.user.findUnique({ where: { id: procurement.userId } });
-                if (!submitter || !submitter.phone) return;
+                const isUserReporter = procurement.userId === user.id;
+                const senderName = progress.user?.name || progress.user?.username || 'Seseorang';
+                const notifMsg = `[Chat Baru] ${senderName} membalas di pengadaan "${procurement.title || procurement.code}": "${message}"`;
+                const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+                const procurementUrl = `${baseUrl}/pengadaan/${id}`;
 
-                const stageLabels = { 1: 'Verifikasi', 2: 'Penugasan', 3: 'Pemilihan Vendor', 4: 'Finalisasi', 5: 'Serah Terima' };
-                const stageLabel = stage ? stageLabels[stage] || '' : '';
+                if (isUserReporter) {
+                    // Find the last admin/assignee who sent a message in this procurement
+                    const lastAdminMessage = await prisma.procurementProgress.findFirst({
+                        where: { 
+                            procurementId: parseInt(id),
+                            userId: { not: user.id }
+                        },
+                        orderBy: { createdAt: 'desc' },
+                        include: { user: true }
+                    });
 
-                const msg = `Bismillah.\n*Update Progress Pengadaan*\n\n` +
-                    `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
-                    `Ada update terbaru untuk pengadaan *"${procurement.title || procurement.code}"*` +
-                    (stageLabel ? ` (Tahap: ${stageLabel})` : '') + `:\n\n` +
-                    `💬 _"${message.trim()}"_\n` +
-                    `— ${progress.user.name || progress.user.username}\n\n` +
-                    `Silakan cek aplikasi untuk detail lebih lanjut.`;
+                    let notifRecipients = [];
 
-                setTimeout(async () => {
-                    try {
-                        await whatsappService.sendMessage(submitter.phone, msg);
-                    } catch (e) {
-                        console.error('[WA] Progress notification error:', e);
+                    if (lastAdminMessage && lastAdminMessage.user) {
+                        notifRecipients.push(lastAdminMessage.user);
+                    } else {
+                        // Fallback to default admins
+                        const waRoles = [
+                            { position: { contains: 'Kepala Bidang Sarana' } },
+                            { position: { contains: 'Staff Manajemen Aset' } }
+                        ];
+                        notifRecipients = await prisma.user.findMany({
+                            where: { OR: waRoles }
+                        });
                     }
-                }, 10000);
+
+                    for (const admin of notifRecipients) {
+                        // In-App Notif
+                        await createNotification(admin.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+                        // WA Notif
+                        if (admin.phone) {
+                            const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
+                                `Pemohon *${senderName}* membalas pada pengadaan *${procurement.code}*:\n` +
+                                `"${message}"\n\n` +
+                                `Cek selengkapnya: ${procurementUrl}`;
+                            whatsappService.sendMessage(admin.phone, waMsg).catch(e => console.error(e));
+                        }
+                    }
+
+                    // Also notify assignees of items, if not already notified
+                    const assigneeIds = [...new Set(procurement.items.map(it => it.assignedToId).filter(id => id))];
+                    for (const assigneeId of assigneeIds) {
+                        const isAlreadyNotified = notifRecipients.some(r => r.id === assigneeId);
+                        if (!isAlreadyNotified) {
+                            const assigneeUser = await prisma.user.findUnique({ where: { id: assigneeId } });
+                            if (assigneeUser && assigneeUser.phone) {
+                                await createNotification(assigneeUser.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+                                const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
+                                    `Pemohon *${senderName}* membalas pada pengadaan *${procurement.code}* (Anda ditugaskan pada item pengadaan ini):\n` +
+                                    `"${message}"\n\n` +
+                                    `Cek selengkapnya: ${procurementUrl}`;
+                                whatsappService.sendMessage(assigneeUser.phone, waMsg).catch(e => console.error(e));
+                            }
+                        }
+                    }
+
+                } else {
+                    // Admin or assignee is sending the message, notify the reporter
+                    await createNotification(procurement.userId, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+
+                    if (procurement.user?.phone) {
+                        const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
+                            `Admin/Petugas *${senderName}* membalas pengajuan pengadaan Anda *${procurement.code}*:\n` +
+                            `"${message}"\n\n` +
+                            `Cek selengkapnya: ${procurementUrl}`;
+                        whatsappService.sendMessage(procurement.user.phone, waMsg).catch(e => console.error(e));
+                    }
+                }
             } catch (err) {
                 console.error('Progress WA Error:', err);
             }
         })();
+
+        res.status(201).json(progress);
     } catch (error) {
         console.error('addProgress error:', error);
         res.status(500).json({ error: error.message });
