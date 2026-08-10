@@ -1113,7 +1113,7 @@ exports.addProgress = async (req, res) => {
                 const senderName = progress.user?.name || progress.user?.username || 'Seseorang';
                 const notifMsg = `[Chat Baru] ${senderName} membalas di pengadaan "${procurement.title || procurement.code}": "${message}"`;
                 const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
-                const procurementUrl = `${baseUrl}/pengadaan/${id}`;
+                const procurementUrl = `${baseUrl}/procurements/${id}`;
 
                 // --- MENTION LOGIC ---
                 const mentionedTags = [...new Set(message.match(/@([a-zA-Z0-9_.-]+)/g)?.map(m => m.slice(1)) || [])];
@@ -1133,7 +1133,7 @@ exports.addProgress = async (req, res) => {
 
                 for (const mUser of mentionedUsers) {
                     if (mUser.id === user.id) continue; // Don't notify self
-                    await createNotification(mUser.id, 'Anda Di-mention (Pengadaan)', notifMsg, 'INFO', `/pengadaan/${id}`);
+                    await createNotification(mUser.id, 'Anda Di-mention (Pengadaan)', notifMsg, 'INFO', `/procurements/${id}`);
                     if (mUser.phone) {
                         const waMsg = `Bismillah.\n💬 *ANDA DI-MENTION (PENGADAAN)*\n\n` +
                             `*${senderName}* menyebut Anda pada pengadaan *${procurement.code}*:\n` +
@@ -1169,7 +1169,7 @@ exports.addProgress = async (req, res) => {
 
                     for (const admin of notifRecipients) {
                         if (mentionedUserIds.includes(admin.id)) continue;
-                        await createNotification(admin.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+                        await createNotification(admin.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/procurements/${id}`);
                         if (admin.phone) {
                             const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
                                 `Pemohon *${senderName}* membalas pada pengadaan *${procurement.code}*:\n` +
@@ -1186,7 +1186,7 @@ exports.addProgress = async (req, res) => {
                         if (!isAlreadyNotified) {
                             const assigneeUser = await prisma.user.findUnique({ where: { id: assigneeId } });
                             if (assigneeUser && assigneeUser.phone) {
-                                await createNotification(assigneeUser.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+                                await createNotification(assigneeUser.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/procurements/${id}`);
                                 const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
                                     `Pemohon *${senderName}* membalas pada pengadaan *${procurement.code}* (Anda ditugaskan pada item pengadaan ini):\n` +
                                     `"${message}"\n\n` +
@@ -1198,7 +1198,7 @@ exports.addProgress = async (req, res) => {
 
                 } else {
                     if (!mentionedUserIds.includes(procurement.userId)) {
-                        await createNotification(procurement.userId, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+                        await createNotification(procurement.userId, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/procurements/${id}`);
 
                         if (procurement.user?.phone) {
                             const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
