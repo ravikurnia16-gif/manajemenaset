@@ -22,7 +22,7 @@ exports.getReports = async (req, res) => {
 
         // Determine if user is admin/viewer or viewing their own
         // Note: Sesuai request, HANYA Kepala Bidang Sarana yang berhak melihat semua Laporan
-        const isGlobalAdmin = req.user.role === 'KABID_SARPRAS' || (req.user.position && req.user.position.toLowerCase().includes('kepala bidang') && req.user.position.toLowerCase().includes('sarana'));
+        const isGlobalAdmin = req.user.role === 'KABID_SARPRAS' || (req.user.position && req.user.position.toLowerCase().includes('kepala bidang Sarana'));
         
         let whereClause = {
             type: 'DAILY',

@@ -94,6 +94,41 @@ exports.getAllProcurements = async (req, res) => {
     }
 };
 
+// Get Dashboard Stats
+exports.getDashboardStats = async (req, res) => {
+    const user = req.user;
+
+    try {
+        const whereClause = {};
+
+        if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
+            whereClause.OR = [
+                { unitId: user.unitId },
+                { userId: user.id },
+                { items: { some: { assignedToId: user.id } } }
+            ];
+        }
+
+        const procurements = await prisma.procurement.findMany({
+            where: whereClause,
+            select: { status: true }
+        });
+
+        const stats = {
+            total: procurements.length,
+            submitted: procurements.filter(p => p.status === 'SUBMITTED').length,
+            approved: procurements.filter(p => p.status === 'APPROVED').length,
+            process: procurements.filter(p => p.status === 'PROCESS').length,
+            completed: procurements.filter(p => p.status === 'COMPLETED').length,
+            rejected: procurements.filter(p => p.status === 'REJECTED').length,
+        };
+
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.deleteProcurement = async (req, res) => {
     const { id } = req.params;
     try {

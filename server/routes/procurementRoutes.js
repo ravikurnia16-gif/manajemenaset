@@ -6,6 +6,7 @@ const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const { handleUpload } = require('../middleware/uploadMiddleware');
 
 router.get('/', verifyToken, procurementController.getAllProcurements);
+router.get('/dashboard', verifyToken, procurementController.getDashboardStats);
 router.get('/:id', verifyToken, procurementController.getProcurementById);
 router.post('/', verifyToken, procurementController.createProcurement);
 

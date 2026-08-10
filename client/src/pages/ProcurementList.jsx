@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, ShoppingCart, Filter, Files, Trash2, Search } from 'lucide-react';
+import { Plus, Eye, ShoppingCart, Filter, Files, Trash2, Search, ClipboardList, Clock, CheckCircle, PackageCheck, XCircle } from 'lucide-react';
 
 import api from '../lib/axios';
 
@@ -22,6 +22,8 @@ const ProcurementList = () => {
     const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
     const [pagination, setPagination] = useState(savedFilters.pagination || { limit: 10, page: 1 });
+    const [dashboardStats, setDashboardStats] = useState(null);
+    const [loadingStats, setLoadingStats] = useState(true);
 
     useEffect(() => {
         sessionStorage.setItem('procurementFilters', JSON.stringify({
@@ -33,6 +35,7 @@ const ProcurementList = () => {
     useEffect(() => {
         fetchUnits();
         fetchCategories();
+        fetchDashboardStats();
     }, []);
 
     useEffect(() => {
@@ -58,6 +61,18 @@ const ProcurementList = () => {
             setCategories(res.data);
         } catch (error) {
             console.error("Failed to fetch categories");
+        }
+    };
+
+    const fetchDashboardStats = async () => {
+        try {
+            setLoadingStats(true);
+            const res = await api.get('/procurements/dashboard');
+            setDashboardStats(res.data);
+        } catch (error) {
+            console.error("Failed to fetch dashboard stats", error);
+        } finally {
+            setLoadingStats(false);
         }
     };
 
@@ -198,6 +213,54 @@ const ProcurementList = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Dashboard Stats */}
+            {!loadingStats && dashboardStats && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 px-1">
+                    <div className="bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl p-4 shadow-lg flex flex-col justify-between hover:scale-[1.02] transition-transform">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-slate-100 font-semibold text-sm">Total</span>
+                            <div className="p-1.5 bg-slate-600/50 rounded-lg text-slate-200"><ClipboardList size={18} /></div>
+                        </div>
+                        <div className="text-3xl font-bold text-white">{dashboardStats.total}</div>
+                    </div>
+                    <div className="bg-white border border-yellow-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-yellow-200 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-slate-500 font-semibold text-sm">Menunggu</span>
+                            <div className="p-1.5 bg-yellow-50 rounded-lg text-yellow-600"><Clock size={18} /></div>
+                        </div>
+                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.submitted}</div>
+                    </div>
+                    <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-slate-500 font-semibold text-sm">Disetujui</span>
+                            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600"><CheckCircle size={18} /></div>
+                        </div>
+                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.approved}</div>
+                    </div>
+                    <div className="bg-white border border-indigo-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-indigo-200 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-slate-500 font-semibold text-sm">Diproses</span>
+                            <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><PackageCheck size={18} /></div>
+                        </div>
+                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.process}</div>
+                    </div>
+                    <div className="bg-white border border-green-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-green-200 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-slate-500 font-semibold text-sm">Selesai</span>
+                            <div className="p-1.5 bg-green-50 rounded-lg text-green-600"><CheckCircle size={18} /></div>
+                        </div>
+                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.completed}</div>
+                    </div>
+                    <div className="bg-white border border-red-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-red-200 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-slate-500 font-semibold text-sm">Ditolak</span>
+                            <div className="p-1.5 bg-red-50 rounded-lg text-red-600"><XCircle size={18} /></div>
+                        </div>
+                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.rejected}</div>
+                    </div>
+                </div>
+            )}
 
             {/* Filter Bar */}
             <div className="flex flex-wrap gap-2 sm:gap-4 items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
