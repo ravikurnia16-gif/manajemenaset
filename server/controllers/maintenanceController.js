@@ -376,7 +376,8 @@ exports.getReportById = async (req, res) => {
                 user: { select: { username: true, name: true, phone: true } },
                 unit: { select: { name: true } },
                 assets: { select: { id: true, code: true, name: true, specification: true, condition: true } },
-                workshopOrders: { select: { id: true, code: true, title: true, status: true, workshopType: true } }
+                workshopOrders: { select: { id: true, code: true, title: true, status: true, workshopType: true } },
+                progress: { include: { user: { select: { name: true, username: true, role: true } } }, orderBy: { createdAt: 'asc' } }
             }
         });
         if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
@@ -1275,6 +1276,133 @@ exports.completeAssetMaintenance = async (req, res) => {
         }
 
         res.json({ message: 'Aset berhasil ditandai selesai', completedAssets: completedIds });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Add Progress (Chat)
+exports.addProgress = async (req, res) => {
+    const { id } = req.params;
+    const { message } = req.body;
+    const user = req.user;
+
+    try {
+        const report = await prisma.maintenance.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                user: { select: { id: true, name: true, username: true, phone: true } }
+            }
+        });
+
+        if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        if (!message || message.trim() === '') return res.status(400).json({ error: 'Pesan tidak boleh kosong' });
+
+        const progress = await prisma.maintenanceProgress.create({
+            data: {
+                maintenanceId: parseInt(id),
+                userId: user.id,
+                message: message.trim()
+            },
+            include: {
+                user: { select: { name: true, username: true, role: true } }
+            }
+        });
+
+        // Notifications
+        const isUserReporter = report.userId === user.id;
+
+        if (isUserReporter) {
+            // Find the last admin/technician who sent a message in this report
+            const lastAdminMessage = await prisma.maintenanceProgress.findFirst({
+                where: { 
+                    maintenanceId: parseInt(id),
+                    userId: { not: user.id }
+                },
+                orderBy: { createdAt: 'desc' },
+                include: { user: true }
+            });
+
+            let notifRecipients = [];
+
+            if (lastAdminMessage && lastAdminMessage.user) {
+                // If there's a previous admin who chatted, notify only them
+                notifRecipients.push(lastAdminMessage.user);
+            } else {
+                // Fallback to all admins if no admin has chatted yet
+                const waRoles = [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Staff Manajemen Aset' } }
+                ];
+                notifRecipients = await prisma.user.findMany({
+                    where: { OR: waRoles }
+                });
+            }
+
+            const senderName = user.name || user.username;
+            const notifMsg = `[Chat Baru] ${senderName} membalas di laporan "${report.title}": "${message}"`;
+
+            for (const admin of notifRecipients) {
+                // In-App Notif
+                await createNotification(
+                    admin.id,
+                    'Pesan Baru',
+                    notifMsg,
+                    'INFO',
+                    `/pemeliharaan/${id}`
+                );
+                
+                // WA Notif
+                if (admin.phone) {
+                    const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
+                        `Pelapor *${senderName}* membalas pada laporan *${report.code}*:\n` +
+                        `"${message}"\n\n` +
+                        `Silakan cek sistem untuk membalas.`;
+                    whatsappService.sendMessage(admin.phone, waMsg).catch(e => console.error(e));
+                }
+            }
+            // Also notify technician if assigned and has phone
+            if (report.status === 'ASSIGNED' || report.status === 'IN_PROGRESS') {
+                if (report.technician) {
+                    const techUser = await prisma.user.findFirst({
+                        where: { OR: [{ name: report.technician }, { username: report.technician }] }
+                    });
+                    
+                    const isAlreadyNotified = notifRecipients.some(r => r.id === techUser?.id);
+                    
+                    if (techUser && techUser.phone && !isAlreadyNotified) {
+                        const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
+                        `Pelapor *${senderName}* membalas pada tugas Anda *${report.code}*:\n` +
+                        `"${message}"\n\n` +
+                        `Silakan cek sistem untuk membalas.`;
+                        whatsappService.sendMessage(techUser.phone, waMsg).catch(e => console.error(e));
+                    }
+                }
+            }
+
+        } else {
+            // Admin or technician is sending the message, notify the reporter
+            const senderName = user.name || user.username;
+            const notifMsg = `[Chat Baru] Admin/Teknisi (${senderName}) membalas di laporan Anda "${report.title}": "${message}"`;
+
+            await createNotification(
+                report.userId,
+                'Pesan Baru',
+                notifMsg,
+                'INFO',
+                `/pemeliharaan/${id}`
+            );
+
+            if (report.user?.phone) {
+                const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
+                    `Admin/Teknisi *${senderName}* membalas laporan Anda *${report.code}*:\n` +
+                    `"${message}"\n\n` +
+                    `Silakan cek sistem untuk membalas.`;
+                whatsappService.sendMessage(report.user.phone, waMsg).catch(e => console.error(e));
+            }
+        }
+
+        res.json({ message: 'Pesan berhasil dikirim', data: progress });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -103,6 +103,9 @@ model User {
   // Procurement Progress
   procurementProgress ProcurementProgress[]
 
+  // Maintenance Progress
+  maintenanceProgress MaintenanceProgress[]
+
   // Workshop Orders
   workshopOrders   WorkshopOrder[]    @relation("WorkshopRequester")
   workshopProgress WorkshopProgress[] @relation("WorkshopProgressCreator")
@@ -395,6 +398,8 @@ model Maintenance {
   status String @default("SUBMITTED")
   // SUBMITTED -> APPROVED -> VALIDATED -> ASSIGNED -> IN_PROGRESS -> COMPLETED / REJECTED
 
+  progress MaintenanceProgress[]
+
   // Workflow Fields
   approvalNote    String?
   validationNote  String?
@@ -413,6 +418,18 @@ model Maintenance {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model MaintenanceProgress {
+  id            Int         @id @default(autoincrement())
+  maintenanceId Int
+  maintenance   Maintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  userId        Int?
+  user          User?       @relation(fields: [userId], references: [id])
+  message       String      @db.Text
+  createdAt     DateTime    @default(now())
+
+  @@index([maintenanceId])
 }
 
 model Log {

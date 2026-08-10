@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, Edit2, FileText as FileIcon, Clock, Calendar, User } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, Edit2, FileText as FileIcon, Clock, Calendar, User, Send, MessageSquare } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -51,6 +51,8 @@ const MaintenanceDetail = () => {
     const [receiptFile, setReceiptFile] = useState(null);
     const [completionPhoto, setCompletionPhoto] = useState(null);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+    const [chatMessage, setChatMessage] = useState('');
+    const [sendingChat, setSendingChat] = useState(false);
 
     const showToast = (message, type = 'success') => {
         setToast({ show: true, message, type });
@@ -215,6 +217,20 @@ const MaintenanceDetail = () => {
             showToast('Pembaruan status berhasil disimpan!');
         } catch (err) {
             showToast(err.response?.data?.error || 'Gagal mengubah status', 'error');
+        }
+    };
+
+    const handleSendChat = async () => {
+        if (!chatMessage.trim()) return;
+        try {
+            setSendingChat(true);
+            await api.post(`/maintenance/${id}/progress`, { message: chatMessage.trim() });
+            setChatMessage('');
+            fetchReport(); // Refresh data to get new chat
+        } catch (err) {
+            showToast(err.response?.data?.error || 'Gagal mengirim pesan', 'error');
+        } finally {
+            setSendingChat(false);
         }
     };
 
@@ -666,6 +682,70 @@ const MaintenanceDetail = () => {
                     <Edit2 size={16} /> Edit Biaya & Nota Pembayaran
                 </button>
             )}
+
+            {/* Diskusi / Chat */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 flex flex-col mt-6 shadow-sm">
+                <div className="flex items-center gap-2 border-b pb-3">
+                    <MessageSquare size={18} className="text-blue-600" />
+                    <h3 className="text-sm font-semibold text-slate-700">Diskusi Laporan</h3>
+                </div>
+                
+                <div className="flex-1 space-y-4 overflow-y-auto max-h-80 pr-2">
+                    {report.progress && report.progress.length > 0 ? (
+                        report.progress.map((msg, idx) => {
+                            const isMine = msg.userId === user?.id;
+                            const isTechnician = msg.user?.role !== 'USER' && msg.user?.role !== 'ADMIN_UNIT';
+                            
+                            return (
+                                <div key={idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isTechnician ? 'text-orange-600' : 'text-slate-500')}`}>
+                                            {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isTechnician && !isMine && '(Admin/Teknisi)'}
+                                        </span>
+                                        <span className="text-[9px] text-slate-400">
+                                            {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                        </span>
+                                    </div>
+                                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
+                                        isMine 
+                                            ? 'bg-blue-600 text-white rounded-tr-sm' 
+                                            : (isTechnician ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
+                                    }`}>
+                                        <p className="whitespace-pre-wrap">{msg.message}</p>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="text-center py-6 text-sm text-slate-400 italic">
+                            Belum ada pesan diskusi.
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-end gap-2 pt-3 border-t">
+                    <textarea
+                        value={chatMessage}
+                        onChange={e => setChatMessage(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendChat();
+                            }
+                        }}
+                        placeholder="Ketik pesan..."
+                        rows={1}
+                        className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    />
+                    <button
+                        onClick={handleSendChat}
+                        disabled={sendingChat || !chatMessage.trim()}
+                        className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
+                    >
+                        {sendingChat ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                </div>
+            </div>
 
             {/* Action Modal */}
             {actionModal.show && (
