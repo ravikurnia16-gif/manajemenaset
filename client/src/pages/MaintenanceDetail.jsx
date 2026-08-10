@@ -53,6 +53,11 @@ const MaintenanceDetail = () => {
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const [chatMessage, setChatMessage] = useState('');
     const [sendingChat, setSendingChat] = useState(false);
+    
+    // Mention States
+    const [showMentionList, setShowMentionList] = useState(false);
+    const [mentionFilter, setMentionFilter] = useState('');
+    const [mentionIndex, setMentionIndex] = useState(0);
 
     const showToast = (message, type = 'success') => {
         setToast({ show: true, message, type });
@@ -123,8 +128,8 @@ const MaintenanceDetail = () => {
 
     useEffect(() => {
         fetchReport();
+        fetchUsers();
         if (isAdmin) {
-            fetchUsers();
             fetchContractors();
             fetchUnits();
         }
@@ -232,6 +237,73 @@ const MaintenanceDetail = () => {
         } finally {
             setSendingChat(false);
         }
+    };
+
+    const handleChatChange = (e) => {
+        const val = e.target.value;
+        setChatMessage(val);
+        const cursorPos = e.target.selectionStart;
+        const textBeforeCursor = val.slice(0, cursorPos);
+        const mentionMatch = textBeforeCursor.match(/@([a-zA-Z0-9_.-]*)$/);
+        if (mentionMatch) {
+            setMentionFilter(mentionMatch[1]);
+            setShowMentionList(true);
+            setMentionIndex(0);
+        } else {
+            setShowMentionList(false);
+        }
+    };
+
+    const handleSelectMention = (username) => {
+        const input = document.getElementById('chat-input-maint');
+        const cursorPos = input ? input.selectionStart : chatMessage.length;
+        const textBeforeCursor = chatMessage.slice(0, cursorPos);
+        const textAfterCursor = chatMessage.slice(cursorPos);
+        const newTextBefore = textBeforeCursor.replace(/@([a-zA-Z0-9_.-]*)$/, `@${username} `);
+        setChatMessage(newTextBefore + textAfterCursor);
+        setShowMentionList(false);
+        setTimeout(() => {
+            if (input) {
+                input.focus();
+                input.setSelectionRange(newTextBefore.length, newTextBefore.length);
+            }
+        }, 0);
+    };
+
+    const handleChatKeyDown = (e) => {
+        if (showMentionList) {
+            const filteredUsers = users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase()));
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev + 1) % filteredUsers.length);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev - 1 + filteredUsers.length) % filteredUsers.length);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filteredUsers[mentionIndex]) {
+                    handleSelectMention(filteredUsers[mentionIndex].username);
+                }
+            } else if (e.key === 'Escape') {
+                setShowMentionList(false);
+            }
+        } else {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendChat();
+            }
+        }
+    };
+
+    const renderChatMessage = (text) => {
+        if (!text) return null;
+        const parts = text.split(/(@[a-zA-Z0-9_.-]+)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('@')) {
+                return <span key={i} className="font-bold text-blue-700 bg-blue-100 px-1 rounded mx-0.5">{part}</span>;
+            }
+            return <span key={i}>{part}</span>;
+        });
     };
 
     const handleAddMedia = async (e) => {
@@ -711,7 +783,7 @@ const MaintenanceDetail = () => {
                                             ? 'bg-blue-600 text-white rounded-tr-sm' 
                                             : (isTechnician ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
                                     }`}>
-                                        <p className="whitespace-pre-wrap">{msg.message}</p>
+                                        <p className="whitespace-pre-wrap">{renderChatMessage(msg.message)}</p>
                                     </div>
                                 </div>
                             );
@@ -723,17 +795,31 @@ const MaintenanceDetail = () => {
                     )}
                 </div>
 
-                <div className="flex items-end gap-2 pt-3 border-t">
+                <div className="flex items-end gap-2 pt-3 border-t relative">
+                    {showMentionList && (
+                        <div className="absolute bottom-full left-0 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
+                            {users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
+                                <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
+                            ) : (
+                                users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
+                                    <button
+                                        key={u.id}
+                                        onClick={() => handleSelectMention(u.username)}
+                                        className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
+                                    >
+                                        <div className="font-bold text-slate-800">{u.username}</div>
+                                        <div className="text-[10px] text-slate-500">{u.name}</div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    )}
                     <textarea
+                        id="chat-input-maint"
                         value={chatMessage}
-                        onChange={e => setChatMessage(e.target.value)}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSendChat();
-                            }
-                        }}
-                        placeholder="Ketik pesan..."
+                        onChange={handleChatChange}
+                        onKeyDown={handleChatKeyDown}
+                        placeholder="Ketik pesan... (@username untuk mention)"
                         rows={1}
                         className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     />

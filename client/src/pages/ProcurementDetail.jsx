@@ -381,6 +381,11 @@ const ProcurementDetail = () => {
     const [progressLogs, setProgressLogs] = useState([]);
     const [newProgressMessage, setNewProgressMessage] = useState('');
     const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
+    
+    // Mention States
+    const [showMentionList, setShowMentionList] = useState(false);
+    const [mentionFilter, setMentionFilter] = useState('');
+    const [mentionIndex, setMentionIndex] = useState(0);
 
     // Workshop Integration States
     const [showWorkshopModal, setShowWorkshopModal] = useState(false);
@@ -405,7 +410,7 @@ const ProcurementDetail = () => {
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username, unitId: u.unitId })));
+            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, unitId: u.unitId })));
         } catch (e) { console.error(e); }
     };
 
@@ -622,6 +627,73 @@ const ProcurementDetail = () => {
         }
     };
 
+    const handleChatChange = (e) => {
+        const val = e.target.value;
+        setNewProgressMessage(val);
+        const cursorPos = e.target.selectionStart;
+        const textBeforeCursor = val.slice(0, cursorPos);
+        const mentionMatch = textBeforeCursor.match(/@([a-zA-Z0-9_.-]*)$/);
+        if (mentionMatch) {
+            setMentionFilter(mentionMatch[1]);
+            setShowMentionList(true);
+            setMentionIndex(0);
+        } else {
+            setShowMentionList(false);
+        }
+    };
+
+    const handleSelectMention = (username) => {
+        const input = document.getElementById('chat-input-proc');
+        const cursorPos = input ? input.selectionStart : newProgressMessage.length;
+        const textBeforeCursor = newProgressMessage.slice(0, cursorPos);
+        const textAfterCursor = newProgressMessage.slice(cursorPos);
+        const newTextBefore = textBeforeCursor.replace(/@([a-zA-Z0-9_.-]*)$/, `@${username} `);
+        setNewProgressMessage(newTextBefore + textAfterCursor);
+        setShowMentionList(false);
+        setTimeout(() => {
+            if (input) {
+                input.focus();
+                input.setSelectionRange(newTextBefore.length, newTextBefore.length);
+            }
+        }, 0);
+    };
+
+    const handleChatKeyDown = (e) => {
+        if (showMentionList) {
+            const filteredUsers = users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase()));
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev + 1) % filteredUsers.length);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev - 1 + filteredUsers.length) % filteredUsers.length);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filteredUsers[mentionIndex]) {
+                    handleSelectMention(filteredUsers[mentionIndex].username);
+                }
+            } else if (e.key === 'Escape') {
+                setShowMentionList(false);
+            }
+        } else {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAddProgress();
+            }
+        }
+    };
+
+    const renderChatMessage = (text) => {
+        if (!text) return null;
+        const parts = text.split(/(@[a-zA-Z0-9_.-]+)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('@')) {
+                return <span key={i} className="font-bold text-blue-700 bg-blue-100 px-1 rounded mx-0.5">{part}</span>;
+            }
+            return <span key={i}>{part}</span>;
+        });
+    };
+
     const handleCreateWorkshopOrder = async (e) => {
         e.preventDefault();
         const itemIds = Object.keys(selectedWorkshopItems).filter(k => selectedWorkshopItems[k]).map(Number);
@@ -805,7 +877,7 @@ const ProcurementDetail = () => {
                                                     ? 'bg-blue-600 text-white rounded-tr-sm' 
                                                     : (isStaff ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
                                             }`}>
-                                                <p className="whitespace-pre-wrap m-0">{msg.message}</p>
+                                                <p className="whitespace-pre-wrap m-0">{renderChatMessage(msg.message)}</p>
                                                 {msg.stage && (
                                                     <div className="mt-2 inline-block px-2 py-0.5 bg-white/20 rounded text-[10px] font-semibold opacity-80">
                                                         Tahap {msg.stage}
@@ -823,17 +895,31 @@ const ProcurementDetail = () => {
                         </div>
 
                         {req.status !== 'COMPLETED' && (
-                            <div className="p-4 bg-white border-t flex items-end gap-2">
+                            <div className="p-4 bg-white border-t flex items-end gap-2 relative">
+                                {showMentionList && (
+                                    <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
+                                        {users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
+                                            <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
+                                        ) : (
+                                            users.filter(u => (u.username||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
+                                                <button
+                                                    key={u.id}
+                                                    onClick={() => handleSelectMention(u.username)}
+                                                    className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
+                                                >
+                                                    <div className="font-bold text-slate-800">{u.username}</div>
+                                                    <div className="text-[10px] text-slate-500">{u.name}</div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                                 <textarea
+                                    id="chat-input-proc"
                                     value={newProgressMessage}
-                                    onChange={e => setNewProgressMessage(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleAddProgress();
-                                        }
-                                    }}
-                                    placeholder="Ketik pesan..."
+                                    onChange={handleChatChange}
+                                    onKeyDown={handleChatKeyDown}
+                                    placeholder="Ketik pesan... (@username untuk mention)"
                                     rows={1}
                                     className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                 />

@@ -864,7 +864,7 @@ exports.processBAST = async (req, res) => {
 
                 const defaultCategory = await prisma.category.findFirst();
                 if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
-                
+
                 for (const item of procurement.items) {
                     const qty = item.qty;
                     const unitCode = procurement.unit.code;
@@ -874,7 +874,7 @@ exports.processBAST = async (req, res) => {
                     // Fetch actual category for code generation
                     const categoryIdToUse = details.categoryId || item.categoryId || defaultCategory.id;
                     const itemCategory = await prisma.category.findUnique({ where: { id: parseInt(categoryIdToUse) } }) || defaultCategory;
-                    
+
                     const categoryCode = itemCategory.code;
 
                     const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
@@ -1086,7 +1086,7 @@ exports.addProgress = async (req, res) => {
 
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) },
-            include: { 
+            include: {
                 items: true,
                 user: { select: { id: true, name: true, username: true, phone: true } }
             }
@@ -1115,8 +1115,26 @@ exports.addProgress = async (req, res) => {
                 const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                 const procurementUrl = `${baseUrl}/pengadaan/${id}`;
 
+                // --- MENTION LOGIC ---
+                const mentionedUsernames = [...new Set(message.match(/@([a-zA-Z0-9_.-]+)/g)?.map(m => m.slice(1)) || [])];
+                const mentionedUsers = mentionedUsernames.length > 0 
+                    ? await prisma.user.findMany({ where: { username: { in: mentionedUsernames } } }) 
+                    : [];
+                const mentionedUserIds = mentionedUsers.map(u => u.id);
+
+                for (const mUser of mentionedUsers) {
+                    if (mUser.id === user.id) continue; // Don't notify self
+                    await createNotification(mUser.id, 'Anda Di-mention (Pengadaan)', notifMsg, 'INFO', `/pengadaan/${id}`);
+                    if (mUser.phone) {
+                        const waMsg = `Bismillah.\n💬 *ANDA DI-MENTION (PENGADAAN)*\n\n` +
+                            `*${senderName}* menyebut Anda pada pengadaan *${procurement.code}*:\n` +
+                            `"${message}"\n\n` +
+                            `Cek selengkapnya: ${procurementUrl}`;
+                        whatsappService.sendMessage(mUser.phone, waMsg).catch(e => console.error(e));
+                    }
+                }
+
                 if (isUserReporter) {
-                    // Find the last admin/assignee who sent a message in this procurement
                     const lastAdminMessage = await prisma.procurementProgress.findFirst({
                         where: { 
                             procurementId: parseInt(id),
@@ -1131,7 +1149,6 @@ exports.addProgress = async (req, res) => {
                     if (lastAdminMessage && lastAdminMessage.user) {
                         notifRecipients.push(lastAdminMessage.user);
                     } else {
-                        // Fallback to default admins
                         const waRoles = [
                             { position: { contains: 'Kepala Bidang Sarana' } },
                             { position: { contains: 'Staff Manajemen Aset' } }
@@ -1142,9 +1159,8 @@ exports.addProgress = async (req, res) => {
                     }
 
                     for (const admin of notifRecipients) {
-                        // In-App Notif
+                        if (mentionedUserIds.includes(admin.id)) continue;
                         await createNotification(admin.id, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
-                        // WA Notif
                         if (admin.phone) {
                             const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
                                 `Pemohon *${senderName}* membalas pada pengadaan *${procurement.code}*:\n` +
@@ -1154,9 +1170,9 @@ exports.addProgress = async (req, res) => {
                         }
                     }
 
-                    // Also notify assignees of items, if not already notified
                     const assigneeIds = [...new Set(procurement.items.map(it => it.assignedToId).filter(id => id))];
                     for (const assigneeId of assigneeIds) {
+                        if (mentionedUserIds.includes(assigneeId)) continue;
                         const isAlreadyNotified = notifRecipients.some(r => r.id === assigneeId);
                         if (!isAlreadyNotified) {
                             const assigneeUser = await prisma.user.findUnique({ where: { id: assigneeId } });
@@ -1172,15 +1188,16 @@ exports.addProgress = async (req, res) => {
                     }
 
                 } else {
-                    // Admin or assignee is sending the message, notify the reporter
-                    await createNotification(procurement.userId, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
+                    if (!mentionedUserIds.includes(procurement.userId)) {
+                        await createNotification(procurement.userId, 'Pesan Baru Pengadaan', notifMsg, 'INFO', `/pengadaan/${id}`);
 
-                    if (procurement.user?.phone) {
-                        const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
-                            `Admin/Petugas *${senderName}* membalas pengajuan pengadaan Anda *${procurement.code}*:\n` +
-                            `"${message}"\n\n` +
-                            `Cek selengkapnya: ${procurementUrl}`;
-                        whatsappService.sendMessage(procurement.user.phone, waMsg).catch(e => console.error(e));
+                        if (procurement.user?.phone) {
+                            const waMsg = `Bismillah.\n💬 *PESAN BARU (PENGADAAN)*\n\n` +
+                                `Admin/Petugas *${senderName}* membalas pengajuan pengadaan Anda *${procurement.code}*:\n` +
+                                `"${message}"\n\n` +
+                                `Cek selengkapnya: ${procurementUrl}`;
+                            whatsappService.sendMessage(procurement.user.phone, waMsg).catch(e => console.error(e));
+                        }
                     }
                 }
             } catch (err) {

@@ -1311,6 +1311,29 @@ exports.addProgress = async (req, res) => {
 
         // Notifications
         const isUserReporter = report.userId === user.id;
+        const senderName = progress.user?.name || progress.user?.username || 'Seseorang';
+        const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+        const maintenanceUrl = `${baseUrl}/pemeliharaan/${id}`;
+        const notifMsg = `[Chat Baru] ${senderName} membalas di laporan "${report.title}": "${message}"`;
+
+        // --- MENTION LOGIC ---
+        const mentionedUsernames = [...new Set(message.match(/@([a-zA-Z0-9_.-]+)/g)?.map(m => m.slice(1)) || [])];
+        const mentionedUsers = mentionedUsernames.length > 0 
+            ? await prisma.user.findMany({ where: { username: { in: mentionedUsernames } } }) 
+            : [];
+        const mentionedUserIds = mentionedUsers.map(u => u.id);
+
+        for (const mUser of mentionedUsers) {
+            if (mUser.id === user.id) continue; // Don't notify self
+            await createNotification(mUser.id, 'Anda Di-mention (Pemeliharaan)', notifMsg, 'INFO', `/pemeliharaan/${id}`);
+            if (mUser.phone) {
+                const waMsg = `Bismillah.\n💬 *ANDA DI-MENTION (PEMELIHARAAN)*\n\n` +
+                    `*${senderName}* menyebut Anda pada laporan *${report.code}*:\n` +
+                    `"${message}"\n\n` +
+                    `Cek selengkapnya: ${maintenanceUrl}`;
+                whatsappService.sendMessage(mUser.phone, waMsg).catch(e => console.error(e));
+            }
+        }
 
         if (isUserReporter) {
             // Find the last admin/technician who sent a message in this report
@@ -1339,12 +1362,8 @@ exports.addProgress = async (req, res) => {
                 });
             }
 
-            const senderName = progress.user?.name || progress.user?.username || 'Seseorang';
-            const notifMsg = `[Chat Baru] ${senderName} membalas di laporan "${report.title}": "${message}"`;
-            const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
-            const maintenanceUrl = `${baseUrl}/pemeliharaan/${id}`;
-
             for (const admin of notifRecipients) {
+                if (mentionedUserIds.includes(admin.id)) continue;
                 // In-App Notif
                 await createNotification(
                     admin.id,
@@ -1370,39 +1389,38 @@ exports.addProgress = async (req, res) => {
                         where: { OR: [{ name: report.technician }, { username: report.technician }] }
                     });
                     
-                    const isAlreadyNotified = notifRecipients.some(r => r.id === techUser?.id);
-                    
-                    if (techUser && techUser.phone && !isAlreadyNotified) {
-                        const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
-                        `Pelapor *${senderName}* membalas pada tugas Anda *${report.code}*:\n` +
-                        `"${message}"\n\n` +
-                        `Cek selengkapnya: ${maintenanceUrl}`;
-                        whatsappService.sendMessage(techUser.phone, waMsg).catch(e => console.error(e));
+                    if (techUser && !mentionedUserIds.includes(techUser.id)) {
+                        const isAlreadyNotified = notifRecipients.some(r => r.id === techUser.id);
+                        
+                        if (techUser.phone && !isAlreadyNotified) {
+                            const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
+                            `Pelapor *${senderName}* membalas pada tugas Anda *${report.code}*:\n` +
+                            `"${message}"\n\n` +
+                            `Cek selengkapnya: ${maintenanceUrl}`;
+                            whatsappService.sendMessage(techUser.phone, waMsg).catch(e => console.error(e));
+                        }
                     }
                 }
             }
 
         } else {
             // Admin or technician is sending the message, notify the reporter
-            const senderName = progress.user?.name || progress.user?.username || 'Seseorang';
-            const notifMsg = `[Chat Baru] Admin/Teknisi (${senderName}) membalas di laporan Anda "${report.title}": "${message}"`;
-            const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
-            const maintenanceUrl = `${baseUrl}/pemeliharaan/${id}`;
+            if (!mentionedUserIds.includes(report.userId)) {
+                await createNotification(
+                    report.userId,
+                    'Pesan Baru',
+                    notifMsg,
+                    'INFO',
+                    `/pemeliharaan/${id}`
+                );
 
-            await createNotification(
-                report.userId,
-                'Pesan Baru',
-                notifMsg,
-                'INFO',
-                `/pemeliharaan/${id}`
-            );
-
-            if (report.user?.phone) {
-                const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
-                    `Admin/Teknisi *${senderName}* membalas laporan Anda *${report.code}*:\n` +
-                    `"${message}"\n\n` +
-                    `Cek selengkapnya: ${maintenanceUrl}`;
-                whatsappService.sendMessage(report.user.phone, waMsg).catch(e => console.error(e));
+                if (report.user?.phone) {
+                    const waMsg = `Bismillah.\n💬 *PESAN BARU (PEMELIHARAAN)*\n\n` +
+                        `Admin/Teknisi *${senderName}* membalas laporan Anda *${report.code}*:\n` +
+                        `"${message}"\n\n` +
+                        `Cek selengkapnya: ${maintenanceUrl}`;
+                    whatsappService.sendMessage(report.user.phone, waMsg).catch(e => console.error(e));
+                }
             }
         }
 
