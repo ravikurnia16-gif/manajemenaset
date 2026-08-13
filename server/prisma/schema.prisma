@@ -2064,7 +2064,7 @@ model UniformSchedule {
 model UniformProject {
   @@map("seragam_proyek")
   id             Int      @id @default(autoincrement())
-  year           Int      @unique
+  year           Int
   title          String
   targetQuantity Int      @default(0)
   status         String   @default("PERENCANAAN") // PERENCANAAN, SELEKSI, BERJALAN, SELESAI

@@ -3077,12 +3077,23 @@ exports.getProjects = async (req, res) => {
 exports.createProject = async (req, res) => {
     try {
         const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
-        const projectItemsData = items ? items.map(i => ({ variantId: parseInt(i.variantId), quantity: parseInt(i.quantity) })) : [];
+        
+        const parsedYear = parseInt(year);
+
+        const itemMap = new Map();
+        if (items) {
+            items.forEach(i => {
+                const vId = parseInt(i.variantId);
+                const qty = parseInt(i.quantity);
+                itemMap.set(vId, (itemMap.get(vId) || 0) + qty);
+            });
+        }
+        const projectItemsData = Array.from(itemMap.entries()).map(([variantId, quantity]) => ({ variantId, quantity }));
         
         const data = await prisma.$transaction(async (tx) => {
             const proj = await tx.uniformProject.create({
                 data: { 
-                    year: parseInt(year), 
+                    year: parsedYear, 
                     title, 
                     targetQuantity: parseInt(targetQuantity || 0), 
                     status, 
@@ -3109,6 +3120,7 @@ exports.createProject = async (req, res) => {
 
         res.json(data);
     } catch (error) {
+        console.error('Create Project Error:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -3117,10 +3129,18 @@ exports.updateProject = async (req, res) => {
     try {
         const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
         const projectId = parseInt(req.params.id);
+        const parsedYear = parseInt(year);
 
         const data = await prisma.$transaction(async (tx) => {
             if (items) {
-                const projectItemsData = items.map(i => ({ variantId: parseInt(i.variantId), quantity: parseInt(i.quantity) }));
+                const itemMap = new Map();
+                items.forEach(i => {
+                    const vId = parseInt(i.variantId);
+                    const qty = parseInt(i.quantity);
+                    itemMap.set(vId, (itemMap.get(vId) || 0) + qty);
+                });
+                const projectItemsData = Array.from(itemMap.entries()).map(([variantId, quantity]) => ({ variantId, quantity }));
+
                 await tx.uniformProjectItem.deleteMany({ where: { projectId } });
                 if (projectItemsData.length > 0) {
                     await tx.uniformProjectItem.createMany({
@@ -3130,7 +3150,6 @@ exports.updateProject = async (req, res) => {
             }
 
             if (projectType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
-                // Check if selection already exists
                 const existingSelection = await tx.uniformVendorSelection.findFirst({
                     where: { projectId, vendorId: parseInt(directVendorId) }
                 });
@@ -3149,11 +3168,12 @@ exports.updateProject = async (req, res) => {
 
             return tx.uniformProject.update({
                 where: { id: projectId },
-                data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+                data: { year: parsedYear, title, targetQuantity: parseInt(targetQuantity || 0), status, note }
             });
         });
         res.json(data);
     } catch (error) {
+        console.error('Update Project Error:', error);
         res.status(500).json({ error: error.message });
     }
 };

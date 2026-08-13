@@ -165,6 +165,7 @@ exports.getAllProducts = async (req, res) => {
 exports.addProduct = async (req, res) => {
     try {
         const { vendorId } = req.params;
+        const { name, price, specification } = req.body;
         const newPrice = price !== "" && price !== null && price !== undefined ? parseFloat(price) : null;
         const product = await prisma.vendorProduct.create({
             data: {
