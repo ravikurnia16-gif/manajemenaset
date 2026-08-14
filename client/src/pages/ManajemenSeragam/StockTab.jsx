@@ -40,10 +40,18 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
             const res = await api.post('/uniforms/stocks/import', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            alert(res.data.message || 'Import berhasil!');
+            let msg = res.data.message || 'Import berhasil!';
+            if (res.data.details && res.data.details.length > 0) {
+                msg += '\n\nCatatan:\n' + res.data.details.join('\n');
+            }
+            alert(msg);
             if (fetchStocks) fetchStocks();
         } catch (error) {
-            alert(error.response?.data?.error || 'Gagal mengimpor data');
+            let msg = error.response?.data?.error || 'Gagal mengimpor data';
+            if (error.response?.data?.details && error.response.data.details.length > 0) {
+                msg += '\n\nAlasan:\n' + error.response.data.details.join('\n');
+            }
+            alert(msg);
         }
         e.target.value = null;
     };
