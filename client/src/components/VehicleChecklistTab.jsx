@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, AlertCircle, Camera, Save, RefreshCw, Calendar, Clock, Filter, Plus } from 'lucide-react';
+import { CheckCircle, AlertCircle, Camera, Save, RefreshCw, Calendar, Clock, Filter, Plus, X } from 'lucide-react';
 import api from '../lib/axios';
 
 const DAILY_ITEMS = ['Kebersihan Eksterior', 'Kebersihan Interior', 'Tekanan Ban', 'Lampu Utama', 'Lampu Sein & Rem', 'Indikator Dashboard', 'Wiper & Air Washer', 'Cek Oli Mesin', 'Cek Air Radiator', 'Cek Minyak Rem'];
@@ -14,10 +14,15 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
     // Filters
     const [filterType, setFilterType] = useState('ALL');
     const [filterVehicle, setFilterVehicle] = useState('ALL');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
+    // Detail Modal State
+    const [selectedChecklist, setSelectedChecklist] = useState(null);
 
     // Form State
     const [formVehicleId, setFormVehicleId] = useState('');
-    const [formType, setFormType] = useState('HARIAN');
+    const [formType, setFormType] = useState('DAILY');
     const [formItems, setFormItems] = useState({});
     const [formNotes, setFormNotes] = useState('');
     const [formPhoto, setFormPhoto] = useState(null);
@@ -30,11 +35,21 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
 
     useEffect(() => {
         // Initialize form items when type changes
-        const items = formType === 'HARIAN' ? DAILY_ITEMS : formType === 'MINGGUAN' ? WEEKLY_ITEMS : MONTHLY_ITEMS;
+        const items = formType === 'DAILY' ? DAILY_ITEMS : formType === 'WEEKLY' ? WEEKLY_ITEMS : MONTHLY_ITEMS;
         const initialItems = {};
         items.forEach(item => initialItems[item] = false);
         setFormItems(initialItems);
-    }, [formType]);
+        
+        // Reset selected vehicle if it doesn't match the new type's requirements
+        if (formVehicleId) {
+            const v = vehicles.find(v => v.id.toString() === formVehicleId);
+            if (v) {
+                if (formType === 'DAILY' && !v.requireDailyChecklist) setFormVehicleId('');
+                else if (formType === 'WEEKLY' && !v.requireWeeklyChecklist) setFormVehicleId('');
+                else if (formType === 'MONTHLY' && !v.requireMonthlyChecklist) setFormVehicleId('');
+            }
+        }
+    }, [formType, vehicles, formVehicleId]);
 
     const fetchChecklists = async () => {
         try {
@@ -88,6 +103,12 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
     const filteredChecklists = checklists.filter(c => {
         if (filterType !== 'ALL' && c.type !== filterType) return false;
         if (filterVehicle !== 'ALL' && c.vehicleId.toString() !== filterVehicle) return false;
+        if (startDate && new Date(c.createdAt) < new Date(startDate)) return false;
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            if (new Date(c.createdAt) > end) return false;
+        }
         return true;
     });
 
@@ -118,7 +139,19 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Kendaraan</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tipe Ceklis</label>
+                                <select 
+                                    className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formType}
+                                    onChange={e => setFormType(e.target.value)}
+                                >
+                                    <option value="DAILY">Harian</option>
+                                    <option value="WEEKLY">Mingguan</option>
+                                    <option value="MONTHLY">Bulanan</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Kendaraan (Sesuai Tipe)</label>
                                 <select 
                                     className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={formVehicleId}
@@ -126,21 +159,15 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                                     required
                                 >
                                     <option value="">-- Pilih Kendaraan --</option>
-                                    {vehicles.filter(v => v.status === 'ACTIVE').map(v => (
+                                    {vehicles.filter(v => {
+                                        if (v.status !== 'ACTIVE') return false;
+                                        if (formType === 'DAILY' && !v.requireDailyChecklist) return false;
+                                        if (formType === 'WEEKLY' && !v.requireWeeklyChecklist) return false;
+                                        if (formType === 'MONTHLY' && !v.requireMonthlyChecklist) return false;
+                                        return true;
+                                    }).map(v => (
                                         <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
                                     ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tipe Ceklis</label>
-                                <select 
-                                    className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={formType}
-                                    onChange={e => setFormType(e.target.value)}
-                                >
-                                    <option value="HARIAN">Harian</option>
-                                    <option value="MINGGUAN">Mingguan</option>
-                                    <option value="BULANAN">Bulanan</option>
                                 </select>
                             </div>
                         </div>
@@ -210,9 +237,9 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                 </div>
             ) : (
                 <>
-                    <div className="flex flex-wrap gap-4 mb-6 bg-slate-50 p-2 rounded-xl">
+                    <div className="flex flex-wrap gap-4 mb-6 bg-slate-50 p-3 rounded-xl items-center shadow-sm border border-slate-200">
                         <select 
-                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none"
+                            className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-blue-400"
                             value={filterType}
                             onChange={e => setFilterType(e.target.value)}
                         >
@@ -222,7 +249,7 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                             <option value="MONTHLY">Bulanan</option>
                         </select>
                         <select 
-                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none"
+                            className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-blue-400"
                             value={filterVehicle}
                             onChange={e => setFilterVehicle(e.target.value)}
                         >
@@ -231,6 +258,36 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                                 <option key={v.id} value={v.id}>{v.name}</option>
                             ))}
                         </select>
+                        <div className="h-6 w-px bg-slate-300 mx-2 hidden md:block"></div>
+                        <div className="flex items-center gap-2">
+                            <input 
+                                type="date" 
+                                className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-blue-400"
+                                value={startDate}
+                                onChange={e => setStartDate(e.target.value)}
+                            />
+                            <span className="text-slate-400 text-xs font-bold">-</span>
+                            <input 
+                                type="date" 
+                                className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-blue-400"
+                                value={endDate}
+                                onChange={e => setEndDate(e.target.value)}
+                            />
+                        </div>
+                        {(filterType !== 'ALL' || filterVehicle !== 'ALL' || startDate || endDate) && (
+                            <button 
+                                onClick={() => {
+                                    setFilterType('ALL');
+                                    setFilterVehicle('ALL');
+                                    setStartDate('');
+                                    setEndDate('');
+                                }}
+                                className="ml-auto bg-slate-200 hover:bg-slate-300 text-slate-600 p-1.5 rounded-lg transition-colors flex items-center"
+                                title="Reset Filter"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
 
                     {loading ? (
@@ -248,12 +305,16 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                                 const isPerfect = checkedCount === totalCount;
 
                                 return (
-                                    <div key={c.id} className="border border-slate-100 rounded-2xl p-4 hover:shadow-md transition-all bg-white relative overflow-hidden group">
+                                    <div 
+                                        key={c.id} 
+                                        onClick={() => setSelectedChecklist(c)}
+                                        className="border border-slate-100 rounded-2xl p-4 hover:shadow-md transition-all bg-white relative overflow-hidden group cursor-pointer"
+                                    >
                                         <div className={`absolute top-0 left-0 w-1 h-full ${c.type === 'DAILY' ? 'bg-blue-500' : c.type === 'WEEKLY' ? 'bg-orange-500' : 'bg-green-500'}`} />
                                         
                                         <div className="flex justify-between items-start mb-3 pl-2">
                                             <div>
-                                                <h4 className="font-bold text-slate-800 text-sm truncate w-40">{c.vehicle?.name}</h4>
+                                                <h4 className="font-bold text-slate-800 text-sm truncate w-40 group-hover:text-blue-600 transition-colors">{c.vehicle?.name}</h4>
                                                 <span className={`inline-block px-2 py-0.5 mt-1 rounded text-[9px] font-bold uppercase tracking-wider ${
                                                     c.type === 'DAILY' ? 'bg-blue-100 text-blue-700' : 
                                                     c.type === 'WEEKLY' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
@@ -272,7 +333,7 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                                         <div className="pl-2 mb-3">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div className={`h-full ${isPerfect ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${(checkedCount/totalCount)*100}%` }} />
+                                                    <div className={`h-full transition-all ${isPerfect ? 'bg-green-500' : 'bg-amber-500'}`} style={{ width: `${(checkedCount/totalCount)*100}%` }} />
                                                 </div>
                                                 <span className="text-[10px] font-bold text-slate-500">{checkedCount}/{totalCount} OK</span>
                                             </div>
@@ -296,6 +357,88 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                         </div>
                     )}
                 </>
+            )}
+
+            {/* Checklist Detail Modal */}
+            {selectedChecklist && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedChecklist(null)}>
+                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <div>
+                                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                    Detail Ceklis
+                                </h3>
+                                <p className="text-sm text-slate-500">{selectedChecklist.vehicle?.name}</p>
+                            </div>
+                            <button onClick={() => setSelectedChecklist(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                <X size={20} className="text-slate-500" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tipe Ceklis</p>
+                                    <p className="font-medium text-slate-800">
+                                        {selectedChecklist.type === 'DAILY' ? 'Harian' : selectedChecklist.type === 'WEEKLY' ? 'Mingguan' : 'Bulanan'}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Waktu Laporan</p>
+                                    <p className="font-medium text-slate-800">
+                                        {new Date(selectedChecklist.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Pelapor</p>
+                                    <p className="font-medium text-slate-800 flex items-center gap-2">
+                                        {selectedChecklist.user?.name || 'Unknown'}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Status Ceklis</p>
+                                    {(() => {
+                                        const checksCount = Object.values(selectedChecklist.items || {}).filter(Boolean).length;
+                                        const totalCount = Object.keys(selectedChecklist.items || {}).length;
+                                        return (
+                                            <p className={`font-medium ${checksCount === totalCount ? 'text-green-600' : 'text-amber-600'}`}>
+                                                {checksCount}/{totalCount} OK
+                                            </p>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Item Pengecekan</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {Object.entries(selectedChecklist.items || {}).map(([key, value]) => (
+                                        <div key={key} className={`flex justify-between items-center text-sm p-2.5 rounded-lg border ${value ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                                            <span className={value ? 'text-slate-700' : 'text-red-700 font-medium'}>{key}</span>
+                                            {value ? <CheckCircle size={16} className="text-green-500 shrink-0" /> : <AlertCircle size={16} className="text-red-500 shrink-0" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {selectedChecklist.notes && (
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-800 mb-2">Catatan Tambahan</h4>
+                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-amber-800 text-sm">
+                                        {selectedChecklist.notes}
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedChecklist.photo && (
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-800 mb-2">Foto Bukti</h4>
+                                    <img src={selectedChecklist.photo} alt="Bukti ceklis" className="w-full max-w-md rounded-xl border border-slate-200" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

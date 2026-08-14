@@ -17,9 +17,7 @@ const VendorManagement = () => {
     const [loadingProducts, setLoadingProducts] = useState(false);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-    const canManageVendor = user.role === 'SUPER_ADMIN' || 
-                           user.role === 'ADMIN_ASET' || 
-                           (['Koperasi', 'Workshop'].includes(user.unit?.name) && user.role === 'ADMIN_UNIT');
+    const canManageVendor = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET';
 
     // Vendor Modal States
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);

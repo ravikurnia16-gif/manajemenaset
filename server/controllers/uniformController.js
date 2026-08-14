@@ -793,17 +793,17 @@ exports.importStocks = async (req, res) => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
         if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak valid' });
-
         const dataRows = rows.slice(1).filter(r => r.length > 0 && r[0]);
         let successCount = 0;
 
         for (let i = 0; i < dataRows.length; i++) {
-            const [catIn, clothIn, unitInRaw, genderIn, sizeIn, whIn, vendorIn, qtyIn, minIn] = dataRows[i];
+            const [catIn, clothIn, unitIn, genderIn, sizeIn, whIn, qtyIn, minIn] = dataRows[i];
             
             if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, Ukuran, Lokasi Gudang, dan Stok wajib diisi.` });
             }
 
+            // Upsert Master Data
             const cat = await prisma.uniformCategory.upsert({
                 where: { name: String(catIn).trim() },
                 create: { name: String(catIn).trim() },
@@ -814,101 +814,117 @@ exports.importStocks = async (req, res) => {
                 create: { name: String(clothIn).trim() },
                 update: {}
             });
+            let unit = null;
+            if (unitIn && String(unitIn).trim() !== '' && String(unitIn).trim().toUpperCase() !== 'UMUM' && String(unitIn).trim() !== '-') {
+                unit = await prisma.uniformUnit.upsert({
+                    where: { name: String(unitIn).trim() },
+                    create: { name: String(unitIn).trim() },
+                    update: {}
+                });
+            }
             const size = await prisma.uniformSize.upsert({
                 where: { name: String(sizeIn).trim().toUpperCase() },
                 create: { name: String(sizeIn).trim().toUpperCase() },
                 update: {}
             });
-            const wh = await prisma.uniformWarehouse.upsert({
-                where: { name: String(whIn).trim() },
-                create: { name: String(whIn).trim() },
-                update: {}
+            
+            let wh = await prisma.uniformWarehouse.findFirst({
+                where: { name: String(whIn).trim() }
             });
-            let vendor = null;
-            if (vendorIn) {
-                vendor = await prisma.uniformVendor.upsert({
-                    where: { name: String(vendorIn).trim() },
-                    create: { name: String(vendorIn).trim() },
-                    update: {}
+            if (!wh) {
+                wh = await prisma.uniformWarehouse.create({
+                    data: { name: String(whIn).trim() }
                 });
             }
 
+            // Find or Create Item
             const gender = String(genderIn).trim().toUpperCase();
+            const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
             
-            let rawUnit = String(unitInRaw || '').trim();
-            let unitList = [null];
-            if (rawUnit && rawUnit.toUpperCase() !== 'UMUM' && rawUnit !== '-') {
-                unitList = rawUnit.split(',').map(u => u.trim()).filter(Boolean);
-            }
-
-            for (const singleUnit of unitList) {
-                let unit = null;
-                if (singleUnit) {
-                    unit = await prisma.uniformUnit.upsert({
-                        where: { name: singleUnit },
-                        create: { name: singleUnit },
-                        update: {}
-                    });
+            let item = await prisma.uniformItem.findFirst({
+                where: {
+                    categoryId: cat.id,
+                    clothingTypeId: cloth.id,
+                    unitId: unit ? unit.id : null,
+                    gender: gender
                 }
-                
-                const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
-                
-                let item = await prisma.uniformItem.findFirst({
-                    where: {
+            });
+
+            if (!item) {
+                // Generate Code: SRG/UNIT/GENDER/001
+                const prefix = `SRG/${unit ? unit.name.toUpperCase() : 'ALL'}/${gender}/`;
+                const lastItem = await prisma.uniformItem.findFirst({
+                    where: { code: { startsWith: prefix } },
+                    orderBy: { code: 'desc' }
+                });
+                let seq = 1;
+                if (lastItem) {
+                    const lastSeq = parseInt(lastItem.code.replace(prefix, ''), 10);
+                    if (!isNaN(lastSeq)) seq = lastSeq + 1;
+                }
+                const code = `${prefix}${String(seq).padStart(3, '0')}`;
+
+                item = await prisma.uniformItem.create({
+                    data: {
+                        name: itemName,
+                        code: code,
                         categoryId: cat.id,
                         clothingTypeId: cloth.id,
                         unitId: unit ? unit.id : null,
                         gender: gender,
-                        vendorId: vendor ? vendor.id : null
+                        sellPrice: 0,
+                        minStock: parseInt(minIn) || 5
                     }
                 });
+            }
 
-                if (!item) {
-                    const prefix = `SRG/${unit ? unit.name.toUpperCase() : 'ALL'}/${gender}/`;
-                    const lastItem = await prisma.uniformItem.findFirst({
-                        where: { code: { startsWith: prefix } },
-                        orderBy: { code: 'desc' }
-                    });
-                    let seq = 1;
-                    if (lastItem) {
-                        const lastSeq = parseInt(lastItem.code.replace(prefix, ''), 10);
-                        if (!isNaN(lastSeq)) seq = lastSeq + 1;
+            // Find or Create Variant
+            let variant = await prisma.uniformVariant.findUnique({
+                where: {
+                    sku: `${item.code}-${size.name}`
+                }
+            });
+
+            if (!variant) {
+                variant = await prisma.uniformVariant.create({
+                    data: {
+                        itemId: item.id,
+                        sizeId: size.id,
+                        sizeName: size.name,
+                        sku: `${item.code}-${size.name}`,
+                        sellPrice: item.sellPrice
                     }
-                    const code = `${prefix}${String(seq).padStart(3, '0')}`;
+                });
+            }
 
-                    item = await prisma.uniformItem.create({
+            // Create Stock & Transaction
+            const qty = parseInt(qtyIn) || 0;
+            const cost = 0;
+
+            if (qty > 0) {
+                const trcCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                await prisma.$transaction(async (tx) => {
+                    await tx.uniformStockTransaction.create({
                         data: {
-                            name: itemName,
-                            code: code,
-                            categoryId: cat.id,
-                            clothingTypeId: cloth.id,
-                            unitId: unit ? unit.id : null,
-                            gender: gender,
-                            vendorId: vendor ? vendor.id : null,
-                            sellPrice: 0,
-                            minStock: parseInt(minIn) || 5
+                            code: trcCode, type: 'IN',
+                            variantId: variant.id,
+                            warehouseId: wh.id,
+                            quantity: qty,
+                            costPerUnit: cost,
+                            totalCost: cost * qty,
+                            reason: 'Import Excel',
+                            createdById: req.user?.id || null
                         }
                     });
-                } else if (minIn) {
-                    await prisma.uniformItem.update({ where: { id: item.id }, data: { minStock: parseInt(minIn) } });
-                }
-
-                const sku = `${item.code}-${size.name}`;
-                const variant = await prisma.uniformVariant.upsert({
-                    where: { sku }, update: {},
-                    create: { itemId: item.id, sku, sizeId: size.id, sizeName: size.name }
+                
+                const currentStock = await prisma.uniformStock.findFirst({
+                    where: { variantId: variant.id, warehouseId: wh.id }
                 });
 
-                const currentStock = await prisma.uniformStock.findUnique({
-                    where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
-                });
-                
-                const addQty = parseInt(qtyIn) || 0;
-                
                 if (currentStock) {
                     await prisma.uniformStock.update({
                         where: { id: currentStock.id },
-                        data: { quantity: currentStock.quantity + addQty }
+                        data: { quantity: currentStock.quantity + qty }
                     });
                 } else {
                     await prisma.uniformStock.create({
