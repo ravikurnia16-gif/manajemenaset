@@ -737,13 +737,12 @@ exports.downloadStockImportTemplate = async (req, res) => {
             { header: 'Gender', key: 'gender', width: 15 },
             { header: 'Ukuran', key: 'size', width: 15 },
             { header: 'Lokasi Gudang', key: 'wh', width: 20 },
-            { header: 'Vendor', key: 'vendor', width: 20 },
             { header: 'Stok', key: 'stock', width: 15 },
             { header: 'Stok minimal', key: 'min', width: 15 }
         ];
 
         // Sample Data
-        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', vendors.length ? vendors[0].name : '', 50, 5]);
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', 50, 5]);
 
         // Helper to format arrays as comma-separated string for excel validation formulas
         const formatValidation = (arr, maxLen = 250) => {
@@ -770,11 +769,10 @@ exports.downloadStockImportTemplate = async (req, res) => {
             sheet.getCell(`D${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"IKHWAN,AKHWAT"'] };
             if (sizeList.length) sheet.getCell(`E${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(sizeList)] };
             if (whList.length) sheet.getCell(`F${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(whList)] };
-            if (vendorList.length) sheet.getCell(`G${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(vendorList)] };
             
+            sheet.getCell(`G${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`H${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`I${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
-            sheet.getCell(`J${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
         }
 
         res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Stok.xlsx"');
@@ -1609,13 +1607,12 @@ exports.downloadStockImportTemplate = async (req, res) => {
             { header: 'Gender', key: 'gender', width: 15 },
             { header: 'Ukuran', key: 'size', width: 15 },
             { header: 'Lokasi Gudang', key: 'wh', width: 20 },
-            { header: 'Vendor', key: 'vendor', width: 20 },
             { header: 'Stok', key: 'stock', width: 15 },
             { header: 'Stok minimal', key: 'min', width: 15 }
         ];
 
         // Sample Data
-        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', vendors.length ? vendors[0].name : '', 50, 5]);
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', 50, 5]);
 
         // Helper to format arrays as comma-separated string for excel validation formulas
         const formatValidation = (arr, maxLen = 250) => {
@@ -1642,11 +1639,10 @@ exports.downloadStockImportTemplate = async (req, res) => {
             sheet.getCell(`D${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"IKHWAN,AKHWAT"'] };
             if (sizeList.length) sheet.getCell(`E${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(sizeList)] };
             if (whList.length) sheet.getCell(`F${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(whList)] };
-            if (vendorList.length) sheet.getCell(`G${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(vendorList)] };
             
+            sheet.getCell(`G${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`H${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`I${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
-            sheet.getCell(`J${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
         }
 
         res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Stok.xlsx"');
