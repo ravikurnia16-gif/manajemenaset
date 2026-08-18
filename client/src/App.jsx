@@ -93,6 +93,14 @@ import PublicSurvey from './pages/PublicSurvey';
 import SurveyManager from './pages/SurveyManager';
 import SurveyDashboard from './pages/SurveyDashboard';
 
+// Inventory (Gudang Baru)
+import InventoryDashboard from './pages/Inventory/InventoryDashboard';
+import InventoryMaster from './pages/Inventory/InventoryMaster';
+import InventoryStock from './pages/Inventory/InventoryStock';
+import InventoryTransactions from './pages/Inventory/InventoryTransactions';
+import InventoryOrders from './pages/Inventory/InventoryOrders';
+
+
 
 function App() {
   useEffect(() => {
@@ -258,7 +266,14 @@ function App() {
           <Route path="kendaraan/inspeksi/:id" element={<VehicleInspectionForm />} />
           <Route path="kendaraan/inspeksi/riwayat/:id" element={<VehicleInspectionList />} />
 
-          {/* Module: Manajemen Gudang */}
+          {/* Module: Manajemen Gudang Baru (Inventory) */}
+          <Route path="inventory/dashboard" element={<InventoryDashboard />} />
+          <Route path="inventory/master" element={<InventoryMaster />} />
+          <Route path="inventory/stok" element={<InventoryStock />} />
+          <Route path="inventory/transaksi" element={<InventoryTransactions />} />
+          <Route path="inventory/pesanan" element={<InventoryOrders />} />
+
+          {/* Module: Manajemen Gudang (Lama) */}
           <Route path="gudang/dashboard" element={<WarehouseDashboard />} />
           <Route path="gudang/stok" element={<WarehouseStock />} />
           <Route path="gudang/stok/input" element={<WarehouseStockForm />} />

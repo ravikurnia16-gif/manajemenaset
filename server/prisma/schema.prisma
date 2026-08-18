@@ -121,6 +121,10 @@ model User {
   isSanctioned         Boolean @default(false)
   sanctionProposedLift Boolean @default(false)
   sanctionLiftReason   String? @db.Text
+
+  // Inventory Module
+  invTransactions      InvStockTransaction[]
+  invOrders            InvOrder[]
 }
 
 model DriverViolation {
@@ -2141,4 +2145,118 @@ model UniformVendorEvaluation {
   updatedAt   DateTime @updatedAt
 
   @@unique([projectId, vendorId])
+}
+
+// ==========================================
+// MODUL INVENTORY (MANAJEMEN GUDANG BARU)
+// ==========================================
+
+model InvWarehouse {
+  id          Int      @id @default(autoincrement())
+  name        String   // "Gudang ATK", "Gudang Utama"
+  location    String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks              InvStock[]
+  stockTransactions   InvStockTransaction[]  @relation("InvTrxWarehouse")
+  stockTransactionsTo InvStockTransaction[]  @relation("InvTrxWarehouseTo")
+}
+
+model InvCategory {
+  id    Int       @id @default(autoincrement())
+  name  String    @unique
+  items InvItem[]
+}
+
+model InvItem {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  description String?  @db.Text
+  unit        String   // Pcs, Rim, Kotak, dll
+  minStock    Int      @default(5)
+  price       Float?   // Estimasi harga satuan
+  image       String?  @db.LongText
+  
+  categoryId  Int
+  category    InvCategory @relation(fields: [categoryId], references: [id])
+
+  stocks      InvStock[]
+  transactions InvStockTransaction[]
+  orderItems  InvOrderItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InvStock {
+  id           Int      @id @default(autoincrement())
+  itemId       Int
+  item         InvItem  @relation(fields: [itemId], references: [id])
+  warehouseId  Int
+  warehouse    InvWarehouse @relation(fields: [warehouseId], references: [id])
+  quantity     Int      @default(0)
+  location     String?  // Rak/Baris
+
+  updatedAt    DateTime @updatedAt
+
+  @@unique([itemId, warehouseId])
+}
+
+model InvStockTransaction {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  type          String   // IN, OUT, MUTATION, ADJUSTMENT
+  date          DateTime
+  
+  itemId        Int
+  item          InvItem  @relation(fields: [itemId], references: [id])
+  
+  warehouseId   Int
+  warehouse     InvWarehouse @relation("InvTrxWarehouse", fields: [warehouseId], references: [id])
+  
+  toWarehouseId Int?
+  toWarehouse   InvWarehouse? @relation("InvTrxWarehouseTo", fields: [toWarehouseId], references: [id])
+  
+  quantity      Int      // Positif
+  note          String?  @db.Text
+
+  createdById   Int
+  createdBy     User     @relation(fields: [createdById], references: [id])
+
+  createdAt     DateTime @default(now())
+}
+
+model InvOrder {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  requesterName String
+  requesterUnit String?
+  date          DateTime
+  status        String   @default("PENDING") // PENDING, APPROVED, PROCESS, COMPLETED, REJECTED
+  note          String?  @db.Text
+
+  createdById   Int
+  createdBy     User     @relation(fields: [createdById], references: [id])
+
+  items         InvOrderItem[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model InvOrderItem {
+  id            Int      @id @default(autoincrement())
+  orderId       Int
+  order         InvOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId        Int
+  item          InvItem  @relation(fields: [itemId], references: [id])
+  
+  qtyRequested  Int
+  qtyApproved   Int      @default(0)
+  qtyDelivered  Int      @default(0)
+  
+  note          String?  @db.Text
 }

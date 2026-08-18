@@ -973,6 +973,14 @@ const ProcurementDetail = () => {
                                     </Btn>
                                 </div>
                             )}
+                            {isAdmin && ['APPROVED', 'PROCESS', 'VALIDATED'].includes(req.status) && (
+                                <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+                                    <Btn variant="danger" style={{ flex: 1, justifyContent: 'center', padding: '12px 20px' }}
+                                        onClick={() => { const r = prompt('Alasan Pembatalan:'); if (r) handleStatus('REJECTED', '', r); }}>
+                                        <XCircle size={16} /> Batalkan Pengadaan
+                                    </Btn>
+                                </div>
+                            )}
                         </div>
                     </Card>
 

@@ -245,8 +245,35 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 3. Manajemen Pergudangan */}
-                {renderCollapsible('warehouse', <Warehouse size={18} />, 'Gudang & Logistik', (
+                {/* 3. Manajemen Pergudangan Baru (Inventory) */}
+                {renderCollapsible('inventory', <Warehouse size={18} />, 'Manajemen Gudang', (
+                    <>
+                        <Link to="/inventory/dashboard" className={subNavItemClass('/inventory/dashboard')}>
+                            <LayoutDashboard size={16} /> Dashboard
+                        </Link>
+                        {isWarehouseAdmin && (
+                            <>
+                                <Link to="/inventory/master" className={subNavItemClass('/inventory/master')}>
+                                    <Database size={16} /> Master Data
+                                </Link>
+                                <Link to="/inventory/stok" className={subNavItemClass('/inventory/stok')}>
+                                    <Box size={16} /> Stok Barang
+                                </Link>
+                                <Link to="/inventory/transaksi" className={subNavItemClass('/inventory/transaksi')}>
+                                    <ArrowLeftRight size={16} /> Transaksi
+                                </Link>
+                            </>
+                        )}
+                        {(isAdmin || user?.role === 'USER') && (
+                            <Link to="/inventory/pesanan" className={subNavItemClass('/inventory/pesanan')}>
+                                <ShoppingCart size={16} /> Pesanan Barang
+                            </Link>
+                        )}
+                    </>
+                ))}
+
+                {/* 3b. Manajemen Pergudangan Lama */}
+                {renderCollapsible('warehouse', <Warehouse size={18} />, 'Logistik (Lama)', (
                     <>
                         <Link to="/gudang/dashboard" className={subNavItemClass('/gudang/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
@@ -263,7 +290,7 @@ const Sidebar = ({ isOpen = true }) => {
                         )}
                         {(isAdmin || user?.role === 'USER') && (
                             <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
-                                <ShoppingCart size={16} /> Pesanan
+                                <ShoppingCart size={16} /> Pesanan (Lama)
                             </Link>
                         )}
                     </>

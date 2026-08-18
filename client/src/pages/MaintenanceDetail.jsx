@@ -359,14 +359,14 @@ const MaintenanceDetail = () => {
         if (!isAdmin) return null;
         const transitions = {
             'SUBMITTED': { label: 'Setujui & Tugaskan', nextStatus: 'ASSIGNED', type: 'assignment', rejectLabel: 'Tolak' },
-            'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment' },
+            'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment', cancelLabel: 'Batalkan Laporan' },
             'ASSIGNED': [
-                { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' },
+                { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start', cancelLabel: 'Batalkan Laporan' },
                 { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' }
             ],
             'IN_PROGRESS': {
                 label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
-                secondaryLabel: 'Update Progres', secondaryType: 'progress'
+                secondaryLabel: 'Update Progres', secondaryType: 'progress', cancelLabel: 'Batalkan Laporan'
             }
         };
         const action = transitions[report.status];
@@ -738,6 +738,14 @@ const MaintenanceDetail = () => {
                             className="flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-red-600 transition-all"
                         >
                             <XCircle size={18} /> {nextAction.rejectLabel}
+                        </button>
+                    )}
+                    {nextAction.cancelLabel && isAdmin && (
+                        <button
+                            onClick={() => setActionModal({ show: true, type: 'rejection', nextStatus: 'REJECTED' })}
+                            className="flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-red-600 transition-all"
+                        >
+                            <XCircle size={18} /> {nextAction.cancelLabel}
                         </button>
                     )}
                 </div>
