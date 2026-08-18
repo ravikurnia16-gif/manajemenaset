@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Box } from 'lucide-react';
-import api from '../../utils/api';
+import api from '../../lib/axios';
 
 export default function InventoryStock() {
   const [items, setItems] = useState([]);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ArrowRightLeft, ArrowDownToLine, ArrowUpFromLine, Search } from 'lucide-react';
-import api from '../../utils/api';
+import api from '../../lib/axios';
 
 export default function InventoryTransactions() {
   const [transactions, setTransactions] = useState([]);
