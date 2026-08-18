@@ -6,21 +6,21 @@ const prisma = new PrismaClient();
 // ==========================================
 exports.getWarehouses = async (req, res) => {
     try {
-        const data = await prisma.invWarehouse.findMany({ orderBy: { name: 'asc' } });
+        const data = await prisma.uniformWarehouse.findMany({ orderBy: { name: 'asc' } });
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.createWarehouse = async (req, res) => {
     try {
-        const data = await prisma.invWarehouse.create({ data: req.body });
+        const data = await prisma.uniformWarehouse.create({ data: req.body });
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.updateWarehouse = async (req, res) => {
     try {
-        const data = await prisma.invWarehouse.update({
+        const data = await prisma.uniformWarehouse.update({
             where: { id: parseInt(req.params.id) },
             data: req.body
         });
@@ -30,7 +30,7 @@ exports.updateWarehouse = async (req, res) => {
 
 exports.deleteWarehouse = async (req, res) => {
     try {
-        await prisma.invWarehouse.delete({ where: { id: parseInt(req.params.id) } });
+        await prisma.uniformWarehouse.delete({ where: { id: parseInt(req.params.id) } });
         res.json({ message: 'Warehouse deleted' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };

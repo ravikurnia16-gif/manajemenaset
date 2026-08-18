@@ -1733,6 +1733,10 @@ model UniformWarehouse {
   stockTransactions   UniformStockTransaction[]  @relation("TrxWarehouse")
   stockTransactionsTo UniformStockTransaction[]  @relation("TrxWarehouseTo")
   sales               UniformSale[]
+  
+  invStocks              InvStock[]
+  invStockTransactions   InvStockTransaction[]  @relation("InvTrxWarehouse")
+  invStockTransactionsTo InvStockTransaction[]  @relation("InvTrxWarehouseTo")
 }
 
 // Kategori seragam: Nasional, Batik, Muslim, Pramuka, Olahraga, Jubah, Atribut
@@ -2151,18 +2155,6 @@ model UniformVendorEvaluation {
 // MODUL INVENTORY (MANAJEMEN GUDANG BARU)
 // ==========================================
 
-model InvWarehouse {
-  id          Int      @id @default(autoincrement())
-  name        String   // "Gudang ATK", "Gudang Utama"
-  location    String?  @db.Text
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  stocks              InvStock[]
-  stockTransactions   InvStockTransaction[]  @relation("InvTrxWarehouse")
-  stockTransactionsTo InvStockTransaction[]  @relation("InvTrxWarehouseTo")
-}
 
 model InvCategory {
   id    Int       @id @default(autoincrement())
@@ -2196,7 +2188,7 @@ model InvStock {
   itemId       Int
   item         InvItem  @relation(fields: [itemId], references: [id])
   warehouseId  Int
-  warehouse    InvWarehouse @relation(fields: [warehouseId], references: [id])
+  warehouse    UniformWarehouse @relation(fields: [warehouseId], references: [id])
   quantity     Int      @default(0)
   location     String?  // Rak/Baris
 
@@ -2215,10 +2207,10 @@ model InvStockTransaction {
   item          InvItem  @relation(fields: [itemId], references: [id])
   
   warehouseId   Int
-  warehouse     InvWarehouse @relation("InvTrxWarehouse", fields: [warehouseId], references: [id])
+  warehouse     UniformWarehouse @relation("InvTrxWarehouse", fields: [warehouseId], references: [id])
   
   toWarehouseId Int?
-  toWarehouse   InvWarehouse? @relation("InvTrxWarehouseTo", fields: [toWarehouseId], references: [id])
+  toWarehouse   UniformWarehouse? @relation("InvTrxWarehouseTo", fields: [toWarehouseId], references: [id])
   
   quantity      Int      // Positif
   note          String?  @db.Text
