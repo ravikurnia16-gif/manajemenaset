@@ -628,9 +628,9 @@ exports.updateOrderDetails = async (req, res) => {
                         itemDetails = order.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
                     }
 
-                    const msg = `Bismillah.\n*Penugasan Workshop Baru* \u{1F6E0}\n\n` +
+                    const msg = `Bismillah.\n*Pemesanan Workshop Baru* \u{1F6E0}\n\n` +
                         `Halo *${picUser.name}*,\n` +
-                        `Anda ditugaskan sebagai PIC untuk pesanan workshop berikut:\n\n` +
+                        `Anda diminta sebagai PIC untuk pesanan workshop berikut:\n\n` +
                         `Kode: *${order.code}*\n` +
                         `Tipe: *Workshop ${workshopType}*\n` +
                         `Dari: *${senderName}* (${unitName})\n` +
