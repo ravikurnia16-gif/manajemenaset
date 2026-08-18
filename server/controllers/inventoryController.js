@@ -392,3 +392,37 @@ exports.updateOrderStatus = async (req, res) => {
         res.json(result);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
+
+// ==========================================
+// VENDORS
+// ==========================================
+exports.getVendors = async (req, res) => {
+    try {
+        const data = await prisma.invVendor.findMany({ orderBy: { name: 'asc' } });
+        res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.createVendor = async (req, res) => {
+    try {
+        const data = await prisma.invVendor.create({ data: req.body });
+        res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.updateVendor = async (req, res) => {
+    try {
+        const data = await prisma.invVendor.update({
+            where: { id: parseInt(req.params.id) },
+            data: req.body
+        });
+        res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.deleteVendor = async (req, res) => {
+    try {
+        await prisma.invVendor.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Vendor deleted' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};

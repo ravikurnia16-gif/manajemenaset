@@ -33,4 +33,11 @@ router.get('/orders', invCtrl.getOrders);
 router.post('/orders', invCtrl.createOrder); // Any user can create order? Maybe need a specific role or just verifyToken
 router.put('/orders/:id/status', isAdmin, invCtrl.updateOrderStatus);
 
+
+// VENDORS
+router.get('/vendors', invCtrl.getVendors);
+router.post('/vendors', isAdmin, invCtrl.createVendor);
+router.put('/vendors/:id', isAdmin, invCtrl.updateVendor);
+router.delete('/vendors/:id', isSuperAdminOrIT, invCtrl.deleteVendor);
+
 module.exports = router;

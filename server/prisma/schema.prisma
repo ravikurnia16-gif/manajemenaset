@@ -2233,6 +2233,9 @@ model InvOrder {
   createdById   Int
   createdBy     User     @relation(fields: [createdById], references: [id])
 
+  vendorId      Int?
+  vendor        InvVendor? @relation(fields: [vendorId], references: [id])
+
   items         InvOrderItem[]
 
   createdAt     DateTime @default(now())
@@ -2251,4 +2254,20 @@ model InvOrderItem {
   qtyDelivered  Int      @default(0)
   
   note          String?  @db.Text
+}
+
+model InvVendor {
+  id             Int      @id @default(autoincrement())
+  name           String   // "Toko ATK Sejahtera"
+  phone          String?
+  address        String?  @db.Text
+  contactPerson  String?
+  email          String?
+  description    String?  @db.Text
+  isActive       Boolean  @default(true)
+  
+  orders         InvOrder[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
