@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const invCtrl = require('../controllers/inventoryController');
-const { verifyToken, isAdmin, isSuperAdminOrIT } = require('../middleware/authMiddleware');
+const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
+
+const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT']);
+const isSuperAdminOrIT = authorizeRole(['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS']);
 
 router.use(verifyToken);
 
