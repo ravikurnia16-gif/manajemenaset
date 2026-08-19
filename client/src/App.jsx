@@ -98,6 +98,7 @@ import InventoryDashboard from './pages/Inventory/InventoryDashboard';
 import InventoryMaster from './pages/Inventory/InventoryMaster';
 import InventoryStock from './pages/Inventory/InventoryStock';
 import InventoryTransactions from './pages/Inventory/InventoryTransactions';
+import InventoryVendorPage from './pages/Inventory/Vendor/InventoryVendorPage';
 import InventoryOrders from './pages/Inventory/InventoryOrders';
 
 
@@ -272,6 +273,7 @@ function App() {
           <Route path="inventory/stok" element={<InventoryStock />} />
           <Route path="inventory/transaksi" element={<InventoryTransactions />} />
           <Route path="inventory/pesanan" element={<InventoryOrders />} />
+          <Route path="inventory/vendor" element={<InventoryVendorPage />} />
 
           {/* Module: Manajemen Gudang (Lama) */}
           <Route path="gudang/dashboard" element={<WarehouseDashboard />} />
@@ -330,3 +332,4 @@ function App() {
   );
 }
 export default App;
+

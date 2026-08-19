@@ -19,7 +19,6 @@ export default function InventoryMaster() {
         <TabButton active={activeTab === 'items'} onClick={() => setActiveTab('items')} icon={<Package className="w-4 h-4 mr-2"/>} text="Master Barang" />
         <TabButton active={activeTab === 'categories'} onClick={() => setActiveTab('categories')} icon={<FolderTree className="w-4 h-4 mr-2"/>} text="Kategori Barang" />
         <TabButton active={activeTab === 'warehouses'} onClick={() => setActiveTab('warehouses')} icon={<Building2 className="w-4 h-4 mr-2"/>} text="Lokasi Gudang" />
-        <TabButton active={activeTab === 'vendors'} onClick={() => setActiveTab('vendors')} icon={<Users className="w-4 h-4 mr-2"/>} text="Vendor / Penyuplai" />
       </div>
 
       {/* Tab Content */}
@@ -27,7 +26,6 @@ export default function InventoryMaster() {
         {activeTab === 'items' && <ItemsTab />}
         {activeTab === 'categories' && <CategoriesTab />}
         {activeTab === 'warehouses' && <WarehousesTab />}
-        {activeTab === 'vendors' && <VendorsTab />}
       </div>
     </div>
   );

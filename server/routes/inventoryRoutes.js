@@ -40,4 +40,33 @@ router.post('/vendors', isAdmin, invCtrl.createVendor);
 router.put('/vendors/:id', isAdmin, invCtrl.updateVendor);
 router.delete('/vendors/:id', isSuperAdminOrIT, invCtrl.deleteVendor);
 
+// ==========================================
+// PROYEK LOGISTIK / GUDANG
+// ==========================================
+const projectCtrl = require('../controllers/inventoryProjectController');
+
+// PROJECTS
+router.get('/projects', projectCtrl.getProjects);
+router.post('/projects', isAdmin, projectCtrl.createProject);
+router.put('/projects/:id', isAdmin, projectCtrl.updateProject);
+router.delete('/projects/:id', isSuperAdminOrIT, projectCtrl.deleteProject);
+
+// VENDOR SELECTIONS
+router.get('/vendor-selections', projectCtrl.getVendorSelections);
+router.post('/vendor-selections', isAdmin, projectCtrl.createVendorSelection);
+router.put('/vendor-selections/:id', isAdmin, projectCtrl.updateVendorSelection);
+router.delete('/vendor-selections/:id', isAdmin, projectCtrl.deleteVendorSelection);
+
+// VENDOR MOUs
+router.get('/vendor-mous', projectCtrl.getVendorMoUs);
+router.post('/vendor-mous', isAdmin, projectCtrl.createVendorMoU);
+router.put('/vendor-mous/:id', isAdmin, projectCtrl.updateVendorMoU);
+router.delete('/vendor-mous/:id', isAdmin, projectCtrl.deleteVendorMoU);
+
+// VENDOR EVALUATIONS
+router.get('/vendor-evaluations', projectCtrl.getVendorEvaluations);
+router.post('/vendor-evaluations', isAdmin, projectCtrl.createVendorEvaluation);
+router.put('/vendor-evaluations/:id', isAdmin, projectCtrl.updateVendorEvaluation);
+router.delete('/vendor-evaluations/:id', isAdmin, projectCtrl.deleteVendorEvaluation);
+
 module.exports = router;

@@ -1,0 +1,1 @@
+const fs = require('fs'); const p = 'd:/MANAJEMEN ASET/server/prisma/schema.prisma'; let text = fs.readFileSync(p, 'utf8'); text = text.replace('  products         VendorProduct[]', '  products         VendorProduct[]\n  offers           VendorOffer[]'); fs.writeFileSync(p, text);

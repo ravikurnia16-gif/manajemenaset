@@ -250,6 +250,7 @@ model Vendor {
 
   procurementItems ProcurementItem[]
   products         VendorProduct[]
+  offers           VendorOffer[]
 }
 
 model VendorProduct {
@@ -591,7 +592,8 @@ model VendorOffer {
   id            Int         @id @default(autoincrement())
   procurementId Int
   procurement   Procurement @relation(fields: [procurementId], references: [id])
-  vendorId      Int? // Optional hyperlink to master Vendor
+  vendorId      Int?
+  vendor        Vendor? @relation(fields: [vendorId], references: [id]) // Optional hyperlink to master Vendor
   vendorName    String // Manual name if vendor not in master
   price         Float
   isWinner      Boolean     @default(false)
@@ -2236,6 +2238,9 @@ model InvOrder {
   vendorId      Int?
   vendor        InvVendor? @relation(fields: [vendorId], references: [id])
 
+  projectId     Int?
+  project       InvProject? @relation(fields: [projectId], references: [id])
+
   items         InvOrderItem[]
 
   createdAt     DateTime @default(now())
@@ -2256,6 +2261,22 @@ model InvOrderItem {
   note          String?  @db.Text
 }
 
+model InvProject {
+  id            Int      @id @default(autoincrement())
+  name          String
+  year          Int
+  type          String   @default("REGULAR") // REGULAR, HIBAH
+  budget        Float    @default(0)
+  status        String   @default("AKTIF") // AKTIF, SELESAI
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders        InvOrder[]
+  vendorSelections InvVendorSelection[]
+  mous             InvVendorMoU[]
+  evaluations      InvVendorEvaluation[]
+}
+
 model InvVendor {
   id             Int      @id @default(autoincrement())
   name           String   // "Toko ATK Sejahtera"
@@ -2267,7 +2288,59 @@ model InvVendor {
   isActive       Boolean  @default(true)
   
   orders         InvOrder[]
+  selections     InvVendorSelection[]
+  mous           InvVendorMoU[]
+  evaluations    InvVendorEvaluation[]
+  rating         Float    @default(0)
+  totalOrders    Int      @default(0)
+  onTimeRate     Float    @default(0)
+  rejectRate     Float    @default(0)
   
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model InvVendorSelection {
+  id              Int      @id @default(autoincrement())
+  projectId       Int
+  project         InvProject @relation(fields: [projectId], references: [id])
+  vendorId        Int
+  vendor          InvVendor @relation(fields: [vendorId], references: [id])
+  proposalFileUrl String?  @db.LongText
+  proposedPrice   Float    @default(0)
+  status          String   @default("MENUNGGU")
+  reason          String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@unique([projectId, vendorId])
+}
+
+model InvVendorMoU {
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  project     InvProject @relation(fields: [projectId], references: [id])
+  vendorId    Int
+  vendor      InvVendor @relation(fields: [vendorId], references: [id])
+  mouNumber   String
+  startDate   DateTime
+  endDate     DateTime
+  fileUrl     String?  @db.LongText
+  status      String   @default("DRAFT")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InvVendorEvaluation {
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  project     InvProject @relation(fields: [projectId], references: [id])
+  vendorId    Int
+  vendor      InvVendor @relation(fields: [vendorId], references: [id])
+  rating      Float    @default(0)
+  onTimeRate  Float    @default(0)
+  rejectRate  Float    @default(0)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([projectId, vendorId])
 }

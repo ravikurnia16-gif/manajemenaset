@@ -262,6 +262,9 @@ const Sidebar = ({ isOpen = true }) => {
                                 <Link to="/inventory/transaksi" className={subNavItemClass('/inventory/transaksi')}>
                                     <ArrowLeftRight size={16} /> Transaksi
                                 </Link>
+                                <Link to="/inventory/vendor" className={subNavItemClass('/inventory/vendor')}>
+                                    <Users size={16} /> Vendor & Produksi
+                                </Link>
                             </>
                         )}
                         {(isAdmin || user?.role === 'USER') && (
