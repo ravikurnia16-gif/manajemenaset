@@ -1,5 +1,5 @@
 import { Plus, FileText, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { Badge } from '../UIComponents';
+import { Badge } from '../../../ManajemenSeragam/UIComponents';
 
 export const InvVendorProjectTab = ({ projects, openModal }) => {
     return (
@@ -86,4 +86,8 @@ export const InvVendorProjectTab = ({ projects, openModal }) => {
         </div>
     );
 };
+
+
+
+
 

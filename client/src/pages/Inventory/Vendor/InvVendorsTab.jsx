@@ -1,5 +1,5 @@
 import { Plus, MapPin, Mail, Pencil, ExternalLink, RefreshCw } from 'lucide-react';
-import api from '../../lib/axios';
+import api from '../../../lib/axios';
 
 export const InvVendorsTab = ({ vendors, openModal, onRefresh }) => {
     const handleSync = async () => {
@@ -81,4 +81,6 @@ export const InvVendorsTab = ({ vendors, openModal, onRefresh }) => {
         </div>
     );
 };
+
+
 

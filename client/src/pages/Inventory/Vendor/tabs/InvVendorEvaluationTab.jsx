@@ -1,5 +1,5 @@
 import { Plus, Star, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Badge } from '../UIComponents';
+import { Badge } from '../../../ManajemenSeragam/UIComponents';
 
 export const InvVendorEvaluationTab = ({ projects, openModal }) => {
     const allEvaluations = projects.flatMap(p => (p.evaluations || []).map(e => ({ ...e, project: p })));
@@ -60,4 +60,8 @@ export const InvVendorEvaluationTab = ({ projects, openModal }) => {
         </div>
     );
 };
+
+
+
+
 

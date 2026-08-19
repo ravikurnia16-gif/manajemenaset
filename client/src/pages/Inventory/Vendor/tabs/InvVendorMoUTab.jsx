@@ -1,5 +1,5 @@
 import { Plus, FileSignature, Calendar } from 'lucide-react';
-import { Badge } from '../UIComponents';
+import { Badge } from '../../../ManajemenSeragam/UIComponents';
 
 export const InvVendorMoUTab = ({ projects, openModal }) => {
     // Flatten all MOUs from all projects
@@ -53,4 +53,8 @@ export const InvVendorMoUTab = ({ projects, openModal }) => {
         </div>
     );
 };
+
+
+
+
 

@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, FileText, FileSignature, Star } from 'lucide-react';
-import api from '../../lib/axios';
-import { Modal } from '../UIComponents';
-import { SimpleForm } from '../Forms';
-import { InvVendorsTab } from '../InvInvVendorsTab';
-import { InvVendorProjectTab } from '../tabs/InvInvVendorProjectTab';
-import { InvVendorMoUTab } from '../tabs/InvInvVendorMoUTab';
-import { InvVendorEvaluationTab } from '../tabs/InvInvVendorEvaluationTab';
-import { ProjectForm, VendorSelectionForm, VendorMoUForm, VendorEvaluationForm, ProjectReceiveForm } from '../tabs/InvVendorForms';
+import api from '../../../lib/axios';
+import { Modal } from '../../ManajemenSeragam/UIComponents';
+import { SimpleForm } from '../../ManajemenSeragam/Forms';
+import { InvVendorsTab } from './InvVendorsTab';
+import { InvVendorProjectTab } from './tabs/InvVendorProjectTab';
+import { InvVendorMoUTab } from './tabs/InvVendorMoUTab';
+import { InvVendorEvaluationTab } from './tabs/InvVendorEvaluationTab';
+import { ProjectForm, VendorSelectionForm, VendorMoUForm, VendorEvaluationForm, ProjectReceiveForm } from './tabs/InvVendorForms';
 
 const TABS = [
     { key: 'profile', label: 'Profil Vendor', icon: <Users size={16} /> },
@@ -181,4 +181,7 @@ export default function InventoryVendorPage() {
         </div>
     );
 }
+
+
+
 
