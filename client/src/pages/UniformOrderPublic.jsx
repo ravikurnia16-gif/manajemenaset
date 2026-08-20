@@ -33,6 +33,7 @@ export default function UniformOrderPublic() {
     const [retailInput, setRetailInput] = useState({
         category: '', clothingType: '', size: '', qty: 1
     });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const fetchMasterData = async () => {
@@ -161,6 +162,7 @@ export default function UniformOrderPublic() {
             return alert('Keranjang pesanan masih kosong.');
         }
 
+        setIsSubmitting(true);
         try {
             const dataToSave = {
                 type: 'RETAIL',
@@ -179,6 +181,7 @@ export default function UniformOrderPublic() {
             navigate(`/public/invoice-seragam/${res.data.id}`);
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal menyimpan pesanan');
+            setIsSubmitting(false);
         }
     };
 
@@ -297,10 +300,10 @@ export default function UniformOrderPublic() {
 
                         <button
                             type="submit"
-                            disabled={form.items.length === 0}
+                            disabled={form.items.length === 0 || isSubmitting}
                             className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-xl hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all disabled:opacity-50 disabled:grayscale"
                         >
-                            BUAT PESANAN SEKARANG
+                            {isSubmitting ? 'MEMPROSES PESANAN...' : 'BUAT PESANAN SEKARANG'}
                         </button>
                     </div>
                 </form>
