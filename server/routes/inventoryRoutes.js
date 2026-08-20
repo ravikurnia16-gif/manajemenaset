@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const invCtrl = require('../controllers/inventoryController');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
 const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT']);
@@ -27,6 +29,7 @@ router.delete('/items/:id', isSuperAdminOrIT, invCtrl.deleteItem);
 // TRANSACTIONS
 router.get('/transactions', invCtrl.getTransactions);
 router.post('/transactions', isAdmin, invCtrl.createTransaction);
+router.post('/transactions/import', isAdmin, upload.single('file'), invCtrl.importTransactions);
 
 // ORDERS
 router.get('/orders', invCtrl.getOrders);
@@ -70,3 +73,4 @@ router.put('/vendor-evaluations/:id', isAdmin, projectCtrl.updateVendorEvaluatio
 router.delete('/vendor-evaluations/:id', isAdmin, projectCtrl.deleteVendorEvaluation);
 
 module.exports = router;
+

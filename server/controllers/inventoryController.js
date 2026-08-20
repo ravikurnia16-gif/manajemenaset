@@ -1,5 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const xlsx = require('xlsx');
+const fs = require('fs');
 
 // ==========================================
 // MASTER WAREHOUSE
@@ -248,6 +250,131 @@ exports.createTransaction = async (req, res) => {
         
         res.json({ message: 'Transaction successful', data: result });
     } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.importTransactions = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'Tidak ada file yang diunggah' });
+
+        const workbook = xlsx.readFile(req.file.path);
+        const sheetName = workbook.SheetNames[0];
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        if (data.length === 0) {
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: 'Data kosong' });
+        }
+
+        // Ambil data referensi
+        const items = await prisma.invItem.findMany({ select: { id: true, code: true } });
+        const warehouses = await prisma.uniformWarehouse.findMany({ select: { id: true, name: true } });
+
+        const itemMap = new Map(items.map(i => [i.code.trim().toLowerCase(), i.id]));
+        const whMap = new Map(warehouses.map(w => [w.name.trim().toLowerCase(), w.id]));
+
+        let successCount = 0;
+        let errors = [];
+
+        // Generate base sequence for TxCode
+        const year = new Date().getFullYear();
+        const prefix = `TRX/INV/${year}/`;
+        const existingTxs = await prisma.invStockTransaction.findMany({
+            where: { code: { startsWith: prefix } },
+            select: { code: true }
+        });
+        let maxSeq = 0;
+        for (const tx of existingTxs) {
+            const parts = tx.code.split('/');
+            if (parts.length === 4) {
+                const seq = parseInt(parts[3], 10);
+                if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+            }
+        }
+
+        for (const [index, row] of data.entries()) {
+            try {
+                const type = (row['Tipe'] || row['Type'] || '').toString().trim().toUpperCase();
+                const itemCode = (row['Kode Barang'] || '').toString().trim().toLowerCase();
+                const qtyStr = (row['Kuantitas'] || row['Quantity'] || '').toString();
+                const parsedQty = parseInt(qtyStr, 10);
+                const whName = (row['Gudang Sumber'] || '').toString().trim().toLowerCase();
+                const toWhName = (row['Gudang Tujuan'] || '').toString().trim().toLowerCase();
+                const note = (row['Catatan'] || row['Keterangan'] || '').toString().trim();
+
+                if (!['IN', 'OUT', 'MUTATION'].includes(type)) throw new Error('Tipe harus IN, OUT, atau MUTATION');
+                if (!itemCode || !itemMap.has(itemCode)) throw new Error(`Barang dengan kode ${row['Kode Barang']} tidak ditemukan`);
+                if (isNaN(parsedQty) || parsedQty <= 0) throw new Error('Kuantitas tidak valid');
+                if (!whName || !whMap.has(whName)) throw new Error(`Gudang sumber ${row['Gudang Sumber']} tidak ditemukan`);
+
+                const itemId = itemMap.get(itemCode);
+                const warehouseId = whMap.get(whName);
+                let toWarehouseId = null;
+
+                if (type === 'MUTATION') {
+                    if (!toWhName || !whMap.has(toWhName)) throw new Error(`Gudang tujuan ${row['Gudang Tujuan']} tidak valid`);
+                    toWarehouseId = whMap.get(toWhName);
+                    if (warehouseId === toWarehouseId) throw new Error('Gudang sumber dan tujuan tidak boleh sama');
+                }
+
+                await prisma.$transaction(async (tx) => {
+                    // Check stock for OUT/MUTATION
+                    if (type === 'OUT' || type === 'MUTATION') {
+                        const stock = await tx.invStock.findUnique({
+                            where: { itemId_warehouseId: { itemId, warehouseId } }
+                        });
+                        if (!stock || stock.quantity < parsedQty) {
+                            throw new Error(`Stok tidak mencukupi (Tersedia: ${stock?.quantity || 0})`);
+                        }
+                    }
+
+                    maxSeq++;
+                    const code = `${prefix}${maxSeq.toString().padStart(4, '0')}`;
+
+                    await tx.invStockTransaction.create({
+                        data: {
+                            code, type, note,
+                            date: row['Tanggal'] ? new Date(row['Tanggal']) : new Date(),
+                            itemId, warehouseId, toWarehouseId,
+                            quantity: parsedQty,
+                            createdById: req.user.id
+                        }
+                    });
+
+                    const delta = type === 'IN' ? parsedQty : -parsedQty;
+                    await tx.invStock.upsert({
+                        where: { itemId_warehouseId: { itemId, warehouseId } },
+                        create: { itemId, warehouseId, quantity: delta },
+                        update: { quantity: { increment: delta } }
+                    });
+
+                    if (type === 'MUTATION' && toWarehouseId) {
+                        await tx.invStock.upsert({
+                            where: { itemId_warehouseId: { itemId, warehouseId: toWarehouseId } },
+                            create: { itemId, warehouseId: toWarehouseId, quantity: parsedQty },
+                            update: { quantity: { increment: parsedQty } }
+                        });
+                    }
+                });
+
+                successCount++;
+            } catch (err) {
+                errors.push(`Baris ${index + 2}: ${err.message}`);
+            }
+        }
+
+        fs.unlinkSync(req.file.path);
+
+        res.json({
+            message: 'Import selesai',
+            successCount,
+            errorCount: errors.length,
+            errors
+        });
+
+    } catch (e) {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 // ==========================================
