@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sendMessage, triggerWaNotification } = require('../services/whatsappService');
+const { sendMessage } = require('../services/whatsappService');
 const xlsx = require('xlsx');
 const ExcelJS = require('exceljs');
 
@@ -2274,20 +2274,19 @@ exports.createSale = async (req, res) => {
             try {
                 sendMessage(result.customerPhone, message);
             } catch(e) {
-                console.error('Gagal kirim WA:', e);
+                console.error('Gagal kirim WA ke customer:', e);
             }
         }
 
-        // Notify Staff via Rule Engine
-        try {
-            triggerWaNotification('NEW_UNIFORM_ORDER', {
-                NAMA_PEMESAN: result.customerName || result.studentName || 'Bapak/Ibu',
-                NO_REFERENSI: result.code,
-                TOTAL_TAGIHAN: result.totalAmount.toLocaleString('id-ID'),
-                LINK_INVOICE: `https://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}`
-            });
-        } catch (e) {
-            console.error('Gagal trigger rule WA:', e);
+        // Notifikasi ke Staff Gudang & Logistik
+        const staffWaGroup = process.env.SARPRAS_GROUP_WA_ID;
+        if (staffWaGroup) {
+            const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
+            try {
+                sendMessage(staffWaGroup, staffMsg);
+            } catch(e) {
+                console.error('Gagal kirim WA ke Staff Gudang:', e);
+            }
         }
 
         res.json(result);
