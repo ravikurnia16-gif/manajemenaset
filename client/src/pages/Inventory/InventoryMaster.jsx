@@ -54,7 +54,7 @@ const ItemsTab = () => {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '' });
+  const [formData, setFormData] = useState({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '' });
 
   useEffect(() => {
     fetchItems();
@@ -106,7 +106,7 @@ const ItemsTab = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input type="text" placeholder="Cari barang..." className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-blue-500" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button onClick={() => { setFormData({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center">
+        <button onClick={() => { setFormData({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center">
           <Plus className="w-4 h-4 mr-2" /> Tambah Barang
         </button>
       </div>
@@ -119,6 +119,7 @@ const ItemsTab = () => {
             <th className="p-3 border-b">Kategori</th>
             <th className="p-3 border-b">Satuan</th>
             <th className="p-3 border-b">Min Stok</th>
+            <th className="p-3 border-b">Harga Jual</th>
             <th className="p-3 border-b text-right">Aksi</th>
           </tr>
         </thead>
@@ -131,6 +132,7 @@ const ItemsTab = () => {
               <td className="p-3">{item.category?.name}</td>
               <td className="p-3">{item.unit}</td>
               <td className="p-3">{item.minStock}</td>
+              <td className="p-3">{item.sellingPrice ? `Rp ${item.sellingPrice.toLocaleString('id-ID')}` : '-'}</td>
               <td className="p-3 text-right">
                 <button onClick={() => { setFormData({ ...item, categoryId: item.categoryId || '' }); setIsModalOpen(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded"><Edit className="w-4 h-4"/></button>
                 <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:bg-red-100 p-2 rounded ml-2"><Trash2 className="w-4 h-4"/></button>
@@ -154,7 +156,10 @@ const ItemsTab = () => {
               <div><label className="block text-sm mb-1">Satuan (Pcs, Box, dll)</label><input required type="text" className="w-full border p-2 rounded" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})}/></div>
               <div><label className="block text-sm mb-1">Minimal Stok (Peringatan)</label><input required type="number" min="0" className="w-full border p-2 rounded" value={formData.minStock} onChange={e => setFormData({...formData, minStock: e.target.value})}/></div>
             </div>
-            <div><label className="block text-sm mb-1">Estimasi Harga Satuan (Opsional)</label><input type="number" className="w-full border p-2 rounded" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})}/></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-sm mb-1">Estimasi Harga Modal</label><input type="number" className="w-full border p-2 rounded" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})}/></div>
+              <div><label className="block text-sm mb-1">Harga Jual</label><input type="number" className="w-full border p-2 rounded" value={formData.sellingPrice || ''} onChange={e => setFormData({...formData, sellingPrice: e.target.value})}/></div>
+            </div>
             <div className="flex justify-end pt-4"><button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Simpan</button></div>
           </form>
         </Modal>

@@ -113,7 +113,8 @@ exports.createItem = async (req, res) => {
                 code,
                 categoryId: parseInt(req.body.categoryId),
                 minStock: req.body.minStock ? parseInt(req.body.minStock) : 5,
-                price: req.body.price ? parseFloat(req.body.price) : null
+                price: req.body.price ? parseFloat(req.body.price) : null,
+                sellingPrice: req.body.sellingPrice ? parseFloat(req.body.sellingPrice) : null
             }
         });
         res.json(data);
@@ -128,7 +129,8 @@ exports.updateItem = async (req, res) => {
                 ...req.body,
                 categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : undefined,
                 minStock: req.body.minStock !== undefined ? parseInt(req.body.minStock) : undefined,
-                price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined
+                price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined,
+                sellingPrice: req.body.sellingPrice !== undefined ? parseFloat(req.body.sellingPrice) : undefined
             }
         });
         res.json(data);

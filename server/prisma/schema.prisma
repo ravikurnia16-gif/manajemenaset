@@ -836,6 +836,7 @@ model WarehouseItem {
   stock         Int     @default(0)
   minStock      Int     @default(5)
   purchasePrice Float? // Harga beli per unit
+  sellingPrice  Float? // Harga jual
   supplier      String? // Pemasok
   location      String? // Rak / lokasi gudang
   image         String? @db.LongText
@@ -2171,7 +2172,8 @@ model InvItem {
   description String?  @db.Text
   unit        String   // Pcs, Rim, Kotak, dll
   minStock    Int      @default(5)
-  price       Float?   // Estimasi harga satuan
+  price       Float?   // Estimasi harga satuan (modal)
+  sellingPrice Float? // Harga jual
   image       String?  @db.LongText
   
   categoryId  Int
@@ -2344,3 +2346,5 @@ model InvVendorEvaluation {
   updatedAt   DateTime @updatedAt
   @@unique([projectId, vendorId])
 }
+
+
