@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { sendMessage } = require('../services/whatsappService');
 const xlsx = require('xlsx');
 const ExcelJS = require('exceljs');
 
@@ -2267,6 +2268,15 @@ exports.createSale = async (req, res) => {
                 include: { items: true, salePackages: true, warehouse: true }
             });
         });
+
+        if (result.customerPhone) {
+            const message = `Halo ${result.customerName || result.studentName || 'Bapak/Ibu'},\n\nPesanan seragam Anda telah berhasil dibuat dengan nomor referensi *${result.code}*.\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek rincian pesanan dan status pembayaran melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nTerima kasih.`;
+            try {
+                sendMessage(result.customerPhone, message);
+            } catch(e) {
+                console.error('Gagal kirim WA:', e);
+            }
+        }
 
         res.json(result);
     } catch (error) {
