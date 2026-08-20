@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sendMessage } = require('../services/whatsappService');
+const { sendMessage, triggerWaNotification } = require('../services/whatsappService');
 const xlsx = require('xlsx');
 const ExcelJS = require('exceljs');
 
@@ -2278,16 +2278,16 @@ exports.createSale = async (req, res) => {
             }
         }
 
+        // Notify Staff via Rule Engine
         try {
-            const { triggerWaNotification } = require('../services/whatsappService');
-            await triggerWaNotification('NEW_UNIFORM_ORDER', {
-                NAMA_PEMESAN: result.customerName || result.studentName || '-',
+            triggerWaNotification('NEW_UNIFORM_ORDER', {
+                NAMA_PEMESAN: result.customerName || result.studentName || 'Bapak/Ibu',
                 NO_REFERENSI: result.code,
-                TOTAL_TAGIHAN: `Rp${result.totalAmount.toLocaleString('id-ID')}`,
+                TOTAL_TAGIHAN: result.totalAmount.toLocaleString('id-ID'),
                 LINK_INVOICE: `https://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}`
             });
-        } catch(e) {
-            console.error('Gagal trigger notif staff WA:', e);
+        } catch (e) {
+            console.error('Gagal trigger rule WA:', e);
         }
 
         res.json(result);
