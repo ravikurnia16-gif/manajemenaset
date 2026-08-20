@@ -7,6 +7,7 @@ const EVENT_TYPES = [
     { value: 'NEW_VEHICLE_BOOKING', label: 'Pengajuan Peminjaman Baru' },
     { value: 'VEHICLE_BOOKING_STATUS_CHANGED', label: 'Status Peminjaman Berubah (Disetujui/Ditolak)' },
     { value: 'NEW_MAINTENANCE', label: 'Laporan Kerusakan Aset' },
+    { value: 'NEW_UNIFORM_ORDER', label: 'Pesanan Seragam Baru (Publik)' },
     { value: 'MORNING_BRIEF', label: 'Laporan Rutin Harian (Terjadwal)' },
 ];
 
@@ -178,6 +179,8 @@ export default function WhatsAppRules() {
                 return 'Variabel: [NAMA_PEMINJAM], [KENDARAAN], [STATUS], [CATATAN]';
             case 'NEW_MAINTENANCE':
                 return 'Variabel: [ASET], [LOKASI], [PELAPOR], [KELUHAN]';
+            case 'NEW_UNIFORM_ORDER':
+                return 'Variabel: [NAMA], [KELAS], [UNIT], [TOTAL], [LINK]';
             case 'MORNING_BRIEF':
                 return 'Hanya kirim pesan statis. Kirim setiap hari jam (contoh: 07:00).';
             default:

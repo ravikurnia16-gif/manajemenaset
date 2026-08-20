@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sendMessage } = require('../services/whatsappService');
+const { sendMessage, triggerWaNotification } = require('../services/whatsappService');
 const xlsx = require('xlsx');
 const ExcelJS = require('exceljs');
 
@@ -2276,6 +2276,19 @@ exports.createSale = async (req, res) => {
             } catch(e) {
                 console.error('Gagal kirim WA:', e);
             }
+        }
+
+        const eventData = {
+            NAMA: result.studentName || result.customerName || 'Siswa',
+            KELAS: result.studentClass || '-',
+            UNIT: result.targetUnit || '-',
+            TOTAL: `Rp${result.totalAmount.toLocaleString('id-ID')}`,
+            LINK: `https://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}`
+        };
+        try {
+            triggerWaNotification('NEW_UNIFORM_ORDER', eventData);
+        } catch(e) {
+            console.error('Trigger WA Error:', e);
         }
 
         res.json(result);
