@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Box } from 'lucide-react';
+import { Search, Filter, Box, Upload, Download } from 'lucide-react';
 import api from '../../lib/axios';
 
 export default function InventoryStock() {
@@ -7,6 +7,10 @@ export default function InventoryStock() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedItemId, setExpandedItemId] = useState(null);
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -24,6 +28,44 @@ export default function InventoryStock() {
     }
   };
 
+  const handleImport = async (e) => {
+    e.preventDefault();
+    if (!importFile) return alert('Pilih file Excel/CSV terlebih dahulu');
+
+    const formData = new FormData();
+    formData.append('file', importFile);
+
+    setIsImporting(true);
+    try {
+      const res = await api.post('/inventory/transactions/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert(`Import berhasil! ${res.data.successCount} transaksi ditambahkan. ${res.data.errorCount > 0 ? `Terdapat ${res.data.errorCount} baris yang gagal diimport.` : ''}`);
+      if (res.data.errorCount > 0) {
+        console.warn('Import Errors:', res.data.errors);
+        alert('Beberapa baris gagal diimpor. Cek Console Log untuk detail errornya.');
+      }
+      setIsImportModalOpen(false);
+      setImportFile(null);
+      fetchItems();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Terjadi kesalahan saat import data');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8,Tipe,Tanggal,Kode Barang,Kuantitas,Gudang Sumber,Gudang Tujuan,Catatan\nIN,2026-08-20,INV/BRG/0001,10,Gudang Utama,,Stok Awal\nOUT,2026-08-21,INV/BRG/0001,2,Gudang Utama,,Digunakan divisi IT\nMUTATION,2026-08-22,INV/BRG/0001,5,Gudang Utama,Gudang Cadangan,Pindah lokasi";
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Template_Import_Transaksi_Stok.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(search.toLowerCase()) || 
     item.code.toLowerCase().includes(search.toLowerCase())
@@ -36,6 +78,13 @@ export default function InventoryStock() {
           <Box className="w-6 h-6 mr-2 text-blue-600" />
           Stok Barang (Multi-Gudang)
         </h1>
+        <button 
+          onClick={() => setIsImportModalOpen(true)}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center"
+        >
+          <Upload className="w-4 h-4 mr-2" />
+          Import Stok (CSV/Excel)
+        </button>
       </div>
 
       <div className="bg-white shadow rounded-lg mb-6">
@@ -130,6 +179,49 @@ export default function InventoryStock() {
           </table>
         </div>
       </div>
+
+      {/* MODAL IMPORT */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-gray-800">Import Transaksi Stok</h2>
+              <button onClick={() => setIsImportModalOpen(false)} className="text-gray-500 hover:text-gray-800 font-bold">&times;</button>
+            </div>
+            <form onSubmit={handleImport} className="p-6 space-y-4">
+              <div className="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm mb-4">
+                <p className="font-bold mb-2">Petunjuk Import:</p>
+                <ul className="list-disc ml-5 space-y-1">
+                  <li>Gunakan format <b>Excel (.xlsx)</b> atau <b>CSV</b>.</li>
+                  <li>Pastikan Anda sudah mengunduh dan mengisi file sesuai template.</li>
+                  <li>Gudang dan Kode Barang harus persis sama dengan yang ada di sistem.</li>
+                </ul>
+                <button type="button" onClick={downloadTemplate} className="mt-3 flex items-center text-blue-600 hover:text-blue-800 font-semibold underline">
+                  <Download className="w-4 h-4 mr-1" /> Unduh Template CSV
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Pilih File</label>
+                <input 
+                  type="file" 
+                  accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                  className="w-full border rounded p-2" 
+                  onChange={(e) => setImportFile(e.target.files[0])} 
+                  required 
+                />
+              </div>
+
+              <div className="pt-4 border-t flex justify-end gap-3">
+                <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Batal</button>
+                <button type="submit" disabled={isImporting} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50">
+                  {isImporting ? 'Sedang Mengimpor...' : 'Mulai Import'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
