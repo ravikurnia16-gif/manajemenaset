@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sendMessage, triggerWaNotification } = require('../services/whatsappService');
+const { sendMessage } = require('../services/whatsappService');
 const xlsx = require('xlsx');
 const ExcelJS = require('exceljs');
 
@@ -2278,17 +2278,16 @@ exports.createSale = async (req, res) => {
             }
         }
 
-        const eventData = {
-            NAMA: result.studentName || result.customerName || 'Siswa',
-            KELAS: result.studentClass || '-',
-            UNIT: result.targetUnit || '-',
-            TOTAL: `Rp${result.totalAmount.toLocaleString('id-ID')}`,
-            LINK: `https://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}`
-        };
         try {
-            triggerWaNotification('NEW_UNIFORM_ORDER', eventData);
+            const { triggerWaNotification } = require('../services/whatsappService');
+            await triggerWaNotification('NEW_UNIFORM_ORDER', {
+                NAMA_PEMESAN: result.customerName || result.studentName || '-',
+                NO_REFERENSI: result.code,
+                TOTAL_TAGIHAN: `Rp${result.totalAmount.toLocaleString('id-ID')}`,
+                LINK_INVOICE: `https://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}`
+            });
         } catch(e) {
-            console.error('Trigger WA Error:', e);
+            console.error('Gagal trigger notif staff WA:', e);
         }
 
         res.json(result);

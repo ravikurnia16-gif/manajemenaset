@@ -7,8 +7,8 @@ const EVENT_TYPES = [
     { value: 'NEW_VEHICLE_BOOKING', label: 'Pengajuan Peminjaman Baru' },
     { value: 'VEHICLE_BOOKING_STATUS_CHANGED', label: 'Status Peminjaman Berubah (Disetujui/Ditolak)' },
     { value: 'NEW_MAINTENANCE', label: 'Laporan Kerusakan Aset' },
-    { value: 'NEW_UNIFORM_ORDER', label: 'Pesanan Seragam Baru (Publik)' },
     { value: 'MORNING_BRIEF', label: 'Laporan Rutin Harian (Terjadwal)' },
+    { value: 'NEW_UNIFORM_ORDER', label: 'Pesanan Seragam Publik Baru' },
 ];
 
 export default function WhatsAppRules() {
@@ -176,15 +176,15 @@ export default function WhatsAppRules() {
             case 'NEW_VEHICLE_BOOKING':
                 return 'Variabel yang bisa digunakan: [NAMA_PEMINJAM], [KENDARAAN], [PLAT], [TUJUAN], [KEPERLUAN], [START], [END]';
             case 'VEHICLE_BOOKING_STATUS_CHANGED':
-                return 'Variabel: [NAMA_PEMINJAM], [KENDARAAN], [STATUS], [CATATAN]';
+                return 'Variabel yang bisa digunakan: [NAMA_PEMINJAM], [KENDARAAN], [PLAT], [STATUS], [START], [END]';
             case 'NEW_MAINTENANCE':
-                return 'Variabel: [ASET], [LOKASI], [PELAPOR], [KELUHAN]';
+                return 'Variabel: [NAMA_ASET], [KODE_ASET], [PELAPOR], [KELUHAN]';
             case 'NEW_UNIFORM_ORDER':
-                return 'Variabel: [NAMA], [KELAS], [UNIT], [TOTAL], [LINK]';
+                return 'Variabel: [NAMA_PEMESAN], [NO_REFERENSI], [TOTAL_TAGIHAN], [LINK_INVOICE]';
             case 'MORNING_BRIEF':
                 return 'Hanya kirim pesan statis. Kirim setiap hari jam (contoh: 07:00).';
             default:
-                return '';
+                return 'Belum ada panduan variabel untuk event ini.';
         }
     };
 
