@@ -199,6 +199,18 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                     >
                         {isSavingNd ? 'Menyimpan...' : 'Simpan Harga'}
                     </button>
+                    {getHistoryForRule({ gender: 'NAMADADA', categoryId: null, clothingTypeId: null, unitId: null, sizeNames: null }).length > 0 && (
+                        <button 
+                            onClick={() => setHistoryRule({ 
+                                gender: 'NAMADADA', categoryId: null, clothingTypeId: null, unitId: null, sizeNames: null,
+                                price: namaDadaPrice,
+                                isNamaDada: true // Flag khusus agar modal riwayat tahu ini Nama Dada
+                            })} 
+                            className="bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
+                        >
+                            <History size={16} /> Riwayat
+                        </button>
+                    )}
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">*Harga Nama Dada digunakan saat pembuatan pesanan baru secara terpisah, tidak diterapkan ke barang stok.</p>
             </div>
@@ -334,7 +346,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                 <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
                                     <History size={20} />
                                 </div>
-                                <h2 className="font-bold text-lg">Riwayat Harga</h2>
+                                <h2 className="font-bold text-lg">{historyRule.isNamaDada ? 'Riwayat Harga Nama Dada' : 'Riwayat Harga'}</h2>
                             </div>
                             <button onClick={() => setHistoryRule(null)} className="text-slate-400 hover:bg-white hover:text-slate-600 p-2 rounded-full transition-colors">
                                 <X size={20} />
