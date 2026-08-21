@@ -185,6 +185,16 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             {/* Dynamic Dropdowns Based on Selection */}
                             {changed && (
                                 <div className="mt-3 space-y-2 text-sm">
+                                {(item.saleItemId === 'NAMADADA' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
+                                    <div className="flex gap-2">
+                                        <select className="flex-1 border border-slate-200 rounded p-1.5" required
+                                            value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
+                                            <option value="">-- Lokasi Gudang Pengambilan --</option>
+                                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+
                                 {(item.saleItemId !== 'NAMADADA' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
                                     <div className="flex flex-col gap-2">
                                         <label className="flex items-center gap-2 cursor-pointer bg-slate-100 p-2 rounded w-fit">

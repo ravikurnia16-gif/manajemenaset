@@ -2609,13 +2609,19 @@ exports.manageSaleItems = async (req, res) => {
                             const newStatus = update.status;
                             
                             if (ndStatus !== newStatus) {
+                                let locText = '';
+                                if (newStatus === 'SEDIA') {
+                                    const transitWhId = parseInt(update.transitWarehouseId);
+                                    const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
+                                    locText = transitWh?.name || 'Gudang';
+                                }
                                 notifications.updates.push({
                                     itemName: 'Nama Dada (Bordir)',
                                     size: '-',
                                     qty: ndQty,
                                     oldStatus: ndStatus,
                                     newStatus: newStatus,
-                                    location: ''
+                                    location: locText
                                 });
                                 if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
                             }
