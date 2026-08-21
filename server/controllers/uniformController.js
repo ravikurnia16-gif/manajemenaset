@@ -480,7 +480,8 @@ exports.applyPricingRules = async (req, res) => {
                 
                 if (rule.sizeNames) {
                     const sizes = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
-                    if (!sizes.includes(variant.sizeName.toLowerCase())) match = false;
+                    const vSize = variant.sizeName || (variant.size ? variant.size.name : '');
+                    if (!vSize || !sizes.includes(vSize.toLowerCase())) match = false;
                 }
                 
                 if (match) {
@@ -1320,7 +1321,8 @@ exports.applyPricingRules = async (req, res) => {
                 if (rule.sizeNames) {
                     const separator = rule.sizeNames.includes(';') ? ';' : ',';
                     const sizes = rule.sizeNames.split(separator).map(s => s.trim().toLowerCase());
-                    if (!sizes.includes(variant.sizeName.toLowerCase())) match = false;
+                    const vSize = variant.sizeName || (variant.size ? variant.size.name : '');
+                    if (!vSize || !sizes.includes(vSize.toLowerCase())) match = false;
                 }
                 
                 if (match) {
