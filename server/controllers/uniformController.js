@@ -3075,9 +3075,22 @@ exports.updateSalePayment = async (req, res) => {
             return res.status(400).json({ error: 'Status pembayaran tidak valid' });
         }
 
+        const sale = await prisma.uniformSale.findUnique({ where: { id: saleId } });
+        if (!sale) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+
+        let newPaidAmount = sale.paidAmount;
+        if (paymentStatus === 'PAID') {
+            newPaidAmount = sale.totalAmount;
+        } else if (paymentStatus === 'UNPAID') {
+            newPaidAmount = 0;
+        }
+
         const updatedSale = await prisma.uniformSale.update({
             where: { id: saleId },
-            data: { paymentStatus }
+            data: { 
+                paymentStatus,
+                paidAmount: newPaidAmount
+            }
         });
 
         res.json(updatedSale);
