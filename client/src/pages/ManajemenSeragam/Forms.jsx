@@ -103,8 +103,8 @@ export const TransactionForm = ({ variants = [], warehouses = [], onSave }) => {
                                 type="number"
                                 min="1"
                                 value={item.quantity}
-                                onChange={e => updateItem(idx, 'quantity', parseInt(e.target.value) || 1)}
-                                className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none text-center w-full"
+                                onChange={e => updateItem(idx, 'quantity', e.target.value)}
+                                className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none text-center w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                         </div>
                         {items.length > 1 && (
