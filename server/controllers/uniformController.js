@@ -2798,7 +2798,7 @@ exports.manageSaleItems = async (req, res) => {
                 if (oldStatus !== 'SEDIA' && newStatus === 'SEDIA') {
                     const transitWhId = parseInt(update.transitWarehouseId);
                     const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
-                    notifications.sedia.push({ itemName: item.itemName, size: item.size, qty: item.qty, warehouseName: transitWh?.name || 'Gudang' });
+                    notifications.sedia.push({ itemName: item.itemName, size: item.size, qty: item.qty, warehouseName: transitWh?.name || 'Gudang', warehouseLocation: transitWh?.location || '' });
                 } else if (oldStatus !== 'TIDAK_TERSEDIA' && newStatus === 'TIDAK_TERSEDIA') {
                     notifications.tidakTersedia.push({ itemId: item.id, itemName: item.itemName, size: item.size, qty: item.qty });
                 }
@@ -2875,7 +2875,8 @@ exports.manageSaleItems = async (req, res) => {
             if (notifications.sedia.length > 0) {
                 let msg = `Halo ${updatedSale.customerName || updatedSale.studentName || 'Bapak/Ibu'},\n\nKabar baik! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
                 notifications.sedia.forEach(n => {
-                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Lokasi Penjemputan: ${n.warehouseName}\n`;
+                    const locText = n.warehouseLocation ? `${n.warehouseName} - ${n.warehouseLocation}` : n.warehouseName;
+                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil dari: ${locText}\n`;
                 });
                 msg += `\nSilakan cek status lengkapnya di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nTerima kasih.`;
                 try {
