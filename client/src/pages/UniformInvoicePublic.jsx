@@ -184,24 +184,46 @@ const UniformInvoicePublic = () => {
 
                     <div className="flex justify-end mb-8 print:mb-4">
                         <div className="w-full sm:w-1/2 lg:w-2/5 p-4 print:p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-2 print:bg-transparent print:border-none print:justify-end">
-                            <div className="flex justify-between items-center text-sm print:text-[10px] text-slate-500">
-                                <span>Subtotal</span>
-                                <span className="font-bold text-slate-700">Rp {invoice.subtotal?.toLocaleString('id-ID')}</span>
-                            </div>
-                            {invoice.discount > 0 && (
-                                <div className="flex justify-between items-center text-sm print:text-[10px] text-rose-500">
-                                    <span>Diskon</span>
-                                    <span className="font-bold">- Rp {invoice.discount?.toLocaleString('id-ID')}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between items-center text-sm print:text-[10px] text-slate-500 pt-2 border-t border-slate-200">
-                                <span>Total Telah Dibayar</span>
-                                <span className="font-bold text-emerald-600">Rp {invoice.paidAmount?.toLocaleString('id-ID')}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-300">
-                                <span className="font-black text-slate-800 text-xs print:text-[10px] tracking-wider uppercase">Total Tagihan Akhir</span>
-                                <span className="font-black text-blue-700 text-xl print:text-base">Rp {Math.max(0, invoice.totalAmount - invoice.paidAmount).toLocaleString('id-ID')}</span>
-                            </div>
+                            {(() => {
+                                const activeSubtotal = (invoice.type === 'SPMB' || invoice.type === 'UNIT_ORDER')
+                                    ? invoice.subtotal
+                                    : (invoice.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || invoice.subtotal);
+                                
+                                const activeTotalAmount = Math.max(0, activeSubtotal - (invoice.discount || 0));
+                                // Cap the displayed paid amount to the active total amount
+                                const displayedPaidAmount = Math.min(invoice.paidAmount || 0, activeTotalAmount);
+                                const remainingTagihan = Math.max(0, activeTotalAmount - displayedPaidAmount);
+                                const overpayment = (invoice.paidAmount || 0) > activeTotalAmount ? (invoice.paidAmount - activeTotalAmount) : 0;
+
+                                return (
+                                    <>
+                                        <div className="flex justify-between items-center text-sm print:text-[10px] text-slate-500">
+                                            <span>Subtotal</span>
+                                            <span className="font-bold text-slate-700">Rp {activeSubtotal?.toLocaleString('id-ID')}</span>
+                                        </div>
+                                        {invoice.discount > 0 && (
+                                            <div className="flex justify-between items-center text-sm print:text-[10px] text-rose-500">
+                                                <span>Diskon</span>
+                                                <span className="font-bold">- Rp {invoice.discount?.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-center text-sm print:text-[10px] text-slate-500 pt-2 border-t border-slate-200">
+                                            <span>Total Telah Dibayar</span>
+                                            <span className="font-bold text-emerald-600">Rp {displayedPaidAmount.toLocaleString('id-ID')}</span>
+                                        </div>
+                                        {overpayment > 0 && (
+                                            <div className="flex justify-between items-center text-xs print:text-[8px] text-amber-600 mt-1">
+                                                <span className="italic">*Kelebihan Bayar (Batal)</span>
+                                                <span>Rp {overpayment.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-300">
+                                            <span className="font-black text-slate-800 text-xs print:text-[10px] tracking-wider uppercase">Total Tagihan Akhir</span>
+                                            <span className="font-black text-blue-700 text-xl print:text-base">Rp {remainingTagihan.toLocaleString('id-ID')}</span>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
 
