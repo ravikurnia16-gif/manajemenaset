@@ -2422,18 +2422,35 @@ exports.createSale = async (req, res) => {
         }
 
         // Notifikasi ke Staff Gudang & Logistik
-        const staffWaGroup = process.env.SARPRAS_GROUP_WA_ID;
-        if (staffWaGroup) {
-            let itemsString = '';
-            if (result.items && result.items.length > 0) {
-                itemsString = result.items.map(i => `- ${i.itemName} (${i.size || '-'}): ${i.qty} pcs`).join('\n');
+        try {
+            const staffUsers = await prisma.user.findMany({
+                where: {
+                    position: { contains: 'Gudang dan Logistik' },
+                    phone: { not: null, not: '' }
+                }
+            });
+
+            if (staffUsers.length > 0) {
+                let itemsString = '';
+                if (result.items && result.items.length > 0) {
+                    itemsString = result.items.map(i => `- ${i.itemName} (${i.size || '-'}): ${i.qty} pcs`).join('\n');
+                }
+                const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\n\n*Rincian Pesanan:*\n${itemsString}\n\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
+                
+                for (const staff of staffUsers) {
+                    if (staff.phone) {
+                        try {
+                            sendMessage(staff.phone, staffMsg);
+                        } catch(e) {
+                            console.error(`Gagal kirim WA ke Staff Gudang (${staff.phone}):`, e);
+                        }
+                    }
+                }
+            } else {
+                console.log('Tidak ada user Staff Gudang dan Logistik untuk notifikasi pesanan baru.');
             }
-            const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\n\n*Rincian Pesanan:*\n${itemsString}\n\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
-            try {
-                sendMessage(staffWaGroup, staffMsg);
-            } catch(e) {
-                console.error('Gagal kirim WA ke Staff Gudang:', e);
-            }
+        } catch(e) {
+            console.error('Gagal memproses WA ke Staff Gudang:', e);
         }
 
         res.json(result);
