@@ -2891,8 +2891,34 @@ exports.manageSaleItems = async (req, res) => {
         const { updatedSale, notifications } = result;
 
         if (updatedSale.customerPhone) {
-            // 1. Notifikasi SEDIA
-            if (notifications.sedia.length > 0) {
+            const hasSedia = notifications.sedia.length > 0;
+            const hasTidakTersedia = notifications.tidakTersedia.length > 0;
+
+            if (hasSedia && hasTidakTersedia) {
+                let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nBerikut adalah update pesanan seragam Anda (Kode: *${updatedSale.code}*):\n\n`;
+                
+                msg += `✅ *BARANG TERSEDIA (Siap Diambil)*\n`;
+                notifications.sedia.forEach(n => {
+                    const locText = n.warehouseLocation ? n.warehouseLocation : n.warehouseName;
+                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil di: ${locText}\n`;
+                });
+                
+                msg += `\n❌ *BARANG TIDAK TERSEDIA (Kosong)*\n`;
+                notifications.tidakTersedia.forEach(n => {
+                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n`;
+                });
+                
+                msg += `\nUntuk barang yang KOSONG, mohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
+                msg += `Untuk melihat status lengkap pesanan Anda, klik:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
+                
+                try {
+                    sendMessage(updatedSale.customerPhone, msg);
+                } catch(e) {
+                    console.error('Gagal kirim WA gabungan:', e);
+                }
+            }
+            // 1. Notifikasi SEDIA (Hanya jika tidak ada yang kosong)
+            else if (hasSedia) {
                 let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nAlhamdulillah! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
                 notifications.sedia.forEach(n => {
                     const locText = n.warehouseLocation ? n.warehouseLocation : n.warehouseName;
@@ -2905,9 +2931,8 @@ exports.manageSaleItems = async (req, res) => {
                     console.error('Gagal kirim WA sedia:', e);
                 }
             }
-
-            // 2. Notifikasi TIDAK_TERSEDIA
-            if (notifications.tidakTersedia.length > 0) {
+            // 2. Notifikasi TIDAK_TERSEDIA (Hanya jika tidak ada yang sedia)
+            else if (hasTidakTersedia) {
                 let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nMohon maaf, saat ini ada barang pesanan Anda (Kode: *${updatedSale.code}*) yang *TIDAK TERSEDIA* / KOSONG:\n\n`;
                 notifications.tidakTersedia.forEach(n => {
                     msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n`;
