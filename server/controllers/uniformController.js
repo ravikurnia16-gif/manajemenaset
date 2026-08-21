@@ -2171,6 +2171,7 @@ exports.confirmIndentPublic = async (req, res) => {
             const itemsMap = new Map(sale.items.map(i => [i.id, i]));
             let subtotalAdjustment = 0;
             let updatedCount = 0;
+            const actualChanges = [];
 
             for (const conf of confirmations) {
                 const item = itemsMap.get(parseInt(conf.itemId));
@@ -2186,6 +2187,7 @@ exports.confirmIndentPublic = async (req, res) => {
                     });
                     item.status = 'INDENT';
                     updatedCount++;
+                    actualChanges.push({ itemName: item.itemName, size: item.size, qty: item.qty, action: 'INDENT' });
                 } else if (conf.action === 'BATAL') {
                     await tx.uniformSaleItem.update({
                         where: { id: item.id },
@@ -2194,6 +2196,7 @@ exports.confirmIndentPublic = async (req, res) => {
                     item.status = 'BATAL';
                     subtotalAdjustment -= item.totalPrice;
                     updatedCount++;
+                    actualChanges.push({ itemName: item.itemName, size: item.size, qty: item.qty, action: 'BATAL' });
                 }
             }
 
@@ -2255,10 +2258,49 @@ exports.confirmIndentPublic = async (req, res) => {
                 include: { items: true }
             });
 
-            return updatedSale;
+            return { updatedSale, actualChanges };
         });
 
-        res.json({ message: 'Konfirmasi berhasil disimpan', data: result });
+        // ================= KIRIIM NOTIFIKASI WA KE STAFF GUDANG =================
+        try {
+            const { updatedSale, actualChanges } = result;
+
+            if (actualChanges && actualChanges.length > 0) {
+                const staffList = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { position: { contains: 'Gudang' } },
+                            { position: { contains: 'Logistik' } }
+                        ]
+                    }
+                });
+
+                if (staffList.length > 0) {
+                    let msg = `*KONFIRMASI BARANG KOSONG*\n\nHalo Tim Gudang & Logistik,\nAda konfirmasi terbaru dari wali murid terkait barang seragam yang *Tidak Tersedia*:\n\n*No Invoice:* ${updatedSale.code}\n*Nama Pemesan:* ${updatedSale.customerName || updatedSale.studentName || '-'}\n\n*Keputusan Wali Murid:*\n`;
+
+                    for (const change of actualChanges) {
+                        const icon = change.action === 'INDENT' ? '⏳' : '🚫';
+                        msg += `- ${change.itemName} (${change.size}) x${change.qty} pcs ➡️ ${icon} *${change.action}*\n`;
+                    }
+
+                    msg += `\nSilakan kelola pesanan ini di Dashboard Admin:\nhttps://sarpras.dareliman.or.id/uniform-sales`;
+
+                    for (const staff of staffList) {
+                        if (staff.phone) {
+                            try {
+                                sendMessage(staff.phone, msg);
+                            } catch (e) {
+                                console.error('Gagal kirim WA ke Staff Gudang:', staff.phone, e);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (waErr) {
+            console.error('Error saat kirim WA ke Staff Gudang:', waErr);
+        }
+
+        res.json({ message: 'Konfirmasi berhasil disimpan', data: result.updatedSale });
     } catch (error) {
         console.error('Confirm Indent Error:', error);
         res.status(500).json({ error: error.message });
