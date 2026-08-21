@@ -155,7 +155,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                         <span>Ukuran: {item.size}</span>
                                         <span>|</span>
                                         <span>Qty: {item.qty}</span>
-                                        {item.totalStock !== undefined && (
+                                        {item.totalStock !== undefined && item.saleItemId !== 'NAMADADA' && (
                                             <>
                                                 <span>|</span>
                                                 <span className={`font-medium ${item.totalStock >= item.qty ? 'text-green-600' : 'text-rose-600'}`}>
