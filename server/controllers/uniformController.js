@@ -2971,6 +2971,43 @@ exports.manageSaleItems = async (req, res) => {
                 include: { items: true }
             });
 
+            // Prepare summary of all items for WA notification
+            const allItemsSummary = [];
+            for (const update of itemUpdates) {
+                let itemName = '';
+                let size = '';
+                let qty = 0;
+                
+                if (update.saleItemId === 'NAMADADA') {
+                    itemName = 'Nama Dada (Bordir)';
+                    size = '-';
+                    qty = update.qty || 1;
+                    if (sale.note && sale.note.includes('[NAMADADA:')) {
+                        const match = sale.note.match(/\[NAMADADA:(\d+):/);
+                        if (match) qty = parseInt(match[1]);
+                    }
+                } else {
+                    const item = itemsMap.get(parseInt(update.saleItemId));
+                    if (item) {
+                        itemName = item.itemName;
+                        size = item.size;
+                        qty = update.qty || item.qty;
+                    }
+                }
+                
+                const updateLog = notifications.updates.find(u => u.itemName === itemName && u.size === size);
+                allItemsSummary.push({
+                    itemName,
+                    size,
+                    qty,
+                    status: update.status,
+                    changed: !!updateLog,
+                    oldStatus: updateLog ? updateLog.oldStatus : '',
+                    location: updateLog ? updateLog.location : ''
+                });
+            }
+            notifications.allItemsSummary = allItemsSummary;
+
             return { updatedSale, notifications };
         });
 
@@ -2979,29 +3016,69 @@ exports.manageSaleItems = async (req, res) => {
 
         if (updatedSale.customerPhone && notifications.updates.length > 0) {
             let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nBerikut adalah update status terbaru untuk pesanan seragam Anda (Kode: *${updatedSale.code}*):\n\n`;
-            
-            notifications.updates.forEach(n => {
-                const getStatusText = (status) => {
-                    if (status === 'SEDIA') return '✅ SEDIA (Siap Diambil)';
-                    if (status === 'DIAMBIL') return '📦 DIAMBIL (Sudah Diserahkan)';
-                    if (status === 'TIDAK_TERSEDIA') return '❌ TIDAK TERSEDIA (Kosong)';
-                    if (status === 'INDENT') return '⏳ INDENT (Menunggu Produksi)';
-                    if (status === 'BATAL') return '🚫 BATAL';
-                    return status;
-                };
 
-                msg += `- *${n.itemName}* (${n.size}) x${n.qty} pcs\n  Status: ${getStatusText(n.oldStatus)} ➡️ *${getStatusText(n.newStatus)}*\n`;
-                if (n.newStatus === 'SEDIA' && n.location) {
-                    msg += `  📍 Silakan ambil di: ${n.location}\n`;
-                }
+            const sedia = notifications.allItemsSummary.filter(i => i.status === 'SEDIA');
+            const diambil = notifications.allItemsSummary.filter(i => i.status === 'DIAMBIL');
+            const indent = notifications.allItemsSummary.filter(i => ['INDENT', 'BACKORDER', 'PENDING'].includes(i.status));
+            const kosong = notifications.allItemsSummary.filter(i => i.status === 'TIDAK_TERSEDIA');
+            const batal = notifications.allItemsSummary.filter(i => i.status === 'BATAL');
+
+            if (sedia.length > 0) {
+                msg += `✅ *BARANG TERSEDIA (Siap Diambil)*\n`;
+                sedia.forEach(i => {
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
+                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ SEDIA)*`;
+                    if (i.location) msg += `\n  📍 Lokasi: ${i.location}`;
+                    msg += '\n';
+                });
                 msg += '\n';
-            });
-            
-            if (notifications.hasTidakTersedia) {
-                msg += `Untuk barang yang KOSONG (Tidak Tersedia), mohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
+            }
+
+            if (diambil.length > 0) {
+                msg += `📦 *BARANG TELAH DIAMBIL (Diserahkan)*\n`;
+                diambil.forEach(i => {
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
+                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ DIAMBIL)*`;
+                    msg += '\n';
+                });
+                msg += '\n';
+            }
+
+            if (indent.length > 0) {
+                msg += `⏳ *BARANG INDENT (Menunggu Produksi/Stok)*\n`;
+                indent.forEach(i => {
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
+                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ ${i.status})*`;
+                    msg += '\n';
+                });
+                msg += '\n';
+            }
+
+            if (kosong.length > 0) {
+                msg += `❌ *BARANG TIDAK TERSEDIA (Kosong)*\n`;
+                kosong.forEach(i => {
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
+                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ KOSONG)*`;
+                    msg += '\n';
+                });
+                msg += '\n';
+            }
+
+            if (batal.length > 0) {
+                msg += `🚫 *BATAL*\n`;
+                batal.forEach(i => {
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
+                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ BATAL)*`;
+                    msg += '\n';
+                });
+                msg += '\n';
             }
             
-            msg += `Silakan cek detail lengkap invoice pesanan Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
+            if (notifications.hasTidakTersedia) {
+                msg += `Untuk barang yang KOSONG, mohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
+            }
+            
+            msg += `Cek invoice lengkap pesanan Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
             
             try {
                 sendMessage(updatedSale.customerPhone, msg);
