@@ -54,10 +54,13 @@ export default function UniformOrderPublic() {
         fetchMasterData();
     }, []);
 
+    const [namaDadaQty, setNamaDadaQty] = useState(0);
+
     useEffect(() => {
-        const subtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
+        const itemsSubtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
+        const subtotal = itemsSubtotal + (namaDadaQty * 15000);
         setForm(f => ({ ...f, subtotal, totalAmount: subtotal }));
-    }, [form.items]);
+    }, [form.items, namaDadaQty]);
 
     const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => {
@@ -163,7 +166,8 @@ export default function UniformOrderPublic() {
                 paymentMethod: form.paymentMethod,
                 paidAmount: 0,
                 discount: 0,
-                items: form.items
+                items: form.items,
+                note: namaDadaQty > 0 ? `[NAMADADA:${namaDadaQty}:15000]` : ''
             };
 
             const res = await api.post('/uniforms/public/sales', dataToSave);
@@ -271,6 +275,27 @@ export default function UniformOrderPublic() {
                                 ))}
                             </div>
                         )}
+                    </div>
+
+                    {/* Tambahan: Nama Dada */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
+                        <h2 className="text-lg font-bold text-slate-800 border-b pb-2">3. Tambahan Atribut</h2>
+                        <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div className="flex-1">
+                                <div className="font-bold text-slate-800 text-sm">Nama Dada (Bordir)</div>
+                                <div className="text-xs text-slate-500">Estimasi Harga: Rp 15.000 / pcs</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Jumlah:</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    className="w-20 border border-slate-300 rounded-lg px-2 py-2 text-center font-bold outline-none focus:ring-2 focus:ring-blue-500" 
+                                    value={namaDadaQty} 
+                                    onChange={e => setNamaDadaQty(parseInt(e.target.value) || 0)} 
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Pembayaran & Submit */}

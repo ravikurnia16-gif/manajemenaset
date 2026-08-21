@@ -2358,6 +2358,19 @@ exports.createSale = async (req, res) => {
                 }
             }
 
+            // Parse Nama Dada from note if exists
+            let namaDadaStr = null;
+            if (note && note.includes('[NAMADADA:')) {
+                const match = note.match(/\[NAMADADA:(\d+):(\d+)\]/);
+                if (match) {
+                    const ndQty = parseInt(match[1]);
+                    const ndPrice = parseInt(match[2]);
+                    subtotal += ndQty * ndPrice;
+                    // Retain the note as it's needed for the frontend to render the invoice row
+                    namaDadaStr = `[NAMADADA:${ndQty}:${ndPrice}]`;
+                }
+            }
+
             const disc = parseFloat(discount || 0);
             const totalAmount = subtotal - disc;
             const paid = parseFloat(paidAmount || 0);
@@ -3755,9 +3768,15 @@ exports.getFinanceReport = async (req, res) => {
         sales.forEach(s => {
             if (s.paidAmount > 0) {
                 // Dynamically compute active subtotal to ensure cancelled items are not counted in revenue
-                const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
-                    ? s.subtotal
-                    : (s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || s.subtotal);
+                let activeSubtotal = s.subtotal;
+                if (s.type === 'RETAIL' && s.items) {
+                    const validItems = s.items.filter(item => item.status !== 'BATAL');
+                    if (validItems.length > 0 || (s.note && s.note.includes('[NAMADADA:'))) {
+                        // If it's a retail order with items (or just Nama Dada), we only count the valid items' total price.
+                        // This naturally excludes Nama Dada from the financial report.
+                        activeSubtotal = validItems.reduce((acc, item) => acc + item.totalPrice, 0);
+                    }
+                }
                 
                 const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
                 const cappedPaidAmount = Math.min(s.paidAmount, activeTotalAmount);
