@@ -2400,7 +2400,13 @@ exports.createSale = async (req, res) => {
         });
 
         if (result.customerPhone) {
-            const message = `Halo ${result.customerName || result.studentName || 'Bapak/Ibu'},\n\nPesanan seragam Anda telah berhasil dibuat dengan nomor referensi *${result.code}*.\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek rincian pesanan dan status pembayaran melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nTerima kasih.`;
+            let itemDetails = '';
+            if (result.items && result.items.length > 0) {
+                itemDetails = result.items.map(i => `- ${i.itemName} (${i.size || '-'}) x${i.qty}`).join('\n');
+            }
+
+            const message = `Terimakasih! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi dari Admin Kita ya.\n\nAnda juga dapat mengecek status pesanan melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}`;
+            
             try {
                 sendMessage(result.customerPhone, message);
             } catch(e) {
@@ -2411,7 +2417,10 @@ exports.createSale = async (req, res) => {
         // Notifikasi ke Staff Gudang & Logistik
         const staffWaGroup = process.env.SARPRAS_GROUP_WA_ID;
         if (staffWaGroup) {
-            let itemsString = saleItems.map(i => `- ${i.itemName} (${i.size || '-'}): ${i.qty} pcs`).join('\n');
+            let itemsString = '';
+            if (result.items && result.items.length > 0) {
+                itemsString = result.items.map(i => `- ${i.itemName} (${i.size || '-'}): ${i.qty} pcs`).join('\n');
+            }
             const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\n\n*Rincian Pesanan:*\n${itemsString}\n\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
             try {
                 sendMessage(staffWaGroup, staffMsg);
