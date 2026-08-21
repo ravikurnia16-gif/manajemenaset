@@ -2952,14 +2952,30 @@ exports.updateSalePayment = async (req, res) => {
         if (!sale) return res.status(404).json({ error: 'Penjualan tidak ditemukan' });
 
         const newPaid = parseFloat(paidAmount || 0);
+        const newPaymentStatus = newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
+        
         const data = await prisma.uniformSale.update({
             where: { id: parseInt(req.params.id) },
             data: {
                 paidAmount: newPaid,
                 paymentMethod,
-                paymentStatus: newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID'
+                paymentStatus: newPaymentStatus
             }
         });
+
+        // Kirim Notifikasi WA jika status berubah menjadi PAID (Lunas)
+        if (newPaymentStatus === 'PAID' && sale.paymentStatus !== 'PAID' && data.customerPhone) {
+            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${data.customerName || data.studentName || ''},\n\nAlhamdulillah, pembayaran untuk pesanan seragam Anda (Kode: *${data.code}*) telah kami terima dan *LUNAS*.\n\n`;
+            msg += `Berikut adalah link invoice pesanan Anda:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${data.id}\n\n`;
+            msg += `Syukron, Jazakumullah khairan.`;
+            
+            try {
+                sendMessage(data.customerPhone, msg);
+            } catch(e) {
+                console.error('Gagal kirim WA lunas:', e);
+            }
+        }
+
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
