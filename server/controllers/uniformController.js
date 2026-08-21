@@ -2278,6 +2278,13 @@ exports.createSale = async (req, res) => {
                 const available = stock ? stock.quantity : 0;
                 const canDeliver = isPending ? 0 : Math.min(qty, available);
 
+                let itemStatus = 'PENDING';
+                if (!isPending) {
+                    itemStatus = canDeliver >= qty ? 'DELIVERED' : 'BACKORDER';
+                } else {
+                    itemStatus = available >= qty ? 'PENDING' : 'BACKORDER';
+                }
+
                 saleItems.push({
                     variantId: parseInt(item.variantId),
                     itemName: variant.item.name,
@@ -2286,7 +2293,7 @@ exports.createSale = async (req, res) => {
                     qtyDelivered: canDeliver,
                     unitPrice,
                     totalPrice,
-                    status: canDeliver >= qty ? 'DELIVERED' : 'BACKORDER',
+                    status: itemStatus,
                     _packageIndex: salePackageIndex // Temporary internal field to link back
                 });
 
