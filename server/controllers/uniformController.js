@@ -2875,8 +2875,8 @@ exports.manageSaleItems = async (req, res) => {
             if (notifications.sedia.length > 0) {
                 let msg = `Halo ${updatedSale.customerName || updatedSale.studentName || 'Bapak/Ibu'},\n\nKabar baik! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
                 notifications.sedia.forEach(n => {
-                    const locText = n.warehouseLocation ? `${n.warehouseName} - ${n.warehouseLocation}` : n.warehouseName;
-                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil dari: ${locText}\n`;
+                    const locText = n.warehouseLocation ? n.warehouseLocation : n.warehouseName;
+                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil di: ${locText}\n`;
                 });
                 msg += `\nSilakan cek status lengkapnya di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nTerima kasih.`;
                 try {
