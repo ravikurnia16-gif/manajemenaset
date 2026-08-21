@@ -11,7 +11,9 @@ router.get('/sales/:id', c.getSaleById);
 // Diakses oleh wali murid untuk membuat form pesanan mandiri
 router.get('/public/units', c.getUnits);
 router.get('/public/variants', c.getVariants);
+router.get('/public/track-order', c.trackOrderPublic);
 router.post('/public/sales', c.createSale);
+router.post('/public/sales/:id/confirm-indent', c.confirmIndentPublic);
 
 // === PROTECTED ROUTES ===
 router.use(verifyToken);

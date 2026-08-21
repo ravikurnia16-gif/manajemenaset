@@ -41,6 +41,8 @@ import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import UniformInvoicePublic from './pages/UniformInvoicePublic';
 import UniformOrderPublic from './pages/UniformOrderPublic';
+import UniformTrackOrderPublic from './pages/UniformTrackOrderPublic';
+import UniformConfirmIndentPublic from './pages/UniformConfirmIndentPublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/BusConfirmationPublic';
 import BusInvoiceVerify from './pages/BusInvoiceVerify';
@@ -192,6 +194,8 @@ function App() {
         <Route path="/public/invoice-bus/:id" element={<BusInvoicePublic />} />
         <Route path="/public/invoice-seragam/:id" element={<UniformInvoicePublic />} />
         <Route path="/public/pesan-seragam" element={<UniformOrderPublic />} />
+        <Route path="/public/lacak-pesanan" element={<UniformTrackOrderPublic />} />
+        <Route path="/public/konfirmasi-indent/:id" element={<UniformConfirmIndentPublic />} />
         <Route path="/public/confirm-bus/:id/:token" element={<BusConfirmationPublic />} />
         <Route path="/q/:token" element={<QuickComplete />} />
         <Route path="/verify/:uuid" element={<PublicVerify />} />

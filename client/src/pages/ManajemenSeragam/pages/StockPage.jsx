@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Boxes, ArrowLeftRight } from 'lucide-react';
 import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
-import { TransactionForm, ManualStockForm } from '../Forms';
+import { TransactionForm } from '../Forms';
 import { StockTab } from '../StockTab';
 import { TransactionsTab } from '../TransactionsTab';
 
@@ -26,6 +26,7 @@ export default function StockPage() {
     const [units, setUnits] = useState([]);
     const [vendors, setVendors] = useState([]);
     const [variants, setVariants] = useState([]);
+    const [items, setItems] = useState([]); // added items state
     
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -43,7 +44,8 @@ export default function StockPage() {
                 api.get('/uniforms/sizes'),
                 api.get('/uniforms/units'),
                 api.get('/uniforms/vendors'),
-                api.get('/uniforms/variants')
+                api.get('/uniforms/variants'),
+                api.get('/uniforms/items') // Added items
             ]);
             
             setWarehouses(commonRes[0].data);
@@ -53,6 +55,7 @@ export default function StockPage() {
             setUnits(commonRes[4].data);
             setVendors(commonRes[5].data);
             setVariants(commonRes[6].data);
+            setItems(commonRes[7].data); // Set items state
 
             if (activeTab === 'stock') {
                 const r = await api.get('/uniforms/stocks', { params: { warehouseId: selectedWarehouse || undefined, search } });
@@ -83,17 +86,6 @@ export default function StockPage() {
             fetchData();
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal menyimpan transaksi');
-        }
-    };
-
-    const handleSaveManualStock = async (formData) => {
-        try {
-            await api.post('/uniforms/stocks/manual', formData);
-            alert('Stok berhasil ditambahkan!');
-            closeModal();
-            fetchData();
-        } catch (err) {
-            alert(err.response?.data?.error || 'Gagal menambahkan stok');
         }
     };
 
@@ -133,14 +125,10 @@ export default function StockPage() {
             </div>
 
             <Modal isOpen={modal.open} onClose={closeModal} title={
-                modal.type === 'transaction' ? 'Transaksi Stok' :
-                modal.type === 'manual-stock' ? 'Tambah Stok Manual' : ''
+                modal.type === 'transaction' ? 'Transaksi Stok' : ''
             } wide={true}>
                 {modal.type === 'transaction' && (
                     <TransactionForm warehouses={warehouses} vendors={vendors} variants={variants} onSave={handleSaveTransaction} />
-                )}
-                {modal.type === 'manual-stock' && (
-                    <ManualStockForm variants={variants} categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} warehouses={warehouses} vendors={vendors} onSave={handleSaveManualStock} />
                 )}
             </Modal>
         </div>

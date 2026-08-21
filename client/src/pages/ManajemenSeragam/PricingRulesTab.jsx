@@ -38,7 +38,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
         try {
             await api.post('/uniforms/pricing-rules', {
                 ...form,
-                sizeNames: form.sizeNames.length > 0 ? form.sizeNames.join(',') : ''
+                sizeNames: form.sizeNames.length > 0 ? form.sizeNames.join(';') : ''
             });
             setShowForm(false);
             setForm({ categoryId: '', clothingTypeId: '', unitId: '', gender: '', sizeNames: [], price: '' });
@@ -171,7 +171,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                             {rule.clothingType && <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs border border-indigo-100">Jenis: {rule.clothingType.name}</span>}
                                             {rule.unit && <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded text-xs border border-emerald-100">Unit: {rule.unit.name}</span>}
                                             {rule.gender && <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded text-xs border border-purple-100">Gender: {rule.gender}</span>}
-                                            {rule.sizeNames && <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-xs border border-orange-100">Ukuran: {rule.sizeNames}</span>}
+                                            {rule.sizeNames && <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-xs border border-orange-100">Ukuran: {rule.sizeNames.replace(/;/g, ', ')}</span>}
                                             {!rule.categoryId && !rule.clothingTypeId && !rule.unitId && !rule.gender && !rule.sizeNames && (
                                                 <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">Berlaku untuk Semua Barang</span>
                                             )}

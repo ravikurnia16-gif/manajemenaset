@@ -61,20 +61,10 @@ export default function UniformOrderPublic() {
 
     const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => {
-            const categoryName = v.item?.category?.name || '';
-            const isPeci = categoryName.toLowerCase().includes('peci');
-            
-            // 1. Aturan KHUSUS hanya untuk kategori Peci
-            if (isPeci) {
-                const allowedPeciUnits = ['SD', 'SMP', 'SMA', 'PonPes'];
-                return form.gender === 'IKHWAN' && allowedPeciUnits.includes(form.targetUnit);
-            }
-            
-            // 2. Aturan untuk barang selain Peci
             const unitName = v.item?.unit?.name || '';
-            const isGeneralUnit = !v.item?.unit || unitName.toLowerCase() === 'umum';
+            const isGeneralUnit = !v.item?.unit || unitName.toLowerCase() === 'umum' || unitName.toLowerCase() === 'semua unit';
 
-            // Jika barang umum (tanpa unit / unit 'Umum'), cocokkan berdasarkan gender saja
+            // Jika barang umum (tanpa unit / unit 'Umum' / 'Semua Unit'), cocokkan berdasarkan gender saja
             if (isGeneralUnit) {
                 return v.item?.gender === form.gender || v.item?.gender === 'UMUM';
             }
@@ -197,6 +187,11 @@ export default function UniformOrderPublic() {
                     </div>
                     <h1 className="text-3xl font-black text-slate-800">Form Pesanan Seragam</h1>
                     <p className="text-slate-500 mt-2">Pilih seragam sesuai dengan jenjang pendidikan dan gender siswa.</p>
+                    <div className="mt-4">
+                        <button onClick={() => navigate('/public/lacak-pesanan')} className="text-sm font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 hover:bg-blue-100 transition-colors">
+                            Cari & Lacak Pesanan Anda
+                        </button>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">

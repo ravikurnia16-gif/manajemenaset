@@ -36,7 +36,7 @@ export const TransactionsTab = ({ transactions, loading, selectedWarehouse, setS
                             <td className="p-3 text-center">
                                 <Badge color={t.type === 'IN' ? 'green' : t.type === 'OUT' ? 'red' : t.type === 'MUTATION' ? 'blue' : 'orange'}>{t.type}</Badge>
                             </td>
-                            <td className="p-3 font-medium text-slate-700">{t.variant?.item?.name} ({t.variant?.size || '-'})</td>
+                            <td className="p-3 font-medium text-slate-700">{t.variant?.item?.name} ({t.variant?.sizeName || '-'})</td>
                             <td className="p-3 text-center text-xs text-slate-500">
                                 {t.warehouse?.name}
                                 {t.toWarehouse && <span className="text-blue-500"> → {t.toWarehouse.name}</span>}

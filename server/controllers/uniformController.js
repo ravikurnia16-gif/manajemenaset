@@ -1318,7 +1318,8 @@ exports.applyPricingRules = async (req, res) => {
                 if (rule.gender && variant.item.gender !== rule.gender) match = false;
                 
                 if (rule.sizeNames) {
-                    const sizes = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
+                    const separator = rule.sizeNames.includes(';') ? ';' : ',';
+                    const sizes = rule.sizeNames.split(separator).map(s => s.trim().toLowerCase());
                     if (!sizes.includes(variant.sizeName.toLowerCase())) match = false;
                 }
                 
@@ -2065,7 +2066,7 @@ exports.getSales = async (req, res) => {
                 warehouse: { select: { id: true, name: true } },
                 package: { select: { id: true, name: true } }, // Legacy
                 salePackages: { include: { package: { select: { id: true, name: true } } } },
-                items: true,
+                items: { include: { variant: { include: { item: true, stocks: true } } } },
                 schedule: { select: { id: true, title: true, date: true } }
             },
             orderBy: { createdAt: 'desc' },
@@ -2085,13 +2086,146 @@ exports.getSaleById = async (req, res) => {
                 warehouse: true,
                 package: { include: { items: { include: { item: true } } } }, // Legacy
                 salePackages: { include: { package: { include: { items: { include: { item: true } } } } } },
-                items: { include: { variant: { include: { item: true } } } },
+                items: { include: { variant: { include: { item: true, stocks: true } } } },
                 schedule: true
             }
         });
         if (!data) return res.status(404).json({ error: 'Penjualan tidak ditemukan' });
         res.json(data);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.trackOrderPublic = async (req, res) => {
+    try {
+        const { code, phone } = req.query;
+        if (!code || !phone) {
+            return res.status(400).json({ error: 'Kode referensi dan Nomor HP wajib diisi' });
+        }
+        
+        const data = await prisma.uniformSale.findFirst({
+            where: { 
+                code: code.trim(),
+                customerPhone: phone.trim()
+            },
+            select: { id: true }
+        });
+        
+        if (!data) return res.status(404).json({ error: 'Pesanan tidak ditemukan dengan kombinasi kode dan nomor HP tersebut' });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.confirmIndentPublic = async (req, res) => {
+    try {
+        const saleId = parseInt(req.params.id);
+        const { confirmations } = req.body; // array of { itemId, action: 'INDENT' | 'BATAL' }
+        
+        if (!confirmations || !Array.isArray(confirmations)) {
+            return res.status(400).json({ error: 'Data konfirmasi tidak valid' });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            const sale = await tx.uniformSale.findUnique({
+                where: { id: saleId },
+                include: { items: true }
+            });
+
+            if (!sale) throw new Error('Pesanan tidak ditemukan');
+            
+            const itemsMap = new Map(sale.items.map(i => [i.id, i]));
+            let subtotalAdjustment = 0;
+            let updatedCount = 0;
+
+            for (const conf of confirmations) {
+                const item = itemsMap.get(parseInt(conf.itemId));
+                if (!item) continue;
+                
+                // Hanya bisa konfirmasi jika statusnya TIDAK_TERSEDIA
+                if (item.status !== 'TIDAK_TERSEDIA') continue;
+                
+                if (conf.action === 'INDENT') {
+                    await tx.uniformSaleItem.update({
+                        where: { id: item.id },
+                        data: { status: 'INDENT' }
+                    });
+                    item.status = 'INDENT';
+                    updatedCount++;
+                } else if (conf.action === 'BATAL') {
+                    await tx.uniformSaleItem.update({
+                        where: { id: item.id },
+                        data: { status: 'BATAL' }
+                    });
+                    item.status = 'BATAL';
+                    subtotalAdjustment -= item.totalPrice;
+                    updatedCount++;
+                }
+            }
+
+            if (updatedCount === 0) {
+                return sale; // Tidak ada yang diupdate
+            }
+
+            // Update Sale Totals & Status
+            let newStatus = sale.status;
+            let allFinal = true;
+            let anyPending = false;
+            let anySedia = false;
+            
+            for (const item of itemsMap.values()) {
+                if (item.status !== 'DIAMBIL' && item.status !== 'BATAL') {
+                    allFinal = false;
+                }
+                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.status)) {
+                    anyPending = true;
+                }
+                if (item.status === 'SEDIA') {
+                    anySedia = true;
+                }
+            }
+            
+            if (allFinal && itemsMap.size > 0) {
+                newStatus = 'SELESAI';
+            } else if (anySedia || Array.from(itemsMap.values()).some(i => i.status === 'DIAMBIL')) {
+                newStatus = 'PROSES';
+            } else {
+                newStatus = 'PENDING';
+            }
+
+            const newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
+            const newTotalAmount = Math.max(0, newSubtotal - sale.discount);
+            let paymentStatus = sale.paymentStatus;
+            
+            if (newTotalAmount === 0) {
+                paymentStatus = 'PAID';
+            } else if (sale.paidAmount >= newTotalAmount) {
+                paymentStatus = 'PAID';
+            } else if (sale.paidAmount > 0) {
+                paymentStatus = 'PARTIAL';
+            } else {
+                paymentStatus = 'UNPAID';
+            }
+
+            const updatedSale = await tx.uniformSale.update({
+                where: { id: saleId },
+                data: {
+                    status: newStatus,
+                    subtotal: newSubtotal,
+                    totalAmount: newTotalAmount,
+                    paymentStatus
+                },
+                include: { items: true }
+            });
+
+            return updatedSale;
+        });
+
+        res.json({ message: 'Konfirmasi berhasil disimpan', data: result });
+    } catch (error) {
+        console.error('Confirm Indent Error:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -2281,7 +2415,8 @@ exports.createSale = async (req, res) => {
         // Notifikasi ke Staff Gudang & Logistik
         const staffWaGroup = process.env.SARPRAS_GROUP_WA_ID;
         if (staffWaGroup) {
-            const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
+            let itemsString = saleItems.map(i => `- ${i.itemName} (${i.size || '-'}): ${i.qty} pcs`).join('\n');
+            const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\n\n*Rincian Pesanan:*\n${itemsString}\n\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
             try {
                 sendMessage(staffWaGroup, staffMsg);
             } catch(e) {
@@ -2304,14 +2439,27 @@ exports.updateSalePayment = async (req, res) => {
         if (!sale) return res.status(404).json({ error: 'Penjualan tidak ditemukan' });
 
         const newPaid = parseFloat(paidAmount || 0);
+        const newPaymentStatus = newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
+        
         const data = await prisma.uniformSale.update({
             where: { id: parseInt(req.params.id) },
             data: {
                 paidAmount: newPaid,
                 paymentMethod,
-                paymentStatus: newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID'
+                paymentStatus: newPaymentStatus
             }
         });
+
+        // Kirim notifikasi WA ke pelanggan jika status berubah menjadi LUNAS
+        if (sale.paymentStatus !== 'PAID' && newPaymentStatus === 'PAID' && sale.customerPhone) {
+            const message = `Halo ${sale.customerName || sale.studentName || 'Bapak/Ibu'},\n\nTerima kasih, pembayaran pesanan seragam Anda dengan kode *${sale.code}* telah kami terima dan berstatus *LUNAS*.\n\nSilakan cek invoice terbaru Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${sale.id}\n\nJazakumullahu Khairan,\nManajemen Aset & Logistik`;
+            try {
+                sendMessage(sale.customerPhone, message);
+            } catch(e) {
+                console.error('Gagal kirim WA lunas ke customer:', e);
+            }
+        }
+
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -2366,6 +2514,7 @@ exports.manageSaleItems = async (req, res) => {
             
             const itemsMap = new Map(sale.items.map(i => [i.id, i]));
             let subtotalAdjustment = 0;
+            const notifications = { sedia: [], tidakTersedia: [] };
 
             for (const update of itemUpdates) {
                 const item = itemsMap.get(parseInt(update.saleItemId));
@@ -2394,8 +2543,8 @@ exports.manageSaleItems = async (req, res) => {
                     return `${prefix}/${year}/${nextNum.toString().padStart(3, '0')}`;
                 };
 
-                // PENDING/INDENT/TIDAK_TERSEDIA -> SEDIA (Mutation: Source -> Transit)
-                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(oldStatus) && newStatus === 'SEDIA') {
+                // PENDING/INDENT/TIDAK_TERSEDIA/BATAL -> SEDIA (Mutation: Source -> Transit)
+                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'SEDIA') {
                     const sourceWhId = parseInt(update.sourceWarehouseId);
                     const transitWhId = parseInt(update.transitWarehouseId);
                     if (!sourceWhId || !transitWhId) throw new Error(`Pilih gudang asal dan gudang transit untuk item ${item.itemName}`);
@@ -2435,8 +2584,8 @@ exports.manageSaleItems = async (req, res) => {
                     });
                 }
                 
-                // PENDING/INDENT/TIDAK_TERSEDIA/SEDIA -> DIAMBIL
-                else if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'SEDIA'].includes(oldStatus) && newStatus === 'DIAMBIL') {
+                // PENDING/INDENT/TIDAK_TERSEDIA/SEDIA/BATAL -> DIAMBIL
+                else if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'SEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'DIAMBIL') {
                     let whId;
                     if (oldStatus === 'SEDIA') {
                         whId = parseInt(update.transitWarehouseId); // Need to know which transit warehouse it was in
@@ -2528,6 +2677,11 @@ exports.manageSaleItems = async (req, res) => {
                     subtotalAdjustment -= item.totalPrice;
                 }
                 
+                // BATAL -> PENDING/INDENT/TIDAK_TERSEDIA (Undo batal)
+                else if (oldStatus === 'BATAL' && ['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(newStatus)) {
+                    subtotalAdjustment += item.totalPrice;
+                }
+                
                 // DIAMBIL -> BATAL
                 else if (oldStatus === 'DIAMBIL' && newStatus === 'BATAL') {
                     const returnWhId = parseInt(update.returnWarehouseId);
@@ -2597,6 +2751,22 @@ exports.manageSaleItems = async (req, res) => {
                     });
                 }
                 
+                // PENDING/SEDIA/DIAMBIL/dll -> BATAL (Subtotal adj untuk SEDIA dan DIAMBIL sudah ditangani di atas)
+                
+                // BATAL -> SEDIA / DIAMBIL
+                if (oldStatus === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(newStatus)) {
+                    subtotalAdjustment += item.totalPrice;
+                }
+                
+                // Kirim notifikasi jika status baru adalah SEDIA atau TIDAK_TERSEDIA
+                if (oldStatus !== 'SEDIA' && newStatus === 'SEDIA') {
+                    const transitWhId = parseInt(update.transitWarehouseId);
+                    const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
+                    notifications.sedia.push({ itemName: item.itemName, size: item.size, qty: item.qty, warehouseName: transitWh?.name || 'Gudang' });
+                } else if (oldStatus !== 'TIDAK_TERSEDIA' && newStatus === 'TIDAK_TERSEDIA') {
+                    notifications.tidakTersedia.push({ itemId: item.id, itemName: item.itemName, size: item.size, qty: item.qty });
+                }
+                
                 // Save item status
                 await tx.uniformSaleItem.update({
                     where: { id: item.id },
@@ -2658,10 +2828,43 @@ exports.manageSaleItems = async (req, res) => {
                 include: { items: true }
             });
 
-            return updatedSale;
+            return { updatedSale, notifications };
         });
 
-        res.json(result);
+        // ================= KIRIIM NOTIFIKASI WA =================
+        const { updatedSale, notifications } = result;
+
+        if (updatedSale.customerPhone) {
+            // 1. Notifikasi SEDIA
+            if (notifications.sedia.length > 0) {
+                let msg = `Halo ${updatedSale.customerName || updatedSale.studentName || 'Bapak/Ibu'},\n\nKabar baik! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
+                notifications.sedia.forEach(n => {
+                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Lokasi Penjemputan: ${n.warehouseName}\n`;
+                });
+                msg += `\nSilakan cek status lengkapnya di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nTerima kasih.`;
+                try {
+                    sendMessage(updatedSale.customerPhone, msg);
+                } catch(e) {
+                    console.error('Gagal kirim WA sedia:', e);
+                }
+            }
+
+            // 2. Notifikasi TIDAK_TERSEDIA
+            if (notifications.tidakTersedia.length > 0) {
+                let msg = `Halo ${updatedSale.customerName || updatedSale.studentName || 'Bapak/Ibu'},\n\nMohon maaf, saat ini ada barang pesanan Anda (Kode: *${updatedSale.code}*) yang *TIDAK TERSEDIA* / KOSONG:\n\n`;
+                notifications.tidakTersedia.forEach(n => {
+                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n`;
+                });
+                msg += `\nMohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkan pesanan barang tersebut melalui link di bawah ini:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\nTerima kasih.`;
+                try {
+                    sendMessage(updatedSale.customerPhone, msg);
+                } catch(e) {
+                    console.error('Gagal kirim WA tidak tersedia:', e);
+                }
+            }
+        }
+
+        res.json(updatedSale);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

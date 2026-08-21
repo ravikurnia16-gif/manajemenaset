@@ -83,7 +83,7 @@ export default function SalesPage() {
 
     const handleFulfillSale = async (fulfillments) => {
         try {
-            await api.post(`/uniforms/sales/${modal.data.id}/fulfill`, { fulfillments });
+            await api.post(`/uniforms/sales/${modal.data.id}/fulfill`, { itemUpdates: fulfillments });
             closeModal();
             fetchData();
         } catch (err) { alert(err.response?.data?.error || 'Gagal memproses pesanan'); }

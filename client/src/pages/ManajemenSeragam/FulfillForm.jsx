@@ -6,18 +6,33 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
 
     useEffect(() => {
         if (sale && sale.items) {
-            setItemUpdates(sale.items.map(i => ({
-                saleItemId: i.id,
-                variantId: i.variantId,
-                name: i.itemName,
-                size: i.size,
-                qty: i.qty,
-                oldStatus: i.status || 'PENDING',
-                status: i.status || 'PENDING',
-                sourceWarehouseId: '',
-                transitWarehouseId: '',
-                returnWarehouseId: ''
-            })));
+            setItemUpdates(sale.items.map(i => {
+                let initialStatus = i.status || 'PENDING';
+                
+                // AUTO-DETEKSI STOK HANYA JIKA STATUS LAMA ADALAH PENDING
+                if (initialStatus === 'PENDING' && i.variant && i.variant.stocks) {
+                    const totalStock = i.variant.stocks.reduce((acc, s) => acc + s.quantity, 0);
+                    if (totalStock >= i.qty) {
+                        initialStatus = 'SEDIA';
+                    } else {
+                        initialStatus = 'TIDAK_TERSEDIA';
+                    }
+                }
+
+                return {
+                    saleItemId: i.id,
+                    variantId: i.variantId,
+                    name: i.itemName,
+                    size: i.size,
+                    qty: i.qty,
+                    oldStatus: i.status || 'PENDING',
+                    status: initialStatus,
+                    sourceWarehouseId: '',
+                    transitWarehouseId: '',
+                    returnWarehouseId: '',
+                    totalStock: i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0
+                };
+            }));
         }
     }, [sale]);
 
@@ -103,7 +118,19 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             <div className="flex justify-between items-start mb-2">
                                 <div>
                                     <div className="font-bold text-slate-800">{item.name}</div>
-                                    <div className="text-xs text-slate-500">Ukuran: {item.size} | Qty: {item.qty}</div>
+                                    <div className="text-xs text-slate-500 flex items-center gap-2">
+                                        <span>Ukuran: {item.size}</span>
+                                        <span>|</span>
+                                        <span>Qty: {item.qty}</span>
+                                        {item.totalStock !== undefined && (
+                                            <>
+                                                <span>|</span>
+                                                <span className={`font-medium ${item.totalStock >= item.qty ? 'text-green-600' : 'text-rose-600'}`}>
+                                                    Stok: {item.totalStock}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-xs text-slate-500 mb-1">Status Lama: <span className="font-bold">{item.oldStatus}</span></div>
