@@ -3073,7 +3073,7 @@ exports.manageSaleItems = async (req, res) => {
                     if (i.location) msg += `\n  📍 Lokasi: ${i.location}`;
                     msg += '\n';
                 });
-                msg += '\n';
+                msg += `⏰ *Jadwal Penjemputan:* Hari Kerja (07.30 - 16.00)\n\n`;
             }
 
             if (diambil.length > 0) {
