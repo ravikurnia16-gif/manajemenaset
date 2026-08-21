@@ -1800,9 +1800,14 @@ exports.createStockTransaction = async (req, res) => {
 
         const results = await prisma.$transaction(async (tx) => {
             const created = [];
+            
+            // Generate a single base code for the whole transaction batch
+            const baseCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
 
-            for (const item of itemsList) {
-                const code = await generateCode('TRX/SRG', 'uniformStockTransaction');
+            for (let i = 0; i < itemsList.length; i++) {
+                const item = itemsList[i];
+                // Append an index to make the code unique if there are multiple items
+                const code = itemsList.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
                 const qty = item.quantity;
 
                 let finalNote = note;
