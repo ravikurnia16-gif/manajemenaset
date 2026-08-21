@@ -30,7 +30,8 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                     sourceWarehouseId: '',
                     transitWarehouseId: '',
                     returnWarehouseId: '',
-                    totalStock: i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0
+                    totalStock: i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0,
+                    stocks: i.variant?.stocks || []
                 };
             }));
         }
@@ -156,7 +157,16 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                         <select className="flex-1 border border-slate-200 rounded p-1.5" required
                                             value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
                                             <option value="">-- Gudang Asal --</option>
-                                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                            {warehouses
+                                                .filter(w => {
+                                                    const st = item.stocks?.find(s => s.warehouseId === w.id);
+                                                    return st && st.quantity > 0;
+                                                })
+                                                .map(w => {
+                                                    const st = item.stocks?.find(s => s.warehouseId === w.id);
+                                                    return <option key={w.id} value={w.id}>{w.name} (Stok: {st.quantity})</option>;
+                                                })
+                                            }
                                         </select>
                                         <select className="flex-1 border border-slate-200 rounded p-1.5" required
                                             value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
@@ -178,7 +188,16 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                             <select className="w-full border border-slate-200 rounded p-1.5" required
                                                 value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
                                                 <option value="">-- Terjual Langsung Dari Gudang Mana? --</option>
-                                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                                {warehouses
+                                                    .filter(w => {
+                                                        const st = item.stocks?.find(s => s.warehouseId === w.id);
+                                                        return st && st.quantity > 0;
+                                                    })
+                                                    .map(w => {
+                                                        const st = item.stocks?.find(s => s.warehouseId === w.id);
+                                                        return <option key={w.id} value={w.id}>{w.name} (Stok: {st.quantity})</option>;
+                                                    })
+                                                }
                                             </select>
                                         )}
                                     </div>
