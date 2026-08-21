@@ -2112,7 +2112,10 @@ exports.trackOrderPublic = async (req, res) => {
                 code: code.trim(),
                 customerPhone: phone.trim()
             },
-            select: { id: true }
+            include: { 
+                items: true,
+                package: true
+            }
         });
         
         if (!data) return res.status(404).json({ error: 'Pesanan tidak ditemukan dengan kombinasi kode dan nomor HP tersebut' });
