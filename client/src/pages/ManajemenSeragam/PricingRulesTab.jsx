@@ -20,11 +20,16 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
         price: ''
     });
 
+    const [namaDadaPrice, setNamaDadaPrice] = useState(15000);
+    const [isSavingNd, setIsSavingNd] = useState(false);
+
     const fetchRules = async () => {
         setLoading(true);
         try {
             const res = await api.get('/uniforms/pricing-rules');
             setRules(res.data);
+            const ndRes = await api.get('/uniforms/nama-dada-price').catch(() => ({ data: { price: 15000 } }));
+            if (ndRes && ndRes.data) setNamaDadaPrice(ndRes.data.price);
         } catch (error) {
             console.error(error);
         } finally {
@@ -36,6 +41,19 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
         fetchRules();
         api.get('/uniforms/variants').then(res => setVariants(res.data)).catch(console.error);
     }, []);
+
+    const saveNamaDadaPrice = async () => {
+        if (!confirm('Simpan harga baru untuk Nama Dada?')) return;
+        setIsSavingNd(true);
+        try {
+            await api.put('/uniforms/nama-dada-price', { price: namaDadaPrice });
+            alert('Harga Nama Dada berhasil diperbarui!');
+        } catch (error) {
+            alert('Gagal menyimpan harga Nama Dada');
+        } finally {
+            setIsSavingNd(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -160,6 +178,29 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                         <Plus size={16} /> {showForm && !editingRuleId ? 'Batal' : 'Tambah Aturan'}
                     </button>
                 </div>
+            </div>
+
+            {/* Pengaturan Harga Tambahan */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Pengaturan Harga Tambahan (Opsional)</h3>
+                <div className="flex items-end gap-4 max-w-lg">
+                    <div className="flex-1">
+                        <InputField 
+                            label="Harga Nama Dada (Bordir)" 
+                            type="number" 
+                            value={namaDadaPrice} 
+                            onChange={e => setNamaDadaPrice(e.target.value)} 
+                        />
+                    </div>
+                    <button 
+                        onClick={saveNamaDadaPrice} 
+                        disabled={isSavingNd}
+                        className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
+                    >
+                        {isSavingNd ? 'Menyimpan...' : 'Simpan Harga'}
+                    </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">*Harga Nama Dada digunakan saat pembuatan pesanan baru secara terpisah, tidak diterapkan ke barang stok.</p>
             </div>
 
             {showForm && (

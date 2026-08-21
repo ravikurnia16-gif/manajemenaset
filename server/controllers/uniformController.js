@@ -483,6 +483,40 @@ exports.updatePricingRule = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+exports.getNamaDadaPrice = async (req, res) => {
+    try {
+        const rule = await prisma.uniformPricingRule.findFirst({
+            where: { gender: 'NAMADADA', isActive: true }
+        });
+        res.json({ price: rule ? rule.price : 15000 });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateNamaDadaPrice = async (req, res) => {
+    try {
+        const { price } = req.body;
+        if (!price) return res.status(400).json({ error: 'Harga harus diisi' });
+
+        await prisma.$transaction(async (tx) => {
+            await tx.uniformPricingRule.updateMany({
+                where: { gender: 'NAMADADA', isActive: true },
+                data: { isActive: false }
+            });
+            await tx.uniformPricingRule.create({
+                data: {
+                    gender: 'NAMADADA',
+                    price: parseFloat(price),
+                    isActive: true
+                }
+            });
+        });
+        res.json({ message: 'Harga Nama Dada berhasil diperbarui' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
 exports.applyPricingRules = async (req, res) => {
     try {

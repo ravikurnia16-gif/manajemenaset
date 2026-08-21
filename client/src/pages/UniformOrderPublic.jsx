@@ -35,15 +35,19 @@ export default function UniformOrderPublic() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const [namaDadaBasePrice, setNamaDadaBasePrice] = useState(15000);
+
     useEffect(() => {
         const fetchMasterData = async () => {
             try {
-                const [uRes, vRes] = await Promise.all([
+                const [uRes, vRes, ndRes] = await Promise.all([
                     api.get('/uniforms/public/units'),
-                    api.get('/uniforms/public/variants')
+                    api.get('/uniforms/public/variants'),
+                    api.get('/uniforms/public/nama-dada-price').catch(() => ({ data: { price: 15000 } }))
                 ]);
                 setUnits(uRes.data);
                 setVariants(vRes.data);
+                if (ndRes && ndRes.data) setNamaDadaBasePrice(ndRes.data.price);
             } catch (err) {
                 console.error(err);
                 alert('Gagal memuat data seragam. Pastikan server berjalan.');
@@ -58,9 +62,9 @@ export default function UniformOrderPublic() {
 
     useEffect(() => {
         const itemsSubtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
-        const subtotal = itemsSubtotal + (namaDadaQty * 15000);
+        const subtotal = itemsSubtotal + (namaDadaQty * namaDadaBasePrice);
         setForm(f => ({ ...f, subtotal, totalAmount: subtotal }));
-    }, [form.items, namaDadaQty]);
+    }, [form.items, namaDadaQty, namaDadaBasePrice]);
 
     const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => {
@@ -167,7 +171,7 @@ export default function UniformOrderPublic() {
                 paidAmount: 0,
                 discount: 0,
                 items: form.items,
-                note: namaDadaQty > 0 ? `[NAMADADA:${namaDadaQty}:15000]` : ''
+                note: namaDadaQty > 0 ? `[NAMADADA:${namaDadaQty}:${namaDadaBasePrice}]` : ''
             };
 
             const res = await api.post('/uniforms/public/sales', dataToSave);
@@ -283,7 +287,7 @@ export default function UniformOrderPublic() {
                         <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
                             <div className="flex-1">
                                 <div className="font-bold text-slate-800 text-sm">Nama Dada (Bordir)</div>
-                                <div className="text-xs text-slate-500">Estimasi Harga: Rp 15.000 / pcs</div>
+                                <div className="text-xs text-slate-500">Estimasi Harga: Rp {namaDadaBasePrice.toLocaleString('id-ID')} / pcs</div>
                             </div>
                             <div className="flex items-center gap-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Jumlah:</label>

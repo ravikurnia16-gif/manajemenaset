@@ -59,6 +59,10 @@ router.put('/pricing-rules/:id', c.updatePricingRule);
 router.delete('/pricing-rules/:id', c.deletePricingRule);
 router.post('/pricing-rules/apply', c.applyPricingRules);
 
+router.get('/nama-dada-price', c.getNamaDadaPrice);
+router.put('/nama-dada-price', c.updateNamaDadaPrice);
+router.get('/public/nama-dada-price', c.getNamaDadaPrice);
+
 // Items (Barang Induk) & Variants
 router.get('/items', c.getItems);
 router.get('/items/template', c.downloadItemImportTemplate);
