@@ -18,7 +18,7 @@ const TABS = [
 ];
 
 export default function SalesPage() {
-    const [activeTab, setActiveTab] = useState('sales_spmb');
+    const [activeTab, setActiveTab] = useState('sales_retail');
     
     // Data states
     const [sales, setSales] = useState([]);
