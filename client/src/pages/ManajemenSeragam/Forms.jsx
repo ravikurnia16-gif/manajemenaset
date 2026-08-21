@@ -16,67 +16,113 @@ export const SimpleForm = ({ fields, initialData, onSave }) => {
 };
 
 
-export const TransactionForm = ({ variants = [], warehouses = [], vendors = [], onSave }) => {
-    const [form, setForm] = useState({ type: 'IN', quantity: 1, costPerUnit: 0, variantId: '', variantSearch: '' });
+export const TransactionForm = ({ variants = [], warehouses = [], onSave }) => {
+    const [type, setType] = useState('IN');
+    const [warehouseId, setWarehouseId] = useState('');
+    const [toWarehouseId, setToWarehouseId] = useState('');
+    const [note, setNote] = useState('');
+    const [reason, setReason] = useState('');
+    const [items, setItems] = useState([{ variantId: '', variantSearch: '', quantity: 1 }]);
+
+    const addItem = () => setItems([...items, { variantId: '', variantSearch: '', quantity: 1 }]);
+    const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
+
+    const updateItem = (idx, field, value) => {
+        setItems(prev => prev.map((item, i) => {
+            if (i !== idx) return item;
+            if (field === 'variantSearch') {
+                const match = variants.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === value);
+                return { ...item, variantSearch: value, variantId: match ? match.id : '' };
+            }
+            return { ...item, [field]: value };
+        }));
+    };
+
+    const warehouseLabel = type === 'IN' ? 'Gudang Tujuan' : type === 'MUTATION' ? 'Gudang Asal' : 'Gudang';
+    const allItemsValid = items.every(it => it.variantId && it.quantity > 0);
+    const canSave = warehouseId && allItemsValid && items.length > 0 && (type !== 'MUTATION' || toWarehouseId);
+
+    const handleSave = () => {
+        if (items.length === 1) {
+            onSave({ type, variantId: items[0].variantId, warehouseId, toWarehouseId: toWarehouseId || undefined, quantity: items[0].quantity, reason, note });
+        } else {
+            onSave({ type, warehouseId, toWarehouseId: toWarehouseId || undefined, reason, note, batch: items.map(it => ({ variantId: it.variantId, quantity: it.quantity })) });
+        }
+    };
 
     return (
         <div className="space-y-4">
-            <SelectField label="Tipe Transaksi" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
+            <SelectField label="Tipe Transaksi" value={type} onChange={e => { setType(e.target.value); setToWarehouseId(''); }}>
                 <option value="IN">Barang Masuk (IN)</option>
                 <option value="OUT">Barang Keluar (OUT)</option>
                 <option value="MUTATION">Mutasi Antar Gudang</option>
                 <option value="ADJUSTMENT">Penyesuaian Stok</option>
             </SelectField>
-            
-            <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pilih Barang (Variant) *</label>
-                <input 
-                    list="trx-variants-list" 
-                    value={form.variantSearch || ''} 
-                    onChange={(e) => {
-                        const val = e.target.value;
-                        const match = variants.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === val);
-                        setForm({ ...form, variantSearch: val, variantId: match ? match.id : '' });
-                    }} 
-                    placeholder="Ketik untuk mencari SKU atau Nama Barang..." 
-                    className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all w-full" 
-                    required 
-                />
-                <datalist id="trx-variants-list">
-                    {variants.map(v => (
-                        <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />
-                    ))}
-                </datalist>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Gudang Asal" value={form.warehouseId || ''} onChange={e => setForm({ ...form, warehouseId: e.target.value })}>
+
+            <div className={`grid gap-4 ${type === 'MUTATION' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <SelectField label={warehouseLabel + ' *'} value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
                     <option value="">Pilih Gudang</option>
                     {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </SelectField>
-                {form.type === 'MUTATION' && (
-                    <SelectField label="Gudang Tujuan" value={form.toWarehouseId || ''} onChange={e => setForm({ ...form, toWarehouseId: e.target.value })}>
+                {type === 'MUTATION' && (
+                    <SelectField label="Gudang Tujuan *" value={toWarehouseId} onChange={e => setToWarehouseId(e.target.value)}>
                         <option value="">Pilih Gudang Tujuan</option>
-                        {warehouses.filter(w => String(w.id) !== String(form.warehouseId)).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        {warehouses.filter(w => String(w.id) !== String(warehouseId)).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                     </SelectField>
                 )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <InputField label="Jumlah" type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
-                {form.type === 'IN' && (
-                    <InputField label="Harga Beli per Unit (Rp)" type="number" value={form.costPerUnit} onChange={e => setForm({ ...form, costPerUnit: e.target.value })} />
-                )}
+
+            <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Daftar Barang *</label>
+                    <button type="button" onClick={addItem} className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                        <Plus size={14} /> Tambah Barang
+                    </button>
+                </div>
+
+                {items.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-end bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div className="flex-1 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Barang #{idx + 1}</label>
+                            <input
+                                list={`trx-variants-list-${idx}`}
+                                value={item.variantSearch || ''}
+                                onChange={e => updateItem(idx, 'variantSearch', e.target.value)}
+                                placeholder="Ketik SKU atau Nama Barang..."
+                                className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all w-full"
+                            />
+                            <datalist id={`trx-variants-list-${idx}`}>
+                                {variants.map(v => (
+                                    <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />
+                                ))}
+                            </datalist>
+                        </div>
+                        <div className="w-24 flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Qty</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={e => updateItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                                className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none text-center w-full"
+                            />
+                        </div>
+                        {items.length > 1 && (
+                            <button type="button" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors mb-0.5">
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                ))}
             </div>
-            {form.type === 'IN' && (
-                <SelectField label="Vendor (Opsional)" value={form.vendorId || ''} onChange={e => setForm({ ...form, vendorId: e.target.value })}>
-                    <option value="">Tanpa Vendor</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </SelectField>
+
+            {type === 'ADJUSTMENT' && (
+                <InputField label="Alasan Penyesuaian *" value={reason} onChange={e => setReason(e.target.value)} placeholder="Contoh: Cacat dari vendor, Hilang" required />
             )}
-            {form.type === 'ADJUSTMENT' && (
-                <InputField label="Alasan Penyesuaian *" value={form.reason || ''} onChange={e => setForm({ ...form, reason: e.target.value })} placeholder="Contoh: Cacat dari vendor, Dimakan tikus, Hilang" required />
-            )}
-            <InputField label="Catatan" value={form.note || ''} onChange={e => setForm({ ...form, note: e.target.value })} />
-            <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20">Simpan Transaksi</button>
+            <InputField label="Catatan" value={note} onChange={e => setNote(e.target.value)} />
+            <button onClick={handleSave} disabled={!canSave} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50">
+                Simpan {items.length > 1 ? `${items.length} Transaksi` : 'Transaksi'}
+            </button>
         </div>
     );
 };

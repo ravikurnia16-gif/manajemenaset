@@ -1791,114 +1791,110 @@ exports.getStockTransactions = async (req, res) => {
 };
 
 exports.createStockTransaction = async (req, res) => {
-    const { type, variantId, warehouseId, toWarehouseId, quantity, costPerUnit, vendorId, reason, note } = req.body;
+    const { type, variantId, warehouseId, toWarehouseId, quantity, reason, note, batch } = req.body;
     try {
-        const code = await generateCode('TRX/SRG', 'uniformStockTransaction');
-        const qty = parseInt(quantity);
-        const cost = parseFloat(costPerUnit || 0);
+        // Build list of items to process
+        const itemsList = batch && Array.isArray(batch)
+            ? batch.map(b => ({ variantId: parseInt(b.variantId), quantity: parseInt(b.quantity) }))
+            : [{ variantId: parseInt(variantId), quantity: parseInt(quantity) }];
 
-        const result = await prisma.$transaction(async (tx) => {
-            let finalNote = note;
-            if (!finalNote) {
-                if (type === 'IN') finalNote = 'Penambahan Stok Manual';
-                else if (type === 'OUT') finalNote = 'Pengurangan Stok Manual';
-                else if (type === 'ADJUSTMENT') finalNote = `Penyesuaian Stok: ${reason || ''}`;
-                else if (type === 'MUTATION') {
-                    const fromWh = await tx.uniformWarehouse.findUnique({ where: { id: parseInt(warehouseId) } });
-                    const toWh = await tx.uniformWarehouse.findUnique({ where: { id: parseInt(toWarehouseId) } });
-                    finalNote = `Pindah Gudang dari ${fromWh?.name || 'Gudang'} ke ${toWh?.name || 'Gudang'}`;
-                }
-            }
+        const results = await prisma.$transaction(async (tx) => {
+            const created = [];
 
-            // 1. Create transaction record
-            const trx = await tx.uniformStockTransaction.create({
-                data: {
-                    code, type,
-                    variantId: parseInt(variantId),
-                    warehouseId: parseInt(warehouseId),
-                    toWarehouseId: toWarehouseId ? parseInt(toWarehouseId) : null,
-                    quantity: type === 'OUT' || type === 'ADJUSTMENT' ? -Math.abs(qty) : qty,
-                    costPerUnit: cost,
-                    totalCost: cost * qty,
-                    vendorId: vendorId ? parseInt(vendorId) : null,
-                    reason, note: finalNote,
-                    createdById: req.user?.id || null
-                }
-            });
+            for (const item of itemsList) {
+                const code = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                const qty = item.quantity;
 
-            // 2. Update stock (upsert)
-            if (type === 'IN') {
-                // Average Cost calculation
-                const existingStock = await tx.uniformStock.findUnique({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } }
-                });
-
-                let newAvgCost = cost;
-                if (existingStock && existingStock.quantity > 0) {
-                    const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
-                    newAvgCost = totalValue / (existingStock.quantity + qty);
+                let finalNote = note;
+                if (!finalNote) {
+                    if (type === 'IN') finalNote = 'Penambahan Stok Manual';
+                    else if (type === 'OUT') finalNote = 'Pengurangan Stok Manual';
+                    else if (type === 'ADJUSTMENT') finalNote = `Penyesuaian Stok: ${reason || ''}`;
+                    else if (type === 'MUTATION') {
+                        const fromWh = await tx.uniformWarehouse.findUnique({ where: { id: parseInt(warehouseId) } });
+                        const toWh = await tx.uniformWarehouse.findUnique({ where: { id: parseInt(toWarehouseId) } });
+                        finalNote = `Pindah Gudang dari ${fromWh?.name || 'Gudang'} ke ${toWh?.name || 'Gudang'}`;
+                    }
                 }
 
-                await tx.uniformStock.upsert({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
-                    create: {
-                        variantId: parseInt(variantId),
+                // 1. Create transaction record
+                const trx = await tx.uniformStockTransaction.create({
+                    data: {
+                        code, type,
+                        variantId: item.variantId,
                         warehouseId: parseInt(warehouseId),
-                        quantity: qty,
-                        avgCost: cost
-                    },
-                    update: {
-                        quantity: { increment: qty },
-                        avgCost: newAvgCost
+                        toWarehouseId: toWarehouseId ? parseInt(toWarehouseId) : null,
+                        quantity: type === 'OUT' || type === 'ADJUSTMENT' ? -Math.abs(qty) : qty,
+                        costPerUnit: 0,
+                        totalCost: 0,
+                        vendorId: null,
+                        reason, note: finalNote,
+                        createdById: req.user?.id || null
                     }
                 });
-            } else if (type === 'OUT' || type === 'ADJUSTMENT') {
-                // Check stock availability
-                const stock = await tx.uniformStock.findUnique({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } }
-                });
-                if (!stock || stock.quantity < Math.abs(qty)) {
-                    throw new Error('Stok tidak mencukupi di gudang asal');
-                }
-                
-                await tx.uniformStock.update({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
-                    data: { quantity: { decrement: Math.abs(qty) } }
-                });
-            } else if (type === 'MUTATION') {
-                // Check stock availability
-                const stock = await tx.uniformStock.findUnique({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } }
-                });
-                if (!stock || stock.quantity < qty) {
-                    throw new Error('Stok tidak mencukupi di gudang asal');
-                }
 
-                // Decrement origin
-                await tx.uniformStock.update({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
-                    data: { quantity: { decrement: qty } }
-                });
-
-                // Increment destination
-                await tx.uniformStock.upsert({
-                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(toWarehouseId) } },
-                    create: {
-                        variantId: parseInt(variantId),
-                        warehouseId: parseInt(toWarehouseId),
-                        quantity: qty,
-                        avgCost: stock.avgCost // bawa avg cost dari asal
-                    },
-                    update: {
-                        quantity: { increment: qty }
+                // 2. Update stock (upsert)
+                if (type === 'IN') {
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(warehouseId) } },
+                        create: {
+                            variantId: item.variantId,
+                            warehouseId: parseInt(warehouseId),
+                            quantity: qty,
+                            avgCost: 0
+                        },
+                        update: {
+                            quantity: { increment: qty }
+                        }
+                    });
+                } else if (type === 'OUT' || type === 'ADJUSTMENT') {
+                    const stock = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(warehouseId) } }
+                    });
+                    if (!stock || stock.quantity < Math.abs(qty)) {
+                        const variant = await tx.uniformVariant.findUnique({ where: { id: item.variantId }, include: { item: true } });
+                        throw new Error(`Stok tidak mencukupi untuk ${variant?.item?.name || 'barang'} (${variant?.sizeName || '-'})`);
                     }
-                });
+                    
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(warehouseId) } },
+                        data: { quantity: { decrement: Math.abs(qty) } }
+                    });
+                } else if (type === 'MUTATION') {
+                    const stock = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(warehouseId) } }
+                    });
+                    if (!stock || stock.quantity < qty) {
+                        const variant = await tx.uniformVariant.findUnique({ where: { id: item.variantId }, include: { item: true } });
+                        throw new Error(`Stok tidak mencukupi untuk ${variant?.item?.name || 'barang'} (${variant?.sizeName || '-'})`);
+                    }
+
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(warehouseId) } },
+                        data: { quantity: { decrement: qty } }
+                    });
+
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(toWarehouseId) } },
+                        create: {
+                            variantId: item.variantId,
+                            warehouseId: parseInt(toWarehouseId),
+                            quantity: qty,
+                            avgCost: stock.avgCost
+                        },
+                        update: {
+                            quantity: { increment: qty }
+                        }
+                    });
+                }
+
+                created.push(trx);
             }
 
-            return trx;
+            return created;
         });
 
-        res.json(result);
+        res.json(results.length === 1 ? results[0] : { message: `${results.length} transaksi berhasil disimpan`, transactions: results });
     } catch (error) {
         console.error('Stock Transaction Error:', error);
         res.status(500).json({ error: error.message });

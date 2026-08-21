@@ -128,7 +128,7 @@ export default function StockPage() {
                 modal.type === 'transaction' ? 'Transaksi Stok' : ''
             } wide={true}>
                 {modal.type === 'transaction' && (
-                    <TransactionForm warehouses={warehouses} vendors={vendors} variants={variants} onSave={handleSaveTransaction} />
+                    <TransactionForm warehouses={warehouses} variants={variants} onSave={handleSaveTransaction} />
                 )}
             </Modal>
         </div>
