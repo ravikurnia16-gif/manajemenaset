@@ -183,7 +183,8 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             </div>
                             
                             {/* Dynamic Dropdowns Based on Selection */}
-                            <div className="mt-3 space-y-2 text-sm">
+                            {changed && (
+                                <div className="mt-3 space-y-2 text-sm">
                                 {(item.saleItemId !== 'NAMADADA' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
                                     <div className="flex flex-col gap-2">
                                         <label className="flex items-center gap-2 cursor-pointer bg-slate-100 p-2 rounded w-fit">
@@ -258,6 +259,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                     </div>
                                 )}
                             </div>
+                            )}
                         </div>
                     );
                 })}
