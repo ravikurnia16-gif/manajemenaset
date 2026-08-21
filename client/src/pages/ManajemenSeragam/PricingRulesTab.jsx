@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, CheckCircle2, Play } from 'lucide-react';
+import { Plus, Trash2, Play, Edit2, History, X } from 'lucide-react';
 import api from '../../lib/axios';
 import { SelectField, InputField } from './UIComponents';
 
@@ -8,6 +8,8 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
     const [variants, setVariants] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
+    const [editingRuleId, setEditingRuleId] = useState(null);
+    const [historyRule, setHistoryRule] = useState(null); // Aturan yang sedang dilihat riwayatnya
 
     const [form, setForm] = useState({
         categoryId: '',
@@ -38,16 +40,37 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/uniforms/pricing-rules', {
+            const payload = {
                 ...form,
                 sizeNames: form.sizeNames.length > 0 ? form.sizeNames.join(';') : ''
-            });
+            };
+
+            if (editingRuleId) {
+                await api.put(`/uniforms/pricing-rules/${editingRuleId}`, { price: form.price });
+            } else {
+                await api.post('/uniforms/pricing-rules', payload);
+            }
+            
             setShowForm(false);
+            setEditingRuleId(null);
             setForm({ categoryId: '', clothingTypeId: '', unitId: '', gender: '', sizeNames: [], price: '' });
             fetchRules();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menyimpan aturan');
         }
+    };
+
+    const handleEdit = (rule) => {
+        setForm({
+            categoryId: rule.categoryId || '',
+            clothingTypeId: rule.clothingTypeId || '',
+            unitId: rule.unitId || '',
+            gender: rule.gender || '',
+            sizeNames: rule.sizeNames ? rule.sizeNames.split(';') : [],
+            price: rule.price || ''
+        });
+        setEditingRuleId(rule.id);
+        setShowForm(true);
     };
 
     const handleDelete = async (id) => {
@@ -104,8 +127,22 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
         filteredSizes = sizes.filter(s => validSizeNames.includes(s.name));
     }
 
+    const activeRules = rules.filter(r => r.isActive !== false);
+    
+    // Fungsi untuk mendapatkan riwayat dari suatu aturan
+    const getHistoryForRule = (rule) => {
+        return rules.filter(r => 
+            r.isActive === false &&
+            r.categoryId === rule.categoryId &&
+            r.clothingTypeId === rule.clothingTypeId &&
+            r.unitId === rule.unitId &&
+            r.gender === rule.gender &&
+            r.sizeNames === rule.sizeNames
+        ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    };
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
             <div className="flex justify-between items-start">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800">Aturan Harga Otomatis</h2>
@@ -115,30 +152,36 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                     <button onClick={applyRules} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-green-500/20 hover:from-green-700 hover:to-emerald-700 transition-all">
                         <Play size={16} /> Terapkan ke Semua Barang
                     </button>
-                    <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
-                        <Plus size={16} /> {showForm ? 'Batal' : 'Tambah Aturan'}
+                    <button onClick={() => {
+                        setEditingRuleId(null);
+                        setForm({ categoryId: '', clothingTypeId: '', unitId: '', gender: '', sizeNames: [], price: '' });
+                        setShowForm(!showForm);
+                    }} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
+                        <Plus size={16} /> {showForm && !editingRuleId ? 'Batal' : 'Tambah Aturan'}
                     </button>
                 </div>
             </div>
 
             {showForm && (
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                    <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Buat Aturan Baru</h3>
+                    <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">
+                        {editingRuleId ? 'Update Harga Aturan' : 'Buat Aturan Baru'}
+                    </h3>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <SelectField label="Kategori" value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})}>
+                            <SelectField label="Kategori" value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})} disabled={!!editingRuleId}>
                                 <option value="">Semua Kategori</option>
                                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </SelectField>
-                            <SelectField label="Jenis Pakaian" value={form.clothingTypeId} onChange={e => setForm({...form, clothingTypeId: e.target.value})}>
+                            <SelectField label="Jenis Pakaian" value={form.clothingTypeId} onChange={e => setForm({...form, clothingTypeId: e.target.value})} disabled={!!editingRuleId}>
                                 <option value="">Semua Jenis Pakaian</option>
                                 {filteredClothingTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </SelectField>
-                            <SelectField label="Unit / Jenjang" value={form.unitId} onChange={e => setForm({...form, unitId: e.target.value})}>
+                            <SelectField label="Unit / Jenjang" value={form.unitId} onChange={e => setForm({...form, unitId: e.target.value})} disabled={!!editingRuleId}>
                                 <option value="">Semua Unit</option>
                                 {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                             </SelectField>
-                            <SelectField label="Gender" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
+                            <SelectField label="Gender" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})} disabled={!!editingRuleId}>
                                 <option value="">Semua Gender</option>
                                 {filteredGenders.map(g => <option key={g} value={g}>{g === 'IKHWAN' ? 'Ikhwan' : g === 'AKHWAT' ? 'Akhwat' : g}</option>)}
                             </SelectField>
@@ -154,7 +197,8 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                             key={s.id} 
                                             type="button"
                                             onClick={() => toggleSize(s.name)}
-                                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}
+                                            disabled={!!editingRuleId}
+                                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50'} ${editingRuleId ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             {s.name}
                                         </button>
@@ -169,11 +213,16 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
 
                         <div className="pt-2 border-t border-slate-100 flex gap-4 items-end">
                             <div className="flex-1 max-w-xs">
-                                <InputField label="Harga Jual (Rp) *" type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
+                                <InputField label="Harga Jual Baru (Rp) *" type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
                             </div>
                             <button type="submit" className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all">
-                                Simpan Aturan
+                                {editingRuleId ? 'Simpan Perubahan Harga' : 'Simpan Aturan'}
                             </button>
+                            {editingRuleId && (
+                                <button type="button" onClick={() => { setShowForm(false); setEditingRuleId(null); }} className="bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition-all">
+                                    Batal
+                                </button>
+                            )}
                         </div>
                     </form>
                 </div>
@@ -185,42 +234,112 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-4 font-bold">Kondisi (Syarat)</th>
-                                <th className="px-6 py-4 font-bold text-right">Harga Jual (Rp)</th>
-                                <th className="px-6 py-4 font-bold w-20 text-center">Aksi</th>
+                                <th className="px-6 py-4 font-bold text-right">Harga Aktif (Rp)</th>
+                                <th className="px-6 py-4 font-bold text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {loading && <tr><td colSpan="3" className="text-center py-8 text-slate-400">Loading...</td></tr>}
-                            {!loading && rules.length === 0 && <tr><td colSpan="3" className="text-center py-8 text-slate-400">Belum ada aturan harga yang dibuat.</td></tr>}
+                            {!loading && activeRules.length === 0 && <tr><td colSpan="3" className="text-center py-8 text-slate-400">Belum ada aturan harga yang dibuat.</td></tr>}
                             
-                            {!loading && rules.map(rule => (
-                                <tr key={rule.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-wrap gap-2">
-                                            {rule.category && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs border border-blue-100">Kategori: {rule.category.name}</span>}
-                                            {rule.clothingType && <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs border border-indigo-100">Jenis: {rule.clothingType.name}</span>}
-                                            {rule.unit && <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded text-xs border border-emerald-100">Unit: {rule.unit.name}</span>}
-                                            {rule.gender && <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded text-xs border border-purple-100">Gender: {rule.gender}</span>}
-                                            {rule.sizeNames && <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-xs border border-orange-100">Ukuran: {rule.sizeNames.replace(/;/g, ', ')}</span>}
-                                            {!rule.categoryId && !rule.clothingTypeId && !rule.unitId && !rule.gender && !rule.sizeNames && (
-                                                <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">Berlaku untuk Semua Barang</span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 font-bold text-right text-slate-800">
-                                        Rp {rule.price.toLocaleString('id-ID')}
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <button onClick={() => handleDelete(rule.id)} className="text-slate-400 hover:text-red-500 transition-colors p-2 bg-white rounded-lg shadow-sm border border-slate-100">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                            {!loading && activeRules.map(rule => {
+                                const historyCount = getHistoryForRule(rule).length;
+                                return (
+                                    <tr key={rule.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-2">
+                                                {rule.category && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs border border-blue-100">Kategori: {rule.category.name}</span>}
+                                                {rule.clothingType && <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs border border-indigo-100">Jenis: {rule.clothingType.name}</span>}
+                                                {rule.unit && <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded text-xs border border-emerald-100">Unit: {rule.unit.name}</span>}
+                                                {rule.gender && <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded text-xs border border-purple-100">Gender: {rule.gender}</span>}
+                                                {rule.sizeNames && <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-xs border border-orange-100">Ukuran: {rule.sizeNames.replace(/;/g, ', ')}</span>}
+                                                {!rule.categoryId && !rule.clothingTypeId && !rule.unitId && !rule.gender && !rule.sizeNames && (
+                                                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">Berlaku untuk Semua Barang</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 font-bold text-right text-slate-800">
+                                            Rp {rule.price.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                {historyCount > 0 && (
+                                                    <button onClick={() => setHistoryRule(rule)} className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded transition-colors">
+                                                        <History size={12} /> {historyCount} Riwayat
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleEdit(rule)} className="text-blue-500 hover:text-blue-700 transition-colors p-1.5 bg-blue-50 rounded-lg shadow-sm border border-blue-100" title="Edit Harga">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => handleDelete(rule.id)} className="text-red-400 hover:text-red-600 transition-colors p-1.5 bg-red-50 rounded-lg shadow-sm border border-red-100" title="Hapus Aturan">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* Modal Riwayat Harga */}
+            {historyRule && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <div className="flex items-center gap-3 text-slate-800">
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                                    <History size={20} />
+                                </div>
+                                <h2 className="font-bold text-lg">Riwayat Harga</h2>
+                            </div>
+                            <button onClick={() => setHistoryRule(null)} className="text-slate-400 hover:bg-white hover:text-slate-600 p-2 rounded-full transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto max-h-[60vh]">
+                            <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                                
+                                {/* Harga Aktif Sekarang */}
+                                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                        <CheckCircle2 size={16} />
+                                    </div>
+                                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-blue-200 bg-blue-50 shadow-sm">
+                                        <div className="flex items-center justify-between space-x-2 mb-1">
+                                            <div className="font-bold text-slate-800 text-sm">Harga Saat Ini</div>
+                                            <time className="text-[10px] font-medium text-slate-500">Aktif</time>
+                                        </div>
+                                        <div className="text-blue-600 font-bold">Rp {historyRule.price.toLocaleString('id-ID')}</div>
+                                    </div>
+                                </div>
+
+                                {/* Daftar Harga Lama */}
+                                {getHistoryForRule(historyRule).map((hr, idx) => (
+                                    <div key={hr.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-slate-100 text-slate-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                            <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                                        </div>
+                                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+                                            <div className="flex items-center justify-between space-x-2 mb-1">
+                                                <div className="font-bold text-slate-700 text-sm">Riwayat ke-{getHistoryForRule(historyRule).length - idx}</div>
+                                                <time className="text-[10px] font-medium text-slate-400">
+                                                    Dibuat: {new Date(hr.createdAt).toLocaleDateString('id-ID')}
+                                                </time>
+                                            </div>
+                                            <div className="text-slate-600 font-bold line-through">Rp {hr.price.toLocaleString('id-ID')}</div>
+                                            <div className="text-[10px] text-slate-400 mt-1">Status: Tidak Aktif</div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

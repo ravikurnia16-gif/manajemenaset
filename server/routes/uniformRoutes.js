@@ -55,6 +55,7 @@ router.delete('/sizes/:id', c.deleteSize);
 // Pricing Rules (Aturan Harga)
 router.get('/pricing-rules', c.getPricingRules);
 router.post('/pricing-rules', c.createPricingRule);
+router.put('/pricing-rules/:id', c.updatePricingRule);
 router.delete('/pricing-rules/:id', c.deletePricingRule);
 router.post('/pricing-rules/apply', c.applyPricingRules);
 

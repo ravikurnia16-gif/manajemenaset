@@ -449,6 +449,41 @@ exports.deletePricingRule = async (req, res) => {
     }
 };
 
+exports.updatePricingRule = async (req, res) => {
+    try {
+        const { price } = req.body;
+        if (!price) return res.status(400).json({ error: 'Harga baru harus diisi' });
+
+        const oldRule = await prisma.uniformPricingRule.findUnique({ where: { id: parseInt(req.params.id) } });
+        if (!oldRule) return res.status(404).json({ error: 'Aturan lama tidak ditemukan' });
+
+        await prisma.$transaction(async (tx) => {
+            // 1. Nonaktifkan aturan lama
+            await tx.uniformPricingRule.update({
+                where: { id: oldRule.id },
+                data: { isActive: false }
+            });
+
+            // 2. Buat aturan baru yang identik tapi dengan harga baru
+            await tx.uniformPricingRule.create({
+                data: {
+                    categoryId: oldRule.categoryId,
+                    clothingTypeId: oldRule.clothingTypeId,
+                    unitId: oldRule.unitId,
+                    gender: oldRule.gender,
+                    sizeNames: oldRule.sizeNames,
+                    price: parseFloat(price),
+                    isActive: true
+                }
+            });
+        });
+
+        res.json({ message: 'Harga berhasil diperbarui dan riwayat disimpan' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.applyPricingRules = async (req, res) => {
     try {
         const rules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
@@ -1244,50 +1279,7 @@ exports.deleteUnit = async (req, res) => {
     }
 };
 
-// ========== PRICING RULES ==========
 
-exports.getPricingRules = async (req, res) => {
-    try {
-        const rules = await prisma.uniformPricingRule.findMany({
-            include: { category: true, clothingType: true, unit: true },
-            orderBy: { id: 'desc' }
-        });
-        res.json(rules);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-exports.createPricingRule = async (req, res) => {
-    try {
-        const { categoryId, clothingTypeId, unitId, gender, sizeNames, price } = req.body;
-        if (!price) return res.status(400).json({ error: 'Harga harus diisi' });
-
-        const data = await prisma.uniformPricingRule.create({
-            data: {
-                categoryId: categoryId ? parseInt(categoryId) : null,
-                clothingTypeId: clothingTypeId ? parseInt(clothingTypeId) : null,
-                unitId: unitId ? parseInt(unitId) : null,
-                gender: gender || null,
-                sizeNames: sizeNames || null,
-                price: parseFloat(price) || 0
-            },
-            include: { category: true, clothingType: true, unit: true }
-        });
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-exports.deletePricingRule = async (req, res) => {
-    try {
-        await prisma.uniformPricingRule.delete({ where: { id: parseInt(req.params.id) } });
-        res.json({ message: 'Aturan berhasil dihapus' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
 
 exports.applyPricingRules = async (req, res) => {
     try {
