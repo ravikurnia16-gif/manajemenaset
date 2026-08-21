@@ -2435,17 +2435,21 @@ exports.createSale = async (req, res) => {
             }
 
             // Parse Nama Dada from note if exists
-            let namaDadaStr = null;
-            if (note && note.includes('[NAMADADA:')) {
-                const match = note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
-                if (match) {
-                    const ndQty = parseInt(match[1]);
-                    const ndPrice = parseInt(match[2]);
-                    const ndStatus = match[3] || 'PENDING';
+            if (note && note.includes('[NAMADADA')) {
+                const matches = [...note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+                let replacementNotes = [];
+                for (const match of matches) {
+                    const ndType = match[1];
+                    const ndQty = parseInt(match[2]);
+                    const ndPrice = parseInt(match[3]);
+                    const ndStatus = match[4] || 'PENDING';
                     subtotal += ndQty * ndPrice;
-                    // Retain the note as it's needed for the frontend to render the invoice row
-                    namaDadaStr = `[NAMADADA:${ndQty}:${ndPrice}:${ndStatus}]`;
-                    note = note.replace(/\[NAMADADA:.*\]/, namaDadaStr);
+                    replacementNotes.push(`[${ndType}:${ndQty}:${ndPrice}:${ndStatus}]`);
+                }
+                
+                if (matches.length > 0) {
+                    note = note.replace(/\[NAMADADA[^\]]*\]/g, '').trim();
+                    note = (note + '\n' + replacementNotes.join('\n')).trim();
                 }
             }
 
@@ -2642,12 +2646,13 @@ exports.manageSaleItems = async (req, res) => {
             const notifications = { updates: [], hasTidakTersedia: false };
 
             for (const update of itemUpdates) {
-                if (update.saleItemId === 'NAMADADA') {
-                    if (sale.note && sale.note.includes('[NAMADADA:')) {
-                        const match = sale.note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
+                if (String(update.saleItemId).startsWith('NAMADADA')) {
+                    if (sale.note && sale.note.includes('[NAMADADA')) {
+                        const regex = new RegExp(`\\[(${update.saleItemId}):(\\d+):(\\d+)(?::([A-Z_]+))?\\]`);
+                        const match = sale.note.match(regex);
                         if (match) {
-                            const ndQty = parseInt(match[1]);
-                            const ndStatus = match[3] || 'PENDING';
+                            const ndQty = parseInt(match[2]);
+                            const ndStatus = match[4] || 'PENDING';
                             const newStatus = update.status;
                             
                             if (ndStatus !== newStatus) {
@@ -2657,8 +2662,13 @@ exports.manageSaleItems = async (req, res) => {
                                     const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
                                     locText = transitWh?.name || 'Gudang';
                                 }
+                                
+                                let itemName = 'Nama Dada (Bordir)';
+                                if (update.saleItemId === 'NAMADADA_PUTIH') itemName += ' - Putih';
+                                if (update.saleItemId === 'NAMADADA_COKLAT') itemName += ' - Coklat';
+
                                 notifications.updates.push({
-                                    itemName: 'Nama Dada (Bordir)',
+                                    itemName: itemName,
                                     size: '-',
                                     qty: ndQty,
                                     oldStatus: ndStatus,
@@ -2668,10 +2678,11 @@ exports.manageSaleItems = async (req, res) => {
                                 if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
                             }
                             
-                            const newNoteStr = `[NAMADADA:${match[1]}:${match[2]}:${newStatus}]`;
+                            const newNoteStr = `[${match[1]}:${match[2]}:${match[3]}:${newStatus}]`;
+                            sale.note = sale.note.replace(regex, newNoteStr);
                             await tx.uniformSale.update({
                                 where: { id: saleId },
-                                data: { note: sale.note.replace(/\[NAMADADA:.*\]/, newNoteStr) }
+                                data: { note: sale.note }
                             });
                         }
                     }
@@ -3020,12 +3031,15 @@ exports.manageSaleItems = async (req, res) => {
                 let size = '';
                 let qty = 0;
                 
-                if (update.saleItemId === 'NAMADADA') {
+                if (String(update.saleItemId).startsWith('NAMADADA')) {
                     itemName = 'Nama Dada (Bordir)';
+                    if (update.saleItemId === 'NAMADADA_PUTIH') itemName += ' - Putih';
+                    if (update.saleItemId === 'NAMADADA_COKLAT') itemName += ' - Coklat';
                     size = '-';
                     qty = update.qty || 1;
-                    if (sale.note && sale.note.includes('[NAMADADA:')) {
-                        const match = sale.note.match(/\[NAMADADA:(\d+):/);
+                    if (sale.note && sale.note.includes(`[${update.saleItemId}:`)) {
+                        const regex = new RegExp(`\\[${update.saleItemId}:(\\d+):`);
+                        const match = sale.note.match(regex);
                         if (match) qty = parseInt(match[1]);
                     }
                 } else {

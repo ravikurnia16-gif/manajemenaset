@@ -41,14 +41,20 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
             }
 
             // Append Nama Dada from note if present
-            if (sale.note && sale.note.includes('[NAMADADA:')) {
-                const match = sale.note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
-                if (match) {
-                    const ndQty = parseInt(match[1]);
-                    const ndStatus = match[3] || 'PENDING';
+            if (sale.note && sale.note.includes('[NAMADADA')) {
+                const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+                for (const match of matches) {
+                    const ndType = match[1];
+                    const ndQty = parseInt(match[2]);
+                    const ndStatus = match[4] || 'PENDING';
+                    
+                    let name = 'Nama Dada (Bordir)';
+                    if (ndType === 'NAMADADA_PUTIH') name += ' - Putih';
+                    if (ndType === 'NAMADADA_COKLAT') name += ' - Coklat';
+
                     initialItemUpdates.push({
-                        saleItemId: 'NAMADADA',
-                        name: 'Nama Dada (Bordir)',
+                        saleItemId: ndType,
+                        name: name,
                         size: '-',
                         qty: ndQty,
                         oldStatus: ndStatus,
@@ -85,7 +91,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
         // Validation
         for (const item of itemUpdates) {
             if (item.status === item.oldStatus) continue;
-            if (item.saleItemId === 'NAMADADA') continue; // Bypass warehouse validation for Nama Dada
+            if (String(item.saleItemId).startsWith('NAMADADA')) continue; // Bypass warehouse validation for Nama Dada
 
             if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
                 if (item.isMoved) {
@@ -155,7 +161,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                         <span>Ukuran: {item.size}</span>
                                         <span>|</span>
                                         <span>Qty: {item.qty}</span>
-                                        {item.totalStock !== undefined && item.saleItemId !== 'NAMADADA' && (
+                                        {item.totalStock !== undefined && !String(item.saleItemId).startsWith('NAMADADA') && (
                                             <>
                                                 <span>|</span>
                                                 <span className={`font-medium ${item.totalStock >= item.qty ? 'text-green-600' : 'text-rose-600'}`}>
@@ -185,7 +191,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             {/* Dynamic Dropdowns Based on Selection */}
                             {changed && (
                                 <div className="mt-3 space-y-2 text-sm">
-                                {(item.saleItemId === 'NAMADADA' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
+                                {(String(item.saleItemId).startsWith('NAMADADA') && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
                                     <div className="flex gap-2">
                                         <select className="flex-1 border border-slate-200 rounded p-1.5" required
                                             value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
@@ -195,7 +201,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                     </div>
                                 )}
 
-                                {(item.saleItemId !== 'NAMADADA' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
+                                {(!String(item.saleItemId).startsWith('NAMADADA') && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
                                     <div className="flex flex-col gap-2">
                                         <label className="flex items-center gap-2 cursor-pointer bg-slate-100 p-2 rounded w-fit">
                                             <input type="checkbox" checked={item.isMoved} onChange={(e) => handleWhChange(idx, 'isMoved', e.target.checked)} className="rounded" />
@@ -227,7 +233,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                     </div>
                                 )}
                                 
-                                {item.saleItemId !== 'NAMADADA' && item.status === 'DIAMBIL' && (
+                                {!String(item.saleItemId).startsWith('NAMADADA') && item.status === 'DIAMBIL' && (
                                     <div>
                                         {item.oldStatus === 'SEDIA' ? (
                                             <p className="text-xs text-slate-500 italic mt-1">
@@ -252,7 +258,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                     </div>
                                 )}
 
-                                {(item.saleItemId !== 'NAMADADA' && item.status === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(item.oldStatus)) && (
+                                {(!String(item.saleItemId).startsWith('NAMADADA') && item.status === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(item.oldStatus)) && (
                                     <div className="flex gap-2">
                                         {item.oldStatus === 'SEDIA' && (
                                             <select className="flex-1 border border-slate-200 rounded p-1.5" required

@@ -58,13 +58,14 @@ export default function UniformOrderPublic() {
         fetchMasterData();
     }, []);
 
-    const [namaDadaQty, setNamaDadaQty] = useState(0);
+    const [namaDadaPutihQty, setNamaDadaPutihQty] = useState(0);
+    const [namaDadaCoklatQty, setNamaDadaCoklatQty] = useState(0);
 
     useEffect(() => {
         const itemsSubtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
-        const subtotal = itemsSubtotal + (namaDadaQty * namaDadaBasePrice);
+        const subtotal = itemsSubtotal + ((namaDadaPutihQty + namaDadaCoklatQty) * namaDadaBasePrice);
         setForm(f => ({ ...f, subtotal, totalAmount: subtotal }));
-    }, [form.items, namaDadaQty, namaDadaBasePrice]);
+    }, [form.items, namaDadaPutihQty, namaDadaCoklatQty, namaDadaBasePrice]);
 
     const availableVariants = form.targetUnit && form.gender
         ? variants.filter(v => {
@@ -171,8 +172,13 @@ export default function UniformOrderPublic() {
                 paidAmount: 0,
                 discount: 0,
                 items: form.items,
-                note: namaDadaQty > 0 ? `[NAMADADA:${namaDadaQty}:${namaDadaBasePrice}:PENDING]` : ''
+                note: ''
             };
+
+            let notesArr = [];
+            if (namaDadaPutihQty > 0) notesArr.push(`[NAMADADA_PUTIH:${namaDadaPutihQty}:${namaDadaBasePrice}:PENDING]`);
+            if (namaDadaCoklatQty > 0) notesArr.push(`[NAMADADA_COKLAT:${namaDadaCoklatQty}:${namaDadaBasePrice}:PENDING]`);
+            dataToSave.note = notesArr.join('\n');
 
             const res = await api.post('/uniforms/public/sales', dataToSave);
             // Redirect to invoice page
@@ -284,20 +290,40 @@ export default function UniformOrderPublic() {
                     {/* Tambahan: Nama Dada */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
                         <h2 className="text-lg font-bold text-slate-800 border-b pb-2">3. Tambahan Atribut</h2>
-                        <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            <div className="flex-1">
-                                <div className="font-bold text-slate-800 text-sm">Nama Dada (Bordir)</div>
-                                <div className="text-xs text-slate-500">Estimasi Harga: Rp {namaDadaBasePrice.toLocaleString('id-ID')} / pcs</div>
+                        
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <div className="flex-1 flex items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div>
+                                    <div className="font-bold text-slate-800 text-sm">Nama Dada (Putih)</div>
+                                    <div className="text-xs text-slate-500">Rp {namaDadaBasePrice.toLocaleString('id-ID')} / pcs</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Jml:</label>
+                                    <input 
+                                        type="number" 
+                                        min="0" 
+                                        className="w-16 border border-slate-300 rounded-lg px-2 py-2 text-center font-bold outline-none focus:ring-2 focus:ring-blue-500" 
+                                        value={namaDadaPutihQty} 
+                                        onChange={e => setNamaDadaPutihQty(parseInt(e.target.value) || 0)} 
+                                    />
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Jumlah:</label>
-                                <input 
-                                    type="number" 
-                                    min="0" 
-                                    className="w-20 border border-slate-300 rounded-lg px-2 py-2 text-center font-bold outline-none focus:ring-2 focus:ring-blue-500" 
-                                    value={namaDadaQty} 
-                                    onChange={e => setNamaDadaQty(parseInt(e.target.value) || 0)} 
-                                />
+                            
+                            <div className="flex-1 flex items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div>
+                                    <div className="font-bold text-slate-800 text-sm">Nama Dada (Coklat)</div>
+                                    <div className="text-xs text-slate-500">Rp {namaDadaBasePrice.toLocaleString('id-ID')} / pcs</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Jml:</label>
+                                    <input 
+                                        type="number" 
+                                        min="0" 
+                                        className="w-16 border border-slate-300 rounded-lg px-2 py-2 text-center font-bold outline-none focus:ring-2 focus:ring-blue-500" 
+                                        value={namaDadaCoklatQty} 
+                                        onChange={e => setNamaDadaCoklatQty(parseInt(e.target.value) || 0)} 
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
