@@ -2419,7 +2419,7 @@ exports.createSale = async (req, res) => {
                 itemDetails = result.items.map(i => `- ${i.itemName} (${i.size || '-'}) x${i.qty}`).join('\n');
             }
 
-            const message = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nAlhamdulillah! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi dari Admin Kita ya.\n\nAnda juga dapat mengecek status pesanan melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nSyukron, Jazakumullah khairan.`;
+            const message = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nAlhamdulillah! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\nKode Referensi: *${result.code}*\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi dari Admin Kita ya.\n\nAnda dapat mengecek status pesanan menggunakan Kode Referensi di link berikut:\nhttps://sarpras.dareliman.or.id/public/lacak-pesanan\n\nAtau lihat langsung di:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nSyukron, Jazakumullah khairan.`;
             
             try {
                 sendMessage(result.customerPhone, message);
