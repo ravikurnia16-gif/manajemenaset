@@ -2873,12 +2873,12 @@ exports.manageSaleItems = async (req, res) => {
         if (updatedSale.customerPhone) {
             // 1. Notifikasi SEDIA
             if (notifications.sedia.length > 0) {
-                let msg = `Halo ${updatedSale.customerName || updatedSale.studentName || 'Bapak/Ibu'},\n\nKabar baik! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
+                let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nAlhamdulillah! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
                 notifications.sedia.forEach(n => {
                     const locText = n.warehouseLocation ? n.warehouseLocation : n.warehouseName;
                     msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil di: ${locText}\n`;
                 });
-                msg += `\nSilakan cek status lengkapnya di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nTerima kasih.`;
+                msg += `\nSilakan cek status lengkapnya di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
                 try {
                     sendMessage(updatedSale.customerPhone, msg);
                 } catch(e) {
@@ -2888,11 +2888,11 @@ exports.manageSaleItems = async (req, res) => {
 
             // 2. Notifikasi TIDAK_TERSEDIA
             if (notifications.tidakTersedia.length > 0) {
-                let msg = `Halo ${updatedSale.customerName || updatedSale.studentName || 'Bapak/Ibu'},\n\nMohon maaf, saat ini ada barang pesanan Anda (Kode: *${updatedSale.code}*) yang *TIDAK TERSEDIA* / KOSONG:\n\n`;
+                let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nMohon maaf, saat ini ada barang pesanan Anda (Kode: *${updatedSale.code}*) yang *TIDAK TERSEDIA* / KOSONG:\n\n`;
                 notifications.tidakTersedia.forEach(n => {
                     msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n`;
                 });
-                msg += `\nMohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkan pesanan barang tersebut melalui link di bawah ini:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\nTerima kasih.`;
+                msg += `\nMohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkan pesanan barang tersebut melalui link di bawah ini:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
                 try {
                     sendMessage(updatedSale.customerPhone, msg);
                 } catch(e) {
