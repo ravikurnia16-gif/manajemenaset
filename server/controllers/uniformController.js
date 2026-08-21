@@ -2212,12 +2212,15 @@ exports.confirmIndentPublic = async (req, res) => {
                 paymentStatus = 'UNPAID';
             }
 
+            const updatedPaidAmount = Math.min(sale.paidAmount, newTotalAmount);
+
             const updatedSale = await tx.uniformSale.update({
                 where: { id: saleId },
                 data: {
                     status: newStatus,
                     subtotal: newSubtotal,
                     totalAmount: newTotalAmount,
+                    paidAmount: updatedPaidAmount,
                     paymentStatus
                 },
                 include: { items: true }
@@ -2852,11 +2855,15 @@ exports.manageSaleItems = async (req, res) => {
             const newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
             const newTotalAmount = Math.max(0, newSubtotal - sale.discount);
             let paymentStatus = sale.paymentStatus;
+            
+            // Adjust paidAmount to not exceed newTotalAmount
+            const updatedPaidAmount = Math.min(sale.paidAmount, newTotalAmount);
+
             if (newTotalAmount === 0) {
                 paymentStatus = 'PAID';
-            } else if (sale.paidAmount >= newTotalAmount) {
+            } else if (updatedPaidAmount >= newTotalAmount) {
                 paymentStatus = 'PAID';
-            } else if (sale.paidAmount > 0) {
+            } else if (updatedPaidAmount > 0) {
                 paymentStatus = 'PARTIAL';
             } else {
                 paymentStatus = 'UNPAID';
@@ -2868,6 +2875,7 @@ exports.manageSaleItems = async (req, res) => {
                     status: newStatus,
                     subtotal: newSubtotal,
                     totalAmount: newTotalAmount,
+                    paidAmount: updatedPaidAmount,
                     paymentStatus
                 },
                 include: { items: true }
@@ -3710,14 +3718,24 @@ exports.getFinanceReport = async (req, res) => {
         
         sales.forEach(s => {
             if (s.paidAmount > 0) {
-                totalRevenue += s.paidAmount;
-                cashFlow.push({
-                    type: 'IN',
-                    date: s.updatedAt, // Use updatedAt to reflect the payment time
-                    amount: s.paidAmount,
-                    description: `Pembayaran Pesanan: ${s.code} (${s.customerName || s.studentName || 'Pelanggan'})`,
-                    reference: s.code
-                });
+                // Dynamically compute active subtotal to ensure cancelled items are not counted in revenue
+                const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
+                    ? s.subtotal
+                    : (s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || s.subtotal);
+                
+                const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
+                const cappedPaidAmount = Math.min(s.paidAmount, activeTotalAmount);
+
+                if (cappedPaidAmount > 0) {
+                    totalRevenue += cappedPaidAmount;
+                    cashFlow.push({
+                        type: 'IN',
+                        date: s.updatedAt,
+                        amount: cappedPaidAmount,
+                        description: `Pembayaran Pesanan: ${s.code} (${s.customerName || s.studentName || 'Pelanggan'})`,
+                        reference: s.code
+                    });
+                }
             }
         });
 
