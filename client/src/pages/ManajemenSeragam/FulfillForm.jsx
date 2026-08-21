@@ -30,6 +30,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                     sourceWarehouseId: '',
                     transitWarehouseId: '',
                     returnWarehouseId: '',
+                    isMoved: false,
                     totalStock: i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0,
                     stocks: i.variant?.stocks || []
                 };
@@ -57,18 +58,19 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
             if (item.status === item.oldStatus) continue;
 
             if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
-                if (!item.sourceWarehouseId || !item.transitWarehouseId) {
-                    alert(`Pilih gudang asal dan gudang transit untuk mengubah ${item.name} ke SEDIA`);
-                    return;
+                if (item.isMoved) {
+                    if (!item.sourceWarehouseId || !item.transitWarehouseId) {
+                        alert(`Pilih gudang asal dan gudang tujuan untuk memindahkan ${item.name}`);
+                        return;
+                    }
+                } else {
+                    if (!item.sourceWarehouseId) {
+                        alert(`Pilih gudang tempat pengambilan untuk ${item.name}`);
+                        return;
+                    }
                 }
             } else if (item.status === 'DIAMBIL') {
-                if (item.oldStatus === 'SEDIA' && !item.transitWarehouseId) {
-                    alert(`Pilih gudang transit (asal ambil) untuk ${item.name}`);
-                    return;
-                } else if (item.oldStatus !== 'SEDIA' && !item.sourceWarehouseId) {
-                    alert(`Pilih gudang asal untuk ${item.name} yang terjual langsung`);
-                    return;
-                }
+                // No validation needed for DIAMBIL, backend will handle it based on previous mutation history!
             } else if (item.status === 'BATAL' && item.oldStatus === 'SEDIA') {
                 if (!item.transitWarehouseId || !item.returnWarehouseId) {
                     alert(`Pilih gudang transit dan gudang pengembalian untuk membatalkan ${item.name}`);
@@ -93,7 +95,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                 saleItemId: i.saleItemId,
                 status: i.status,
                 sourceWarehouseId: i.sourceWarehouseId,
-                transitWarehouseId: i.transitWarehouseId || i.returnWarehouseId,
+                transitWarehouseId: i.isMoved ? i.transitWarehouseId : (i.status === 'SEDIA' ? i.sourceWarehouseId : (i.transitWarehouseId || i.returnWarehouseId)),
                 returnWarehouseId: i.returnWarehouseId
             }));
 
@@ -153,37 +155,43 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             {/* Dynamic Dropdowns Based on Selection */}
                             <div className="mt-3 space-y-2 text-sm">
                                 {(['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
-                                    <div className="flex gap-2">
-                                        <select className="flex-1 border border-slate-200 rounded p-1.5" required
-                                            value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
-                                            <option value="">-- Gudang Asal --</option>
-                                            {warehouses
-                                                .filter(w => {
-                                                    const st = item.stocks?.find(s => s.warehouseId === w.id);
-                                                    return st && st.quantity > 0;
-                                                })
-                                                .map(w => {
-                                                    const st = item.stocks?.find(s => s.warehouseId === w.id);
-                                                    return <option key={w.id} value={w.id}>{w.name} (Stok: {st.quantity})</option>;
-                                                })
-                                            }
-                                        </select>
-                                        <select className="flex-1 border border-slate-200 rounded p-1.5" required
-                                            value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
-                                            <option value="">-- Simpan ke Gudang Mana? (Transit/Lainnya) --</option>
-                                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                        </select>
+                                    <div className="flex flex-col gap-2">
+                                        <label className="flex items-center gap-2 cursor-pointer bg-slate-100 p-2 rounded w-fit">
+                                            <input type="checkbox" checked={item.isMoved} onChange={(e) => handleWhChange(idx, 'isMoved', e.target.checked)} className="rounded" />
+                                            <span className="text-xs font-bold text-slate-700">Apakah barang dipindah gudang?</span>
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <select className="flex-1 border border-slate-200 rounded p-1.5" required
+                                                value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
+                                                <option value="">{item.isMoved ? '-- Gudang Asal --' : '-- Gudang Tempat Pengambilan --'}</option>
+                                                {warehouses
+                                                    .filter(w => {
+                                                        const st = item.stocks?.find(s => s.warehouseId === w.id);
+                                                        return st && st.quantity > 0;
+                                                    })
+                                                    .map(w => {
+                                                        const st = item.stocks?.find(s => s.warehouseId === w.id);
+                                                        return <option key={w.id} value={w.id}>{w.name} (Stok: {st.quantity})</option>;
+                                                    })
+                                                }
+                                            </select>
+                                            {item.isMoved && (
+                                                <select className="flex-1 border border-slate-200 rounded p-1.5" required={item.isMoved}
+                                                    value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
+                                                    <option value="">-- Gudang Tujuan --</option>
+                                                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                                </select>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                                 
                                 {item.status === 'DIAMBIL' && (
                                     <div>
                                         {item.oldStatus === 'SEDIA' ? (
-                                            <select className="w-full border border-slate-200 rounded p-1.5" required
-                                                value={item.transitWarehouseId} onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}>
-                                                <option value="">-- Ambil Dari Gudang Transit Mana? --</option>
-                                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                            </select>
+                                            <p className="text-xs text-slate-500 italic mt-1">
+                                                *Stok otomatis terpotong dari riwayat gudang asal pengambilan.
+                                            </p>
                                         ) : (
                                             <select className="w-full border border-slate-200 rounded p-1.5" required
                                                 value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>

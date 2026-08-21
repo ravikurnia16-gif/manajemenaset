@@ -2620,12 +2620,21 @@ exports.manageSaleItems = async (req, res) => {
                     });
                 }
                 
-                // PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA/SEDIA/BATAL -> DIAMBIL
                 else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'SEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'DIAMBIL') {
                     let whId;
                     if (oldStatus === 'SEDIA') {
-                        whId = parseInt(update.transitWarehouseId); // Need to know which transit warehouse it was in
-                        if (!whId) throw new Error(`Pilih gudang transit (asal ambil) untuk item ${item.itemName}`);
+                        // Find the warehouse from the last mutation when it was set to SEDIA
+                        const lastMutTrx = await tx.uniformStockTransaction.findFirst({
+                            where: { 
+                                referenceType: 'SALE', 
+                                referenceId: sale.id, 
+                                variantId: item.variantId, 
+                                type: 'MUTATION' 
+                            },
+                            orderBy: { id: 'desc' }
+                        });
+                        if (!lastMutTrx) throw new Error(`Tidak dapat menemukan riwayat gudang saat SEDIA untuk item ${item.itemName}. Harap hubungi admin atau gunakan fitur BATAL terlebih dahulu.`);
+                        whId = lastMutTrx.toWarehouseId;
                     } else {
                         whId = parseInt(update.sourceWarehouseId); // Terjual langsung
                         if (!whId) throw new Error(`Pilih gudang asal untuk penjualan langsung item ${item.itemName}`);
