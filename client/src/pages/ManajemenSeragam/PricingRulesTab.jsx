@@ -5,6 +5,7 @@ import { SelectField, InputField } from './UIComponents';
 
 export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => {
     const [rules, setRules] = useState([]);
+    const [variants, setVariants] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
 
@@ -31,6 +32,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
 
     useEffect(() => {
         fetchRules();
+        api.get('/uniforms/variants').then(res => setVariants(res.data)).catch(console.error);
     }, []);
 
     const handleSubmit = async (e) => {
@@ -76,6 +78,24 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
         });
     };
 
+    // Filter Options dynamically based on Category
+    let filteredClothingTypes = clothingTypes;
+    let filteredGenders = ['IKHWAN', 'AKHWAT'];
+    let filteredSizes = sizes;
+
+    if (form.categoryId) {
+        const catVariants = variants.filter(v => v.item?.categoryId === parseInt(form.categoryId));
+        
+        const validClothingTypeIds = [...new Set(catVariants.map(v => v.item?.clothingTypeId).filter(Boolean))];
+        filteredClothingTypes = clothingTypes.filter(c => validClothingTypeIds.includes(c.id));
+
+        const validGenders = [...new Set(catVariants.map(v => v.item?.gender).filter(Boolean))];
+        filteredGenders = validGenders;
+
+        const validSizeNames = [...new Set(catVariants.map(v => v.sizeName || v.size?.name).filter(Boolean))];
+        filteredSizes = sizes.filter(s => validSizeNames.includes(s.name));
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-start">
@@ -104,7 +124,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                             </SelectField>
                             <SelectField label="Jenis Pakaian" value={form.clothingTypeId} onChange={e => setForm({...form, clothingTypeId: e.target.value})}>
                                 <option value="">Semua Jenis Pakaian</option>
-                                {clothingTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                {filteredClothingTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </SelectField>
                             <SelectField label="Unit / Jenjang" value={form.unitId} onChange={e => setForm({...form, unitId: e.target.value})}>
                                 <option value="">Semua Unit</option>
@@ -112,15 +132,14 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                             </SelectField>
                             <SelectField label="Gender" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
                                 <option value="">Semua Gender</option>
-                                <option value="IKHWAN">Ikhwan</option>
-                                <option value="AKHWAT">Akhwat</option>
+                                {filteredGenders.map(g => <option key={g} value={g}>{g === 'IKHWAN' ? 'Ikhwan' : g === 'AKHWAT' ? 'Akhwat' : g}</option>)}
                             </SelectField>
                         </div>
                         
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Pilih Ukuran (Bisa lebih dari satu)</label>
                             <div className="flex flex-wrap gap-2">
-                                {sizes.map(s => {
+                                {filteredSizes.map(s => {
                                     const isSelected = form.sizeNames.includes(s.name);
                                     return (
                                         <button 
@@ -134,6 +153,9 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                     );
                                 })}
                             </div>
+                            {filteredSizes.length === 0 && form.categoryId && (
+                                <p className="text-sm text-red-500 italic mt-1">Tidak ada ukuran yang tersedia untuk kategori ini di database.</p>
+                            )}
                             <p className="text-[10px] text-slate-400 mt-1">*Jika tidak memilih ukuran satupun, maka berlaku untuk semua ukuran.</p>
                         </div>
 
