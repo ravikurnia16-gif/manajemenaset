@@ -55,7 +55,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
         for (const item of itemUpdates) {
             if (item.status === item.oldStatus) continue;
 
-            if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
+            if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
                 if (!item.sourceWarehouseId || !item.transitWarehouseId) {
                     alert(`Pilih gudang asal dan gudang transit untuk mengubah ${item.name} ke SEDIA`);
                     return;
@@ -151,7 +151,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             
                             {/* Dynamic Dropdowns Based on Selection */}
                             <div className="mt-3 space-y-2 text-sm">
-                                {(['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
+                                {(['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
                                     <div className="flex gap-2">
                                         <select className="flex-1 border border-slate-200 rounded p-1.5" required
                                             value={item.sourceWarehouseId} onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}>
