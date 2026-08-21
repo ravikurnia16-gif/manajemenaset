@@ -2597,14 +2597,29 @@ exports.manageSaleItems = async (req, res) => {
             
             const itemsMap = new Map(sale.items.map(i => [i.id, i]));
             let subtotalAdjustment = 0;
-            const notifications = { sedia: [], tidakTersedia: [] };
+            const notifications = { updates: [], hasTidakTersedia: false };
 
             for (const update of itemUpdates) {
                 if (update.saleItemId === 'NAMADADA') {
                     if (sale.note && sale.note.includes('[NAMADADA:')) {
                         const match = sale.note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
                         if (match) {
+                            const ndQty = parseInt(match[1]);
+                            const ndStatus = match[3] || 'PENDING';
                             const newStatus = update.status;
+                            
+                            if (ndStatus !== newStatus) {
+                                notifications.updates.push({
+                                    itemName: 'Nama Dada (Bordir)',
+                                    size: '-',
+                                    qty: ndQty,
+                                    oldStatus: ndStatus,
+                                    newStatus: newStatus,
+                                    location: ''
+                                });
+                                if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
+                            }
+                            
                             const newNoteStr = `[NAMADADA:${match[1]}:${match[2]}:${newStatus}]`;
                             await tx.uniformSale.update({
                                 where: { id: saleId },
@@ -2865,14 +2880,24 @@ exports.manageSaleItems = async (req, res) => {
                     subtotalAdjustment += item.totalPrice;
                 }
                 
-                // Kirim notifikasi jika status baru adalah SEDIA atau TIDAK_TERSEDIA
-                if (oldStatus !== 'SEDIA' && newStatus === 'SEDIA') {
+                // Tambahkan ke list notifikasi update status
+                let locText = '';
+                if (newStatus === 'SEDIA') {
                     const transitWhId = parseInt(update.transitWarehouseId);
                     const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
-                    notifications.sedia.push({ itemName: item.itemName, size: item.size, qty: item.qty, warehouseName: transitWh?.name || 'Gudang', warehouseLocation: transitWh?.location || '' });
-                } else if (oldStatus !== 'TIDAK_TERSEDIA' && newStatus === 'TIDAK_TERSEDIA') {
-                    notifications.tidakTersedia.push({ itemId: item.id, itemName: item.itemName, size: item.size, qty: item.qty });
+                    locText = transitWh?.name || 'Gudang';
                 }
+                
+                notifications.updates.push({
+                    itemName: item.itemName,
+                    size: item.size,
+                    qty: qty,
+                    oldStatus: oldStatus,
+                    newStatus: newStatus,
+                    location: locText
+                });
+                
+                if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
                 
                 // Save item status
                 await tx.uniformSaleItem.update({
@@ -2946,59 +2971,36 @@ exports.manageSaleItems = async (req, res) => {
         // ================= KIRIIM NOTIFIKASI WA =================
         const { updatedSale, notifications } = result;
 
-        if (updatedSale.customerPhone) {
-            const hasSedia = notifications.sedia.length > 0;
-            const hasTidakTersedia = notifications.tidakTersedia.length > 0;
+        if (updatedSale.customerPhone && notifications.updates.length > 0) {
+            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nBerikut adalah update status terbaru untuk pesanan seragam Anda (Kode: *${updatedSale.code}*):\n\n`;
+            
+            notifications.updates.forEach(n => {
+                const getStatusText = (status) => {
+                    if (status === 'SEDIA') return '✅ SEDIA (Siap Diambil)';
+                    if (status === 'DIAMBIL') return '📦 DIAMBIL (Sudah Diserahkan)';
+                    if (status === 'TIDAK_TERSEDIA') return '❌ TIDAK TERSEDIA (Kosong)';
+                    if (status === 'INDENT') return '⏳ INDENT (Menunggu Produksi)';
+                    if (status === 'BATAL') return '🚫 BATAL';
+                    return status;
+                };
 
-            if (hasSedia && hasTidakTersedia) {
-                let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nBerikut adalah update pesanan seragam Anda (Kode: *${updatedSale.code}*):\n\n`;
-                
-                msg += `✅ *BARANG TERSEDIA (Siap Diambil)*\n`;
-                notifications.sedia.forEach(n => {
-                    const locText = n.warehouseLocation ? n.warehouseLocation : n.warehouseName;
-                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil di: ${locText}\n`;
-                });
-                
-                msg += `\n❌ *BARANG TIDAK TERSEDIA (Kosong)*\n`;
-                notifications.tidakTersedia.forEach(n => {
-                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n`;
-                });
-                
-                msg += `\nUntuk barang yang KOSONG, mohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
-                msg += `Untuk melihat status lengkap pesanan Anda, klik:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
-                
-                try {
-                    sendMessage(updatedSale.customerPhone, msg);
-                } catch(e) {
-                    console.error('Gagal kirim WA gabungan:', e);
+                msg += `- *${n.itemName}* (${n.size}) x${n.qty} pcs\n  Status: ${getStatusText(n.oldStatus)} ➡️ *${getStatusText(n.newStatus)}*\n`;
+                if (n.newStatus === 'SEDIA' && n.location) {
+                    msg += `  📍 Silakan ambil di: ${n.location}\n`;
                 }
+                msg += '\n';
+            });
+            
+            if (notifications.hasTidakTersedia) {
+                msg += `Untuk barang yang KOSONG (Tidak Tersedia), mohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
             }
-            // 1. Notifikasi SEDIA (Hanya jika tidak ada yang kosong)
-            else if (hasSedia) {
-                let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nAlhamdulillah! Beberapa barang pesanan seragam Anda (Kode: *${updatedSale.code}*) telah *SEDIA* dan siap diambil:\n\n`;
-                notifications.sedia.forEach(n => {
-                    const locText = n.warehouseLocation ? n.warehouseLocation : n.warehouseName;
-                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n  📍 Diambil di: ${locText}\n`;
-                });
-                msg += `\nSilakan cek status lengkapnya di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
-                try {
-                    sendMessage(updatedSale.customerPhone, msg);
-                } catch(e) {
-                    console.error('Gagal kirim WA sedia:', e);
-                }
-            }
-            // 2. Notifikasi TIDAK_TERSEDIA (Hanya jika tidak ada yang sedia)
-            else if (hasTidakTersedia) {
-                let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nMohon maaf, saat ini ada barang pesanan Anda (Kode: *${updatedSale.code}*) yang *TIDAK TERSEDIA* / KOSONG:\n\n`;
-                notifications.tidakTersedia.forEach(n => {
-                    msg += `- ${n.itemName} (${n.size}) x${n.qty} pcs\n`;
-                });
-                msg += `\nMohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkan pesanan barang tersebut melalui link di bawah ini:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
-                try {
-                    sendMessage(updatedSale.customerPhone, msg);
-                } catch(e) {
-                    console.error('Gagal kirim WA tidak tersedia:', e);
-                }
+            
+            msg += `Silakan cek detail lengkap invoice pesanan Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
+            
+            try {
+                sendMessage(updatedSale.customerPhone, msg);
+            } catch(e) {
+                console.error('Gagal kirim WA update status:', e);
             }
         }
 
