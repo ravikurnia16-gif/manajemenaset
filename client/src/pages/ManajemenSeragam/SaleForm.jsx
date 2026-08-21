@@ -120,6 +120,21 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         availableSizes = [...new Set(availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType).map(v => v.size?.name || v.sizeName))].filter(Boolean);
     }
 
+    const getSizePriceStr = (sizeName) => {
+        let targets = [];
+        if (retailInput.clothingType === 'SEMUA_SETELAN') {
+            targets = availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category && (v.size?.name || v.sizeName) === sizeName);
+        } else {
+            targets = availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType && (v.size?.name || v.sizeName) === sizeName);
+        }
+        if (targets.length === 0) return '';
+        const totalPrice = targets.reduce((sum, v) => {
+            const price = (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0);
+            return sum + price;
+        }, 0);
+        return ` - Rp ${totalPrice.toLocaleString('id-ID')}`;
+    };
+
     const addRetailItemAdvanced = () => {
         if (!retailInput.category || !retailInput.clothingType || !retailInput.size || retailInput.qty < 1) {
             alert('Mohon lengkapi pilihan kategori, jenis, ukuran, dan jumlah.');
@@ -146,7 +161,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 itemName: `${v.item?.name} (${v.size?.name || v.sizeName})`,
                 size: v.size?.name || v.sizeName,
                 qty: parseInt(retailInput.qty),
-                unitPrice: v.item?.sellPrice || 0
+                unitPrice: (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)
             });
         });
 
@@ -261,7 +276,11 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
 
                         <SelectField label="Ukuran" value={retailInput.size} onChange={e => setRetailInput({ ...retailInput, size: e.target.value })} disabled={!retailInput.clothingType}>
                             <option value="">-- Ukuran --</option>
-                            {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                            {availableSizes.map(s => (
+                                <option key={s} value={s}>
+                                    {s}{getSizePriceStr(s)}
+                                </option>
+                            ))}
                         </SelectField>
                         
                         <InputField type="number" min="1" label="Jumlah" value={retailInput.qty} onChange={e => setRetailInput({ ...retailInput, qty: e.target.value })} disabled={!retailInput.size} />
@@ -272,6 +291,12 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                             </button>
                         </div>
                     </div>
+
+                    {retailInput.size && (
+                        <div className="text-sm font-bold text-slate-700 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 inline-block">
+                            Estimasi Harga Satuan: <span className="text-blue-600 text-lg font-black">{getSizePriceStr(retailInput.size).replace(' - ', '')}</span>
+                        </div>
+                    )}
 
                     <div className="mt-2 space-y-1.5">
                         {form.items.map((item, idx) => (
