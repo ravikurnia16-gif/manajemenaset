@@ -161,14 +161,20 @@ const UniformInvoicePublic = () => {
                                     );
                                 })() : (
                                     invoice.items?.map((item, idx) => (
-                                        <tr key={idx} className="bg-white border-b border-slate-100 last:border-0 print:border-slate-200">
+                                        <tr key={idx} className={`bg-white border-b border-slate-100 last:border-0 print:border-slate-200 ${item.status === 'BATAL' ? 'opacity-50' : ''}`}>
                                             <td className="py-3 px-4 print:py-2 print:px-3">
-                                                <div className="font-bold text-slate-800 text-sm print:text-xs mb-0.5">{item.itemName}</div>
+                                                <div className={`font-bold text-slate-800 text-sm print:text-xs mb-0.5 ${item.status === 'BATAL' ? 'line-through text-slate-400' : ''}`}>
+                                                    {item.itemName} {item.status === 'BATAL' && <span className="text-red-500 text-xs ml-2">(Dibatalkan)</span>}
+                                                </div>
                                                 <div className="text-[10px] print:text-[8px] font-bold tracking-widest text-slate-400 uppercase font-mono">Ukuran: {item.size}</div>
                                             </td>
                                             <td className="py-3 px-4 print:py-2 print:px-3 text-center font-black text-slate-700 border-l border-slate-100 print:border-slate-200 bg-slate-50/50 print:text-xs">{item.qty} pcs</td>
-                                            <td className="py-3 px-4 print:py-2 print:px-3 text-right text-slate-600 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">Rp {item.unitPrice?.toLocaleString('id-ID')}</td>
-                                            <td className="py-3 px-4 print:py-2 print:px-3 text-right font-black text-slate-800 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">Rp {item.totalPrice?.toLocaleString('id-ID')}</td>
+                                            <td className="py-3 px-4 print:py-2 print:px-3 text-right text-slate-600 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">
+                                                {item.status === 'BATAL' ? '-' : `Rp ${item.unitPrice?.toLocaleString('id-ID')}`}
+                                            </td>
+                                            <td className="py-3 px-4 print:py-2 print:px-3 text-right font-black text-slate-800 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">
+                                                {item.status === 'BATAL' ? '-' : `Rp ${item.totalPrice?.toLocaleString('id-ID')}`}
+                                            </td>
                                         </tr>
                                     ))
                                 )}
