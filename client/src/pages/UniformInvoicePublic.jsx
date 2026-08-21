@@ -211,12 +211,6 @@ const UniformInvoicePublic = () => {
                                             <span>Total Telah Dibayar</span>
                                             <span className="font-bold text-emerald-600">Rp {displayedPaidAmount.toLocaleString('id-ID')}</span>
                                         </div>
-                                        {overpayment > 0 && (
-                                            <div className="flex justify-between items-center text-xs print:text-[8px] text-amber-600 mt-1">
-                                                <span className="italic">*Kelebihan Bayar (Batal)</span>
-                                                <span>Rp {overpayment.toLocaleString('id-ID')}</span>
-                                            </div>
-                                        )}
                                         <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-300">
                                             <span className="font-black text-slate-800 text-xs print:text-[10px] tracking-wider uppercase">Total Tagihan Akhir</span>
                                             <span className="font-black text-blue-700 text-xl print:text-base">Rp {remainingTagihan.toLocaleString('id-ID')}</span>
