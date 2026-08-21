@@ -1736,6 +1736,7 @@ model UniformWarehouse {
   stockTransactions   UniformStockTransaction[]  @relation("TrxWarehouse")
   stockTransactionsTo UniformStockTransaction[]  @relation("TrxWarehouseTo")
   sales               UniformSale[]
+  pickupItems         UniformSaleItem[]          @relation("SaleItemPickup")
   
   invStocks              InvStock[]
   invStockTransactions   InvStockTransaction[]  @relation("InvTrxWarehouse")
@@ -1971,6 +1972,8 @@ model UniformSaleItem {
   unitPrice     Float           @default(0)
   totalPrice    Float           @default(0)
   status        String          @default("PENDING") // PENDING, READY, BACKORDER, DELIVERED
+  pickupWarehouseId Int?
+  pickupWarehouse   UniformWarehouse? @relation("SaleItemPickup", fields: [pickupWarehouseId], references: [id])
 }
 
 // Jurnal Stok (semua mutasi masuk, keluar, pindah, adjustment)

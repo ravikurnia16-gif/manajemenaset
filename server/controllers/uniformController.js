@@ -2890,21 +2890,21 @@ exports.manageSaleItems = async (req, res) => {
             let anyPending = false;
             let anySedia = false;
             
-            for (const item of itemsMap.values()) {
-                if (item.status !== 'DIAMBIL' && item.status !== 'BATAL') {
+            for (const update of itemUpdates) {
+                if (update.status !== 'DIAMBIL' && update.status !== 'BATAL') {
                     allFinal = false;
                 }
-                if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.status)) {
+                if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(update.status)) {
                     anyPending = true;
                 }
-                if (item.status === 'SEDIA') {
+                if (update.status === 'SEDIA') {
                     anySedia = true;
                 }
             }
             
-            if (allFinal && itemsMap.size > 0) {
+            if (allFinal && itemUpdates.length > 0) {
                 newStatus = 'SELESAI';
-            } else if (anySedia || Array.from(itemsMap.values()).some(i => i.status === 'DIAMBIL')) {
+            } else if (anySedia || itemUpdates.some(i => i.status === 'DIAMBIL')) {
                 newStatus = 'PROSES';
             } else {
                 newStatus = 'PENDING';
