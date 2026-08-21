@@ -2579,8 +2579,8 @@ exports.manageSaleItems = async (req, res) => {
                     return `${prefix}/${year}/${nextNum.toString().padStart(3, '0')}`;
                 };
 
-                // PENDING/INDENT/TIDAK_TERSEDIA/BATAL -> SEDIA (Mutation: Source -> Transit)
-                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'SEDIA') {
+                // PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA/BATAL -> SEDIA (Mutation: Source -> Transit)
+                if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'SEDIA') {
                     const sourceWhId = parseInt(update.sourceWarehouseId);
                     const transitWhId = parseInt(update.transitWarehouseId);
                     if (!sourceWhId || !transitWhId) throw new Error(`Pilih gudang asal dan gudang transit untuk item ${item.itemName}`);
@@ -2620,8 +2620,8 @@ exports.manageSaleItems = async (req, res) => {
                     });
                 }
                 
-                // PENDING/INDENT/TIDAK_TERSEDIA/SEDIA/BATAL -> DIAMBIL
-                else if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'SEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'DIAMBIL') {
+                // PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA/SEDIA/BATAL -> DIAMBIL
+                else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'SEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'DIAMBIL') {
                     let whId;
                     if (oldStatus === 'SEDIA') {
                         whId = parseInt(update.transitWarehouseId); // Need to know which transit warehouse it was in
@@ -2708,13 +2708,13 @@ exports.manageSaleItems = async (req, res) => {
                     subtotalAdjustment -= item.totalPrice;
                 }
                 
-                // PENDING/INDENT/TIDAK_TERSEDIA -> BATAL
-                else if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(oldStatus) && newStatus === 'BATAL') {
+                // PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA -> BATAL
+                else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(oldStatus) && newStatus === 'BATAL') {
                     subtotalAdjustment -= item.totalPrice;
                 }
                 
-                // BATAL -> PENDING/INDENT/TIDAK_TERSEDIA (Undo batal)
-                else if (oldStatus === 'BATAL' && ['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(newStatus)) {
+                // BATAL -> PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA (Undo batal)
+                else if (oldStatus === 'BATAL' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(newStatus)) {
                     subtotalAdjustment += item.totalPrice;
                 }
                 
@@ -2823,7 +2823,7 @@ exports.manageSaleItems = async (req, res) => {
                 if (item.status !== 'DIAMBIL' && item.status !== 'BATAL') {
                     allFinal = false;
                 }
-                if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA'].includes(item.status)) {
+                if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.status)) {
                     anyPending = true;
                 }
                 if (item.status === 'SEDIA') {
