@@ -91,8 +91,16 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
 
         const validGenders = [...new Set(catVariants.map(v => v.item?.gender).filter(Boolean))];
         filteredGenders = validGenders;
+    }
 
-        const validSizeNames = [...new Set(catVariants.map(v => v.sizeName || v.size?.name).filter(Boolean))];
+    let matchingVariants = variants;
+    if (form.categoryId) matchingVariants = matchingVariants.filter(v => v.item?.categoryId === parseInt(form.categoryId));
+    if (form.clothingTypeId) matchingVariants = matchingVariants.filter(v => v.item?.clothingTypeId === parseInt(form.clothingTypeId));
+    if (form.gender) matchingVariants = matchingVariants.filter(v => v.item?.gender === form.gender);
+    if (form.unitId) matchingVariants = matchingVariants.filter(v => v.item?.unitId === parseInt(form.unitId));
+
+    if (form.categoryId || form.clothingTypeId || form.gender || form.unitId) {
+        const validSizeNames = [...new Set(matchingVariants.map(v => v.sizeName || v.size?.name).filter(Boolean))];
         filteredSizes = sizes.filter(s => validSizeNames.includes(s.name));
     }
 
