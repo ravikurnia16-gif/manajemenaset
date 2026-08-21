@@ -5,36 +5,65 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
     const [itemUpdates, setItemUpdates] = useState([]);
 
     useEffect(() => {
-        if (sale && sale.items) {
-            setItemUpdates(sale.items.map(i => {
-                let initialStatus = i.status || 'PENDING';
-                
-                // AUTO-DETEKSI STOK HANYA JIKA STATUS LAMA ADALAH PENDING
-                if (initialStatus === 'PENDING' && i.variant && i.variant.stocks) {
-                    const totalStock = i.variant.stocks.reduce((acc, s) => acc + s.quantity, 0);
-                    if (totalStock >= i.qty) {
-                        initialStatus = 'SEDIA';
-                    } else {
-                        initialStatus = 'TIDAK_TERSEDIA';
+        if (sale) {
+            let initialItemUpdates = [];
+            
+            if (sale.items) {
+                initialItemUpdates = sale.items.map(i => {
+                    let initialStatus = i.status || 'PENDING';
+                    
+                    // AUTO-DETEKSI STOK HANYA JIKA STATUS LAMA ADALAH PENDING
+                    if (initialStatus === 'PENDING' && i.variant && i.variant.stocks) {
+                        const totalStock = i.variant.stocks.reduce((acc, s) => acc + s.quantity, 0);
+                        if (totalStock >= i.qty) {
+                            initialStatus = 'SEDIA';
+                        } else {
+                            initialStatus = 'TIDAK_TERSEDIA';
+                        }
                     }
-                }
 
-                return {
-                    saleItemId: i.id,
-                    variantId: i.variantId,
-                    name: i.itemName,
-                    size: i.size,
-                    qty: i.qty,
-                    oldStatus: i.status || 'PENDING',
-                    status: initialStatus,
-                    sourceWarehouseId: '',
-                    transitWarehouseId: '',
-                    returnWarehouseId: '',
-                    isMoved: false,
-                    totalStock: i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0,
-                    stocks: i.variant?.stocks || []
-                };
-            }));
+                    return {
+                        saleItemId: i.id,
+                        variantId: i.variantId,
+                        name: i.itemName,
+                        size: i.size,
+                        qty: i.qty,
+                        oldStatus: i.status || 'PENDING',
+                        status: initialStatus,
+                        sourceWarehouseId: '',
+                        transitWarehouseId: '',
+                        returnWarehouseId: '',
+                        isMoved: false,
+                        totalStock: i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0,
+                        stocks: i.variant?.stocks || []
+                    };
+                });
+            }
+
+            // Append Nama Dada from note if present
+            if (sale.note && sale.note.includes('[NAMADADA:')) {
+                const match = sale.note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
+                if (match) {
+                    const ndQty = parseInt(match[1]);
+                    const ndStatus = match[3] || 'PENDING';
+                    initialItemUpdates.push({
+                        saleItemId: 'NAMADADA',
+                        name: 'Nama Dada (Bordir)',
+                        size: '-',
+                        qty: ndQty,
+                        oldStatus: ndStatus,
+                        status: ndStatus,
+                        sourceWarehouseId: '',
+                        transitWarehouseId: '',
+                        returnWarehouseId: '',
+                        isMoved: false,
+                        totalStock: 9999, // Nama dada tidak pakai stok
+                        stocks: []
+                    });
+                }
+            }
+            
+            setItemUpdates(initialItemUpdates);
         }
     }, [sale]);
 
@@ -56,6 +85,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
         // Validation
         for (const item of itemUpdates) {
             if (item.status === item.oldStatus) continue;
+            if (item.saleItemId === 'NAMADADA') continue; // Bypass warehouse validation for Nama Dada
 
             if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
                 if (item.isMoved) {
@@ -154,7 +184,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                             
                             {/* Dynamic Dropdowns Based on Selection */}
                             <div className="mt-3 space-y-2 text-sm">
-                                {(['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
+                                {(item.saleItemId !== 'NAMADADA' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') && (
                                     <div className="flex flex-col gap-2">
                                         <label className="flex items-center gap-2 cursor-pointer bg-slate-100 p-2 rounded w-fit">
                                             <input type="checkbox" checked={item.isMoved} onChange={(e) => handleWhChange(idx, 'isMoved', e.target.checked)} className="rounded" />
@@ -186,7 +216,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                     </div>
                                 )}
                                 
-                                {item.status === 'DIAMBIL' && (
+                                {item.saleItemId !== 'NAMADADA' && item.status === 'DIAMBIL' && (
                                     <div>
                                         {item.oldStatus === 'SEDIA' ? (
                                             <p className="text-xs text-slate-500 italic mt-1">
@@ -211,7 +241,7 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
                                     </div>
                                 )}
 
-                                {(item.status === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(item.oldStatus)) && (
+                                {(item.saleItemId !== 'NAMADADA' && item.status === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(item.oldStatus)) && (
                                     <div className="flex gap-2">
                                         {item.oldStatus === 'SEDIA' && (
                                             <select className="flex-1 border border-slate-200 rounded p-1.5" required

@@ -171,7 +171,7 @@ export default function UniformOrderPublic() {
                 paidAmount: 0,
                 discount: 0,
                 items: form.items,
-                note: namaDadaQty > 0 ? `[NAMADADA:${namaDadaQty}:${namaDadaBasePrice}]` : ''
+                note: namaDadaQty > 0 ? `[NAMADADA:${namaDadaQty}:${namaDadaBasePrice}:PENDING]` : ''
             };
 
             const res = await api.post('/uniforms/public/sales', dataToSave);

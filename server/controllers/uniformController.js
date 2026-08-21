@@ -2395,13 +2395,15 @@ exports.createSale = async (req, res) => {
             // Parse Nama Dada from note if exists
             let namaDadaStr = null;
             if (note && note.includes('[NAMADADA:')) {
-                const match = note.match(/\[NAMADADA:(\d+):(\d+)\]/);
+                const match = note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
                 if (match) {
                     const ndQty = parseInt(match[1]);
                     const ndPrice = parseInt(match[2]);
+                    const ndStatus = match[3] || 'PENDING';
                     subtotal += ndQty * ndPrice;
                     // Retain the note as it's needed for the frontend to render the invoice row
-                    namaDadaStr = `[NAMADADA:${ndQty}:${ndPrice}]`;
+                    namaDadaStr = `[NAMADADA:${ndQty}:${ndPrice}:${ndStatus}]`;
+                    note = note.replace(/\[NAMADADA:.*\]/, namaDadaStr);
                 }
             }
 
@@ -2598,6 +2600,21 @@ exports.manageSaleItems = async (req, res) => {
             const notifications = { sedia: [], tidakTersedia: [] };
 
             for (const update of itemUpdates) {
+                if (update.saleItemId === 'NAMADADA') {
+                    if (sale.note && sale.note.includes('[NAMADADA:')) {
+                        const match = sale.note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
+                        if (match) {
+                            const newStatus = update.status;
+                            const newNoteStr = `[NAMADADA:${match[1]}:${match[2]}:${newStatus}]`;
+                            await tx.uniformSale.update({
+                                where: { id: saleId },
+                                data: { note: sale.note.replace(/\[NAMADADA:.*\]/, newNoteStr) }
+                            });
+                        }
+                    }
+                    continue; // Skip the rest of stock logic for Nama Dada
+                }
+
                 const item = itemsMap.get(parseInt(update.saleItemId));
                 if (!item) continue;
                 

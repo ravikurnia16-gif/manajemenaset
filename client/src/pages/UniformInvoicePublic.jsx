@@ -179,17 +179,23 @@ const UniformInvoicePublic = () => {
                                     ))
                                 )}
                                 {invoice.note && invoice.note.includes('[NAMADADA:') && (() => {
-                                    const match = invoice.note.match(/\[NAMADADA:(\d+):(\d+)\]/);
+                                    const match = invoice.note.match(/\[NAMADADA:(\d+):(\d+)(?::([A-Z_]+))?\]/);
                                     if (match) {
                                         const qty = parseInt(match[1]);
                                         const price = parseInt(match[2]);
+                                        const status = match[3] || 'PENDING';
                                         return (
                                             <tr className="bg-blue-50/30 border-b border-slate-100 last:border-0 print:border-slate-200">
                                                 <td className="py-3 px-4 print:py-2 print:px-3">
                                                     <div className="font-bold text-slate-800 text-sm print:text-xs mb-0.5">Nama Dada (Bordir)</div>
                                                     <div className="text-[10px] print:text-[8px] font-bold tracking-widest text-blue-500 uppercase font-mono">Tambahan Atribut</div>
                                                 </td>
-                                                <td className="py-3 px-4 print:py-2 print:px-3 text-center font-black text-slate-700 border-l border-slate-100 print:border-slate-200 bg-slate-50/50 print:text-xs">{qty} pcs</td>
+                                                <td className="py-3 px-4 print:py-2 print:px-3 text-center font-black text-slate-700 border-l border-slate-100 print:border-slate-200 bg-slate-50/50 print:text-xs">
+                                                    {qty} pcs
+                                                    <div className={`text-[9px] mt-0.5 ${status === 'DELIVERED' ? 'text-green-600' : status === 'BACKORDER' || status === 'INDENT' ? 'text-orange-600' : 'text-blue-600'}`}>
+                                                        {status === 'DELIVERED' ? 'Diambil' : status === 'BACKORDER' || status === 'INDENT' ? 'Indent' : 'Sedia'}
+                                                    </div>
+                                                </td>
                                                 <td className="py-3 px-4 print:py-2 print:px-3 text-right text-slate-600 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">Rp {price.toLocaleString('id-ID')}</td>
                                                 <td className="py-3 px-4 print:py-2 print:px-3 text-right font-black text-slate-800 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">Rp {(qty * price).toLocaleString('id-ID')}</td>
                                             </tr>
