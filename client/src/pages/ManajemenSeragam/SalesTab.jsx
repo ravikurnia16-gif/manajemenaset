@@ -33,6 +33,11 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulf
                         <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi pesanan.</td></tr>
                     ) : sales.map(s => {
                         const hasPackages = s.salePackages && s.salePackages.length > 0;
+                        const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
+                            ? s.subtotal
+                            : (s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || s.subtotal);
+                        const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
+                        
                         return (
                             <React.Fragment key={s.id}>
                                 <tr className="hover:bg-slate-50/80 transition-colors">
@@ -42,7 +47,16 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulf
                                         {s.studentName && <div className="text-[10px] text-slate-400">Siswa: {s.studentName}</div>}
                                     </td>
                                     <td className="p-3 text-center"><Badge color={s.type === 'SPMB' || s.type === 'UNIT_ORDER' ? 'purple' : 'slate'}>{s.type}</Badge></td>
-                                    <td className="p-3 text-right font-bold text-slate-700">Rp {(s.totalAmount || 0).toLocaleString('id-ID')}</td>
+                                    <td className="p-3 text-right">
+                                        {s.totalAmount > activeTotalAmount ? (
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-xs text-rose-400 line-through" title="Total Awal">Rp {(s.totalAmount).toLocaleString('id-ID')}</span>
+                                                <span className="font-bold text-slate-700" title="Total Setelah Batal">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="font-bold text-slate-700">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
+                                        )}
+                                    </td>
                                     <td className="p-3 text-center">
                                         <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>{s.paymentStatus}</Badge>
                                         {onUpdatePayment && (
