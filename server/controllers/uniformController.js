@@ -3700,22 +3700,13 @@ exports.getFinanceReport = async (req, res) => {
         const cashFlow = [];
         
         sales.forEach(s => {
-            // Calculate revenue only from DIAMBIL items
-            const revenueFromSale = s.items.reduce((sum, item) => {
-                if (item.status === 'DIAMBIL') {
-                    return sum + item.totalPrice;
-                }
-                return sum;
-            }, 0);
-            
-            totalRevenue += revenueFromSale;
-            
-            if (revenueFromSale > 0) {
+            if (s.paidAmount > 0) {
+                totalRevenue += s.paidAmount;
                 cashFlow.push({
                     type: 'IN',
-                    date: s.createdAt,
-                    amount: revenueFromSale,
-                    description: `Pendapatan Barang Diambil: ${s.code} (${s.customerName || 'Pelanggan'})`,
+                    date: s.updatedAt, // Use updatedAt to reflect the payment time
+                    amount: s.paidAmount,
+                    description: `Pembayaran Pesanan: ${s.code} (${s.customerName || s.studentName || 'Pelanggan'})`,
                     reference: s.code
                 });
             }
