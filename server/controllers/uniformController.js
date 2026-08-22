@@ -1668,6 +1668,9 @@ exports.importStocks = async (req, res) => {
         let successCount = 0;
         let errors = [];
 
+        // Generate a single base code for this entire import session
+        const baseCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+
         for (let i = 0; i < dataRows.length; i++) {
             try {
                 const row = dataRows[i];
@@ -1735,7 +1738,8 @@ exports.importStocks = async (req, res) => {
                 const cost = 0; // Default cost
 
                 if (qty > 0) {
-                    const trcCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                    // Append an index to make the code unique across all rows in the Excel file
+                    const trcCode = dataRows.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
                     await prisma.$transaction(async (tx) => {
                         await tx.uniformStockTransaction.create({
                             data: {
