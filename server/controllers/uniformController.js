@@ -1774,7 +1774,8 @@ exports.importStocks = async (req, res) => {
                     successCount++;
                 }
             } catch (err) {
-                errors.push(`Baris ${i + 2}: Error - ${err.message}`);
+                const fullError = err.message ? err.message.replace(/\n/g, ' | ') : String(err);
+                errors.push(`Baris ${i + 2}: Error - ${fullError}`);
             }
         }
 
