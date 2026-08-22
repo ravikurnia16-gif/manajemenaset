@@ -1671,122 +1671,132 @@ exports.importStocks = async (req, res) => {
         // Generate a single base code for this entire import session
         const baseCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
 
-        for (let i = 0; i < dataRows.length; i++) {
-            try {
-                const row = dataRows[i];
-                const catIn = row[0];
-                const clothIn = row[1];
-                const unitIn = row[2];
-                const genderIn = row[3];
-                const sizeIn = row[4];
-                const whIn = row[5];
-                const vendorIn = hasVendor ? row[6] : null;
-                const qtyIn = hasVendor ? row[7] : row[6];
-                
-                if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
-                    errors.push(`Baris ${i + 2}: Kolom wajib tidak lengkap.`);
-                    continue;
-                }
-
-                const cat = await prisma.uniformCategory.findFirst({ where: { name: String(catIn).trim() } });
-                if (!cat) { errors.push(`Baris ${i + 2}: Kategori '${catIn}' tidak ditemukan.`); continue; }
-
-                const cloth = await prisma.uniformClothingType.findFirst({ where: { name: String(clothIn).trim() } });
-                if (!cloth) { errors.push(`Baris ${i + 2}: Jenis Pakaian '${clothIn}' tidak ditemukan.`); continue; }
-
-                let unit = null;
-                if (unitIn && String(unitIn).trim() !== '' && String(unitIn).trim().toUpperCase() !== 'UMUM' && String(unitIn).trim() !== '-') {
-                    unit = await prisma.uniformUnit.findFirst({ where: { name: String(unitIn).trim() } });
-                    if (!unit) { errors.push(`Baris ${i + 2}: Unit '${unitIn}' tidak ditemukan.`); continue; }
-                }
-
-                const size = await prisma.uniformSize.findFirst({ where: { name: String(sizeIn).trim().toUpperCase() } });
-                if (!size) { errors.push(`Baris ${i + 2}: Ukuran '${sizeIn}' tidak ditemukan.`); continue; }
-
-                const wh = await prisma.uniformWarehouse.findFirst({ where: { name: String(whIn).trim() } });
-                if (!wh) { errors.push(`Baris ${i + 2}: Gudang '${whIn}' tidak ditemukan.`); continue; }
-
-                const gender = String(genderIn).trim().toUpperCase();
-                const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
-                
-                let item = await prisma.uniformItem.findFirst({
-                    where: {
-                        categoryId: cat.id,
-                        clothingTypeId: cloth.id,
-                        unitId: unit ? unit.id : null,
-                        gender: gender
-                    }
-                });
-
-                if (!item) {
-                    errors.push(`Baris ${i + 2}: Barang '${itemName}' tidak ditemukan (hanya menambah stok).`);
-                    continue;
-                }
-
-                let variant = await prisma.uniformVariant.findUnique({
-                    where: {
-                        itemId_sizeName: { itemId: item.id, sizeName: size.name }
-                    }
-                });
-
-                if (!variant) {
-                    errors.push(`Baris ${i + 2}: Varian ukuran '${size.name}' untuk barang '${itemName}' tidak ditemukan.`);
-                    continue;
-                }
-
-                const qty = parseInt(qtyIn) || 0;
-                const cost = 0; // Default cost
-
-                if (qty > 0) {
-                    // Append an index to make the code unique across all rows in the Excel file
-                    const trcCode = dataRows.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
-                    await prisma.$transaction(async (tx) => {
-                        await tx.uniformStockTransaction.create({
-                            data: {
-                                code: trcCode, type: 'IN',
-                                variantId: variant.id,
-                                warehouseId: wh.id,
-                                quantity: qty,
-                                costPerUnit: cost,
-                                note: 'Import Excel'
-                            }
-                        });
-
-                        const existingStock = await tx.uniformStock.findUnique({
-                            where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
-                        });
-
-                        let newAvgCost = cost;
-                        if (existingStock && existingStock.quantity > 0) {
-                            const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
-                            newAvgCost = totalValue / (existingStock.quantity + qty);
+        try {
+            await prisma.$transaction(async (tx) => {
+                for (let i = 0; i < dataRows.length; i++) {
+                    try {
+                        const row = dataRows[i];
+                        const catIn = row[0];
+                        const clothIn = row[1];
+                        const unitIn = row[2];
+                        const genderIn = row[3];
+                        const sizeIn = row[4];
+                        const whIn = row[5];
+                        const vendorIn = hasVendor ? row[6] : null;
+                        const qtyIn = hasVendor ? row[7] : row[6];
+                        
+                        if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
+                            errors.push(`Baris ${i + 2}: Kolom wajib tidak lengkap.`);
+                            continue;
                         }
 
-                        await tx.uniformStock.upsert({
-                            where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } },
-                            create: {
-                                variantId: variant.id, warehouseId: wh.id,
-                                quantity: qty, avgCost: cost, minStock: item.minStock || 5
-                            },
-                            update: {
-                                quantity: { increment: qty },
-                                avgCost: newAvgCost,
-                                minStock: item.minStock || 5
+                        const cat = await tx.uniformCategory.findFirst({ where: { name: String(catIn).trim() } });
+                        if (!cat) { errors.push(`Baris ${i + 2}: Kategori '${catIn}' tidak ditemukan.`); continue; }
+
+                        const cloth = await tx.uniformClothingType.findFirst({ where: { name: String(clothIn).trim() } });
+                        if (!cloth) { errors.push(`Baris ${i + 2}: Jenis Pakaian '${clothIn}' tidak ditemukan.`); continue; }
+
+                        let unit = null;
+                        if (unitIn && String(unitIn).trim() !== '' && String(unitIn).trim().toUpperCase() !== 'UMUM' && String(unitIn).trim() !== '-') {
+                            unit = await tx.uniformUnit.findFirst({ where: { name: String(unitIn).trim() } });
+                            if (!unit) { errors.push(`Baris ${i + 2}: Unit '${unitIn}' tidak ditemukan.`); continue; }
+                        }
+
+                        const size = await tx.uniformSize.findFirst({ where: { name: String(sizeIn).trim().toUpperCase() } });
+                        if (!size) { errors.push(`Baris ${i + 2}: Ukuran '${sizeIn}' tidak ditemukan.`); continue; }
+
+                        const wh = await tx.uniformWarehouse.findFirst({ where: { name: String(whIn).trim() } });
+                        if (!wh) { errors.push(`Baris ${i + 2}: Gudang '${whIn}' tidak ditemukan.`); continue; }
+
+                        const gender = String(genderIn).trim().toUpperCase();
+                        const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
+                        
+                        let item = await tx.uniformItem.findFirst({
+                            where: {
+                                categoryId: cat.id,
+                                clothingTypeId: cloth.id,
+                                unitId: unit ? unit.id : null,
+                                gender: gender
                             }
                         });
-                    });
-                    successCount++;
+
+                        if (!item) {
+                            errors.push(`Baris ${i + 2}: Barang '${itemName}' tidak ditemukan (hanya menambah stok).`);
+                            continue;
+                        }
+
+                        let variant = await tx.uniformVariant.findUnique({
+                            where: {
+                                itemId_sizeName: { itemId: item.id, sizeName: size.name }
+                            }
+                        });
+
+                        if (!variant) {
+                            errors.push(`Baris ${i + 2}: Varian ukuran '${size.name}' untuk barang '${itemName}' tidak ditemukan.`);
+                            continue;
+                        }
+
+                        const qty = parseInt(qtyIn) || 0;
+                        const cost = 0; // Default cost
+
+                        if (qty > 0) {
+                            // Append an index to make the code unique across all rows in the Excel file
+                            const trcCode = dataRows.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
+                            
+                            await tx.uniformStockTransaction.create({
+                                data: {
+                                    code: trcCode, type: 'IN',
+                                    variantId: variant.id,
+                                    warehouseId: wh.id,
+                                    quantity: qty,
+                                    costPerUnit: cost,
+                                    note: 'Import Excel'
+                                }
+                            });
+
+                            const existingStock = await tx.uniformStock.findUnique({
+                                where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
+                            });
+
+                            let newAvgCost = cost;
+                            if (existingStock && existingStock.quantity > 0) {
+                                const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
+                                newAvgCost = totalValue / (existingStock.quantity + qty);
+                            }
+
+                            await tx.uniformStock.upsert({
+                                where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } },
+                                create: {
+                                    variantId: variant.id, warehouseId: wh.id,
+                                    quantity: qty, avgCost: cost, minStock: item.minStock || 5
+                                },
+                                update: {
+                                    quantity: { increment: qty },
+                                    avgCost: newAvgCost,
+                                    minStock: item.minStock || 5
+                                }
+                            });
+                            
+                            successCount++;
+                        }
+                    } catch (err) {
+                        const fullError = err.message ? err.message.replace(/\n/g, ' | ') : String(err);
+                        errors.push(`Baris ${i + 2}: Error - ${fullError}`);
+                    }
                 }
-            } catch (err) {
-                const fullError = err.message ? err.message.replace(/\n/g, ' | ') : String(err);
-                errors.push(`Baris ${i + 2}: Error - ${fullError}`);
+
+                if (errors.length > 0) {
+                    throw new Error("ROLLBACK_DUE_TO_ERRORS");
+                }
+            });
+        } catch (error) {
+            if (error.message !== "ROLLBACK_DUE_TO_ERRORS") {
+                throw error;
             }
         }
 
-        if (errors.length > 0 && successCount === 0) {
-            return res.status(400).json({ error: 'Import gagal.', details: errors });
-        } else if (errors.length > 0) {
-            return res.status(200).json({ message: `Berhasil import ${successCount} data, namun ada beberapa error.`, details: errors });
+        if (errors.length > 0) {
+            return res.status(400).json({ error: 'Import dibatalkan secara keseluruhan karena ada error.', details: errors });
         }
         
         res.status(200).json({ message: `Berhasil mengimport ${successCount} data stok.` });
