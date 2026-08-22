@@ -1744,9 +1744,7 @@ exports.importStocks = async (req, res) => {
                                 warehouseId: wh.id,
                                 quantity: qty,
                                 costPerUnit: cost,
-                                totalCost: cost * qty,
-                                reason: 'Import Excel',
-                                createdById: req.user?.id || null
+                                note: 'Import Excel'
                             }
                         });
 
