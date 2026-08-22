@@ -1685,8 +1685,13 @@ exports.importStocks = async (req, res) => {
                         const vendorIn = hasVendor ? row[6] : null;
                         const qtyIn = hasVendor ? row[7] : row[6];
                         
-                        if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
-                            errors.push(`Baris ${i + 2}: Kolom wajib tidak lengkap.`);
+                        const qty = parseInt(qtyIn) || 0;
+                        if (qty <= 0) {
+                            continue; // Silently skip rows with empty or zero quantity
+                        }
+
+                        if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn) {
+                            errors.push(`Baris ${i + 2}: Kolom identitas wajib tidak lengkap.`);
                             continue;
                         }
 
@@ -1736,49 +1741,46 @@ exports.importStocks = async (req, res) => {
                             continue;
                         }
 
-                        const qty = parseInt(qtyIn) || 0;
                         const cost = 0; // Default cost
 
-                        if (qty > 0) {
-                            // Append an index to make the code unique across all rows in the Excel file
-                            const trcCode = dataRows.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
-                            
-                            await tx.uniformStockTransaction.create({
-                                data: {
-                                    code: trcCode, type: 'IN',
-                                    variantId: variant.id,
-                                    warehouseId: wh.id,
-                                    quantity: qty,
-                                    costPerUnit: cost,
-                                    note: 'Import Excel'
-                                }
-                            });
-
-                            const existingStock = await tx.uniformStock.findUnique({
-                                where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
-                            });
-
-                            let newAvgCost = cost;
-                            if (existingStock && existingStock.quantity > 0) {
-                                const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
-                                newAvgCost = totalValue / (existingStock.quantity + qty);
+                        // Append an index to make the code unique across all rows in the Excel file
+                        const trcCode = dataRows.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
+                        
+                        await tx.uniformStockTransaction.create({
+                            data: {
+                                code: trcCode, type: 'IN',
+                                variantId: variant.id,
+                                warehouseId: wh.id,
+                                quantity: qty,
+                                costPerUnit: cost,
+                                note: 'Import Excel'
                             }
+                        });
 
-                            await tx.uniformStock.upsert({
-                                where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } },
-                                create: {
-                                    variantId: variant.id, warehouseId: wh.id,
-                                    quantity: qty, avgCost: cost, minStock: item.minStock || 5
-                                },
-                                update: {
-                                    quantity: { increment: qty },
-                                    avgCost: newAvgCost,
-                                    minStock: item.minStock || 5
-                                }
-                            });
-                            
-                            successCount++;
+                        const existingStock = await tx.uniformStock.findUnique({
+                            where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
+                        });
+
+                        let newAvgCost = cost;
+                        if (existingStock && existingStock.quantity > 0) {
+                            const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
+                            newAvgCost = totalValue / (existingStock.quantity + qty);
                         }
+
+                        await tx.uniformStock.upsert({
+                            where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } },
+                            create: {
+                                variantId: variant.id, warehouseId: wh.id,
+                                quantity: qty, avgCost: cost, minStock: item.minStock || 5
+                            },
+                            update: {
+                                quantity: { increment: qty },
+                                avgCost: newAvgCost,
+                                minStock: item.minStock || 5
+                            }
+                        });
+                        
+                        successCount++;
                     } catch (err) {
                         const fullError = err.message ? err.message.replace(/\n/g, ' | ') : String(err);
                         errors.push(`Baris ${i + 2}: Error - ${fullError}`);
