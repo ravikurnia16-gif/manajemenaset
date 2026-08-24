@@ -464,6 +464,7 @@ exports.startTrip = async (req, res) => {
     try {
         const { id } = req.params;
         const { startKm } = req.body;
+        const startPhotoUrl = req.fileUrl || null;
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
@@ -487,24 +488,32 @@ exports.startTrip = async (req, res) => {
             });
         }
 
-        // 2. Discrepancy Notification (> 1 km)
-        if (inputKm - currentOdometer > 1) {
-            const diff = inputKm - currentOdometer;
+        // 2. Discrepancy Validation & Mandatory Photo Check (> 1 km)
+        const diff = inputKm - currentOdometer;
+        if (diff > 1) {
+            // Check if photo was uploaded for discrepancy
+            if (!startPhotoUrl) {
+                return res.status(400).json({
+                    error: `Terdeteksi selisih Odometer sebesar ${diff} KM dari posisi terakhir (${currentOdometer} KM). Anda WAJIB mengambil/mengunggah foto Odometer awal sebagai bukti sebelum memulai perjalanan.`
+                });
+            }
+
             const discMsg = `⚠️ *PERINGATAN DISKREPANSI ODOMETER*\n\n` +
                 `Terdapat selisih kilometer saat mulai perjalanan:\n` +
                 `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
                 `Pengguna: ${booking.user.name}\n` +
                 `KM Terakhir Sistem: ${currentOdometer}\n` +
                 `KM Awal Input: ${inputKm}\n` +
-                `Selisih: *${diff} KM*\n\n` +
+                `Selisih: *${diff} KM*\n` +
+                `Foto Odometer Awal: ${startPhotoUrl}\n\n` +
                 `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
 
             // A. Notify Kepala Bidang Sarpras & Staff Kendaraan & Vehicle PICs
             const recipients = await prisma.user.findMany({
                 where: {
                     OR: [
-                        { position: { contains: 'Kepala Bidang Sarana' } }, // Matches "Kepala Bidang Sarana..."
-                        { position: { contains: 'Staff Kendaraan' } } // Matches "Staff Kendaraan", "Staf Kendaraan", "Pengelola Kendaraan", etc.
+                        { position: { contains: 'Kepala Bidang Sarana' } },
+                        { position: { contains: 'Staff Kendaraan' } }
                     ],
                     AND: [
                         { phone: { not: null } },
@@ -529,7 +538,7 @@ exports.startTrip = async (req, res) => {
                     await createNotification(
                         person.id,
                         'Peringatan Diskrepansi Odometer',
-                        `Selisih ${diff} KM pada ${booking.vehicle.name} (${booking.vehicle.plateNumber}) oleh ${booking.user.name}.`,
+                        `Selisih ${diff} KM pada ${booking.vehicle.name} (${booking.vehicle.plateNumber}) oleh ${booking.user.name}. Foto bukti telah dilampirkan.`,
                         'WARNING',
                         '/kendaraan/laporan'
                     );
@@ -543,11 +552,11 @@ exports.startTrip = async (req, res) => {
             where: { id: parseInt(id) },
             data: {
                 startKm: inputKm,
+                startPhoto: startPhotoUrl,
                 tripStartTime: new Date(),
                 status: 'BERLANGSUNG'
             }
         });
-
 
         res.json(updated);
     } catch (error) {
@@ -559,11 +568,13 @@ exports.startTrip = async (req, res) => {
 exports.endTrip = async (req, res) => {
     try {
         const { id } = req.params;
-        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters, fuelCondition, returnLocation } = req.body;
+        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters, fuelCondition, returnLocation, hasIncident, incidentNotes } = req.body;
+        const photoUrl = req.fileUrl || null;
+        const isIncident = hasIncident === true || hasIncident === 'true';
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
-            include: { vehicle: true }
+            include: { vehicle: true, user: true }
         });
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
@@ -578,6 +589,70 @@ exports.endTrip = async (req, res) => {
             });
         }
 
+        // Incident Validation: If incident reported, photo is mandatory!
+        if (isIncident && !photoUrl) {
+            return res.status(400).json({
+                error: 'Wajib mengunggah foto bukti kejadian/kerusakan bila Anda melaporkan adanya insiden saat perjalanan.'
+            });
+        }
+
+        let maintenanceId = null;
+        if (isIncident) {
+            // Auto-create incidental maintenance ticket
+            const serviceLog = await prisma.vehicleService.create({
+                data: {
+                    vehicleId: booking.vehicleId,
+                    date: new Date(),
+                    category: 'INSIDENTAL',
+                    type: 'PERBAIKAN_KERUSAKAN',
+                    description: `[LAPORAN INSIDEN JALAN oleh ${booking.user.name}]: ${incidentNotes || 'Tidak ada deskripsi'}`,
+                    cost: 0,
+                    odometer: parseInt(endKm),
+                    proofFile: photoUrl,
+                    workshop: 'Perlu Penanganan Sarpras'
+                }
+            });
+            maintenanceId = serviceLog.id;
+
+            // Notify Sarpras & Staff Kendaraan about incident
+            const incidentRecipients = await prisma.user.findMany({
+                where: {
+                    OR: [
+                        { position: { contains: 'Kepala Bidang Sarana' } },
+                        { position: { contains: 'Staff Kendaraan' } }
+                    ],
+                    AND: [
+                        { phone: { not: null } },
+                        { NOT: { phone: '' } },
+                        { NOT: { phone: '08' } }
+                    ]
+                }
+            });
+
+            const incidentMsg = `🚨 *LAPORAN INSIDEN / KERUSAKAN KENDARAAN*\n\n` +
+                `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                `Pengemudi: ${booking.user.name}\n` +
+                `KM Akhir: ${endKm}\n` +
+                `Deskripsi Insiden:\n"${incidentNotes || '-'}"\n\n` +
+                `*Foto Bukti Kejadian:* ${photoUrl || '-'}\n\n` +
+                `_Tiket Pemeliharaan Insidental otomatis dibuat di sistem untuk ditindaklanjuti Tim Sarpras._`;
+
+            for (const person of incidentRecipients) {
+                try {
+                    if (person.phone) await sendMessage(person.phone, incidentMsg);
+                    await createNotification(
+                        person.id,
+                        `Insiden Kendaraan ${booking.vehicle.plateNumber}`,
+                        `Dilaporkan insiden pada ${booking.vehicle.name} oleh ${booking.user.name}. Tiket perbaikan telah dibuat.`,
+                        'URGENT',
+                        '/kendaraan/pemeliharaan'
+                    );
+                } catch (err) {
+                    console.error('Failed to notify incident to staff:', err.message);
+                }
+            }
+        }
+
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
             data: {
@@ -589,6 +664,10 @@ exports.endTrip = async (req, res) => {
                 fuelLiters: fuelLiters ? parseFloat(fuelLiters) : null,
                 fuelCondition: fuelCondition || null,
                 returnLocation: returnLocation || null,
+                hasIncident: isIncident,
+                incidentPhoto: isIncident ? photoUrl : null,
+                incidentNotes: isIncident ? incidentNotes : null,
+                maintenanceId,
                 status: 'COMPLETED'
             }
         });
@@ -603,62 +682,12 @@ exports.endTrip = async (req, res) => {
             }
         });
 
-        // Fuel Notification Logic
-        if (fuelCondition === 'LOW' || fuelCondition === 'MEDIUM') {
-            const vehicleInfo = await prisma.vehicle.findUnique({
-                where: { id: booking.vehicleId },
-                include: { bookings: { where: { id: parseInt(id) }, include: { user: true } } }
-            });
-
-            const staffRecipients = await prisma.user.findMany({
-                where: {
-                    position: { contains: 'Staff Kendaraan' },
-                    AND: [
-                        { phone: { not: null } },
-                        { NOT: { phone: '' } },
-                        { NOT: { phone: '08' } }
-                    ]
-                }
-            });
-
-            if (vehicleInfo && staffRecipients.length > 0) {
-                const bookInfo = vehicleInfo.bookings[0];
-                const notifLevel = fuelCondition === 'LOW' ? 'URGENT' : 'WARNING';
-                const notifEmoji = fuelCondition === 'LOW' ? '🚨' : '⚠️';
-                const conditionStr = fuelCondition === 'LOW' ? 'Kecil dari 1/4 (Sangat Minim)' : 'Antara 1/4 dan 1/2';
-
-                const fuelMsg = `${notifEmoji} *LAPORAN KONDISI BBM ARMADA*\n\n` +
-                    `Armada: *${vehicleInfo.name} (${vehicleInfo.plateNumber})*\n` +
-                    `Pengguna Terakhir: ${bookInfo.user.name}\n` +
-                    `Kondisi BBM saat ini: *${conditionStr}*\n\n` +
-                    `Mohon agar Tim Staff Kendaraan segera menindaklanjuti untuk pengisian BBM armada agar siap digunakan untuk perjalanan selanjutnya.`;
-
-                const isMotor = vehicleInfo.type?.toLowerCase().includes('motor');
-                for (const staff of staffRecipients) {
-                    try {
-                        // Skip WhatsApp if vehicle is a motor
-                        if (staff.phone && !isMotor) {
-                            await sendMessage(staff.phone, fuelMsg);
-                        }
-                        await createNotification(
-                            staff.id,
-                            `Peringatan Kondisi BBM ${vehicleInfo.plateNumber}`,
-                            `Kondisi BBM ${vehicleInfo.name} dilaporkan ${conditionStr} oleh pengemudi terakhir.`,
-                            notifLevel,
-                            '/kendaraan'
-                        );
-                    } catch (err) {
-                        console.error('Failed to send fuel notification to Staff:', err.message);
-                    }
-                }
-            }
-        }
-
         res.json(updated);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
+
 
 // 4. Perpanjang Jadwal (Extend Trip)
 exports.extendTrip = async (req, res) => {

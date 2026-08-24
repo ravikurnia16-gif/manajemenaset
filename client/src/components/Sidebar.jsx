@@ -443,6 +443,9 @@ const Sidebar = ({ isOpen = true }) => {
                     <LogOut size={18} />
                     <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>Logout</span>
                 </button>
+                <div className="mt-3 pt-3 border-t border-slate-800/80 text-center text-[10px] text-slate-400 font-medium leading-relaxed whitespace-normal">
+                    &copy; Kepala Bidang Sarana 2025/2027 x PT. Nusantara Insan Olahkarya
+                </div>
             </div>
         </div>
     );

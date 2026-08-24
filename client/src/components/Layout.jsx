@@ -320,8 +320,13 @@ const Layout = () => {
                     </div>
                 )}
 
-                <main className="flex-1 overflow-auto p-4 lg:p-8 relative custom-scrollbar pb-16 lg:pb-8">
-                    <Outlet />
+                <main className="flex-1 overflow-auto p-4 lg:p-8 relative custom-scrollbar pb-16 lg:pb-8 flex flex-col justify-between">
+                    <div>
+                        <Outlet />
+                    </div>
+                    <footer className="mt-8 pt-4 border-t border-slate-200 text-center text-xs text-slate-400 font-medium shrink-0">
+                        &copy; Kepala Bidang Sarana 2025/2027 x PT. Nusantara Insan Olahkarya
+                    </footer>
                 </main>
 
                 {/* Mobile Bottom Navigation */}

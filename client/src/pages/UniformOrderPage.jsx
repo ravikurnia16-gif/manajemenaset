@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ShoppingBag, Plus, Trash2, Save, Loader2, Check, User, Shirt } from 'lucide-react';
+import { ShoppingBag, Plus, Trash2, Save, Loader2, Check, User, Shirt, AlertTriangle, Clock, X } from 'lucide-react';
 
 const USERS_UNITS = ['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri'];
 
@@ -94,6 +94,7 @@ const UniformOrderPage = () => {
     }, [identity.gender, seragamGroup]);
 
     // System
+    const [showMaintenanceModal, setShowMaintenanceModal] = useState(true);
     const [orderResult, setOrderResult] = useState(null);
     const [checkCode, setCheckCode] = useState('');
     const [checkResult, setCheckResult] = useState(null);
@@ -378,7 +379,76 @@ const UniformOrderPage = () => {
                 </div>
             )}
 
+            {/* Modal Maintenance Popup */}
+            {showMaintenanceModal && (
+                <div className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-amber-100 flex flex-col animate-in zoom-in-95 duration-200">
+                        {/* Header Popup */}
+                        <div className="bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 p-6 text-white text-center relative">
+                            <button 
+                                onClick={() => setShowMaintenanceModal(false)}
+                                className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 text-white rounded-full p-1.5 transition"
+                                title="Tutup"
+                            >
+                                <X size={18} />
+                            </button>
+                            <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+                                <AlertTriangle size={32} className="text-white" />
+                            </div>
+                            <h2 className="text-xl font-bold">Pemeliharaan Sistem</h2>
+                            <p className="text-xs text-amber-100 mt-1">Pemberitahuan Layanan Pemesanan Seragam</p>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-4 text-slate-600 text-sm">
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 space-y-2">
+                                <p className="font-semibold text-xs text-amber-800">
+                                    Assalamu’alaikum Warahmatullahi Wabarakatuh,
+                                </p>
+                                <p className="text-xs leading-relaxed">
+                                    Mohon maaf atas ketidaknyamanannya. Layanan pemesanan seragam online melalui link ini sedang dalam <strong>tahap pemeliharaan & migrasi server</strong> untuk meningkatkan kualitas layanan.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700">
+                                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg shrink-0">
+                                    <Clock size={18} />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-slate-800">Jadwal Pengaktifan Kembali:</p>
+                                    <p className="text-indigo-600 font-bold">InsyaAllah akan diaktifkan lagi pekan depan</p>
+                                </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-400 italic text-center">
+                                *Jazakumullahu khairan katsiran atas perhatian dan pengertian Bapak/Ibu Wali Murid.
+                            </p>
+
+                            <button
+                                onClick={() => setShowMaintenanceModal(false)}
+                                className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 transition text-sm"
+                            >
+                                Saya Mengerti
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-xl mx-auto p-4 space-y-6">
+
+                {/* Banner Peringatan Maintenance di Halaman */}
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 flex items-start gap-3 shadow-sm">
+                    <div className="p-2 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5">
+                        <AlertTriangle size={20} />
+                    </div>
+                    <div className="text-xs space-y-1">
+                        <div className="font-bold text-amber-800 text-sm">Server Sedang Dalam Pemeliharaan (Maintenance)</div>
+                        <p className="leading-relaxed text-amber-700">
+                            Pemesanan seragam online sementara sedang dalam migrasi server dan <strong>InsyaAllah akan diaktifkan kembali pada pekan depan</strong>.
+                        </p>
+                    </div>
+                </div>
 
                 {/* 1. DATA DIRI */}
                 <div className="bg-white p-5 rounded-xl shadow-sm space-y-4">

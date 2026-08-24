@@ -97,8 +97,8 @@ const LoginPage = () => {
                         </button>
                     </form>
 
-                    <div className="mt-8 text-center text-xs text-slate-400">
-                        &copy; 2026 Asset Management System v1.0
+                    <div className="mt-8 text-center text-xs text-slate-400 font-medium">
+                        &copy; Kepala Bidang Sarana 2025/2027 x PT. Nusantara Insan Olahkarya
                         <div className="mt-4 pt-4 border-t border-slate-100">
                             <a href="/pesan-seragam" className="text-indigo-600 font-bold hover:underline py-2 block">
                                 → Pesan Seragam (Publik)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, AlertCircle, Camera, Save, RefreshCw, Calendar, Clock, Filter, Plus, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, Camera, Save, RefreshCw, Calendar, Clock, Filter, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../lib/axios';
 
 const DAILY_ITEMS = ['Kebersihan Eksterior', 'Kebersihan Interior', 'Tekanan Ban', 'Lampu Utama', 'Lampu Sein & Rem', 'Indikator Dashboard', 'Wiper & Air Washer', 'Cek Oli Mesin', 'Cek Air Radiator', 'Cek Minyak Rem'];
@@ -8,8 +8,11 @@ const MONTHLY_ITEMS = ['Cek Kampas Rem', 'Cek Filter Udara', 'Cek Filter AC', 'K
 
 export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAdmin }) {
     const [checklists, setChecklists] = useState([]);
+    const [missingSummary, setMissingSummary] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [triggeringAudit, setTriggeringAudit] = useState(false);
+    const [isBannerExpanded, setIsBannerExpanded] = useState(false);
     
     // Filters
     const [filterType, setFilterType] = useState('ALL');
@@ -31,25 +34,8 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
 
     useEffect(() => {
         fetchChecklists();
+        fetchMissingSummary();
     }, []);
-
-    useEffect(() => {
-        // Initialize form items when type changes
-        const items = formType === 'DAILY' ? DAILY_ITEMS : formType === 'WEEKLY' ? WEEKLY_ITEMS : MONTHLY_ITEMS;
-        const initialItems = {};
-        items.forEach(item => initialItems[item] = false);
-        setFormItems(initialItems);
-        
-        // Reset selected vehicle if it doesn't match the new type's requirements
-        if (formVehicleId) {
-            const v = vehicles.find(v => v.id.toString() === formVehicleId);
-            if (v) {
-                if (formType === 'DAILY' && !v.requireDailyChecklist) setFormVehicleId('');
-                else if (formType === 'WEEKLY' && !v.requireWeeklyChecklist) setFormVehicleId('');
-                else if (formType === 'MONTHLY' && !v.requireMonthlyChecklist) setFormVehicleId('');
-            }
-        }
-    }, [formType, vehicles, formVehicleId]);
 
     const fetchChecklists = async () => {
         try {
@@ -62,6 +48,45 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
             setLoading(false);
         }
     };
+
+    const fetchMissingSummary = async () => {
+        try {
+            const res = await api.get('/vehicle-checklists/summary/missing');
+            setMissingSummary(res.data);
+        } catch (error) {
+            console.error('Failed to fetch missing checklist summary:', error);
+        }
+    };
+
+    const handleTriggerAudit = async () => {
+        try {
+            setTriggeringAudit(true);
+            const res = await api.post('/vehicle-checklists/audit/trigger');
+            alert(res.data.message || 'Audit berhasil dijalankan!');
+            fetchMissingSummary();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal menjalankan audit');
+        } finally {
+            setTriggeringAudit(false);
+        }
+    };
+
+    useEffect(() => {
+        // Initialize form items when type changes
+        const items = formType === 'DAILY' ? DAILY_ITEMS : formType === 'WEEKLY' ? WEEKLY_ITEMS : MONTHLY_ITEMS;
+        const initialItems = {};
+        items.forEach(item => initialItems[item] = false);
+        setFormItems(initialItems);
+        
+        if (formVehicleId) {
+            const v = vehicles.find(v => v.id.toString() === formVehicleId);
+            if (v) {
+                if (formType === 'DAILY' && !v.requireDailyChecklist) setFormVehicleId('');
+                else if (formType === 'WEEKLY' && !v.requireWeeklyChecklist) setFormVehicleId('');
+                else if (formType === 'MONTHLY' && !v.requireMonthlyChecklist) setFormVehicleId('');
+            }
+        }
+    }, [formType, vehicles, formVehicleId]);
 
     const handlePhotoChange = (e) => {
         const file = e.target.files[0];
@@ -93,6 +118,7 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
             setFormPhoto(null);
             setPhotoPreview(null);
             fetchChecklists();
+            fetchMissingSummary();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menyimpan ceklis');
         } finally {
@@ -120,14 +146,85 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                     <p className="text-sm text-slate-500">Pengecekan rutin Harian, Mingguan, dan Bulanan.</p>
                 </div>
                 {!showForm && (
-                    <button 
-                        onClick={() => setShowForm(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-                    >
-                        <Plus size={16} /> Buat Laporan Ceklis
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {isAdmin && (
+                            <button
+                                onClick={handleTriggerAudit}
+                                disabled={triggeringAudit}
+                                className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                                title="Kirim Notifikasi Peringatan Ceklis ke Kepala Bidang Sarana"
+                            >
+                                <RefreshCw className={triggeringAudit ? 'animate-spin' : ''} size={14} />
+                                {triggeringAudit ? 'Memproses Audit...' : 'Audit & Notifikasi'}
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => setShowForm(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                        >
+                            <Plus size={16} /> Buat Laporan Ceklis
+                        </button>
+                    </div>
                 )}
             </div>
+
+            {/* Warning Banner for Missing Checklists (Compact & Collapsible) */}
+            {!showForm && missingSummary.length > 0 && (
+                <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl overflow-hidden shadow-xs transition-all duration-300">
+                    {/* Collapsed Bar Header */}
+                    <div 
+                        onClick={() => setIsBannerExpanded(!isBannerExpanded)}
+                        className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-amber-100/40 transition-colors select-none"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <span className="flex h-2.5 w-2.5 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                            </span>
+                            <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                                <AlertCircle size={15} className="text-amber-600" />
+                                {missingSummary.length} Armada Belum Diisi Ceklis
+                            </span>
+                            <span className="hidden sm:inline-block text-[10px] bg-amber-200/80 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-300/50">
+                                Notifikasi Aktif ke Kabid Sarana
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button className="text-xs font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 bg-amber-200/50 hover:bg-amber-200 px-2.5 py-1 rounded-lg transition-colors">
+                                {isBannerExpanded ? 'Sembunyikan' : 'Lihat Detail'}
+                                {isBannerExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Expandable Details Grid */}
+                    {isBannerExpanded && (
+                        <div className="p-4 pt-2 border-t border-amber-200/60 bg-white/60 backdrop-blur-xs animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {missingSummary.map(item => (
+                                    <div key={item.id} className="bg-white border border-amber-200/70 p-3 rounded-xl shadow-2xs">
+                                        <div className="font-bold text-slate-800 text-xs flex justify-between items-center">
+                                            <span>{item.name}</span>
+                                            <span className="text-[10px] text-slate-400 font-medium">{item.plateNumber}</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-1">
+                                            PJ: <span className="font-semibold text-slate-700">{item.pics?.map(p => p.name).join(', ') || 'Belum Ditentukan'}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                            {item.missingTypes.map((m, idx) => (
+                                                <span key={idx} className="bg-red-50 text-red-700 border border-red-200/70 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                    Belum Ceklis {m.label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {showForm ? (
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 animate-in slide-in-from-top-4">

@@ -201,6 +201,11 @@ const initScheduler = () => {
             checklistController.auditWeeklyChecklists();
         }
 
+        // D. Monthly Checklist Audit (28th of every month at 18:10)
+        if (now.getDate() === 28 && hour === 18 && minute === 10) {
+            checklistController.auditMonthlyChecklists();
+        }
+
         // ----------------------------------------------------
         // 6. WEEKLY ASSET SUMMARY (Friday at 15:30)
         // ----------------------------------------------------

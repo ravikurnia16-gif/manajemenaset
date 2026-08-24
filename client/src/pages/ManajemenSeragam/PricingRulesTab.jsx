@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Play, Edit2, History, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Play, Edit2, History, X, CheckCircle2, Download, Upload, Loader2 } from 'lucide-react';
 import api from '../../lib/axios';
 import { SelectField, InputField } from './UIComponents';
 
@@ -10,6 +10,8 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
     const [showForm, setShowForm] = useState(false);
     const [editingRuleId, setEditingRuleId] = useState(null);
     const [historyRule, setHistoryRule] = useState(null); // Aturan yang sedang dilihat riwayatnya
+    const [isImporting, setIsImporting] = useState(false);
+    const fileInputRef = useRef(null);
 
     const [form, setForm] = useState({
         categoryId: '',
@@ -34,6 +36,43 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const res = await api.get('/uniforms/pricing-rules/template', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'Template_Import_Aturan_Harga.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+        } catch (err) {
+            alert('Gagal mendownload template aturan harga');
+        }
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setIsImporting(true);
+        try {
+            const res = await api.post('/uniforms/pricing-rules/import', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert(res.data.message || 'Import berhasil!');
+            fetchRules();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal mengimpor data aturan harga');
+        } finally {
+            setIsImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
@@ -149,32 +188,44 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
     
     // Fungsi untuk mendapatkan riwayat dari suatu aturan
     const getHistoryForRule = (rule) => {
+        if (!rule) return [];
         return rules.filter(r => 
             r.isActive === false &&
-            r.categoryId === rule.categoryId &&
-            r.clothingTypeId === rule.clothingTypeId &&
-            r.unitId === rule.unitId &&
-            r.gender === rule.gender &&
-            r.sizeNames === rule.sizeNames
+            (r.categoryId ?? null) === (rule.categoryId ?? null) &&
+            (r.clothingTypeId ?? null) === (rule.clothingTypeId ?? null) &&
+            (r.unitId ?? null) === (rule.unitId ?? null) &&
+            (r.gender ?? null) === (rule.gender ?? null) &&
+            (r.sizeNames ?? null) === (rule.sizeNames ?? null)
         ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     };
 
     return (
         <div className="space-y-6 relative">
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800">Aturan Harga Otomatis</h2>
                     <p className="text-sm text-slate-500">Buat aturan untuk men-set harga jual seragam secara otomatis berdasarkan kriteria tertentu.</p>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={applyRules} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-green-500/20 hover:from-green-700 hover:to-emerald-700 transition-all">
-                        <Play size={16} /> Terapkan ke Semua Barang
+                <div className="flex flex-wrap items-center gap-2">
+                    <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+                    
+                    <button onClick={handleDownloadTemplate} className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-slate-50 transition-all shadow-sm" title="Download Template Excel">
+                        <Download size={16} className="text-blue-600" /> Template Excel
                     </button>
+                    
+                    <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="flex items-center gap-1.5 bg-emerald-600 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all disabled:opacity-50" title="Import Aturan Harga dari Excel">
+                        {isImporting ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} {isImporting ? 'Mengimpor...' : 'Import Excel'}
+                    </button>
+
+                    <button onClick={applyRules} className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition-all" title="Terapkan semua aturan harga aktif ke varian seragam">
+                        <Play size={16} /> Terapkan ke Stok
+                    </button>
+
                     <button onClick={() => {
                         setEditingRuleId(null);
                         setForm({ categoryId: '', clothingTypeId: '', unitId: '', gender: '', sizeNames: [], price: '' });
                         setShowForm(!showForm);
-                    }} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
+                    }} className="flex items-center gap-1.5 bg-slate-900 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-lg hover:bg-slate-800 transition-all">
                         <Plus size={16} /> {showForm && !editingRuleId ? 'Batal' : 'Tambah Aturan'}
                     </button>
                 </div>
@@ -365,7 +416,9 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                             <div className="font-bold text-slate-800 text-sm">Harga Saat Ini</div>
                                             <time className="text-[10px] font-medium text-slate-500">Aktif</time>
                                         </div>
-                                        <div className="text-blue-600 font-bold">Rp {historyRule.price.toLocaleString('id-ID')}</div>
+                                        <div className="text-blue-600 font-bold">
+                                            Rp {Number(historyRule.price || 0).toLocaleString('id-ID')}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -379,10 +432,12 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                             <div className="flex items-center justify-between space-x-2 mb-1">
                                                 <div className="font-bold text-slate-700 text-sm">Riwayat ke-{getHistoryForRule(historyRule).length - idx}</div>
                                                 <time className="text-[10px] font-medium text-slate-400">
-                                                    Dibuat: {new Date(hr.createdAt).toLocaleDateString('id-ID')}
+                                                    Dibuat: {hr.createdAt ? new Date(hr.createdAt).toLocaleDateString('id-ID') : '-'}
                                                 </time>
                                             </div>
-                                            <div className="text-slate-600 font-bold line-through">Rp {hr.price.toLocaleString('id-ID')}</div>
+                                            <div className="text-slate-600 font-bold line-through">
+                                                Rp {Number(hr.price || 0).toLocaleString('id-ID')}
+                                            </div>
                                             <div className="text-[10px] text-slate-400 mt-1">Status: Tidak Aktif</div>
                                         </div>
                                     </div>

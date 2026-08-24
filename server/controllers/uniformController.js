@@ -406,6 +406,203 @@ exports.deleteUnit = async (req, res) => {
 
 // ========== PRICING RULES ==========
 
+exports.downloadPricingRuleImportTemplate = async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Template_Aturan_Harga');
+
+        sheet.columns = [
+            { header: 'Kategori', key: 'category', width: 22 },
+            { header: 'Jenis Pakaian', key: 'clothingType', width: 22 },
+            { header: 'Unit / Jenjang', key: 'unit', width: 16 },
+            { header: 'Gender', key: 'gender', width: 14 },
+            { header: 'Ukuran', key: 'sizeNames', width: 22 },
+            { header: 'Harga Jual (Rp) *Wajib', key: 'price', width: 24 }
+        ];
+
+        // Format header row
+        sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        sheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF2563EB' }
+        };
+        sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Sample Data Rows
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'S;M;L;XL', 120000]);
+        sheet.addRow(['Seragam Muslim', 'Gamis', 'SMA', 'AKHWAT', '', 150000]);
+        sheet.addRow(['Seragam Olahraga', '', 'SD', '', '', 95000]);
+
+        // Add Notes sheet
+        const infoSheet = workbook.addWorksheet('Petunjuk_Pengisian');
+        infoSheet.columns = [
+            { header: 'Kolom', key: 'col', width: 20 },
+            { header: 'Keterangan / Aturan Pengisian', key: 'desc', width: 65 }
+        ];
+        infoSheet.getRow(1).font = { bold: true };
+        infoSheet.addRow(['Kategori', 'Opsional. Isi dengan nama Kategori di Master Data, atau kosongkan jika berlaku untuk semua kategori.']);
+        infoSheet.addRow(['Jenis Pakaian', 'Opsional. Isi dengan nama Jenis Pakaian (misal: Kemeja Panjang, Celana), atau kosongkan jika berlaku untuk semua.']);
+        infoSheet.addRow(['Unit / Jenjang', 'Opsional. Isi dengan nama Unit (misal: TK, SD, SMP, SMA, Pondok), atau kosongkan jika berlaku untuk semua.']);
+        infoSheet.addRow(['Gender', 'Opsional. Isi dengan IKHWAN atau AKHWAT, atau kosongkan jika berlaku untuk semua.']);
+        infoSheet.addRow(['Ukuran', 'Opsional. Jika beberapa ukuran, pisahkan dengan titik koma (;), contoh: S;M;L;XL atau 38;40;42. Kosongkan jika berlaku untuk semua ukuran.']);
+        infoSheet.addRow(['Harga Jual (Rp)', 'Wajib. Hanya angka tanpa titik/koma (misal: 125000).']);
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Aturan_Harga.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Download Template Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.importPricingRules = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
+        const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau format tidak sesuai' });
+
+        const dataRows = rows.slice(1).filter(r => r.length > 0 && r.some(val => val !== undefined && val !== null && String(val).trim() !== ''));
+        if (dataRows.length === 0) return res.status(400).json({ error: 'Tidak ada baris data valid untuk diimpor' });
+
+        // Pre-fetch master data
+        const cats = await prisma.uniformCategory.findMany();
+        const cTypes = await prisma.uniformClothingType.findMany();
+        const units = await prisma.uniformUnit.findMany();
+        const existingRules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
+
+        let createdCount = 0;
+        let updatedCount = 0;
+        const errors = [];
+
+        await prisma.$transaction(async (tx) => {
+            for (let i = 0; i < dataRows.length; i++) {
+                const rowNum = i + 2;
+                const [catIn, clothIn, unitIn, genderIn, sizeNamesIn, priceIn] = dataRows[i];
+
+                // Validate Price
+                const rawPrice = String(priceIn || '').replace(/[^\d.]/g, '');
+                const price = parseFloat(rawPrice);
+                if (isNaN(price) || price <= 0) {
+                    errors.push(`Baris ${rowNum}: Harga Jual '${priceIn}' tidak valid (wajib berupa angka > 0)`);
+                    continue;
+                }
+
+                // Match Category
+                let categoryId = null;
+                if (catIn && String(catIn).trim()) {
+                    const catStr = String(catIn).trim().toLowerCase();
+                    const foundCat = cats.find(c => c.name.trim().toLowerCase() === catStr);
+                    if (!foundCat) {
+                        errors.push(`Baris ${rowNum}: Kategori '${catIn}' tidak ditemukan di Master Data`);
+                        continue;
+                    }
+                    categoryId = foundCat.id;
+                }
+
+                // Match Clothing Type
+                let clothingTypeId = null;
+                if (clothIn && String(clothIn).trim()) {
+                    const clothStr = String(clothIn).trim().toLowerCase();
+                    const foundCloth = cTypes.find(c => c.name.trim().toLowerCase() === clothStr);
+                    if (!foundCloth) {
+                        errors.push(`Baris ${rowNum}: Jenis Pakaian '${clothIn}' tidak ditemukan di Master Data`);
+                        continue;
+                    }
+                    clothingTypeId = foundCloth.id;
+                }
+
+                // Match Unit
+                let unitId = null;
+                if (unitIn && String(unitIn).trim()) {
+                    const unitStr = String(unitIn).trim().toLowerCase();
+                    const foundUnit = units.find(u => u.name.trim().toLowerCase() === unitStr);
+                    if (!foundUnit) {
+                        errors.push(`Baris ${rowNum}: Unit '${unitIn}' tidak ditemukan di Master Data`);
+                        continue;
+                    }
+                    unitId = foundUnit.id;
+                }
+
+                // Match Gender
+                let gender = null;
+                if (genderIn && String(genderIn).trim()) {
+                    const gUpper = String(genderIn).trim().toUpperCase();
+                    if (gUpper.includes('IKHWAN') || gUpper === 'L' || gUpper === 'LAKI-LAKI') {
+                        gender = 'IKHWAN';
+                    } else if (gUpper.includes('AKHWAT') || gUpper === 'P' || gUpper === 'PEREMPUAN') {
+                        gender = 'AKHWAT';
+                    } else {
+                        errors.push(`Baris ${rowNum}: Gender '${genderIn}' tidak valid (harus IKHWAN / AKHWAT atau kosong)`);
+                        continue;
+                    }
+                }
+
+                // Normalize Size Names
+                let sizeNames = null;
+                if (sizeNamesIn && String(sizeNamesIn).trim()) {
+                    const separator = String(sizeNamesIn).includes(';') ? ';' : ',';
+                    const list = String(sizeNamesIn).split(separator).map(s => s.trim().toUpperCase()).filter(Boolean);
+                    if (list.length > 0) {
+                        sizeNames = list.join(';');
+                    }
+                }
+
+                // Check for existing active rule with identical conditions
+                const matchedOldRule = existingRules.find(r => 
+                    (r.categoryId ?? null) === categoryId &&
+                    (r.clothingTypeId ?? null) === clothingTypeId &&
+                    (r.unitId ?? null) === unitId &&
+                    (r.gender ?? null) === gender &&
+                    (r.sizeNames ?? null) === sizeNames
+                );
+
+                if (matchedOldRule) {
+                    // Deactivate old rule to keep history
+                    await tx.uniformPricingRule.update({
+                        where: { id: matchedOldRule.id },
+                        data: { isActive: false }
+                    });
+                    updatedCount++;
+                } else {
+                    createdCount++;
+                }
+
+                // Create new active rule
+                await tx.uniformPricingRule.create({
+                    data: {
+                        categoryId,
+                        clothingTypeId,
+                        unitId,
+                        gender,
+                        sizeNames,
+                        price,
+                        isActive: true
+                    }
+                });
+            }
+
+            if (errors.length > 0 && createdCount === 0 && updatedCount === 0) {
+                throw new Error(errors.slice(0, 5).join('\n'));
+            }
+        });
+
+        res.json({
+            message: `Import berhasil! ${createdCount} aturan baru dibuat, ${updatedCount} aturan diperbarui.`,
+            createdCount,
+            updatedCount,
+            warnings: errors
+        });
+    } catch (error) {
+        console.error('Import Pricing Rules Error:', error);
+        res.status(400).json({ error: error.message || 'Gagal mengimpor aturan harga' });
+    }
+};
+
 exports.getPricingRules = async (req, res) => {
     try {
         const rules = await prisma.uniformPricingRule.findMany({
