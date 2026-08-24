@@ -748,6 +748,10 @@ model VehicleBooking {
   incidentNotes  String?  @db.Text
   maintenanceId  Int?     // Link to auto-created VehicleService ticket on incident
 
+  // Pre-Trip Quick Checklist (Kondisi Pra-Jalan)
+  preTripChecklist Json?
+  preTripNotes     String?  @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -101,7 +101,15 @@ const VehicleBooking = () => {
         fuelPrice: '', fuelLiters: '', fuelCondition: null,
         returnLocation: '', customLocation: '',
         photo: null, photoPreview: null,
-        hasIncident: false, incidentNotes: ''
+        hasIncident: false, incidentNotes: '',
+        preTripChecklist: {
+            brakes: true,
+            lights: true,
+            tires: true,
+            fuel: true,
+            cleanliness: true
+        },
+        preTripNotes: ''
     });
 
     // Filter State for History
@@ -630,6 +638,12 @@ const VehicleBooking = () => {
             fd.append('startKm', inputKm);
             if (actionData.photo) {
                 fd.append('photo', actionData.photo);
+            }
+            if (actionData.preTripChecklist) {
+                fd.append('preTripChecklist', JSON.stringify(actionData.preTripChecklist));
+            }
+            if (actionData.preTripNotes) {
+                fd.append('preTripNotes', actionData.preTripNotes);
             }
             
             // 1. Mulai perjalanan
@@ -2074,7 +2088,20 @@ const VehicleBooking = () => {
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
-                                                            setActionData({ ...actionData, km: b.vehicle?.odometer || '' });
+                                                            setActionData({ 
+                                                                ...actionData, 
+                                                                km: b.vehicle?.odometer || '',
+                                                                photo: null,
+                                                                photoPreview: null,
+                                                                preTripChecklist: {
+                                                                    brakes: true,
+                                                                    lights: true,
+                                                                    tires: true,
+                                                                    fuel: true,
+                                                                    cleanliness: true
+                                                                },
+                                                                preTripNotes: ''
+                                                            });
                                                             setShowActionModal({ type: 'START', data: b });
                                                         }}
                                                         className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
@@ -2179,7 +2206,20 @@ const VehicleBooking = () => {
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
-                                                                        setActionData({ ...actionData, km: b.vehicle?.odometer || '' });
+                                                                        setActionData({ 
+                                                                            ...actionData, 
+                                                                            km: b.vehicle?.odometer || '',
+                                                                            photo: null,
+                                                                            photoPreview: null,
+                                                                            preTripChecklist: {
+                                                                                brakes: true,
+                                                                                lights: true,
+                                                                                tires: true,
+                                                                                fuel: true,
+                                                                                cleanliness: true
+                                                                            },
+                                                                            preTripNotes: ''
+                                                                        });
                                                                         setShowActionModal({ type: 'START', data: b });
                                                                     }}
                                                                     className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
@@ -3756,7 +3796,78 @@ const VehicleBooking = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex gap-3 pt-4">
+                                                {/* Pre-Trip Quick Condition Checklist */}
+                                                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1.5">
+                                                            <CheckCircle size={15} className="text-blue-600" /> Ceklis Kondisi Awal
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const allChecked = Object.values(actionData.preTripChecklist || {}).every(Boolean);
+                                                                setActionData({
+                                                                    ...actionData,
+                                                                    preTripChecklist: {
+                                                                        brakes: !allChecked,
+                                                                        lights: !allChecked,
+                                                                        tires: !allChecked,
+                                                                        fuel: !allChecked,
+                                                                        cleanliness: !allChecked
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline"
+                                                        >
+                                                            {Object.values(actionData.preTripChecklist || {}).every(Boolean) ? 'Batal Semua' : 'Centang Semua (OK)'}
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                                                        {[
+                                                            { key: 'brakes', label: '🛑 Rem & Kemudi Normal' },
+                                                            { key: 'lights', label: '💡 Lampu & Sein Aktif' },
+                                                            { key: 'tires', label: '🛞 Tekanan Ban Aman' },
+                                                            { key: 'fuel', label: '⛽ BBM Memadai' },
+                                                            { key: 'cleanliness', label: '🧼 Bodi & Kaca Layak' }
+                                                        ].map(item => (
+                                                            <label
+                                                                key={item.key}
+                                                                className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${
+                                                                    actionData.preTripChecklist?.[item.key]
+                                                                        ? 'bg-blue-50/80 border-blue-300 text-blue-900 font-semibold'
+                                                                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100/50'
+                                                                }`}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={!!actionData.preTripChecklist?.[item.key]}
+                                                                    onChange={e => setActionData({
+                                                                        ...actionData,
+                                                                        preTripChecklist: {
+                                                                            ...(actionData.preTripChecklist || {}),
+                                                                            [item.key]: e.target.checked
+                                                                        }
+                                                                    })}
+                                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                                                                />
+                                                                <span className="text-[10px] leading-tight">{item.label}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+
+                                                    <div>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Catatan kondisi awal kendaraan (opsional)..."
+                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-400"
+                                                            value={actionData.preTripNotes || ''}
+                                                            onChange={e => setActionData({ ...actionData, preTripNotes: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-3 pt-2">
                                                     <button
                                                         disabled={!actionData.km || (isDiscrepancy && !actionData.photo) || submitting}
                                                         onClick={handleStartTrip}

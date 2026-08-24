@@ -463,7 +463,7 @@ exports.reviewBooking = async (req, res) => {
 exports.startTrip = async (req, res) => {
     try {
         const { id } = req.params;
-        const { startKm } = req.body;
+        const { startKm, preTripChecklist, preTripNotes } = req.body;
         const startPhotoUrl = req.fileUrl || null;
 
         const booking = await prisma.vehicleBooking.findUnique({
@@ -548,11 +548,23 @@ exports.startTrip = async (req, res) => {
             }
         }
 
+        // Parse Pre-Trip Checklist
+        let parsedPreTripChecklist = null;
+        if (preTripChecklist) {
+            try {
+                parsedPreTripChecklist = typeof preTripChecklist === 'string' ? JSON.parse(preTripChecklist) : preTripChecklist;
+            } catch (e) {
+                parsedPreTripChecklist = preTripChecklist;
+            }
+        }
+
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
             data: {
                 startKm: inputKm,
                 startPhoto: startPhotoUrl,
+                preTripChecklist: parsedPreTripChecklist,
+                preTripNotes: preTripNotes || null,
                 tripStartTime: new Date(),
                 status: 'BERLANGSUNG'
             }
