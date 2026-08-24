@@ -741,6 +741,12 @@ model VehicleBooking {
   startWarningCount Int @default(0)
   endWarningCount   Int @default(0)
 
+  // Incident Report (from End Trip)
+  hasIncident    Boolean  @default(false)
+  incidentPhoto  String?
+  incidentNotes  String?  @db.Text
+  maintenanceId  Int?     // Link to auto-created VehicleService ticket on incident
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
