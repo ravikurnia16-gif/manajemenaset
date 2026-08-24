@@ -473,6 +473,7 @@ exports.importPricingRules = async (req, res) => {
         const cats = await prisma.uniformCategory.findMany();
         const cTypes = await prisma.uniformClothingType.findMany();
         const units = await prisma.uniformUnit.findMany();
+        const sizes = await prisma.uniformSize.findMany();
         const existingRules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
 
         let createdCount = 0;
@@ -542,11 +543,18 @@ exports.importPricingRules = async (req, res) => {
                     }
                 }
 
-                // Normalize Size Names
+                // Normalize & Validate Size Names against Master Data
                 let sizeNames = null;
                 if (sizeNamesIn && String(sizeNamesIn).trim()) {
                     const separator = String(sizeNamesIn).includes(';') ? ';' : ',';
                     const list = String(sizeNamesIn).split(separator).map(s => s.trim().toUpperCase()).filter(Boolean);
+                    
+                    const invalidSizes = list.filter(sz => !sizes.some(s => s.name.toUpperCase() === sz));
+                    if (invalidSizes.length > 0) {
+                        errors.push(`Baris ${rowNum}: Ukuran '${invalidSizes.join(', ')}' tidak ditemukan di Master Data Ukuran`);
+                        continue;
+                    }
+
                     if (list.length > 0) {
                         sizeNames = list.join(';');
                     }
