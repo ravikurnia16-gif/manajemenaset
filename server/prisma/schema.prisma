@@ -727,6 +727,7 @@ model VehicleBooking {
   driver         User? @relation("VehicleDriver", fields: [driverId], references: [id])
 
   startKm        Int?
+  startPhoto     String?   // Foto odometer saat mulai perjalanan
   endKm          Int?
   tripNotes      String?   @db.Text
   fuelRefill     Boolean   @default(false)
