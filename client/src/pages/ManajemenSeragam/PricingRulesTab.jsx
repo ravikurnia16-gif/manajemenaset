@@ -103,7 +103,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
             };
 
             if (editingRuleId) {
-                await api.put(`/uniforms/pricing-rules/${editingRuleId}`, { price: form.price });
+                await api.put(`/uniforms/pricing-rules/${editingRuleId}`, payload);
             } else {
                 await api.post('/uniforms/pricing-rules', payload);
             }
@@ -269,23 +269,23 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
             {showForm && (
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                     <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">
-                        {editingRuleId ? 'Update Harga Aturan' : 'Buat Aturan Baru'}
+                        {editingRuleId ? 'Edit Aturan Harga' : 'Buat Aturan Baru'}
                     </h3>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <SelectField label="Kategori" value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})} disabled={!!editingRuleId}>
+                            <SelectField label="Kategori" value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})}>
                                 <option value="">Semua Kategori</option>
                                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </SelectField>
-                            <SelectField label="Jenis Pakaian" value={form.clothingTypeId} onChange={e => setForm({...form, clothingTypeId: e.target.value})} disabled={!!editingRuleId}>
+                            <SelectField label="Jenis Pakaian" value={form.clothingTypeId} onChange={e => setForm({...form, clothingTypeId: e.target.value})}>
                                 <option value="">Semua Jenis Pakaian</option>
                                 {filteredClothingTypes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </SelectField>
-                            <SelectField label="Unit / Jenjang" value={form.unitId} onChange={e => setForm({...form, unitId: e.target.value})} disabled={!!editingRuleId}>
+                            <SelectField label="Unit / Jenjang" value={form.unitId} onChange={e => setForm({...form, unitId: e.target.value})}>
                                 <option value="">Semua Unit</option>
                                 {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                             </SelectField>
-                            <SelectField label="Gender" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})} disabled={!!editingRuleId}>
+                            <SelectField label="Gender" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
                                 <option value="">Semua Gender</option>
                                 {filteredGenders.map(g => <option key={g} value={g}>{g === 'IKHWAN' ? 'Ikhwan' : g === 'AKHWAT' ? 'Akhwat' : g}</option>)}
                             </SelectField>
@@ -301,8 +301,7 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
                                             key={s.id} 
                                             type="button"
                                             onClick={() => toggleSize(s.name)}
-                                            disabled={!!editingRuleId}
-                                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50'} ${editingRuleId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}
                                         >
                                             {s.name}
                                         </button>
@@ -317,10 +316,10 @@ export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => 
 
                         <div className="pt-2 border-t border-slate-100 flex gap-4 items-end">
                             <div className="flex-1 max-w-xs">
-                                <InputField label="Harga Jual Baru (Rp) *" type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
+                                <InputField label={editingRuleId ? "Harga Jual (Rp) *" : "Harga Jual Baru (Rp) *"} type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required />
                             </div>
                             <button type="submit" className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all">
-                                {editingRuleId ? 'Simpan Perubahan Harga' : 'Simpan Aturan'}
+                                {editingRuleId ? 'Simpan Perubahan' : 'Simpan Aturan'}
                             </button>
                             {editingRuleId && (
                                 <button type="button" onClick={() => { setShowForm(false); setEditingRuleId(null); }} className="bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl font-bold hover:bg-slate-200 transition-all">

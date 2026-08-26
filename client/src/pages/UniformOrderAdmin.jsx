@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-    ClipboardList, Filter, Trash2, ChevronDown, ChevronUp, Edit3, X, 
+import {
+    ClipboardList, Filter, Trash2, ChevronDown, ChevronUp, Edit3, X,
     Download, FileSpreadsheet, Layers, Package, Calendar, Settings2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -28,7 +28,7 @@ const UniformOrderAdmin = () => {
     const [expandedId, setExpandedId] = useState(null);
     const [itemEdits, setItemEdits] = useState({});
     const [savingBulk, setSavingBulk] = useState(false);
-    
+
     // Export Menu & Modal State
     const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
     const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -137,24 +137,24 @@ const UniformOrderAdmin = () => {
     const handleEditItem = (itemId, updatesOrStatus, pickupDetails = null) => {
         setItemEdits(prev => {
             const currentItem = orders.flatMap(o => o.items || []).find(i => i.id === itemId);
-            const existing = prev[itemId] || {
-                status: currentItem?.status || 'PENDING',
-                pickupDetails: currentItem?.pickupDetails || null,
-                size: currentItem?.size || ''
-            };
-            
-            let merged = {};
-            if (typeof updatesOrStatus === 'object' && updatesOrStatus !== null) {
-                merged = { ...existing, ...updatesOrStatus };
-            } else {
-                merged = { ...existing, status: updatesOrStatus, pickupDetails };
-            }
-            
-            return {
-                ...prev,
-                [itemId]: merged
-            };
-        });
+        const existing = prev[itemId] || {
+            status: currentItem?.status || 'PENDING',
+            pickupDetails: currentItem?.pickupDetails || null,
+            size: currentItem?.size || ''
+        };
+
+        let merged = {};
+        if (typeof updatesOrStatus === 'object' && updatesOrStatus !== null) {
+            merged = { ...existing, ...updatesOrStatus };
+        } else {
+            merged = { ...existing, status: updatesOrStatus, pickupDetails };
+        }
+
+        return {
+            ...prev,
+            [itemId]: merged
+        };
+    });
     };
 
     const handleBulkSave = async (orderId) => {
@@ -220,7 +220,7 @@ const UniformOrderAdmin = () => {
         const prioA = getStatusPriority(a.status);
         const prioB = getStatusPriority(b.status);
         if (prioA !== prioB) return prioA - prioB;
-        
+
         const dateA = new Date(a.createdAt);
         const dateB = new Date(b.createdAt);
         if (prioA <= 3) {
@@ -479,12 +479,12 @@ const UniformOrderAdmin = () => {
                     </h1>
                     <p className="text-xs text-slate-400 mt-0.5">Kelola dan rekap pesanan seragam masuk</p>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-2">
                     {/* Menu Ekspor Dropdown */}
                     <div className="relative" ref={exportDropdownRef}>
-                        <button 
-                            onClick={() => setExportDropdownOpen(!exportDropdownOpen)} 
+                        <button
+                            onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
                             className="text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
                             title="Buka Menu Ekspor Excel"
                         >
@@ -496,8 +496,8 @@ const UniformOrderAdmin = () => {
                                 <div className="px-4 py-2 border-b border-slate-100">
                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ekspor Cepat ({activeTab === 'WARID' ? 'Wali Murid' : 'Unit'})</p>
                                 </div>
-                                <button 
-                                    onClick={() => handleRunExport('summary')} 
+                                <button
+                                    onClick={() => handleRunExport('summary')}
                                     className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-2.5 transition"
                                 >
                                     <ClipboardList size={16} className="text-indigo-600" />
@@ -506,8 +506,8 @@ const UniformOrderAdmin = () => {
                                         <div className="text-[10px] text-slate-400 font-normal">1 baris per nota/pesanan</div>
                                     </div>
                                 </button>
-                                <button 
-                                    onClick={() => handleRunExport('items')} 
+                                <button
+                                    onClick={() => handleRunExport('items')}
                                     className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-2.5 transition"
                                 >
                                     <Layers size={16} className="text-emerald-600" />
@@ -516,8 +516,8 @@ const UniformOrderAdmin = () => {
                                         <div className="text-[10px] text-slate-400 font-normal">Detail breakdown setiap barang & ukuran</div>
                                     </div>
                                 </button>
-                                <button 
-                                    onClick={() => handleRunExport('stock')} 
+                                <button
+                                    onClick={() => handleRunExport('stock')}
                                     className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-2.5 transition"
                                 >
                                     <Package size={16} className="text-amber-600" />
@@ -526,9 +526,9 @@ const UniformOrderAdmin = () => {
                                         <div className="text-[10px] text-slate-400 font-normal">Total akumulasi per barang & ukuran</div>
                                     </div>
                                 </button>
-                                
+
                                 <div className="border-t border-slate-100 my-1 pt-1">
-                                    <button 
+                                    <button
                                         onClick={() => { setExportDropdownOpen(false); setExportModalOpen(true); }}
                                         className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-xs font-bold text-indigo-600 flex items-center gap-2.5 transition"
                                     >
@@ -644,7 +644,7 @@ const UniformOrderAdmin = () => {
                                                         <div className="flex-1">
                                                             <div className="font-bold text-slate-700 text-sm">{item.itemName || 'Item'}</div>
                                                             <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                                                                <span className="flex items-center">Ukuran: 
+                                                                <span className="flex items-center">Ukuran:
                                                                     <select
                                                                         value={itemEdits[item.id]?.size || item.size || ''}
                                                                         onChange={(e) => handleEditItem(item.id, { size: e.target.value })}
@@ -775,10 +775,10 @@ const UniformOrderAdmin = () => {
                         <form onSubmit={handleEditOrderSubmit} className="p-4 space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Nama Siswa / Barang</label>
-                                <input 
-                                    type="text" 
-                                    value={formData.studentName} 
-                                    onChange={e => setFormData({...formData, studentName: e.target.value})}
+                                <input
+                                    type="text"
+                                    value={formData.studentName}
+                                    onChange={e => setFormData({ ...formData, studentName: e.target.value })}
                                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     required
                                 />
@@ -786,28 +786,28 @@ const UniformOrderAdmin = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Nama Pemesan</label>
-                                    <input 
-                                        type="text" 
-                                        value={formData.customerName} 
-                                        onChange={e => setFormData({...formData, customerName: e.target.value})}
+                                    <input
+                                        type="text"
+                                        value={formData.customerName}
+                                        onChange={e => setFormData({ ...formData, customerName: e.target.value })}
                                         className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">No HP / WA</label>
-                                    <input 
-                                        type="text" 
-                                        value={formData.customerPhone} 
-                                        onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                                    <input
+                                        type="text"
+                                        value={formData.customerPhone}
+                                        onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
                                         className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Unit</label>
-                                <select 
-                                    value={formData.customerUnit} 
-                                    onChange={e => setFormData({...formData, customerUnit: e.target.value})}
+                                <select
+                                    value={formData.customerUnit}
+                                    onChange={e => setFormData({ ...formData, customerUnit: e.target.value })}
                                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
                                 >
                                     <option value="">Pilih Unit</option>
@@ -817,21 +817,21 @@ const UniformOrderAdmin = () => {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Catatan Tambahan</label>
-                                <textarea 
-                                    value={formData.note} 
-                                    onChange={e => setFormData({...formData, note: e.target.value})}
+                                <textarea
+                                    value={formData.note}
+                                    onChange={e => setFormData({ ...formData, note: e.target.value })}
                                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-24"
                                 />
                             </div>
                             <div className="pt-4 flex justify-end gap-2">
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => setEditModal({ isOpen: false, order: null })}
                                     className="px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
                                 >
                                     Batal
                                 </button>
-                                <button 
+                                <button
                                     type="submit"
                                     className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
                                 >
@@ -868,13 +868,13 @@ const UniformOrderAdmin = () => {
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">1. Format Laporan</label>
                                 <div className="grid grid-cols-1 gap-2.5">
                                     <label className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition ${exportOptions.format === 'summary' ? 'bg-indigo-50/70 border-indigo-500 ring-1 ring-indigo-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'}`}>
-                                        <input 
-                                            type="radio" 
-                                            name="exportFormat" 
-                                            value="summary" 
-                                            checked={exportOptions.format === 'summary'} 
-                                            onChange={e => setExportOptions({...exportOptions, format: e.target.value})}
-                                            className="mt-0.5" 
+                                        <input
+                                            type="radio"
+                                            name="exportFormat"
+                                            value="summary"
+                                            checked={exportOptions.format === 'summary'}
+                                            onChange={e => setExportOptions({ ...exportOptions, format: e.target.value })}
+                                            className="mt-0.5"
                                         />
                                         <div>
                                             <div className="font-bold text-slate-800 text-xs sm:text-sm">Rekap Per Transaksi (Ringkasan)</div>
@@ -883,13 +883,13 @@ const UniformOrderAdmin = () => {
                                     </label>
 
                                     <label className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition ${exportOptions.format === 'items' ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'}`}>
-                                        <input 
-                                            type="radio" 
-                                            name="exportFormat" 
-                                            value="items" 
-                                            checked={exportOptions.format === 'items'} 
-                                            onChange={e => setExportOptions({...exportOptions, format: e.target.value})}
-                                            className="mt-0.5" 
+                                        <input
+                                            type="radio"
+                                            name="exportFormat"
+                                            value="items"
+                                            checked={exportOptions.format === 'items'}
+                                            onChange={e => setExportOptions({ ...exportOptions, format: e.target.value })}
+                                            className="mt-0.5"
                                         />
                                         <div>
                                             <div className="font-bold text-slate-800 text-xs sm:text-sm">Rincian Per Item Barang (Detail Item)</div>
@@ -898,13 +898,13 @@ const UniformOrderAdmin = () => {
                                     </label>
 
                                     <label className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition ${exportOptions.format === 'stock' ? 'bg-amber-50/70 border-amber-500 ring-1 ring-amber-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'}`}>
-                                        <input 
-                                            type="radio" 
-                                            name="exportFormat" 
-                                            value="stock" 
-                                            checked={exportOptions.format === 'stock'} 
-                                            onChange={e => setExportOptions({...exportOptions, format: e.target.value})}
-                                            className="mt-0.5" 
+                                        <input
+                                            type="radio"
+                                            name="exportFormat"
+                                            value="stock"
+                                            checked={exportOptions.format === 'stock'}
+                                            onChange={e => setExportOptions({ ...exportOptions, format: e.target.value })}
+                                            className="mt-0.5"
                                         />
                                         <div>
                                             <div className="font-bold text-slate-800 text-xs sm:text-sm">Rekap Kebutuhan Stok (Agregasi)</div>
@@ -917,9 +917,9 @@ const UniformOrderAdmin = () => {
                             {/* 2. Sumber Data */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">2. Sumber / Tipe Pesanan</label>
-                                <select 
-                                    value={exportOptions.source} 
-                                    onChange={e => setExportOptions({...exportOptions, source: e.target.value})}
+                                <select
+                                    value={exportOptions.source}
+                                    onChange={e => setExportOptions({ ...exportOptions, source: e.target.value })}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                                 >
                                     <option value="current">Sesuai Tab & Filter Saat Ini ({activeTab === 'WARID' ? 'Pesanan Wali Murid' : 'Pesanan Unit'})</option>
@@ -942,7 +942,7 @@ const UniformOrderAdmin = () => {
                                         <button
                                             key={t.id}
                                             type="button"
-                                            onClick={() => setExportOptions({...exportOptions, timeRange: t.id})}
+                                            onClick={() => setExportOptions({ ...exportOptions, timeRange: t.id })}
                                             className={`py-2 px-2.5 rounded-xl text-xs font-bold transition border ${exportOptions.timeRange === t.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                                         >
                                             {t.label}
@@ -952,11 +952,11 @@ const UniformOrderAdmin = () => {
 
                                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                                     <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
-                                        <input 
-                                            type="radio" 
-                                            name="customDateRadio" 
-                                            checked={exportOptions.timeRange === 'custom'} 
-                                            onChange={() => setExportOptions({...exportOptions, timeRange: 'custom'})} 
+                                        <input
+                                            type="radio"
+                                            name="customDateRadio"
+                                            checked={exportOptions.timeRange === 'custom'}
+                                            onChange={() => setExportOptions({ ...exportOptions, timeRange: 'custom' })}
                                         />
                                         <span>Gunakan Rentang Tanggal Custom</span>
                                     </label>
@@ -964,20 +964,20 @@ const UniformOrderAdmin = () => {
                                         <div className="grid grid-cols-2 gap-2 pt-1">
                                             <div>
                                                 <span className="text-[10px] text-slate-400 block mb-1">Dari Tanggal:</span>
-                                                <input 
-                                                    type="date" 
-                                                    value={exportOptions.startDate} 
-                                                    onChange={e => setExportOptions({...exportOptions, startDate: e.target.value})}
-                                                    className="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500" 
+                                                <input
+                                                    type="date"
+                                                    value={exportOptions.startDate}
+                                                    onChange={e => setExportOptions({ ...exportOptions, startDate: e.target.value })}
+                                                    className="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500"
                                                 />
                                             </div>
                                             <div>
                                                 <span className="text-[10px] text-slate-400 block mb-1">Sampai Tanggal:</span>
-                                                <input 
-                                                    type="date" 
-                                                    value={exportOptions.endDate} 
-                                                    onChange={e => setExportOptions({...exportOptions, endDate: e.target.value})}
-                                                    className="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500" 
+                                                <input
+                                                    type="date"
+                                                    value={exportOptions.endDate}
+                                                    onChange={e => setExportOptions({ ...exportOptions, endDate: e.target.value })}
+                                                    className="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500"
                                                 />
                                             </div>
                                         </div>
@@ -987,14 +987,14 @@ const UniformOrderAdmin = () => {
 
                             {/* Action Buttons */}
                             <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => setExportModalOpen(false)}
                                     className="px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
                                 >
                                     Batal
                                 </button>
-                                <button 
+                                <button
                                     type="submit"
                                     className="px-6 py-2.5 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
                                 >

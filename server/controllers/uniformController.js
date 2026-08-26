@@ -656,34 +656,40 @@ exports.deletePricingRule = async (req, res) => {
 
 exports.updatePricingRule = async (req, res) => {
     try {
-        const { price } = req.body;
+        const { categoryId, clothingTypeId, unitId, gender, sizeNames, price } = req.body;
         if (!price) return res.status(400).json({ error: 'Harga baru harus diisi' });
 
         const oldRule = await prisma.uniformPricingRule.findUnique({ where: { id: parseInt(req.params.id) } });
         if (!oldRule) return res.status(404).json({ error: 'Aturan lama tidak ditemukan' });
 
+        const newCatId = categoryId !== undefined ? (categoryId ? parseInt(categoryId) : null) : oldRule.categoryId;
+        const newClothingTypeId = clothingTypeId !== undefined ? (clothingTypeId ? parseInt(clothingTypeId) : null) : oldRule.clothingTypeId;
+        const newUnitId = unitId !== undefined ? (unitId ? parseInt(unitId) : null) : oldRule.unitId;
+        const newGender = gender !== undefined ? (gender || null) : oldRule.gender;
+        const newSizeNames = sizeNames !== undefined ? (Array.isArray(sizeNames) ? sizeNames.join(';') : (sizeNames || null)) : oldRule.sizeNames;
+
         await prisma.$transaction(async (tx) => {
-            // 1. Nonaktifkan aturan lama
+            // 1. Nonaktifkan aturan lama (untuk arsip riwayat)
             await tx.uniformPricingRule.update({
                 where: { id: oldRule.id },
                 data: { isActive: false }
             });
 
-            // 2. Buat aturan baru yang identik tapi dengan harga baru
+            // 2. Buat aturan baru dengan data yang telah diperbarui
             await tx.uniformPricingRule.create({
                 data: {
-                    categoryId: oldRule.categoryId,
-                    clothingTypeId: oldRule.clothingTypeId,
-                    unitId: oldRule.unitId,
-                    gender: oldRule.gender,
-                    sizeNames: oldRule.sizeNames,
+                    categoryId: newCatId,
+                    clothingTypeId: newClothingTypeId,
+                    unitId: newUnitId,
+                    gender: newGender,
+                    sizeNames: newSizeNames,
                     price: parseFloat(price),
                     isActive: true
                 }
             });
         });
 
-        res.json({ message: 'Harga berhasil diperbarui dan riwayat disimpan' });
+        res.json({ message: 'Aturan harga berhasil diperbarui dan riwayat disimpan' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
