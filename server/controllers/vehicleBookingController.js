@@ -16,6 +16,13 @@ const formatWAWaktu = (date) => {
     return `${day} ${month} ${year} ${hh}.${mm}`;
 };
 
+// Helper for formatting absolute media URL
+const formatMediaUrl = (url) => {
+    if (!url) return '-';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://sarpras.dareliman.or.id${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 // Helper for Overlap Detection
 const findOverlappingBooking = async (vehicleId, start, end, excludeId = null) => {
     return await prisma.vehicleBooking.findFirst({
@@ -505,7 +512,7 @@ exports.startTrip = async (req, res) => {
                 `KM Terakhir Sistem: ${currentOdometer}\n` +
                 `KM Awal Input: ${inputKm}\n` +
                 `Selisih: *${diff} KM*\n` +
-                `Foto Odometer Awal: ${startPhotoUrl}\n\n` +
+                `Foto Odometer Awal: ${formatMediaUrl(startPhotoUrl)}\n\n` +
                 `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
 
             // A. Notify Kepala Bidang Sarpras & Staff Kendaraan & Vehicle PICs
@@ -646,7 +653,7 @@ exports.endTrip = async (req, res) => {
                 `Pengemudi: ${booking.user.name}\n` +
                 `KM Akhir: ${endKm}\n` +
                 `Deskripsi Insiden:\n"${incidentNotes || '-'}"\n\n` +
-                `*Foto Bukti Kejadian:* ${photoUrl || '-'}\n\n` +
+                `*Foto Bukti Kejadian:* ${formatMediaUrl(photoUrl)}\n\n` +
                 `_Tiket Pemeliharaan Insidental otomatis dibuat di sistem untuk ditindaklanjuti Tim Sarpras._`;
 
             for (const person of incidentRecipients) {
