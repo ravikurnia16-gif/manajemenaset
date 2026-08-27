@@ -10,6 +10,9 @@ const isSuperAdminOrIT = authorizeRole(['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPR
 
 router.use(verifyToken);
 
+// DASHBOARD
+router.get('/dashboard/summary', invCtrl.getDashboardSummary);
+
 // WAREHOUSE
 router.get('/warehouses', invCtrl.getWarehouses);
 router.post('/warehouses', isAdmin, invCtrl.createWarehouse);

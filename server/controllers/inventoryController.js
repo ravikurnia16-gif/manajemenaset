@@ -634,3 +634,115 @@ exports.deleteVendor = async (req, res) => {
         res.json({ message: 'Vendor deleted' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
+
+// ==========================================
+// DASHBOARD SUMMARY
+// ==========================================
+exports.getDashboardSummary = async (req, res) => {
+    try {
+        const [items, warehouses, transactions, orders, categories] = await Promise.all([
+            prisma.invItem.findMany({
+                include: {
+                    category: true,
+                    stocks: { include: { warehouse: true } }
+                }
+            }),
+            prisma.uniformWarehouse.findMany({ orderBy: { name: 'asc' } }),
+            prisma.invTransaction.findMany({
+                take: 10,
+                orderBy: { date: 'desc' },
+                include: { item: true, warehouse: true }
+            }),
+            prisma.invOrder.findMany({
+                orderBy: { date: 'desc' },
+                include: { items: { include: { item: true } } }
+            }),
+            prisma.invCategory.findMany({
+                include: { _count: { select: { items: true } } }
+            })
+        ]);
+
+        let totalItems = items.length;
+        let totalCategories = categories.length;
+        let totalWarehouses = warehouses.length;
+
+        let totalStockVolume = 0;
+        let totalAssetValue = 0;
+        let lowStockCount = 0;
+        let outOfStockCount = 0;
+
+        const alertItems = [];
+
+        items.forEach(item => {
+            const currentStock = item.stocks.reduce((acc, s) => acc + s.quantity, 0);
+            totalStockVolume += currentStock;
+            const price = item.sellingPrice || item.price || 0;
+            totalAssetValue += (currentStock * price);
+
+            const isOut = currentStock === 0;
+            const isLow = currentStock > 0 && currentStock <= (item.minStock || 5);
+
+            if (isOut) outOfStockCount++;
+            else if (isLow) lowStockCount++;
+
+            if (isOut || isLow) {
+                alertItems.push({
+                    id: item.id,
+                    code: item.code,
+                    name: item.name,
+                    unit: item.unit,
+                    image: item.image,
+                    minStock: item.minStock || 5,
+                    categoryName: item.category?.name || '-',
+                    currentStock,
+                    isOut,
+                    isLow
+                });
+            }
+        });
+
+        const pendingOrdersCount = orders.filter(o => o.status === 'PENDING').length;
+        const approvedOrdersCount = orders.filter(o => o.status === 'APPROVED').length;
+        const processOrdersCount = orders.filter(o => o.status === 'PROCESS').length;
+        const completedOrdersCount = orders.filter(o => o.status === 'COMPLETED').length;
+        const rejectedOrdersCount = orders.filter(o => o.status === 'REJECTED').length;
+
+        const recentPendingOrders = orders.filter(o => o.status === 'PENDING').slice(0, 5);
+
+        const categoryChartData = categories.map(cat => ({
+            name: cat.name,
+            totalItems: cat._count?.items || 0
+        })).filter(c => c.totalItems > 0);
+
+        const orderStatusData = [
+            { name: 'Menunggu', value: pendingOrdersCount, color: '#f59e0b' },
+            { name: 'Disetujui', value: approvedOrdersCount, color: '#3b82f6' },
+            { name: 'Diproses', value: processOrdersCount, color: '#6366f1' },
+            { name: 'Selesai', value: completedOrdersCount, color: '#10b981' },
+            { name: 'Ditolak', value: rejectedOrdersCount, color: '#ef4444' },
+        ].filter(d => d.value > 0);
+
+        res.json({
+            metrics: {
+                totalItems,
+                totalCategories,
+                totalWarehouses,
+                totalStockVolume,
+                totalAssetValue,
+                lowStockCount,
+                outOfStockCount,
+                pendingOrders: pendingOrdersCount,
+                completedOrders: completedOrdersCount,
+                totalOrders: orders.length
+            },
+            recentTransactions: transactions,
+            recentPendingOrders,
+            alertItems: alertItems.slice(0, 10),
+            categoryChartData,
+            orderStatusData,
+            warehouses
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
