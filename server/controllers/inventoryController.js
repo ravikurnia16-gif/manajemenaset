@@ -2,6 +2,23 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const xlsx = require('xlsx');
 const fs = require('fs');
+const { uploadFile, deleteFile } = require('../services/minioService');
+
+const uploadBase64 = async (base64String, folder = 'inventory/items') => {
+    if (!base64String || typeof base64String !== 'string' || !base64String.startsWith('data:')) return base64String;
+    try {
+        const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) return null;
+        const type = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        const extension = type.split('/')[1] || 'jpg';
+        const fileName = `item_${Date.now()}.${extension}`;
+        return await uploadFile(buffer, fileName, type, folder);
+    } catch (e) {
+        console.error('Base64 Upload to MinIO Error:', e);
+        return null;
+    }
+};
 
 // ==========================================
 // MASTER WAREHOUSE
@@ -108,8 +125,16 @@ exports.getItems = async (req, res) => {
 
 exports.createItem = async (req, res) => {
     try {
-        const { id, category, stocks, totalStock, ...rest } = req.body;
+        const { id, category, stocks, totalStock, image, ...rest } = req.body;
         const code = await generateItemCode();
+
+        let imageUrl = null;
+        if (image && image.startsWith('data:')) {
+            imageUrl = await uploadBase64(image, 'inventory/items');
+        } else if (image) {
+            imageUrl = image;
+        }
+
         const data = await prisma.invItem.create({
             data: {
                 ...rest,
@@ -118,7 +143,7 @@ exports.createItem = async (req, res) => {
                 minStock: req.body.minStock ? parseInt(req.body.minStock) : 5,
                 price: req.body.price ? parseFloat(req.body.price) : null,
                 sellingPrice: req.body.sellingPrice ? parseFloat(req.body.sellingPrice) : null,
-                image: req.body.image || null
+                image: imageUrl
             }
         });
         res.json(data);
@@ -127,16 +152,36 @@ exports.createItem = async (req, res) => {
 
 exports.updateItem = async (req, res) => {
     try {
-        const { id, category, stocks, totalStock, ...rest } = req.body;
+        const { id, category, stocks, totalStock, image, ...rest } = req.body;
+        const itemId = parseInt(req.params.id);
+        const existingItem = await prisma.invItem.findUnique({ where: { id: itemId } });
+
+        let imageUrl = undefined;
+        if (image !== undefined) {
+            if (image && image.startsWith('data:')) {
+                imageUrl = await uploadBase64(image, 'inventory/items');
+                if (existingItem?.image && existingItem.image.startsWith('/api/media/')) {
+                    deleteFile(existingItem.image).catch(console.error);
+                }
+            } else if (image === null) {
+                imageUrl = null;
+                if (existingItem?.image && existingItem.image.startsWith('/api/media/')) {
+                    deleteFile(existingItem.image).catch(console.error);
+                }
+            } else {
+                imageUrl = image;
+            }
+        }
+
         const data = await prisma.invItem.update({
-            where: { id: parseInt(req.params.id) },
+            where: { id: itemId },
             data: {
                 ...rest,
                 categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : undefined,
                 minStock: req.body.minStock !== undefined ? parseInt(req.body.minStock) : undefined,
                 price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined,
                 sellingPrice: req.body.sellingPrice !== undefined ? parseFloat(req.body.sellingPrice) : undefined,
-                image: req.body.image !== undefined ? req.body.image : undefined
+                image: imageUrl
             }
         });
         res.json(data);
@@ -145,7 +190,12 @@ exports.updateItem = async (req, res) => {
 
 exports.deleteItem = async (req, res) => {
     try {
-        await prisma.invItem.delete({ where: { id: parseInt(req.params.id) } });
+        const itemId = parseInt(req.params.id);
+        const item = await prisma.invItem.findUnique({ where: { id: itemId } });
+        if (item?.image && item.image.startsWith('/api/media/')) {
+            deleteFile(item.image).catch(console.error);
+        }
+        await prisma.invItem.delete({ where: { id: itemId } });
         res.json({ message: 'Item deleted' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
