@@ -73,11 +73,33 @@ export default function InventoryOrders() {
     }
   };
 
+  // Helper to extract logged-in user profile info
+  const getLoggedInUserInfo = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const name = user.name || user.fullName || user.username || '';
+      let unit = '';
+      if (user.unit) {
+        if (typeof user.unit === 'string') unit = user.unit;
+        else if (typeof user.unit === 'object' && user.unit.name) unit = user.unit.name;
+      } else if (user.unitName) {
+        unit = user.unitName;
+      } else if (user.unit_name) {
+        unit = user.unit_name;
+      } else if (user.department) {
+        unit = user.department;
+      }
+      return { name, unit };
+    } catch (e) {
+      return { name: '', unit: '' };
+    }
+  };
+
   const openCreateModal = () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userInfo = getLoggedInUserInfo();
     setFormData({
-      requesterName: user.name || user.username || '',
-      requesterUnit: user.unit?.name || '',
+      requesterName: userInfo.name,
+      requesterUnit: userInfo.unit,
       date: new Date().toISOString().split('T')[0],
       note: '',
       items: []
@@ -527,7 +549,12 @@ export default function InventoryOrders() {
                         <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                           <User size={14} className="text-blue-600" /> Informasi Pemesan
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono">{formData.date}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle size={10} /> Akun Login
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">{formData.date}</span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
