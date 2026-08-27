@@ -108,15 +108,17 @@ exports.getItems = async (req, res) => {
 
 exports.createItem = async (req, res) => {
     try {
+        const { id, category, stocks, totalStock, ...rest } = req.body;
         const code = await generateItemCode();
         const data = await prisma.invItem.create({
             data: {
-                ...req.body,
+                ...rest,
                 code,
                 categoryId: parseInt(req.body.categoryId),
                 minStock: req.body.minStock ? parseInt(req.body.minStock) : 5,
                 price: req.body.price ? parseFloat(req.body.price) : null,
-                sellingPrice: req.body.sellingPrice ? parseFloat(req.body.sellingPrice) : null
+                sellingPrice: req.body.sellingPrice ? parseFloat(req.body.sellingPrice) : null,
+                image: req.body.image || null
             }
         });
         res.json(data);
@@ -125,14 +127,16 @@ exports.createItem = async (req, res) => {
 
 exports.updateItem = async (req, res) => {
     try {
+        const { id, category, stocks, totalStock, ...rest } = req.body;
         const data = await prisma.invItem.update({
             where: { id: parseInt(req.params.id) },
             data: {
-                ...req.body,
+                ...rest,
                 categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : undefined,
                 minStock: req.body.minStock !== undefined ? parseInt(req.body.minStock) : undefined,
                 price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined,
-                sellingPrice: req.body.sellingPrice !== undefined ? parseFloat(req.body.sellingPrice) : undefined
+                sellingPrice: req.body.sellingPrice !== undefined ? parseFloat(req.body.sellingPrice) : undefined,
+                image: req.body.image !== undefined ? req.body.image : undefined
             }
         });
         res.json(data);

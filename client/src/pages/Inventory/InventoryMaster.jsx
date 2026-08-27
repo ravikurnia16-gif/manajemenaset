@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Package, FolderTree, Building2, Users, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Package, FolderTree, Building2, Users, Plus, Edit, Trash2, Search, Upload, X, Image as ImageIcon } from 'lucide-react';
 import api from '../../lib/axios';
+import { getMediaUrl, compressImage } from '../../lib/media';
 
 export default function InventoryMaster() {
   const [activeTab, setActiveTab] = useState('items');
@@ -54,7 +55,7 @@ const ItemsTab = () => {
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '' });
+  const [formData, setFormData] = useState({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '', image: null });
 
   useEffect(() => {
     fetchItems();
@@ -97,6 +98,32 @@ const ItemsTab = () => {
     } catch (e) { alert('Gagal menghapus barang. Mungkin barang ini sedang digunakan dalam transaksi.'); }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('File harus berupa gambar (JPG, PNG, WebP)');
+      return;
+    }
+
+    try {
+      const compressedFile = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.7 });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result }));
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (err) {
+      console.error('Compress image error:', err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const filteredItems = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()) || i.code.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -104,47 +131,102 @@ const ItemsTab = () => {
       <div className="flex justify-between items-center mb-4">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input type="text" placeholder="Cari barang..." className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-blue-500" value={search} onChange={e => setSearch(e.target.value)} />
+          <input type="text" placeholder="Cari barang..." className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-blue-500 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button onClick={() => { setFormData({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '' }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center">
+        <button onClick={() => { setFormData({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '', image: null }); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center shadow-sm">
           <Plus className="w-4 h-4 mr-2" /> Tambah Barang
         </button>
       </div>
 
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="bg-gray-100 text-gray-600 text-sm">
-            <th className="p-3 border-b">Kode</th>
-            <th className="p-3 border-b">Nama Barang</th>
-            <th className="p-3 border-b">Kategori</th>
-            <th className="p-3 border-b">Satuan</th>
-            <th className="p-3 border-b">Min Stok</th>
-            <th className="p-3 border-b">Harga Jual</th>
-            <th className="p-3 border-b text-right">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? <tr><td colSpan="6" className="text-center p-4">Memuat...</td></tr> : 
-           filteredItems.map(item => (
-            <tr key={item.id} className="border-b hover:bg-gray-50">
-              <td className="p-3 font-mono text-sm">{item.code}</td>
-              <td className="p-3 font-medium">{item.name}</td>
-              <td className="p-3">{item.category?.name}</td>
-              <td className="p-3">{item.unit}</td>
-              <td className="p-3">{item.minStock}</td>
-              <td className="p-3">{item.sellingPrice ? `Rp ${item.sellingPrice.toLocaleString('id-ID')}` : '-'}</td>
-              <td className="p-3 text-right">
-                <button onClick={() => { setFormData({ ...item, categoryId: item.categoryId || '' }); setIsModalOpen(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded"><Edit className="w-4 h-4"/></button>
-                <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:bg-red-100 p-2 rounded ml-2"><Trash2 className="w-4 h-4"/></button>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-gray-600 text-sm">
+              <th className="p-3 border-b">Foto</th>
+              <th className="p-3 border-b">Kode</th>
+              <th className="p-3 border-b">Nama Barang</th>
+              <th className="p-3 border-b">Kategori</th>
+              <th className="p-3 border-b">Satuan</th>
+              <th className="p-3 border-b">Min Stok</th>
+              <th className="p-3 border-b">Harga Jual</th>
+              <th className="p-3 border-b text-right">Aksi</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan="8" className="text-center p-4">Memuat...</td></tr> : 
+             filteredItems.length === 0 ? <tr><td colSpan="8" className="text-center p-4 text-gray-500">Belum ada barang</td></tr> :
+             filteredItems.map(item => (
+              <tr key={item.id} className="border-b hover:bg-gray-50">
+                <td className="p-3">
+                  {item.image ? (
+                    <img src={getMediaUrl(item.image)} alt={item.name} className="w-10 h-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 border border-gray-200">
+                      <Package className="w-5 h-5" />
+                    </div>
+                  )}
+                </td>
+                <td className="p-3 font-mono text-sm">{item.code}</td>
+                <td className="p-3 font-medium text-gray-800">{item.name}</td>
+                <td className="p-3">{item.category?.name || '-'}</td>
+                <td className="p-3">{item.unit}</td>
+                <td className="p-3">{item.minStock}</td>
+                <td className="p-3">{item.sellingPrice ? `Rp ${item.sellingPrice.toLocaleString('id-ID')}` : '-'}</td>
+                <td className="p-3 text-right">
+                  <button onClick={() => { setFormData({ ...item, categoryId: item.categoryId || '', image: item.image || null }); setIsModalOpen(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded"><Edit className="w-4 h-4"/></button>
+                  <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:bg-red-100 p-2 rounded ml-2"><Trash2 className="w-4 h-4"/></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {isModalOpen && (
         <Modal title={formData.id ? 'Edit Barang' : 'Tambah Barang'} onClose={() => setIsModalOpen(false)}>
           <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Foto Barang</label>
+              <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-dashed border-gray-300">
+                <div className="w-20 h-20 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden relative group shadow-sm flex-shrink-0">
+                  {formData.image ? (
+                    <>
+                      <img src={getMediaUrl(formData.image)} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, image: null }))}
+                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        title="Hapus Foto"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <ImageIcon className="w-7 h-7" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="item-photo-upload"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                  <label
+                    htmlFor="item-photo-upload"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg cursor-pointer transition-all shadow-sm"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-blue-600" />
+                    {formData.image ? 'Ganti Foto' : 'Upload Foto Barang...'}
+                  </label>
+                  <p className="text-[11px] text-gray-500 mt-1">Format: JPG, PNG, WebP (Otomatis dikompres)</p>
+                </div>
+              </div>
+            </div>
+
             <div><label className="block text-sm mb-1">Nama Barang</label><input required type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
             <div><label className="block text-sm mb-1">Kategori</label>
               <select required className="w-full border p-2 rounded" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}>
