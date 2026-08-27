@@ -19,6 +19,8 @@ router.delete('/warehouses/:id', isSuperAdminOrIT, invCtrl.deleteWarehouse);
 // CATEGORY
 router.get('/categories', invCtrl.getCategories);
 router.post('/categories', isAdmin, invCtrl.createCategory);
+router.put('/categories/:id', isAdmin, invCtrl.updateCategory);
+router.delete('/categories/:id', isAdmin, invCtrl.deleteCategory);
 
 // ITEMS
 router.get('/items', invCtrl.getItems);

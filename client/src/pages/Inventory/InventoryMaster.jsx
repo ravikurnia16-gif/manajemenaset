@@ -255,45 +255,145 @@ const ItemsTab = () => {
 // ==========================================
 const CategoriesTab = () => {
   const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [name, setName] = useState('');
+  const [formData, setFormData] = useState({ id: null, name: '' });
 
   useEffect(() => { fetchCategories(); }, []);
 
   const fetchCategories = async () => {
+    setLoading(true);
     try {
       const res = await api.get('/inventory/categories');
       setCategories(res.data);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/inventory/categories', { name });
+      if (formData.id) {
+        await api.put(`/inventory/categories/${formData.id}`, { name: formData.name });
+      } else {
+        await api.post('/inventory/categories', { name: formData.name });
+      }
       setIsModalOpen(false);
-      setName('');
+      setFormData({ id: null, name: '' });
       fetchCategories();
-    } catch (e) { alert('Gagal menyimpan kategori'); }
+    } catch (e) { 
+      alert(e.response?.data?.error || 'Gagal menyimpan kategori'); 
+    }
   };
+
+  const handleDelete = async (id, categoryName) => {
+    if (!window.confirm(`Yakin ingin menghapus kategori "${categoryName}"?`)) return;
+    try {
+      await api.delete(`/inventory/categories/${id}`);
+      fetchCategories();
+    } catch (e) {
+      alert(e.response?.data?.error || 'Gagal menghapus kategori');
+    }
+  };
+
+  const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center"><Plus className="w-4 h-4 mr-2" /> Tambah Kategori</button>
+      <div className="flex justify-between items-center mb-4">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input 
+            type="text" 
+            placeholder="Cari kategori..." 
+            className="pl-9 pr-4 py-2 w-full border rounded-lg focus:ring-blue-500 text-sm outline-none" 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+          />
+        </div>
+        <button 
+          onClick={() => { setFormData({ id: null, name: '' }); setIsModalOpen(true); }} 
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center shadow-sm"
+        >
+          <Plus className="w-4 h-4 mr-2" /> Tambah Kategori
+        </button>
       </div>
-      <table className="w-full text-left border-collapse">
-        <thead><tr className="bg-gray-100"><th className="p-3 border-b">Nama Kategori</th></tr></thead>
-        <tbody>
-          {categories.map(c => <tr key={c.id} className="border-b"><td className="p-3">{c.name}</td></tr>)}
-        </tbody>
-      </table>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-gray-600 text-sm">
+              <th className="p-3 border-b">Nama Kategori</th>
+              <th className="p-3 border-b">Jumlah Barang</th>
+              <th className="p-3 border-b text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan="3" className="text-center p-4 text-gray-500">Memuat data kategori...</td></tr>
+            ) : filteredCategories.length === 0 ? (
+              <tr><td colSpan="3" className="text-center p-4 text-gray-500">Belum ada kategori</td></tr>
+            ) : (
+              filteredCategories.map(c => (
+                <tr key={c.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3 font-semibold text-gray-800">{c.name}</td>
+                  <td className="p-3">
+                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold border border-blue-200">
+                      {c._count?.items || 0} Barang
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <button 
+                      onClick={() => { setFormData({ id: c.id, name: c.name }); setIsModalOpen(true); }} 
+                      className="text-blue-600 hover:bg-blue-100 p-2 rounded transition-colors"
+                      title="Edit Kategori"
+                    >
+                      <Edit className="w-4 h-4"/>
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(c.id, c.name)} 
+                      className="text-red-600 hover:bg-red-100 p-2 rounded ml-2 transition-colors"
+                      title="Hapus Kategori"
+                    >
+                      <Trash2 className="w-4 h-4"/>
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {isModalOpen && (
-        <Modal title="Tambah Kategori Baru" onClose={() => setIsModalOpen(false)}>
+        <Modal title={formData.id ? 'Edit Kategori' : 'Tambah Kategori Baru'} onClose={() => setIsModalOpen(false)}>
           <form onSubmit={handleSave} className="space-y-4">
-            <div><label className="block text-sm mb-1">Nama Kategori</label><input required type="text" className="w-full border p-2 rounded" value={name} onChange={e => setName(e.target.value)}/></div>
-            <div className="flex justify-end pt-4"><button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Simpan</button></div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kategori *</label>
+              <input 
+                required 
+                type="text" 
+                className="w-full border p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                placeholder="Contoh: ATK, Kebersihan, Cetakan"
+                value={formData.name} 
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <button 
+                type="button" 
+                onClick={() => setIsModalOpen(false)} 
+                className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Batal
+              </button>
+              <button 
+                type="submit" 
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"
+              >
+                Simpan
+              </button>
+            </div>
           </form>
         </Modal>
       )}

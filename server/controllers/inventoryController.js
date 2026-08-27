@@ -59,15 +59,40 @@ exports.deleteWarehouse = async (req, res) => {
 // ==========================================
 exports.getCategories = async (req, res) => {
     try {
-        const data = await prisma.invCategory.findMany({ orderBy: { name: 'asc' } });
+        const data = await prisma.invCategory.findMany({ 
+            include: { _count: { select: { items: true } } },
+            orderBy: { name: 'asc' } 
+        });
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.createCategory = async (req, res) => {
     try {
-        const data = await prisma.invCategory.create({ data: req.body });
+        const data = await prisma.invCategory.create({ data: { name: req.body.name } });
         res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.updateCategory = async (req, res) => {
+    try {
+        const data = await prisma.invCategory.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name: req.body.name }
+        });
+        res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.deleteCategory = async (req, res) => {
+    try {
+        const categoryId = parseInt(req.params.id);
+        const itemCount = await prisma.invItem.count({ where: { categoryId } });
+        if (itemCount > 0) {
+            return res.status(400).json({ error: `Kategori tidak dapat dihapus karena masih digunakan oleh ${itemCount} barang.` });
+        }
+        await prisma.invCategory.delete({ where: { id: categoryId } });
+        res.json({ message: 'Category deleted' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
