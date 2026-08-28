@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
-  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter
+  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy
 } from 'lucide-react';
 import { Badge } from './UIComponents';
 
@@ -542,6 +542,14 @@ export const SalesTab = ({
 }) => {
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPublicLink = () => {
+    const url = `${window.location.origin}/pesan-seragam`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const toggleExpand = (id) => {
     setExpandedSaleIds(prev => {
@@ -616,9 +624,9 @@ export const SalesTab = ({
 
   return (
     <div className="space-y-4">
-      {/* Top Search, Status Filter & Create Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-        <div className="flex flex-wrap gap-2 items-center flex-1 max-w-xl">
+      {/* Top Search, Public Link Buttons & Create Bar */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+        <div className="flex flex-wrap gap-2 items-center flex-1 max-w-lg w-full">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
@@ -631,12 +639,49 @@ export const SalesTab = ({
           </div>
         </div>
 
-        <button 
-          onClick={() => openModal('sale')} 
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all shrink-0"
-        >
-          <ShoppingCart size={15} /> Buat Pesanan
-        </button>
+        {/* Action Buttons: Public Form Link & Create Admin Order */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          {/* Tombol Buka Form Publik */}
+          <a
+            href="/pesan-seragam"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-sm"
+            title="Buka Halaman Form Pemesanan Seragam Publik untuk Wali Murid"
+          >
+            <Globe size={14} className="text-emerald-600" />
+            <span>Form Pesan Seragam Publik</span>
+            <ExternalLink size={12} className="text-emerald-500" />
+          </a>
+
+          {/* Tombol Salin Link */}
+          <button
+            type="button"
+            onClick={handleCopyPublicLink}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-sm"
+            title="Salin Link Pemesanan Publik untuk Dibagikan ke Wali Murid via WhatsApp"
+          >
+            {copied ? (
+              <>
+                <CheckCheck size={14} className="text-emerald-600" />
+                <span className="text-emerald-600">Tersalin!</span>
+              </>
+            ) : (
+              <>
+                <Copy size={13} className="text-slate-500" />
+                <span>Salin Link</span>
+              </>
+            )}
+          </button>
+
+          {/* Tombol Buat Pesanan (Admin) */}
+          <button 
+            onClick={() => openModal('sale')} 
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all shrink-0"
+          >
+            <ShoppingCart size={14} /> Buat Pesanan
+          </button>
+        </div>
       </div>
 
       {/* Quick Status Filter Tabs */}
