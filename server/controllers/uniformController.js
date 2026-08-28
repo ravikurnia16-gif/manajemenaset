@@ -3159,18 +3159,18 @@ exports.manageSaleItems = async (req, res) => {
                 }
                 
                 // PENDING/SEDIA/DIAMBIL/dll -> BATAL (Subtotal adj untuk SEDIA dan DIAMBIL sudah ditangani di atas)
-                
                 // BATAL -> SEDIA / DIAMBIL
                 if (oldStatus === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(newStatus)) {
                     subtotalAdjustment += item.totalPrice;
                 }
-                
-                // Tambahkan ke list notifikasi update status
+                      // Tambahkan ke list notifikasi update status
                 let locText = '';
                 if (newStatus === 'SEDIA') {
                     const transitWhId = parseInt(update.transitWarehouseId);
-                    const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
-                    locText = transitWh?.name || 'Gudang';
+                    if (transitWhId) {
+                        const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
+                        locText = (transitWh?.location && transitWh.location.trim()) ? transitWh.location.trim() : (transitWh?.name || '');
+                    }
                 }
                 
                 notifications.updates.push({
@@ -3278,6 +3278,29 @@ exports.manageSaleItems = async (req, res) => {
                 }
                 
                 const updateLog = notifications.updates.find(u => u.itemName === itemName && u.size === size);
+                let loc = updateLog ? updateLog.location : '';
+
+                if (update.status === 'SEDIA' && !loc) {
+                    const item = itemsMap.get(parseInt(update.saleItemId));
+                    if (item) {
+                        const lastMutTrx = await tx.uniformStockTransaction.findFirst({
+                            where: { 
+                                referenceType: 'SALE', 
+                                referenceId: sale.id, 
+                                variantId: item.variantId, 
+                                type: 'MUTATION' 
+                            },
+                            include: { toWarehouse: true },
+                            orderBy: { id: 'desc' }
+                        });
+                        if (lastMutTrx && lastMutTrx.toWarehouse) {
+                            loc = (lastMutTrx.toWarehouse.location && lastMutTrx.toWarehouse.location.trim()) 
+                                  ? lastMutTrx.toWarehouse.location.trim() 
+                                  : (lastMutTrx.toWarehouse.name || '');
+                        }
+                    }
+                }
+
                 allItemsSummary.push({
                     itemName,
                     size,
@@ -3285,7 +3308,7 @@ exports.manageSaleItems = async (req, res) => {
                     status: update.status,
                     changed: !!updateLog,
                     oldStatus: updateLog ? updateLog.oldStatus : '',
-                    location: updateLog ? updateLog.location : ''
+                    location: loc
                 });
             }
             notifications.allItemsSummary = allItemsSummary;
