@@ -3309,7 +3309,6 @@ exports.manageSaleItems = async (req, res) => {
                 msg += `✅ *BARANG TERSEDIA (Siap Diambil)*\n`;
                 sedia.forEach(i => {
                     msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
-                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ SEDIA)*`;
                     if (i.location) msg += `\n  📍 Lokasi: ${i.location}`;
                     msg += '\n';
                 });
@@ -3319,9 +3318,7 @@ exports.manageSaleItems = async (req, res) => {
             if (diambil.length > 0) {
                 msg += `📦 *BARANG TELAH DIAMBIL (Diserahkan)*\n`;
                 diambil.forEach(i => {
-                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
-                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ DIAMBIL)*`;
-                    msg += '\n';
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs\n`;
                 });
                 msg += '\n';
             }
@@ -3329,9 +3326,7 @@ exports.manageSaleItems = async (req, res) => {
             if (indent.length > 0) {
                 msg += `⏳ *BARANG INDENT (Menunggu Produksi/Stok)*\n`;
                 indent.forEach(i => {
-                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
-                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ ${i.status})*`;
-                    msg += '\n';
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs\n`;
                 });
                 msg += '\n';
             }
@@ -3339,9 +3334,7 @@ exports.manageSaleItems = async (req, res) => {
             if (kosong.length > 0) {
                 msg += `❌ *BARANG TIDAK TERSEDIA (Kosong)*\n`;
                 kosong.forEach(i => {
-                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
-                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ KOSONG)*`;
-                    msg += '\n';
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs\n`;
                 });
                 msg += '\n';
             }
@@ -3349,9 +3342,7 @@ exports.manageSaleItems = async (req, res) => {
             if (batal.length > 0) {
                 msg += `🚫 *BATAL*\n`;
                 batal.forEach(i => {
-                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
-                    if (i.changed) msg += ` *(Update: ${i.oldStatus} ➡️ BATAL)*`;
-                    msg += '\n';
+                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs\n`;
                 });
                 msg += '\n';
             }
