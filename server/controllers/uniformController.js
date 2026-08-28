@@ -3307,11 +3307,41 @@ exports.manageSaleItems = async (req, res) => {
 
             if (sedia.length > 0) {
                 msg += `✅ *BARANG TERSEDIA (Siap Diambil)*\n`;
+                
+                // Group items by location
+                const locationMap = new Map();
                 sedia.forEach(i => {
-                    msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs`;
-                    if (i.location) msg += `\n  📍 Lokasi: ${i.location}`;
-                    msg += '\n';
+                    const loc = (i.location && i.location.trim()) ? i.location.trim() : '';
+                    if (!locationMap.has(loc)) {
+                        locationMap.set(loc, []);
+                    }
+                    locationMap.get(loc).push(i);
                 });
+
+                const uniqueLocations = Array.from(locationMap.keys());
+
+                if (uniqueLocations.length === 1) {
+                    const locName = uniqueLocations[0];
+                    if (locName) {
+                        msg += `📍 *Lokasi:* ${locName}\n`;
+                    }
+                    locationMap.get(locName).forEach(i => {
+                        msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs\n`;
+                    });
+                } else {
+                    uniqueLocations.forEach(locName => {
+                        if (locName) {
+                            msg += `📍 *Lokasi: ${locName}*\n`;
+                        } else {
+                            msg += `📍 *Lokasi: Pengambilan Utama*\n`;
+                        }
+                        locationMap.get(locName).forEach(i => {
+                            msg += `- ${i.itemName} (${i.size}) x${i.qty} pcs\n`;
+                        });
+                        msg += '\n';
+                    });
+                }
+
                 msg += `⏰ *Jadwal Penjemputan:* Hari Kerja (07.30 - 16.00)\n\n`;
             }
 
