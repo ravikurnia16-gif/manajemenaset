@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
-  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink
+  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter
 } from 'lucide-react';
 import { Badge } from './UIComponents';
 
@@ -213,6 +213,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
   };
 
   const totalChanged = itemUpdates.filter(i => i.status !== i.oldStatus).length;
+  const currentIndentItems = itemUpdates.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
 
   return (
     <div className="bg-gradient-to-b from-blue-50/70 to-indigo-50/40 p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-inner space-y-4 animate-in fade-in zoom-in-95 duration-200">
@@ -280,26 +281,45 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
         </div>
       </div>
 
+      {/* Indent Alert Banner if any item is INDENT */}
+      {currentIndentItems.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-900 shadow-sm animate-in fade-in">
+          <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="font-bold flex items-center gap-1.5">
+              <span>⏳ Terdapat {currentIndentItems.length} Item dalam Status INDENT / Belum Siap</span>
+            </div>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Daftar item inden: <span className="font-semibold">{currentIndentItems.map(i => `${i.name} (${i.size})`).join(', ')}</span>.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Items List Cards / Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
         {itemUpdates.map((item, idx) => {
           const changed = item.status !== item.oldStatus;
           const isNd = String(item.saleItemId).startsWith('NAMADADA');
           const hasStock = isNd || item.totalStock >= item.qty;
+          const isItemIndent = item.status === 'INDENT' || item.status === 'TIDAK_TERSEDIA';
 
           return (
             <div 
               key={item.saleItemId}
               className={`p-3.5 rounded-xl border transition-all ${
-                changed 
+                isItemIndent
+                  ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-400/30'
+                  : changed 
                   ? 'bg-blue-50/90 border-blue-300 ring-1 ring-blue-400/30' 
                   : 'bg-white border-slate-200/80 shadow-sm'
               }`}
             >
               <div className="flex justify-between items-start gap-2 mb-2">
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-slate-800 text-xs sm:text-sm truncate" title={item.name}>
-                    {item.name}
+                  <div className="font-bold text-slate-800 text-xs sm:text-sm truncate flex items-center gap-1.5" title={item.name}>
+                    {isItemIndent && <span className="text-amber-600">⏳</span>}
+                    <span>{item.name}</span>
                   </div>
                   <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
                     <span>Ukuran: <strong className="text-slate-700">{item.size}</strong></span>
@@ -327,7 +347,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold border outline-none shadow-sm transition ${
                       item.status === 'SEDIA' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
                       item.status === 'DIAMBIL' ? 'bg-blue-50 text-blue-700 border-blue-300' :
-                      item.status === 'INDENT' ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                      item.status === 'INDENT' ? 'bg-amber-50 text-amber-800 border-amber-300 font-extrabold' :
                       item.status === 'TIDAK_TERSEDIA' ? 'bg-rose-50 text-rose-700 border-rose-300' :
                       item.status === 'BATAL' ? 'bg-slate-100 text-slate-700 border-slate-300' :
                       'bg-white text-slate-700 border-slate-300'
@@ -518,9 +538,10 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
 };
 
 export const SalesTab = ({ 
-  sales, loading, search, setSearch, openModal, canFulfill, warehouses = [], onFulfillSale, onDelete, onUpdatePayment 
+  sales = [], loading, search, setSearch, openModal, canFulfill, warehouses = [], onFulfillSale, onDelete, onUpdatePayment 
 }) => {
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
 
   const toggleExpand = (id) => {
     setExpandedSaleIds(prev => {
@@ -531,25 +552,149 @@ export const SalesTab = ({
     });
   };
 
+  // Helper untuk menentukan prioritas sorting:
+  // 1: PENDING (Paling atas)
+  // 2: PROSES dengan Item INDENT (Tinggi)
+  // 3: PROSES / SEDIA (Menengah)
+  // 4: SELESAI / COMPLETED (Paling bawah)
+  // 5: CANCELLED / BATAL (Paling bawah sekali)
+  const getStatusPriority = (sale) => {
+    const status = sale.status || '';
+    const hasIndent = sale.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+
+    if (status === 'PENDING') return 1;
+    if (status === 'PROSES' || status === 'SEDIA') {
+      if (hasIndent) return 2; // Ada barang indent
+      return 3;
+    }
+    if (status === 'SELESAI' || status === 'COMPLETED') return 4;
+    if (status === 'CANCELLED' || status === 'BATAL') return 5;
+    return 3;
+  };
+
+  // Hitung jumlah per status untuk filter chips
+  const counts = useMemo(() => {
+    let pending = 0;
+    let indent = 0;
+    let proses = 0;
+    let completed = 0;
+
+    sales.forEach(s => {
+      const hasIndent = s.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+      if (s.status === 'PENDING') pending++;
+      if (hasIndent && s.status !== 'SELESAI' && s.status !== 'COMPLETED' && s.status !== 'CANCELLED') indent++;
+      if ((s.status === 'PROSES' || s.status === 'SEDIA') && !hasIndent) proses++;
+      if (s.status === 'SELESAI' || s.status === 'COMPLETED') completed++;
+    });
+
+    return { all: sales.length, pending, indent, proses, completed };
+  }, [sales]);
+
+  // Urutkan data: PENDING paling atas, INDENT berikutnya, PROSES, dan SELESAI paling bawah
+  const sortedAndFilteredSales = useMemo(() => {
+    let list = [...sales];
+
+    // Filter status jika dipilih
+    if (statusFilter === 'PENDING') {
+      list = list.filter(s => s.status === 'PENDING');
+    } else if (statusFilter === 'INDENT') {
+      list = list.filter(s => s.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA') && s.status !== 'SELESAI' && s.status !== 'COMPLETED');
+    } else if (statusFilter === 'PROSES') {
+      list = list.filter(s => (s.status === 'PROSES' || s.status === 'SEDIA'));
+    } else if (statusFilter === 'COMPLETED') {
+      list = list.filter(s => s.status === 'SELESAI' || s.status === 'COMPLETED');
+    }
+
+    // Urutkan berdasarkan prioritas status lalu tanggal terbaru
+    return list.sort((a, b) => {
+      const pA = getStatusPriority(a);
+      const pB = getStatusPriority(b);
+      if (pA !== pB) return pA - pB;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  }, [sales, statusFilter]);
+
   return (
     <div className="space-y-4">
-      {/* Top Search and Create Bar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input 
-            type="text" 
-            placeholder="Cari kode invoice, nama pelanggan, atau siswa..." 
-            className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-          />
+      {/* Top Search, Status Filter & Create Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+        <div className="flex flex-wrap gap-2 items-center flex-1 max-w-xl">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Cari kode invoice, nama pelanggan, atau siswa..." 
+              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+            />
+          </div>
         </div>
+
         <button 
           onClick={() => openModal('sale')} 
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all shrink-0"
         >
           <ShoppingCart size={15} /> Buat Pesanan
+        </button>
+      </div>
+
+      {/* Quick Status Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+        <button
+          onClick={() => setStatusFilter('ALL')}
+          className={`px-3 py-1.5 rounded-xl transition ${
+            statusFilter === 'ALL'
+              ? 'bg-slate-800 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Semua Pesanan ({counts.all})
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('PENDING')}
+          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            statusFilter === 'PENDING'
+              ? 'bg-amber-500 text-white shadow-sm'
+              : 'bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100'
+          }`}
+        >
+          <Clock size={13} /> 
+          Pending ({counts.pending})
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('INDENT')}
+          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            statusFilter === 'INDENT'
+              ? 'bg-amber-600 text-white shadow-sm'
+              : 'bg-amber-100/70 border border-amber-300 text-amber-900 hover:bg-amber-200'
+          }`}
+        >
+          ⏳ Ada Indent ({counts.indent})
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('PROSES')}
+          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            statusFilter === 'PROSES'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
+          }`}
+        >
+          🔵 Diproses ({counts.proses})
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('COMPLETED')}
+          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+            statusFilter === 'COMPLETED'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+          }`}
+        >
+          ✓ Selesai ({counts.completed})
         </button>
       </div>
 
@@ -559,10 +704,10 @@ export const SalesTab = ({
           <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
             <tr>
               <th className="p-3 text-left">Invoice</th>
-              <th className="p-3 text-left">Pelanggan</th>
+              <th className="p-3 text-left">Pelanggan & Siswa</th>
               <th className="p-3 text-center">Tipe</th>
-              <th className="p-3 text-right">Total</th>
-              <th className="p-3 text-center">Bayar</th>
+              <th className="p-3 text-right">Total Tagihan</th>
+              <th className="p-3 text-center">Pembayaran</th>
               <th className="p-3 text-center">Status & Kelola</th>
               <th className="p-3 text-center">Tanggal</th>
             </tr>
@@ -570,9 +715,9 @@ export const SalesTab = ({
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr><td colSpan="7" className="p-8 text-center text-slate-400">Memuat data pesanan...</td></tr>
-            ) : sales.length === 0 ? (
-              <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi pesanan.</td></tr>
-            ) : sales.map(s => {
+            ) : sortedAndFilteredSales.length === 0 ? (
+              <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi pesanan yang sesuai filter.</td></tr>
+            ) : sortedAndFilteredSales.map(s => {
               const hasPackages = s.salePackages && s.salePackages.length > 0;
               const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
                 ? s.subtotal
@@ -581,19 +726,37 @@ export const SalesTab = ({
               const isExpanded = expandedSaleIds.has(s.id);
               const itemCount = s.items?.length || 0;
 
+              // Identifikasi item Indent & Sedia
+              const indentItems = s.items?.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA') || [];
+              const sediaItems = s.items?.filter(i => i.status === 'SEDIA') || [];
+              const isCompleted = s.status === 'SELESAI' || s.status === 'COMPLETED';
+
               return (
                 <React.Fragment key={s.id}>
-                  <tr className={`hover:bg-slate-50/80 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''}`}>
+                  <tr className={`hover:bg-slate-50/80 transition-colors ${
+                    isExpanded 
+                      ? 'bg-blue-50/40' 
+                      : indentItems.length > 0 && !isCompleted 
+                      ? 'bg-amber-50/20' 
+                      : isCompleted 
+                      ? 'bg-slate-50/30 opacity-80 hover:opacity-100' 
+                      : ''
+                  }`}>
                     
                     {/* Invoice */}
-                    <td className="p-3 font-mono text-xs text-slate-500 font-semibold">
-                      {s.code}
+                    <td className="p-3">
+                      <div className="font-mono text-xs font-bold text-slate-700">{s.code}</div>
+                      {indentItems.length > 0 && !isCompleted && (
+                        <div className="text-[10px] font-extrabold text-amber-700 flex items-center gap-1 mt-0.5">
+                          ⏳ Ada {indentItems.length} Inden
+                        </div>
+                      )}
                     </td>
 
                     {/* Pelanggan */}
                     <td className="p-3">
                       <div className="font-bold text-slate-800">{s.customerName}</div>
-                      {s.studentName && <div className="text-[10px] text-slate-400">Siswa: {s.studentName}</div>}
+                      {s.studentName && <div className="text-[11px] text-slate-500">Siswa: <span className="font-semibold text-slate-700">{s.studentName}</span> {s.studentClass ? `(${s.studentClass})` : ''}</div>}
                     </td>
 
                     {/* Tipe */}
@@ -608,10 +771,10 @@ export const SalesTab = ({
                       {s.totalAmount > activeTotalAmount ? (
                         <div className="flex flex-col items-end">
                           <span className="text-xs text-rose-400 line-through" title="Total Awal">Rp {(s.totalAmount).toLocaleString('id-ID')}</span>
-                          <span className="font-bold text-slate-700" title="Total Setelah Batal">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
+                          <span className="font-bold text-slate-800" title="Total Setelah Batal">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
                         </div>
                       ) : (
-                        <span className="font-bold text-slate-700">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
+                        <span className="font-bold text-slate-800">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
                       )}
                     </td>
 
@@ -637,9 +800,32 @@ export const SalesTab = ({
 
                     {/* Status & Kelola Item Toggle */}
                     <td className="p-3 text-center">
-                      <Badge color={s.status === 'SELESAI' ? 'green' : s.status === 'PROSES' ? 'blue' : s.status === 'PENDING' ? 'yellow' : 'slate'}>
-                        {s.status}
-                      </Badge>
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge color={
+                          isCompleted ? 'green' : 
+                          s.status === 'PROSES' || s.status === 'SEDIA' ? 'blue' : 
+                          s.status === 'PENDING' ? 'yellow' : 'slate'
+                        }>
+                          {s.status === 'COMPLETED' ? 'SELESAI' : s.status}
+                        </Badge>
+
+                        {/* Indent Indicator Badge if any items are INDENT */}
+                        {indentItems.length > 0 && !isCompleted && (
+                          <span 
+                            className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full shadow-sm"
+                            title={`Item Indent: ${indentItems.map(i => i.itemName + ' (' + i.size + ')').join(', ')}`}
+                          >
+                            ⏳ {indentItems.length} Indent
+                          </span>
+                        )}
+
+                        {/* Sedia Indicator Badge if any items are SEDIA */}
+                        {sediaItems.length > 0 && !isCompleted && indentItems.length === 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            ✓ {sediaItems.length} Sedia
+                          </span>
+                        )}
+                      </div>
 
                       {canFulfill && s.status !== 'CANCELLED' && (
                         <button 
@@ -647,6 +833,8 @@ export const SalesTab = ({
                           className={`mt-1.5 text-xs font-bold px-2.5 py-1 rounded-xl transition-all flex items-center justify-center gap-1 mx-auto whitespace-nowrap ${
                             isExpanded 
                               ? 'bg-indigo-600 text-white shadow-sm' 
+                              : indentItems.length > 0 && !isCompleted
+                              ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
                               : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60'
                           }`}
                           title="Buka / Tutup Kelola Item Langsung"
@@ -750,4 +938,5 @@ export const SalesTab = ({
     </div>
   );
 };
+
 
