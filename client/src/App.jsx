@@ -187,7 +187,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/pesan-seragam" element={<UniformOrderPage />} />
+        <Route path="/pesan-seragam" element={<UniformOrderPublic />} />
         <Route path="/public/asset/:id" element={<PublicAssetView />} />
         <Route path="/public/booking-bus" element={<BusBookingPublic />} />
         <Route path="/public/invoice-bus/batch" element={<BusInvoiceBatchPrint />} />
