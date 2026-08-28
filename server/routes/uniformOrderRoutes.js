@@ -550,7 +550,7 @@ const bulkUpdateItems = async (req, res) => {
             } else {
                 // Warid Formatting
                 message = `*Bismillah*\n\n` +
-                          `Kami informasikan kepada Abu/Ummu *${order.studentName}*, berikut adalah rincian status pesanan Anda:\n\n`;
+                          `Kami informasikan kepada Abu/Ummu *${order.studentName}*, berikut adalah rincian status pesanan Abu/Ummu:\n\n`;
 
                 let anyReady = false;
                 for (const item of updatedItems) {

@@ -8,12 +8,12 @@ const ExcelJS = require('exceljs');
 const generateCode = async (prefix, model) => {
     const year = new Date().getFullYear();
     const pattern = `${prefix}/${year}/`;
-    
+
     const last = await prisma[model].findFirst({
         where: { code: { startsWith: pattern } },
         orderBy: { code: 'desc' }
     });
-    
+
     let seq = 1;
     if (last) {
         const parts = last.code.split('/');
@@ -199,7 +199,7 @@ exports.downloadItemImportTemplate = async (req, res) => {
 
         // Sample Data
         sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', '']);
-        
+
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang.xlsx"');
         await workbook.xlsx.write(res);
@@ -229,7 +229,7 @@ exports.importItems = async (req, res) => {
 
         for (let i = 0; i < dataRows.length; i++) {
             const [catIn, clothIn, unitInRaw, genderIn, sizeIn, vendorIn] = dataRows[i];
-            
+
             if (!catIn || !clothIn || !genderIn || !sizeIn) {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, dan Ukuran wajib diisi.` });
             }
@@ -269,7 +269,7 @@ exports.importItems = async (req, res) => {
                 }
 
                 const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
-                
+
                 let item = await prisma.uniformItem.findFirst({
                     where: {
                         categoryId: cat.id,
@@ -548,7 +548,7 @@ exports.importPricingRules = async (req, res) => {
                 if (sizeNamesIn && String(sizeNamesIn).trim()) {
                     const separator = String(sizeNamesIn).includes(';') ? ';' : ',';
                     const list = String(sizeNamesIn).split(separator).map(s => s.trim().toUpperCase()).filter(Boolean);
-                    
+
                     const invalidSizes = list.filter(sz => !sizes.some(s => s.name.toUpperCase() === sz));
                     if (invalidSizes.length > 0) {
                         errors.push(`Baris ${rowNum}: Ukuran '${invalidSizes.join(', ')}' tidak ditemukan di Master Data Ukuran`);
@@ -561,7 +561,7 @@ exports.importPricingRules = async (req, res) => {
                 }
 
                 // Check for existing active rule with identical conditions
-                const matchedOldRule = existingRules.find(r => 
+                const matchedOldRule = existingRules.find(r =>
                     (r.categoryId ?? null) === categoryId &&
                     (r.clothingTypeId ?? null) === clothingTypeId &&
                     (r.unitId ?? null) === unitId &&
@@ -746,24 +746,24 @@ exports.applyPricingRules = async (req, res) => {
         });
 
         let updateCount = 0;
-        
+
         for (const variant of variants) {
             let matchedPrice = null;
-            
+
             for (const rule of sortedRules) {
                 let match = true;
-                
+
                 if (rule.categoryId && variant.item.categoryId !== rule.categoryId) match = false;
                 if (rule.clothingTypeId && variant.item.clothingTypeId !== rule.clothingTypeId) match = false;
                 if (rule.unitId && variant.item.unitId !== rule.unitId) match = false;
                 if (rule.gender && variant.item.gender !== rule.gender) match = false;
-                
+
                 if (rule.sizeNames) {
                     const sizes = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
                     const vSize = variant.sizeName || (variant.size ? variant.size.name : '');
                     if (!vSize || !sizes.includes(vSize.toLowerCase())) match = false;
                 }
-                
+
                 if (match) {
                     matchedPrice = rule.price;
                     break;
@@ -836,7 +836,7 @@ exports.addManualStock = async (req, res) => {
         await prisma.$transaction(async (tx) => {
             let whObj = await tx.uniformWarehouse.findFirst({ where: { name: gudang } });
             if (!whObj) whObj = await tx.uniformWarehouse.create({ data: { name: gudang, location: '' } });
-            
+
             let vendorObj = null;
             if (vendor && vendor.trim()) {
                 vendorObj = await tx.uniformVendor.findFirst({ where: { name: vendor } });
@@ -852,16 +852,16 @@ exports.addManualStock = async (req, res) => {
                 const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
                 const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
                 const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
-                
+
                 let unitObj = null;
                 if (unit && unit.trim() !== '') {
                     unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
                 }
-                
+
                 const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
                 const unitName = unitObj ? unitObj.name : 'ALL';
                 const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
-                
+
                 let item = await tx.uniformItem.findFirst({
                     where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj ? unitObj.id : null }
                 });
@@ -1032,7 +1032,7 @@ exports.downloadStockImportTemplate = async (req, res) => {
             if (str.length > maxLen) {
                 // If the list is too long for direct validation formula, we will just use the first few elements and allow custom inputs.
                 // Or better, we could create a hidden sheet. For now, limit the string length to prevent corrupted excel files.
-                return `"${arr.slice(0, 15).join(',')}"`; 
+                return `"${arr.slice(0, 15).join(',')}"`;
             }
             return str;
         };
@@ -1051,7 +1051,7 @@ exports.downloadStockImportTemplate = async (req, res) => {
             sheet.getCell(`D${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"IKHWAN,AKHWAT"'] };
             if (sizeList.length) sheet.getCell(`E${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(sizeList)] };
             if (whList.length) sheet.getCell(`F${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(whList)] };
-            
+
             sheet.getCell(`G${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`H${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`I${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
@@ -1092,7 +1092,7 @@ exports.importStocks = async (req, res) => {
                 const whIn = row[5];
                 const vendorIn = hasVendor ? row[6] : null;
                 const qtyIn = hasVendor ? row[7] : row[6];
-                
+
                 if (!catIn || !clothIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
                     errors.push(`Baris ${i + 2}: Kolom wajib tidak lengkap.`);
                     continue;
@@ -1118,7 +1118,7 @@ exports.importStocks = async (req, res) => {
 
                 const gender = String(genderIn).trim().toUpperCase();
                 const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
-                
+
                 let item = await prisma.uniformItem.findFirst({
                     where: {
                         categoryId: cat.id,
@@ -1198,7 +1198,7 @@ exports.importStocks = async (req, res) => {
         } else if (errors.length > 0) {
             return res.status(200).json({ message: `Berhasil import ${successCount} data, namun ada beberapa error.`, details: errors });
         }
-        
+
         res.status(200).json({ message: `Berhasil mengimport ${successCount} data stok.` });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1323,7 +1323,7 @@ exports.downloadItemImportTemplate = async (req, res) => {
 
         // Sample Data
         sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', '']);
-        
+
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang.xlsx"');
         await workbook.xlsx.write(res);
@@ -1353,7 +1353,7 @@ exports.importItems = async (req, res) => {
 
         for (let i = 0; i < dataRows.length; i++) {
             const [catIn, clothIn, unitIn, genderIn, sizeIn, vendorIn] = dataRows[i];
-            
+
             if (!catIn || !clothIn || !genderIn || !sizeIn) {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Gender, dan Ukuran wajib diisi.` });
             }
@@ -1387,7 +1387,7 @@ exports.importItems = async (req, res) => {
             }
 
             const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
-            
+
             // Find or Create Item
             let item = await prisma.uniformItem.findFirst({
                 where: {
@@ -1543,25 +1543,25 @@ exports.applyPricingRules = async (req, res) => {
         });
 
         let updateCount = 0;
-        
+
         for (const variant of variants) {
             let matchedPrice = null;
-            
+
             for (const rule of sortedRules) {
                 let match = true;
-                
+
                 if (rule.categoryId && variant.item.categoryId !== rule.categoryId) match = false;
                 if (rule.clothingTypeId && variant.item.clothingTypeId !== rule.clothingTypeId) match = false;
                 if (rule.unitId && variant.item.unitId !== rule.unitId) match = false;
                 if (rule.gender && variant.item.gender !== rule.gender) match = false;
-                
+
                 if (rule.sizeNames) {
                     const separator = rule.sizeNames.includes(';') ? ';' : ',';
                     const sizes = rule.sizeNames.split(separator).map(s => s.trim().toLowerCase());
                     const vSize = variant.sizeName || (variant.size ? variant.size.name : '');
                     if (!vSize || !sizes.includes(vSize.toLowerCase())) match = false;
                 }
-                
+
                 if (match) {
                     matchedPrice = rule.price;
                     break;
@@ -1634,7 +1634,7 @@ exports.addManualStock = async (req, res) => {
         await prisma.$transaction(async (tx) => {
             let whObj = await tx.uniformWarehouse.findFirst({ where: { name: gudang } });
             if (!whObj) whObj = await tx.uniformWarehouse.create({ data: { name: gudang, location: '' } });
-            
+
             let vendorObj = null;
             if (vendor && vendor.trim()) {
                 vendorObj = await tx.uniformVendor.findFirst({ where: { name: vendor } });
@@ -1650,16 +1650,16 @@ exports.addManualStock = async (req, res) => {
                 const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
                 const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
                 const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
-                
+
                 let unitObj = null;
                 if (unit && unit.trim() !== '') {
                     unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
                 }
-                
+
                 const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
                 const unitName = unitObj ? unitObj.name : 'ALL';
                 const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
-                
+
                 let item = await tx.uniformItem.findFirst({
                     where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj ? unitObj.id : null }
                 });
@@ -1830,7 +1830,7 @@ exports.downloadStockImportTemplate = async (req, res) => {
             if (str.length > maxLen) {
                 // If the list is too long for direct validation formula, we will just use the first few elements and allow custom inputs.
                 // Or better, we could create a hidden sheet. For now, limit the string length to prevent corrupted excel files.
-                return `"${arr.slice(0, 15).join(',')}"`; 
+                return `"${arr.slice(0, 15).join(',')}"`;
             }
             return str;
         };
@@ -1849,7 +1849,7 @@ exports.downloadStockImportTemplate = async (req, res) => {
             sheet.getCell(`D${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"IKHWAN,AKHWAT"'] };
             if (sizeList.length) sheet.getCell(`E${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(sizeList)] };
             if (whList.length) sheet.getCell(`F${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(whList)] };
-            
+
             sheet.getCell(`G${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`H${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
             sheet.getCell(`I${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
@@ -1895,7 +1895,7 @@ exports.importStocks = async (req, res) => {
                         const whIn = row[5];
                         const vendorIn = hasVendor ? row[6] : null;
                         const qtyIn = hasVendor ? row[7] : row[6];
-                        
+
                         const qty = parseInt(qtyIn) || 0;
                         if (qty <= 0) {
                             continue; // Silently skip rows with empty or zero quantity
@@ -1926,7 +1926,7 @@ exports.importStocks = async (req, res) => {
 
                         const gender = String(genderIn).trim().toUpperCase();
                         const itemName = `${cloth.name} ${cat.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit ? unit.name : 'Umum'}`.trim();
-                        
+
                         let item = await tx.uniformItem.findFirst({
                             where: {
                                 categoryId: cat.id,
@@ -1956,7 +1956,7 @@ exports.importStocks = async (req, res) => {
 
                         // Append an index to make the code unique across all rows in the Excel file
                         const trcCode = dataRows.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
-                        
+
                         await tx.uniformStockTransaction.create({
                             data: {
                                 code: trcCode, type: 'IN',
@@ -1990,7 +1990,7 @@ exports.importStocks = async (req, res) => {
                                 minStock: item.minStock || 5
                             }
                         });
-                        
+
                         successCount++;
                     } catch (err) {
                         const fullError = err.message ? err.message.replace(/\n/g, ' | ') : String(err);
@@ -2011,7 +2011,7 @@ exports.importStocks = async (req, res) => {
         if (errors.length > 0) {
             return res.status(400).json({ error: 'Import dibatalkan secara keseluruhan karena ada error.', details: errors });
         }
-        
+
         res.status(200).json({ message: `Berhasil mengimport ${successCount} data stok.` });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -2054,7 +2054,7 @@ exports.createStockTransaction = async (req, res) => {
 
         const results = await prisma.$transaction(async (tx) => {
             const created = [];
-            
+
             // Generate a single base code for the whole transaction batch
             const baseCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
 
@@ -2114,7 +2114,7 @@ exports.createStockTransaction = async (req, res) => {
                         const variant = await tx.uniformVariant.findUnique({ where: { id: item.variantId }, include: { item: true } });
                         throw new Error(`Stok tidak mencukupi untuk ${variant?.item?.name || 'barang'} (${variant?.sizeName || '-'})`);
                     }
-                    
+
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: parseInt(warehouseId) } },
                         data: { quantity: { decrement: Math.abs(qty) } }
@@ -2358,18 +2358,18 @@ exports.trackOrderPublic = async (req, res) => {
         if (!code || !phone) {
             return res.status(400).json({ error: 'Kode referensi dan Nomor HP wajib diisi' });
         }
-        
+
         const data = await prisma.uniformSale.findFirst({
-            where: { 
+            where: {
                 code: code.trim(),
                 customerPhone: phone.trim()
             },
-            include: { 
+            include: {
                 items: true,
                 package: true
             }
         });
-        
+
         if (!data) return res.status(404).json({ error: 'Pesanan tidak ditemukan dengan kombinasi kode dan nomor HP tersebut' });
         res.json(data);
     } catch (error) {
@@ -2381,7 +2381,7 @@ exports.confirmIndentPublic = async (req, res) => {
     try {
         const saleId = parseInt(req.params.id);
         const { confirmations } = req.body; // array of { itemId, action: 'INDENT' | 'BATAL' }
-        
+
         if (!confirmations || !Array.isArray(confirmations)) {
             return res.status(400).json({ error: 'Data konfirmasi tidak valid' });
         }
@@ -2393,7 +2393,7 @@ exports.confirmIndentPublic = async (req, res) => {
             });
 
             if (!sale) throw new Error('Pesanan tidak ditemukan');
-            
+
             const itemsMap = new Map(sale.items.map(i => [i.id, i]));
             let subtotalAdjustment = 0;
             let updatedCount = 0;
@@ -2402,10 +2402,10 @@ exports.confirmIndentPublic = async (req, res) => {
             for (const conf of confirmations) {
                 const item = itemsMap.get(parseInt(conf.itemId));
                 if (!item) continue;
-                
+
                 // Hanya bisa konfirmasi jika statusnya TIDAK_TERSEDIA
                 if (item.status !== 'TIDAK_TERSEDIA') continue;
-                
+
                 if (conf.action === 'INDENT') {
                     await tx.uniformSaleItem.update({
                         where: { id: item.id },
@@ -2435,7 +2435,7 @@ exports.confirmIndentPublic = async (req, res) => {
             let allFinal = true;
             let anyPending = false;
             let anySedia = false;
-            
+
             for (const item of itemsMap.values()) {
                 if (item.status !== 'DIAMBIL' && item.status !== 'BATAL') {
                     allFinal = false;
@@ -2447,7 +2447,7 @@ exports.confirmIndentPublic = async (req, res) => {
                     anySedia = true;
                 }
             }
-            
+
             if (allFinal && itemsMap.size > 0) {
                 newStatus = 'SELESAI';
             } else if (anySedia || Array.from(itemsMap.values()).some(i => i.status === 'DIAMBIL')) {
@@ -2459,7 +2459,7 @@ exports.confirmIndentPublic = async (req, res) => {
             const newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
             const newTotalAmount = Math.max(0, newSubtotal - sale.discount);
             let paymentStatus = sale.paymentStatus;
-            
+
             if (newTotalAmount === 0) {
                 paymentStatus = 'PAID';
             } else if (sale.paidAmount >= newTotalAmount) {
@@ -2602,13 +2602,13 @@ exports.createSale = async (req, res) => {
                         where: { variantId_warehouseId: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId) } },
                         data: { quantity: { decrement: canDeliver } }
                     });
-                    
+
                     const totalCostValue = (stock.avgCost || 0) * canDeliver;
 
                     const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-' + Date.now() + Math.floor(Math.random()*1000),
+                            code: trxCode + '-' + Date.now() + Math.floor(Math.random() * 1000),
                             type: 'OUT',
                             variantId: parseInt(item.variantId),
                             warehouseId: parseInt(warehouseId),
@@ -2672,7 +2672,7 @@ exports.createSale = async (req, res) => {
                     subtotal += ndQty * ndPrice;
                     replacementNotes.push(`[${ndType}:${ndQty}:${ndPrice}:${ndStatus}]`);
                 }
-                
+
                 if (matches.length > 0) {
                     note = note.replace(/\[NAMADADA[^\]]*\]/g, '').trim();
                     note = (note + '\n' + replacementNotes.join('\n')).trim();
@@ -2709,12 +2709,12 @@ exports.createSale = async (req, res) => {
             const itemsToCreate = saleItems.map(si => {
                 const pkgIdx = si._packageIndex;
                 delete si._packageIndex;
-                
+
                 let salePackageId = null;
                 if (pkgIdx !== undefined && sale.salePackages && sale.salePackages[pkgIdx]) {
                     salePackageId = sale.salePackages[pkgIdx].id;
                 }
-                
+
                 return {
                     ...si,
                     saleId: sale.id,
@@ -2738,11 +2738,11 @@ exports.createSale = async (req, res) => {
                 itemDetails = result.items.map(i => `- ${i.itemName} (${i.size || '-'}) x${i.qty}`).join('\n');
             }
 
-            const message = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nAlhamdulillah! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\nKode Referensi: *${result.code}*\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi dari Admin Kita ya.\n\nAnda dapat mengecek status pesanan menggunakan Kode Referensi di link berikut:\nhttps://sarpras.dareliman.or.id/public/lacak-pesanan\n\nAtau lihat langsung di:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nSyukron, Jazakumullah khairan.`;
-            
+            const message = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nAlhamdulillah! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\nKode Referensi: *${result.code}*\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi dari Admin Kita ya.\n\nAbu/Ummu dapat mengecek status pesanan menggunakan Kode Referensi di link berikut:\nhttps://sarpras.dareliman.or.id/public/lacak-pesanan\n\nAtau lihat langsung di:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nSyukron, Jazakumullah khairan.`;
+
             try {
                 sendMessage(result.customerPhone, message);
-            } catch(e) {
+            } catch (e) {
                 console.error('Gagal kirim WA ke customer:', e);
             }
         }
@@ -2762,12 +2762,12 @@ exports.createSale = async (req, res) => {
                     itemsString = result.items.map(i => `- ${i.itemName} (${i.size || '-'}): ${i.qty} pcs`).join('\n');
                 }
                 const staffMsg = `🔔 *INFO PESANAN SERAGAM BARU*\n\nDari: ${result.customerName || result.studentName || '-'}\nNo. HP: ${result.customerPhone || '-'}\nKode: ${result.code}\n\n*Rincian Pesanan:*\n${itemsString}\n\nTotal Tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nSilakan cek aplikasi untuk detailnya.`;
-                
+
                 for (const staff of staffUsers) {
                     if (staff.phone) {
                         try {
                             sendMessage(staff.phone, staffMsg);
-                        } catch(e) {
+                        } catch (e) {
                             console.error(`Gagal kirim WA ke Staff Gudang (${staff.phone}):`, e);
                         }
                     }
@@ -2775,7 +2775,7 @@ exports.createSale = async (req, res) => {
             } else {
                 console.log('Tidak ada user Staff Gudang dan Logistik untuk notifikasi pesanan baru.');
             }
-        } catch(e) {
+        } catch (e) {
             console.error('Gagal memproses WA ke Staff Gudang:', e);
         }
 
@@ -2795,7 +2795,7 @@ exports.updateSalePayment = async (req, res) => {
 
         const newPaid = parseFloat(paidAmount || 0);
         const newPaymentStatus = newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
-        
+
         const data = await prisma.uniformSale.update({
             where: { id: parseInt(req.params.id) },
             data: {
@@ -2810,7 +2810,7 @@ exports.updateSalePayment = async (req, res) => {
             const message = `Halo ${sale.customerName || sale.studentName || 'Bapak/Ibu'},\n\nTerima kasih, pembayaran pesanan seragam Anda dengan kode *${sale.code}* telah kami terima dan berstatus *LUNAS*.\n\nSilakan cek invoice terbaru Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${sale.id}\n\nJazakumullahu Khairan,\nManajemen Aset & Logistik`;
             try {
                 sendMessage(sale.customerPhone, message);
-            } catch(e) {
+            } catch (e) {
                 console.error('Gagal kirim WA lunas ke customer:', e);
             }
         }
@@ -2824,7 +2824,7 @@ exports.updateSalePayment = async (req, res) => {
 exports.deleteSale = async (req, res) => {
     try {
         const saleId = parseInt(req.params.id);
-        
+
         const sale = await prisma.uniformSale.findUnique({
             where: { id: saleId },
             include: { items: true }
@@ -2854,7 +2854,7 @@ exports.manageSaleItems = async (req, res) => {
     const { itemUpdates } = req.body;
     try {
         const saleId = parseInt(req.params.id);
-        
+
         if (!itemUpdates || !Array.isArray(itemUpdates)) {
             return res.status(400).json({ error: 'Data update tidak valid' });
         }
@@ -2866,7 +2866,7 @@ exports.manageSaleItems = async (req, res) => {
             });
 
             if (!sale) throw new Error('Pesanan tidak ditemukan');
-            
+
             const itemsMap = new Map(sale.items.map(i => [i.id, i]));
             let subtotalAdjustment = 0;
             const notifications = { updates: [], hasTidakTersedia: false };
@@ -2880,7 +2880,7 @@ exports.manageSaleItems = async (req, res) => {
                             const ndQty = parseInt(match[2]);
                             const ndStatus = match[4] || 'PENDING';
                             const newStatus = update.status;
-                            
+
                             if (ndStatus !== newStatus) {
                                 let locText = '';
                                 if (newStatus === 'SEDIA') {
@@ -2888,7 +2888,7 @@ exports.manageSaleItems = async (req, res) => {
                                     const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
                                     locText = transitWh?.name || 'Gudang';
                                 }
-                                
+
                                 let itemName = 'Nama Dada (Bordir)';
                                 if (update.saleItemId === 'NAMADADA_PUTIH') itemName += ' - Putih';
                                 if (update.saleItemId === 'NAMADADA_COKLAT') itemName += ' - Coklat';
@@ -2903,7 +2903,7 @@ exports.manageSaleItems = async (req, res) => {
                                 });
                                 if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
                             }
-                            
+
                             const newNoteStr = `[${match[1]}:${match[2]}:${match[3]}:${newStatus}]`;
                             sale.note = sale.note.replace(regex, newNoteStr);
                             await tx.uniformSale.update({
@@ -2917,10 +2917,10 @@ exports.manageSaleItems = async (req, res) => {
 
                 const item = itemsMap.get(parseInt(update.saleItemId));
                 if (!item) continue;
-                
+
                 const oldStatus = item.status;
                 const newStatus = update.status;
-                
+
                 if (oldStatus === newStatus) continue;
 
                 const qty = item.qty;
@@ -2946,17 +2946,17 @@ exports.manageSaleItems = async (req, res) => {
                     const sourceWhId = parseInt(update.sourceWarehouseId);
                     const transitWhId = parseInt(update.transitWarehouseId);
                     if (!sourceWhId || !transitWhId) throw new Error(`Pilih gudang asal dan gudang transit untuk item ${item.itemName}`);
-                    
+
                     const stockSource = await tx.uniformStock.findUnique({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } }
                     });
                     if (!stockSource || stockSource.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang asal tidak mencukupi`);
-                    
+
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } },
                         data: { quantity: { decrement: qty } }
                     });
-                    
+
                     await tx.uniformStock.upsert({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } },
                         create: { variantId: item.variantId, warehouseId: transitWhId, quantity: qty, avgCost: stockSource.avgCost },
@@ -2966,7 +2966,7 @@ exports.manageSaleItems = async (req, res) => {
                     const trxCode = await generateTrxCode('TRX/SRG');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-MUT-' + Math.floor(Math.random()*1000),
+                            code: trxCode + '-MUT-' + Math.floor(Math.random() * 1000),
                             type: 'MUTATION',
                             variantId: item.variantId,
                             warehouseId: sourceWhId,
@@ -2981,17 +2981,17 @@ exports.manageSaleItems = async (req, res) => {
                         }
                     });
                 }
-                
+
                 else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'SEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'DIAMBIL') {
                     let whId;
                     if (oldStatus === 'SEDIA') {
                         // Find the warehouse from the last mutation when it was set to SEDIA
                         const lastMutTrx = await tx.uniformStockTransaction.findFirst({
-                            where: { 
-                                referenceType: 'SALE', 
-                                referenceId: sale.id, 
-                                variantId: item.variantId, 
-                                type: 'MUTATION' 
+                            where: {
+                                referenceType: 'SALE',
+                                referenceId: sale.id,
+                                variantId: item.variantId,
+                                type: 'MUTATION'
                             },
                             orderBy: { id: 'desc' }
                         });
@@ -3001,21 +3001,21 @@ exports.manageSaleItems = async (req, res) => {
                         whId = parseInt(update.sourceWarehouseId); // Terjual langsung
                         if (!whId) throw new Error(`Pilih gudang asal untuk penjualan langsung item ${item.itemName}`);
                     }
-                    
+
                     const stock = await tx.uniformStock.findUnique({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
                     });
                     if (!stock || stock.quantity < qty) throw new Error(`Stok ${item.itemName} tidak mencukupi untuk DIAMBIL`);
-                    
+
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } },
                         data: { quantity: { decrement: qty } }
                     });
-                    
+
                     const trxCode = await generateTrxCode('TRX/SRG');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-OUT-' + Math.floor(Math.random()*1000),
+                            code: trxCode + '-OUT-' + Math.floor(Math.random() * 1000),
                             type: 'OUT',
                             variantId: item.variantId,
                             warehouseId: whId,
@@ -3028,30 +3028,30 @@ exports.manageSaleItems = async (req, res) => {
                             createdById: req.user?.id || null
                         }
                     });
-                    
+
                     // Increment delivered qty
                     await tx.uniformSaleItem.update({
                         where: { id: item.id },
                         data: { qtyDelivered: qty } // fully delivered
                     });
                 }
-                
+
                 // SEDIA -> BATAL
                 else if (oldStatus === 'SEDIA' && newStatus === 'BATAL') {
                     const transitWhId = parseInt(update.transitWarehouseId);
                     const returnWhId = parseInt(update.returnWarehouseId);
                     if (!transitWhId || !returnWhId) throw new Error(`Pilih gudang transit dan gudang pengembalian untuk membatalkan item ${item.itemName}`);
-                    
+
                     const stockTransit = await tx.uniformStock.findUnique({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } }
                     });
                     if (!stockTransit || stockTransit.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang transit tidak ditemukan untuk dibatalkan`);
-                    
+
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } },
                         data: { quantity: { decrement: qty } }
                     });
-                    
+
                     await tx.uniformStock.upsert({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: returnWhId } },
                         create: { variantId: item.variantId, warehouseId: returnWhId, quantity: qty, avgCost: stockTransit.avgCost },
@@ -3061,7 +3061,7 @@ exports.manageSaleItems = async (req, res) => {
                     const trxCode = await generateTrxCode('TRX/SRG');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-MUT-' + Math.floor(Math.random()*1000),
+                            code: trxCode + '-MUT-' + Math.floor(Math.random() * 1000),
                             type: 'MUTATION',
                             variantId: item.variantId,
                             warehouseId: transitWhId,
@@ -3075,25 +3075,25 @@ exports.manageSaleItems = async (req, res) => {
                             createdById: req.user?.id || null
                         }
                     });
-                    
+
                     subtotalAdjustment -= item.totalPrice;
                 }
-                
+
                 // PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA -> BATAL
                 else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(oldStatus) && newStatus === 'BATAL') {
                     subtotalAdjustment -= item.totalPrice;
                 }
-                
+
                 // BATAL -> PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA (Undo batal)
                 else if (oldStatus === 'BATAL' && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(newStatus)) {
                     subtotalAdjustment += item.totalPrice;
                 }
-                
+
                 // DIAMBIL -> BATAL
                 else if (oldStatus === 'DIAMBIL' && newStatus === 'BATAL') {
                     const returnWhId = parseInt(update.returnWarehouseId);
                     if (!returnWhId) throw new Error(`Pilih gudang pengembalian untuk item ${item.itemName}`);
-                    
+
                     await tx.uniformStock.upsert({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: returnWhId } },
                         create: { variantId: item.variantId, warehouseId: returnWhId, quantity: qty, avgCost: 0 },
@@ -3103,7 +3103,7 @@ exports.manageSaleItems = async (req, res) => {
                     const trxCode = await generateTrxCode('TRX/SRG');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-IN-' + Math.floor(Math.random()*1000),
+                            code: trxCode + '-IN-' + Math.floor(Math.random() * 1000),
                             type: 'IN',
                             variantId: item.variantId,
                             warehouseId: returnWhId,
@@ -3116,19 +3116,19 @@ exports.manageSaleItems = async (req, res) => {
                             createdById: req.user?.id || null
                         }
                     });
-                    
+
                     subtotalAdjustment -= item.totalPrice;
                     await tx.uniformSaleItem.update({
                         where: { id: item.id },
                         data: { qtyDelivered: 0 }
                     });
                 }
-                
+
                 // DIAMBIL -> SEDIA (Undo pickup)
                 else if (oldStatus === 'DIAMBIL' && newStatus === 'SEDIA') {
                     const returnWhId = parseInt(update.returnWarehouseId); // Should be transit warehouse
                     if (!returnWhId) throw new Error(`Pilih gudang transit pengembalian untuk item ${item.itemName}`);
-                    
+
                     await tx.uniformStock.upsert({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: returnWhId } },
                         create: { variantId: item.variantId, warehouseId: returnWhId, quantity: qty, avgCost: 0 },
@@ -3138,7 +3138,7 @@ exports.manageSaleItems = async (req, res) => {
                     const trxCode = await generateTrxCode('TRX/SRG');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-IN-' + Math.floor(Math.random()*1000),
+                            code: trxCode + '-IN-' + Math.floor(Math.random() * 1000),
                             type: 'IN',
                             variantId: item.variantId,
                             warehouseId: returnWhId,
@@ -3151,19 +3151,19 @@ exports.manageSaleItems = async (req, res) => {
                             createdById: req.user?.id || null
                         }
                     });
-                    
+
                     await tx.uniformSaleItem.update({
                         where: { id: item.id },
                         data: { qtyDelivered: 0 }
                     });
                 }
-                
+
                 // PENDING/SEDIA/DIAMBIL/dll -> BATAL (Subtotal adj untuk SEDIA dan DIAMBIL sudah ditangani di atas)
                 // BATAL -> SEDIA / DIAMBIL
                 if (oldStatus === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(newStatus)) {
                     subtotalAdjustment += item.totalPrice;
                 }
-                      // Tambahkan ke list notifikasi update status
+                // Tambahkan ke list notifikasi update status
                 let locText = '';
                 if (newStatus === 'SEDIA') {
                     const transitWhId = parseInt(update.transitWarehouseId);
@@ -3172,7 +3172,7 @@ exports.manageSaleItems = async (req, res) => {
                         locText = (transitWh?.location && transitWh.location.trim()) ? transitWh.location.trim() : (transitWh?.name || '');
                     }
                 }
-                
+
                 notifications.updates.push({
                     itemName: item.itemName,
                     size: item.size,
@@ -3181,15 +3181,15 @@ exports.manageSaleItems = async (req, res) => {
                     newStatus: newStatus,
                     location: locText
                 });
-                
+
                 if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
-                
+
                 // Save item status
                 await tx.uniformSaleItem.update({
                     where: { id: item.id },
                     data: { status: newStatus }
                 });
-                
+
                 // update local map
                 item.status = newStatus;
             }
@@ -3199,7 +3199,7 @@ exports.manageSaleItems = async (req, res) => {
             let allFinal = true;
             let anyPending = false;
             let anySedia = false;
-            
+
             for (const update of itemUpdates) {
                 if (update.status !== 'DIAMBIL' && update.status !== 'BATAL') {
                     allFinal = false;
@@ -3211,7 +3211,7 @@ exports.manageSaleItems = async (req, res) => {
                     anySedia = true;
                 }
             }
-            
+
             if (allFinal && itemUpdates.length > 0) {
                 newStatus = 'SELESAI';
             } else if (anySedia || itemUpdates.some(i => i.status === 'DIAMBIL')) {
@@ -3224,7 +3224,7 @@ exports.manageSaleItems = async (req, res) => {
             const newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
             const newTotalAmount = Math.max(0, newSubtotal - sale.discount);
             let paymentStatus = sale.paymentStatus;
-            
+
             // Adjust paidAmount to not exceed newTotalAmount
             const updatedPaidAmount = Math.min(sale.paidAmount, newTotalAmount);
 
@@ -3256,7 +3256,7 @@ exports.manageSaleItems = async (req, res) => {
                 let itemName = '';
                 let size = '';
                 let qty = 0;
-                
+
                 if (String(update.saleItemId).startsWith('NAMADADA')) {
                     itemName = 'Nama Dada (Bordir)';
                     if (update.saleItemId === 'NAMADADA_PUTIH') itemName += ' - Putih';
@@ -3276,7 +3276,7 @@ exports.manageSaleItems = async (req, res) => {
                         qty = update.qty || item.qty;
                     }
                 }
-                
+
                 const updateLog = notifications.updates.find(u => u.itemName === itemName && u.size === size);
                 let loc = updateLog ? updateLog.location : '';
 
@@ -3284,19 +3284,19 @@ exports.manageSaleItems = async (req, res) => {
                     const item = itemsMap.get(parseInt(update.saleItemId));
                     if (item) {
                         const lastMutTrx = await tx.uniformStockTransaction.findFirst({
-                            where: { 
-                                referenceType: 'SALE', 
-                                referenceId: sale.id, 
-                                variantId: item.variantId, 
-                                type: 'MUTATION' 
+                            where: {
+                                referenceType: 'SALE',
+                                referenceId: sale.id,
+                                variantId: item.variantId,
+                                type: 'MUTATION'
                             },
                             include: { toWarehouse: true },
                             orderBy: { id: 'desc' }
                         });
                         if (lastMutTrx && lastMutTrx.toWarehouse) {
-                            loc = (lastMutTrx.toWarehouse.location && lastMutTrx.toWarehouse.location.trim()) 
-                                  ? lastMutTrx.toWarehouse.location.trim() 
-                                  : (lastMutTrx.toWarehouse.name || '');
+                            loc = (lastMutTrx.toWarehouse.location && lastMutTrx.toWarehouse.location.trim())
+                                ? lastMutTrx.toWarehouse.location.trim()
+                                : (lastMutTrx.toWarehouse.name || '');
                         }
                     }
                 }
@@ -3320,7 +3320,7 @@ exports.manageSaleItems = async (req, res) => {
         const { updatedSale, notifications } = result;
 
         if (updatedSale.customerPhone && notifications.updates.length > 0) {
-            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nBerikut adalah update status terbaru untuk pesanan seragam Anda (Kode: *${updatedSale.code}*):\n\n`;
+            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${updatedSale.customerName || updatedSale.studentName || ''},\n\nBerikut adalah update status terbaru untuk pesanan seragam Abu/Ummu (Kode: *${updatedSale.code}*):\n\n`;
 
             const sedia = notifications.allItemsSummary.filter(i => i.status === 'SEDIA');
             const diambil = notifications.allItemsSummary.filter(i => i.status === 'DIAMBIL');
@@ -3330,7 +3330,7 @@ exports.manageSaleItems = async (req, res) => {
 
             if (sedia.length > 0) {
                 msg += `✅ *BARANG TERSEDIA (Siap Diambil)*\n`;
-                
+
                 // Group items by location
                 const locationMap = new Map();
                 sedia.forEach(i => {
@@ -3399,16 +3399,16 @@ exports.manageSaleItems = async (req, res) => {
                 });
                 msg += '\n';
             }
-            
+
             if (notifications.hasTidakTersedia) {
-                msg += `Untuk barang yang KOSONG, mohon konfirmasi Anda apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
+                msg += `Untuk barang yang KOSONG, mohon konfirmasi Abu/Ummu apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
             }
-            
-            msg += `Cek invoice lengkap pesanan Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
-            
+
+            msg += `Cek invoice lengkap pesanan Abu/Ummu melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
+
             try {
                 sendMessage(updatedSale.customerPhone, msg);
-            } catch(e) {
+            } catch (e) {
                 console.error('Gagal kirim WA update status:', e);
             }
         }
@@ -3428,7 +3428,7 @@ exports.updateSalePayment = async (req, res) => {
 
         const newPaid = parseFloat(paidAmount || 0);
         const newPaymentStatus = newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
-        
+
         const data = await prisma.uniformSale.update({
             where: { id: parseInt(req.params.id) },
             data: {
@@ -3440,13 +3440,13 @@ exports.updateSalePayment = async (req, res) => {
 
         // Kirim Notifikasi WA jika status berubah menjadi PAID (Lunas)
         if (newPaymentStatus === 'PAID' && sale.paymentStatus !== 'PAID' && data.customerPhone) {
-            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${data.customerName || data.studentName || ''},\n\nAlhamdulillah, pembayaran untuk pesanan seragam Anda (Kode: *${data.code}*) telah kami terima dan *LUNAS*.\n\n`;
-            msg += `Berikut adalah link invoice pesanan Anda:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${data.id}\n\n`;
+            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${data.customerName || data.studentName || ''},\n\nAlhamdulillah, pembayaran untuk pesanan seragam Abu/Ummu (Kode: *${data.code}*) telah kami terima dan *LUNAS*.\n\n`;
+            msg += `Berikut adalah link invoice pesanan Abu/Ummu:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${data.id}\n\n`;
             msg += `Syukron, Jazakumullah khairan.`;
-            
+
             try {
                 sendMessage(data.customerPhone, msg);
-            } catch(e) {
+            } catch (e) {
                 console.error('Gagal kirim WA lunas:', e);
             }
         }
@@ -3460,7 +3460,7 @@ exports.updateSalePayment = async (req, res) => {
 exports.deleteSale = async (req, res) => {
     try {
         const saleId = parseInt(req.params.id);
-        
+
         const sale = await prisma.uniformSale.findUnique({
             where: { id: saleId },
             include: { items: true }
@@ -3490,7 +3490,7 @@ exports.fulfillSale = async (req, res) => {
     const { warehouseId, fulfillments } = req.body;
     try {
         const saleId = parseInt(req.params.id);
-        
+
         if (!warehouseId && (!fulfillments || !Array.isArray(fulfillments))) {
             return res.status(400).json({ error: 'Data fulfillment tidak valid' });
         }
@@ -3514,17 +3514,17 @@ exports.fulfillSale = async (req, res) => {
                 if (needed <= 0 || requestQty <= 0) return;
 
                 const actualReqQty = Math.min(requestQty, needed);
-                
+
                 const stock = await tx.uniformStock.findUnique({
                     where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
                 });
 
                 const available = stock ? stock.quantity : 0;
-                
+
                 if (available < actualReqQty) {
                     throw new Error(`Stok tidak mencukupi untuk ${item.itemName} (Ukuran: ${item.size}). Tersedia: ${available}, Dibutuhkan: ${actualReqQty}`);
                 }
-                
+
                 const canDeliver = actualReqQty;
 
                 if (canDeliver > 0) {
@@ -3535,10 +3535,10 @@ exports.fulfillSale = async (req, res) => {
 
                     const totalCostValue = (stock.avgCost || 0) * canDeliver;
                     const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
-                    
+
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-' + Date.now() + Math.floor(Math.random()*1000),
+                            code: trxCode + '-' + Date.now() + Math.floor(Math.random() * 1000),
                             type: 'OUT',
                             variantId: item.variantId,
                             warehouseId: whId,
@@ -3598,7 +3598,7 @@ exports.updateSalePayment = async (req, res) => {
     try {
         const saleId = parseInt(req.params.id);
         const { paymentStatus } = req.body;
-        
+
         if (!['PAID', 'UNPAID', 'PARTIAL'].includes(paymentStatus)) {
             return res.status(400).json({ error: 'Status pembayaran tidak valid' });
         }
@@ -3615,7 +3615,7 @@ exports.updateSalePayment = async (req, res) => {
 
         const updatedSale = await prisma.uniformSale.update({
             where: { id: saleId },
-            data: { 
+            data: {
                 paymentStatus,
                 paidAmount: newPaidAmount
             }
@@ -3668,12 +3668,12 @@ exports.createExchange = async (req, res) => {
                 // 1. Create exchange record
                 const exchange = await tx.uniformExchange.create({
                     data: {
-                        code, 
+                        code,
                         customerName: '-', // removed from form
                         studentName: studentName || '-', // restored from form
                         fromVariantId: fVId,
                         toVariantId: tVId,
-                        qty: quantity, 
+                        qty: quantity,
                         reason, note,
                         status: 'COMPLETED',
                         createdById: req.user?.id || null
@@ -3830,7 +3830,7 @@ exports.getProjects = async (req, res) => {
 exports.createProject = async (req, res) => {
     try {
         const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
-        
+
         const parsedYear = parseInt(year);
 
         const itemMap = new Map();
@@ -3842,14 +3842,14 @@ exports.createProject = async (req, res) => {
             });
         }
         const projectItemsData = Array.from(itemMap.entries()).map(([variantId, quantity]) => ({ variantId, quantity }));
-        
+
         const data = await prisma.$transaction(async (tx) => {
             const proj = await tx.uniformProject.create({
-                data: { 
-                    year: parsedYear, 
-                    title, 
-                    targetQuantity: parseInt(targetQuantity || 0), 
-                    status, 
+                data: {
+                    year: parsedYear,
+                    title,
+                    targetQuantity: parseInt(targetQuantity || 0),
+                    status,
                     note,
                     projectItems: {
                         create: projectItemsData
@@ -3906,7 +3906,7 @@ exports.updateProject = async (req, res) => {
                 const existingSelection = await tx.uniformVendorSelection.findFirst({
                     where: { projectId, vendorId: parseInt(directVendorId) }
                 });
-                
+
                 if (!existingSelection) {
                     await tx.uniformVendorSelection.create({
                         data: {
@@ -3958,7 +3958,7 @@ exports.createVendorSelection = async (req, res) => {
 exports.updateVendorSelection = async (req, res) => {
     try {
         const { proposedPrice, status, reason } = req.body;
-        
+
         let updateData = {
             proposedPrice: parseFloat(proposedPrice || 0),
             status,
@@ -4007,7 +4007,7 @@ exports.createVendorMoU = async (req, res) => {
 exports.updateVendorMoU = async (req, res) => {
     try {
         const { mouNumber, startDate, endDate, status } = req.body;
-        
+
         let updateData = {
             mouNumber,
             startDate: new Date(startDate),
@@ -4035,21 +4035,21 @@ const updateVendorRating = async (vendorId) => {
         const evaluations = await prisma.uniformVendorEvaluation.findMany({
             where: { vendorId: parseInt(vendorId) }
         });
-        
+
         let totalOrders = evaluations.length;
         console.log('[VendorRating] Found evaluations:', totalOrders);
         let avgRating = 0;
         let avgOnTime = 0;
         let avgReject = 0;
-        
+
         if (totalOrders > 0) {
             avgRating = evaluations.reduce((sum, ev) => sum + (parseFloat(ev.rating) || 0), 0) / totalOrders;
             avgOnTime = evaluations.reduce((sum, ev) => sum + (parseFloat(ev.onTimeRate) || 0), 0) / totalOrders;
             avgReject = evaluations.reduce((sum, ev) => sum + (parseFloat(ev.rejectRate) || 0), 0) / totalOrders;
         }
-        
+
         console.log('[VendorRating] Averages - Rating:', avgRating, 'OnTime:', avgOnTime, 'Reject:', avgReject);
-        
+
         await prisma.uniformVendor.update({
             where: { id: parseInt(vendorId) },
             data: {
@@ -4120,7 +4120,7 @@ exports.receiveProjectGoods = async (req, res) => {
     try {
         const projectId = parseInt(req.params.id);
         const { warehouseId, items, isFinal } = req.body; // items: [{ variantId, quantity }]
-        
+
         if (!warehouseId || !items || items.length === 0) {
             return res.status(400).json({ error: 'Data penerimaan tidak valid. Pastikan gudang dan rincian barang diisi.' });
         }
@@ -4142,14 +4142,14 @@ exports.receiveProjectGoods = async (req, res) => {
             // Iterate over received items
             for (const item of items) {
                 const qty = parseInt(item.quantity) || 0;
-                
+
                 // Update receivedQuantity in projectItem
                 const projectItemIndex = updatedProjectItems.findIndex(pi => pi.variantId === parseInt(item.variantId));
                 if (projectItemIndex !== -1) {
                     const pi = updatedProjectItems[projectItemIndex];
                     const newReceived = pi.receivedQuantity + qty;
                     updatedProjectItems[projectItemIndex] = { ...pi, receivedQuantity: newReceived };
-                    
+
                     await tx.uniformProjectItem.update({
                         where: { id: pi.id },
                         data: { receivedQuantity: newReceived }
@@ -4223,10 +4223,10 @@ exports.getFinanceReport = async (req, res) => {
             where: { status: { not: 'CANCELLED' } },
             include: { items: true }
         });
-        
+
         let totalRevenue = 0;
         const cashFlow = [];
-        
+
         sales.forEach(s => {
             if (s.paidAmount > 0) {
                 // Dynamically compute active subtotal to ensure cancelled items are not counted in revenue
@@ -4239,7 +4239,7 @@ exports.getFinanceReport = async (req, res) => {
                         activeSubtotal = validItems.reduce((acc, item) => acc + item.totalPrice, 0);
                     }
                 }
-                
+
                 const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
                 const cappedPaidAmount = Math.min(s.paidAmount, activeTotalAmount);
 
@@ -4262,7 +4262,7 @@ exports.getFinanceReport = async (req, res) => {
             where: { status: 'SELESAI' },
             include: { selections: { where: { status: 'DIPILIH' } } }
         });
-        
+
         let totalExpenses = 0;
         const projectExpenses = [];
         for (const proj of completedProjects) {
@@ -4282,7 +4282,7 @@ exports.getFinanceReport = async (req, res) => {
         const stocks = await prisma.uniformStock.findMany({
             include: { variant: { include: { item: true } } }
         });
-        
+
         const totalAssetValue = stocks.reduce((sum, stock) => {
             const price = stock.variant.sellPrice || stock.variant.item.sellPrice || 0;
             return sum + (stock.quantity * price);
