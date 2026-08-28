@@ -81,12 +81,18 @@ export default function SalesPage() {
     const openModal = (type, data = null) => setModal({ open: true, type, data });
     const closeModal = () => setModal({ open: false, type: '', data: null });
 
-    const handleFulfillSale = async (fulfillments) => {
+    const handleFulfillSale = async (saleIdOrFulfillments, optionalFulfillments) => {
+        let saleId = typeof saleIdOrFulfillments === 'number' || typeof saleIdOrFulfillments === 'string' ? saleIdOrFulfillments : modal.data?.id;
+        let fulfillments = optionalFulfillments || (Array.isArray(saleIdOrFulfillments) ? saleIdOrFulfillments : []);
+        
         try {
-            await api.post(`/uniforms/sales/${modal.data.id}/fulfill`, { itemUpdates: fulfillments });
-            closeModal();
+            await api.post(`/uniforms/sales/${saleId}/fulfill`, { itemUpdates: fulfillments });
+            if (modal.open) closeModal();
             fetchData();
-        } catch (err) { alert(err.response?.data?.error || 'Gagal memproses pesanan'); }
+        } catch (err) { 
+            alert(err.response?.data?.error || 'Gagal memproses pesanan'); 
+            throw err;
+        }
     };
 
     const handleSavePackage = async (formData) => {
@@ -170,6 +176,8 @@ export default function SalesPage() {
                             setSearch={setSearch} 
                             openModal={openModal} 
                             canFulfill={canFulfill}
+                            warehouses={warehouses}
+                            onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
                             onUpdatePayment={handleUpdatePayment}
                         />
@@ -182,6 +190,8 @@ export default function SalesPage() {
                             setSearch={setSearch} 
                             openModal={openModal} 
                             canFulfill={canFulfill}
+                            warehouses={warehouses}
+                            onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
                             onUpdatePayment={handleUpdatePayment}
                         />
