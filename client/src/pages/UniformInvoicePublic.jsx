@@ -215,9 +215,17 @@ const UniformInvoicePublic = () => {
                     <div className="flex justify-end mb-8 print:mb-4">
                         <div className="w-full sm:w-1/2 lg:w-2/5 p-4 print:p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-2 print:bg-transparent print:border-none print:justify-end">
                             {(() => {
+                                let namaDadaTotal = 0;
+                                if (invoice.note && invoice.note.includes('[NAMADADA')) {
+                                    const matches = [...invoice.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+                                    for (const m of matches) {
+                                        namaDadaTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                                    }
+                                }
+
                                 const activeSubtotal = (invoice.type === 'SPMB' || invoice.type === 'UNIT_ORDER')
                                     ? invoice.subtotal
-                                    : (invoice.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || invoice.subtotal);
+                                    : ((invoice.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || 0) + namaDadaTotal);
                                 
                                 const activeTotalAmount = Math.max(0, activeSubtotal - (invoice.discount || 0));
                                 // Cap the displayed paid amount to the active total amount

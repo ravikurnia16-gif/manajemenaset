@@ -222,7 +222,10 @@ export default function SalesPage() {
                 )}
                 {modal.type === 'exchange' && (
                     <ExchangeForm 
-                        warehouses={warehouses} variants={variants} 
+                        warehouses={warehouses} 
+                        variants={variants} 
+                        sales={sales}
+                        initialSale={modal.data}
                         onSave={handleSaveExchange} 
                     />
                 )}

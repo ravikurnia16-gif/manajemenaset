@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
-  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy
+  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw
 } from 'lucide-react';
 import { Badge } from './UIComponents';
 
@@ -674,6 +674,17 @@ export const SalesTab = ({
             )}
           </button>
 
+          {/* Tombol Tukar Ukuran */}
+          <button
+            type="button"
+            onClick={() => openModal('exchange')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-sm shrink-0"
+            title="Tukar Ukuran Seragam (Retur / Ganti Ukuran)"
+          >
+            <RefreshCw size={13} className="text-amber-600" />
+            <span>Tukar Ukuran</span>
+          </button>
+
           {/* Tombol Buat Pesanan (Admin) */}
           <button 
             onClick={() => openModal('sale')} 
@@ -764,9 +775,17 @@ export const SalesTab = ({
               <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi pesanan yang sesuai filter.</td></tr>
             ) : sortedAndFilteredSales.map(s => {
               const hasPackages = s.salePackages && s.salePackages.length > 0;
+              let ndTotal = 0;
+              if (s.note && s.note.includes('[NAMADADA')) {
+                const matches = [...s.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+                for (const m of matches) {
+                  ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                }
+              }
+
               const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
                 ? s.subtotal
-                : (s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || s.subtotal);
+                : ((s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || 0) + ndTotal);
               const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
               const isExpanded = expandedSaleIds.has(s.id);
               const itemCount = s.items?.length || 0;
@@ -902,7 +921,7 @@ export const SalesTab = ({
                       <div className="text-xs text-slate-500 mb-1">
                         {new Date(s.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       </div>
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex flex-wrap items-center justify-center gap-1">
                         <a 
                           href={`/public/invoice-seragam/${s.id}`} 
                           target="_blank" 
@@ -911,6 +930,16 @@ export const SalesTab = ({
                         >
                           Invoice <ExternalLink size={10} />
                         </a>
+                        {openModal && (
+                          <button 
+                            type="button"
+                            onClick={() => openModal('exchange', s)} 
+                            className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg inline-flex items-center gap-1" 
+                            title="Tukar Ukuran untuk Pesanan Ini"
+                          >
+                            <RefreshCw size={10} /> Tukar
+                          </button>
+                        )}
                         {s.status === 'PENDING' && onDelete && (
                           <button 
                             onClick={() => onDelete(s.id)} 

@@ -207,8 +207,67 @@ const initializeWhatsApp = () => {
                     console.warn('[WhatsApp Local] sendStateTyping gagal (non-critical):', typingErr.message || typingErr);
                 }
 
+                // Fetch recent chat history from WhatsApp Chat
+                let chatHistory = [];
+                let senderDisplayName = "User";
+                try {
+                    const chat = await msg.getChat();
+                    const fetchedMsgs = await chat.fetchMessages({ limit: 15 });
+                    
+                    if (fetchedMsgs && fetchedMsgs.length > 0) {
+                        chatHistory = await Promise.all(fetchedMsgs.map(async (m) => {
+                            let sName = "User";
+                            if (m.fromMe) {
+                                sName = "Admin Sarpras (Bot)";
+                            } else {
+                                sName = m._data?.notifyName || m.pushname || "";
+                                if (!sName) {
+                                    try {
+                                        const c = await m.getContact();
+                                        sName = c.name || c.pushname || c.shortName || c.number || "User";
+                                    } catch (e) {
+                                        sName = "User";
+                                    }
+                                }
+                            }
+                            
+                            const timeStr = m.timestamp 
+                                ? new Date(m.timestamp * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                                : "";
+
+                            return {
+                                id: m.id?._serialized || null,
+                                sender: sName,
+                                body: m.body ? m.body.trim() : "",
+                                isBot: m.fromMe,
+                                timestamp: timeStr
+                            };
+                        }));
+
+                        // Filter out empty messages, commands like /idgrup
+                        chatHistory = chatHistory.filter(h => h.body && h.body !== '/idgrup');
+                    }
+                } catch (histErr) {
+                    console.warn('[WhatsApp Local] Warning fetching chat history:', histErr.message || histErr);
+                }
+
+                // Get sender name for current message
+                try {
+                    const contact = await msg.getContact();
+                    senderDisplayName = contact.name || contact.pushname || contact.shortName || msg._data?.notifyName || msg.pushname || "User";
+                } catch (cErr) {
+                    senderDisplayName = msg._data?.notifyName || msg.pushname || "User";
+                }
+
+                const senderJid = msg.author || msg.from;
                 const aiService = require('./aiService');
-                const response = await aiService.generateChatResponse(cleanMessage || msg.body, isPrivate ? null : groupName, msg.from);
+                const response = await aiService.generateChatResponse(
+                    cleanMessage || msg.body, 
+                    isPrivate ? null : groupName, 
+                    senderJid,
+                    chatHistory,
+                    senderDisplayName
+                );
 
                 if (response && typeof response === 'object' && response.media) {
                     const { MessageMedia } = require('whatsapp-web.js');

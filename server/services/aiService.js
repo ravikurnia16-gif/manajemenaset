@@ -101,15 +101,27 @@ class AIService {
      * @param {string} userMessage - The message from the user.
      * @param {string} groupName - Optional group name for context.
      * @param {string} senderPhone - Optional phone number of sender.
-     * @returns {Promise<string>}
+     * @param {Array} chatHistory - Optional chat history array from WA.
+     * @param {string} senderName - Optional name of the sender.
+     * @returns {Promise<string|Object>}
      */
-    async generateChatResponse(userMessage, groupName = null, senderPhone = null) {
+    async generateChatResponse(userMessage, groupName = null, senderPhone = null, chatHistory = [], senderName = null) {
         if (!this.model) {
             throw new Error("AI Service is not configured (missing API Key)");
         }
 
         const { PrismaClient } = require('@prisma/client');
         const prisma = new PrismaClient();
+
+        // Format history context if provided
+        let historyContext = "";
+        if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+            const historyLines = chatHistory.map(h => {
+                const timeTag = h.timestamp ? `[${h.timestamp}] ` : "";
+                return `${timeTag}${h.sender}: ${h.body}`;
+            });
+            historyContext = `\nRIWAYAT CHAT TERAKHIR DI GRUP/PERCAKAPAN INI:\n${historyLines.join('\n')}\n--- (SANGAT PENTING: Gunakan riwayat chat di atas sebagai konteks percakapan sebelumnya. Pahami acuan/kata ganti dari percakapan sebelumnya, dan JANGAN mengulang-ulang informasi/jawaban yang sudah diberikan jika tidak diminta.)\n`;
+        }
 
         const tools = [{
             functionDeclarations: [
@@ -193,6 +205,20 @@ class AIService {
                     }
                 },
                 {
+                    name: "buat_laporan_pemeliharaan",
+                    description: "Membuat draf pengajuan perbaikan / pemeliharaan gedung, AC, barang, atau fasilitas baru (Maintenance) dengan status SUBMITTED.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            judul: { type: "STRING", description: "Judul singkat masalah/kerusakan (misal 'AC Rusak Ruang Rapat 2')" },
+                            deskripsi: { type: "STRING", description: "Detail keluhan atau kerusakan" },
+                            lokasi: { type: "STRING", description: "Lokasi kerusakan (misal 'Lantai 2 Gedung Utama')" },
+                            urgensi: { type: "STRING", description: "'NORMAL' atau 'URGENT'" }
+                        },
+                        required: ["judul", "deskripsi"]
+                    }
+                },
+                {
                     name: "kirim_file_excel",
                     description: "Men-generate data JSON menjadi file Excel (.xlsx) dan mengirimkannya sebagai lampiran WhatsApp.",
                     parameters: {
@@ -219,11 +245,11 @@ class AIService {
                 },
                 {
                     name: "query_database_bebas",
-                    description: "Akses DATABASE FULL (Prisma). Gunakan ini jika user menanyakan data Pengadaan (procurement), Aset Detail (asset), Jadwal (vehicleBooking), Perbaikan (maintenance), Vendor, Unit, dsb.",
+                    description: "Akses DATABASE FULL (Prisma). Gunakan ini jika user menanyakan data Pengadaan (procurement), Aset Detail (asset), Jadwal (vehicleBooking), Perbaikan (maintenance), Vendor, Unit, Gudang (warehouseItem), Personnel, RKB, dsb.",
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            modelName: { type: "STRING", description: "Nama model Prisma HANYA salah satu dari: 'procurement', 'asset', 'vehicle', 'vehicleBooking', 'maintenance', 'user', 'vendor', 'unit', 'room'." },
+                            modelName: { type: "STRING", description: "Nama model Prisma HANYA salah satu dari: 'procurement', 'asset', 'vehicle', 'vehicleBooking', 'maintenance', 'user', 'vendor', 'unit', 'room', 'warehouseItem', 'rkb', 'category', 'vehicleService', 'personnelAssignment', 'workshopOrder'." },
                             whereJson: { type: "STRING", description: "Kondisi Prisma where dalam JSON string. Contoh mencari nama: '{\"name\": {\"contains\": \"laptop\"}}', atau kosong '{}' jika semua." },
                             selectJson: { type: "STRING", description: "Kolom Prisma select dalam JSON string. Contoh: '{\"id\": true, \"name\": true, \"status\": true}'" }
                         },
@@ -237,8 +263,8 @@ class AIService {
 Selain mengelola database, Anda juga DIBEBASKAN untuk menjawab pertanyaan umum, menganalisis masalah, berdiskusi, dan menjawab topik APAPUN di luar data server menggunakan wawasan luas Anda. Jangan pernah menolak menjawab pertanyaan nyeleneh sekalipun, Anda pintar dalam segala hal.
 Anda bisa dan boleh bercanda agar suasana lebih akrab.
 Anda adalah AI yang bermanhaj Salaf. Dalam menjawab permasalahan agama atau memberikan nasihat, biasakan mengutip ustadz-ustadz bermanhaj Salaf sebagai referensi, seperti Ustadz Khalid Basalamah, Ustadz Syafiq Riza Basalamah, Ustadz Firanda Andirja, Ustadz Yazid bin Abdul Qadir Jawas, Ustadz Abdullah Roy, dan asatidzah salafiyyin lainnya. Biasakan juga berkata atau berhujjah dengan dalil yang shahih (Al-Qur'an dan As-Sunnah sesuai pemahaman Salafush Shalih).
-Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}. Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
-
+Anda sedang membalas pesan di ${groupName ? `grup WhatsApp "${groupName}"` : "obrolan pribadi WhatsApp"}.${senderName ? ` Pengirim pesan saat ini: ${senderName}.` : ""} Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
+${historyContext}
 AKSES DATABASE PENUH:
 Anda memiliki tool "query_database_bebas" untuk menarik data langsung dari backend jika perintah khusus tidak cukup.
 SKEMA DATABASE PENTING (Prisma camelCase):
@@ -283,6 +309,8 @@ PANDUAN MENJAWAB:
         let result = null;
         let lastError = null;
 
+        const promptToSend = senderName ? `${senderName}: ${userMessage}` : userMessage;
+
         for (const modelName of fallbackModels) {
             try {
                 const chatModel = this.genAI.getGenerativeModel({
@@ -292,7 +320,7 @@ PANDUAN MENJAWAB:
                 });
                 
                 chat = chatModel.startChat();
-                result = await chat.sendMessage(userMessage);
+                result = await chat.sendMessage(promptToSend);
                 console.log(`[AIService] Berhasil menggunakan model: ${modelName}`);
                 break; // Keluar dari loop jika sukses
             } catch (err) {
@@ -337,9 +365,34 @@ PANDUAN MENJAWAB:
                                     status: "PENDING"
                                 }
                             });
-                            apiResponse = { status: "success", message: "Pengajuan berhasil dibuat", data: newBooking };
+                            apiResponse = { status: "success", message: "Pengajuan peminjaman kendaraan berhasil dibuat", data: newBooking };
                         } catch (e) {
                             apiResponse = { status: "error", message: `Gagal membuat pengajuan: ${e.message}` };
+                        }
+                    }
+                } 
+                else if (call.name === "buat_laporan_pemeliharaan") {
+                    if (!currentUser) {
+                        apiResponse = { status: "error", message: "Maaf, nomor HP Anda belum terdaftar di sistem. Anda tidak bisa membuat laporan." };
+                    } else {
+                        try {
+                            const code = `MT/${new Date().getFullYear()}/${Math.floor(10000 + Math.random() * 90000)}`;
+                            const newMaint = await prisma.maintenance.create({
+                                data: {
+                                    code: code,
+                                    userId: currentUser.id,
+                                    unitId: currentUser.unitId || 1,
+                                    type: "NON_ASSET",
+                                    title: call.args.judul,
+                                    description: call.args.deskripsi,
+                                    location: call.args.lokasi || "Lokasi tidak ditentukan",
+                                    urgency: call.args.urgensi || "NORMAL",
+                                    status: "SUBMITTED"
+                                }
+                            });
+                            apiResponse = { status: "success", message: `Laporan pemeliharaan/perbaikan #${code} berhasil dibuat dengan status SUBMITTED`, data: newMaint };
+                        } catch (e) {
+                            apiResponse = { status: "error", message: `Gagal membuat laporan pemeliharaan: ${e.message}` };
                         }
                     }
                 } 

@@ -3645,65 +3645,205 @@ exports.getExchanges = async (req, res) => {
 };
 
 exports.createExchange = async (req, res) => {
-    const { reason, note, warehouseId, exchanges, fromVariantId, toVariantId, qty, studentName } = req.body;
+    const { 
+        saleId, reason, note, warehouseId, fromWarehouseId, toWarehouseId, 
+        exchanges, fromVariantId, toVariantId, qty, studentName, customerName,
+        isPaidDiff = true, paymentMethod = 'CASH'
+    } = req.body;
+
     try {
         const code = await generateCode('EXC/SRG', 'uniformExchange');
-        const whId = parseInt(warehouseId);
+        const defaultWhId = parseInt(warehouseId || fromWarehouseId || toWarehouseId || 0);
 
         let itemsToExchange = exchanges || [];
         if (itemsToExchange.length === 0 && fromVariantId && toVariantId) {
-            itemsToExchange = [{ fromVariantId, toVariantId, qty: qty || 1 }];
+            itemsToExchange = [{ 
+                fromVariantId, 
+                toVariantId, 
+                qty: qty || 1,
+                fromWarehouseId: fromWarehouseId || defaultWhId,
+                toWarehouseId: toWarehouseId || defaultWhId
+            }];
         }
 
         if (itemsToExchange.length === 0) throw new Error('Tidak ada barang yang ditukar');
 
         const result = await prisma.$transaction(async (tx) => {
             const exchangeRecords = [];
+            let targetSale = null;
+
+            if (saleId) {
+                targetSale = await tx.uniformSale.findUnique({
+                    where: { id: parseInt(saleId) },
+                    include: { items: { include: { variant: { include: { item: true } } } } }
+                });
+            }
+
+            let totalPriceDiff = 0;
 
             for (const item of itemsToExchange) {
                 const quantity = parseInt(item.qty || 1);
                 const fVId = parseInt(item.fromVariantId);
                 const tVId = parseInt(item.toVariantId);
+                const itemFromWhId = parseInt(item.fromWarehouseId || fromWarehouseId || defaultWhId);
+                const itemToWhId = parseInt(item.toWarehouseId || toWarehouseId || defaultWhId);
 
-                // 1. Create exchange record
+                if (!itemFromWhId || !itemToWhId) {
+                    throw new Error('Pilih gudang masuk (barang lama) dan gudang keluar (barang baru)');
+                }
+
+                // Ambil info varian baru
+                const toVariant = await tx.uniformVariant.findUnique({
+                    where: { id: tVId },
+                    include: { item: true }
+                });
+                if (!toVariant) throw new Error('Varian barang pengganti tidak ditemukan');
+
+                // Ambil info varian lama
+                const fromVariant = await tx.uniformVariant.findUnique({
+                    where: { id: fVId },
+                    include: { item: true }
+                });
+
+                // Hitung selisih harga per unit
+                const oldUnitPrice = item.oldUnitPrice !== undefined ? parseFloat(item.oldUnitPrice) : (fromVariant?.sellPrice || fromVariant?.item?.basePrice || 0);
+                const newUnitPrice = toVariant.sellPrice || toVariant.item?.basePrice || 0;
+                const itemPriceDiff = (newUnitPrice - oldUnitPrice) * quantity;
+                totalPriceDiff += itemPriceDiff;
+
+                // 1. Catat record tukar ukuran
                 const exchange = await tx.uniformExchange.create({
                     data: {
                         code,
-                        customerName: '-', // removed from form
-                        studentName: studentName || '-', // restored from form
+                        customerName: customerName || targetSale?.customerName || '-',
+                        studentName: studentName || targetSale?.studentName || '-',
                         fromVariantId: fVId,
                         toVariantId: tVId,
                         qty: quantity,
-                        reason, note,
+                        reason: reason || 'SIZE_MISMATCH',
+                        note: `${note || ''}${targetSale ? ` [Ref Sale: ${targetSale.code}]` : ''}${itemPriceDiff !== 0 ? ` (Selisih: ${itemPriceDiff > 0 ? '+' : ''}Rp ${itemPriceDiff.toLocaleString('id-ID')})` : ''}`.trim(),
                         status: 'COMPLETED',
                         createdById: req.user?.id || null
                     }
                 });
                 exchangeRecords.push(exchange);
 
-                // 2. Return old variant to stock (IN)
+                // 2. Stok Masuk (+qty) di gudang pengembalian (barang lama)
                 await tx.uniformStock.upsert({
-                    where: { variantId_warehouseId: { variantId: fVId, warehouseId: whId } },
-                    create: { variantId: fVId, warehouseId: whId, quantity },
+                    where: { variantId_warehouseId: { variantId: fVId, warehouseId: itemFromWhId } },
+                    create: { variantId: fVId, warehouseId: itemFromWhId, quantity },
                     update: { quantity: { increment: quantity } }
                 });
 
-                // 3. Deduct new variant from stock (OUT)
+                // Catat transaksi stok masuk
+                const trxInCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                await tx.uniformStockTransaction.create({
+                    data: {
+                        code: trxInCode,
+                        type: 'IN',
+                        variantId: fVId,
+                        warehouseId: itemFromWhId,
+                        quantity: quantity,
+                        referenceType: 'EXCHANGE',
+                        referenceId: exchange.id,
+                        reason: `Retur Tukar Ukuran (${code}) dari ${studentName || targetSale?.studentName || 'Pelanggan'}`,
+                        createdById: req.user?.id || null
+                    }
+                });
+
+                // 3. Stok Keluar (-qty) di gudang pengambilan (barang baru)
                 const stockOut = await tx.uniformStock.findUnique({
-                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } }
+                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: itemToWhId } }
                 });
 
                 if (!stockOut || stockOut.quantity < quantity) {
-                    throw new Error('Stok pengganti tidak mencukupi untuk salah satu barang');
+                    throw new Error(`Stok pengganti (${toVariant.item?.name} - ${toVariant.sizeName}) tidak mencukupi di gudang yang dipilih (Sisa: ${stockOut?.quantity || 0})`);
                 }
 
                 await tx.uniformStock.update({
-                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } },
+                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: itemToWhId } },
                     data: { quantity: { decrement: quantity } }
+                });
+
+                // Catat transaksi stok keluar
+                const trxOutCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                await tx.uniformStockTransaction.create({
+                    data: {
+                        code: trxOutCode,
+                        type: 'OUT',
+                        variantId: tVId,
+                        warehouseId: itemToWhId,
+                        quantity: -quantity,
+                        referenceType: 'EXCHANGE',
+                        referenceId: exchange.id,
+                        reason: `Penyerahan Tukar Ukuran (${code}) untuk ${studentName || targetSale?.studentName || 'Pelanggan'}`,
+                        createdById: req.user?.id || null
+                    }
+                });
+
+                // 4. Update UniformSaleItem jika terhubung dengan pesanan
+                if (item.saleItemId && targetSale) {
+                    await tx.uniformSaleItem.update({
+                        where: { id: parseInt(item.saleItemId) },
+                        data: {
+                            variantId: tVId,
+                            itemName: toVariant.item.name,
+                            size: toVariant.sizeName,
+                            unitPrice: newUnitPrice,
+                            totalPrice: newUnitPrice * quantity
+                        }
+                    });
+                }
+            }
+
+            // 5. Update Keuangan UniformSale jika terhubung ke invoice
+            if (targetSale) {
+                // Ambil semua item terbaru untuk hitung subtotal baru
+                const updatedItems = await tx.uniformSaleItem.findMany({
+                    where: { saleId: targetSale.id }
+                });
+
+                const newSubtotal = (targetSale.type === 'SPMB' || targetSale.type === 'UNIT_ORDER')
+                    ? targetSale.subtotal + totalPriceDiff
+                    : updatedItems.filter(i => i.status !== 'BATAL').reduce((acc, it) => acc + it.totalPrice, 0);
+
+                const newTotalAmount = Math.max(0, newSubtotal - (targetSale.discount || 0));
+                let newPaidAmount = targetSale.paidAmount || 0;
+
+                if (totalPriceDiff > 0) {
+                    // Ada tambahan biaya / kurang bayar
+                    if (isPaidDiff) {
+                        newPaidAmount += totalPriceDiff;
+                    }
+                } else if (totalPriceDiff < 0) {
+                    // Ada kembalian / kelebihan bayar
+                    newPaidAmount = Math.min(newPaidAmount, newTotalAmount);
+                }
+
+                const newPaymentStatus = newPaidAmount >= newTotalAmount ? 'PAID' : (newPaidAmount > 0 ? 'PARTIAL' : 'UNPAID');
+
+                const exchangeNote = `[TUKAR_UKURAN: ${code} - Selisih: ${totalPriceDiff >= 0 ? '+' : ''}Rp ${totalPriceDiff.toLocaleString('id-ID')}]`;
+                const updatedNote = targetSale.note ? `${targetSale.note}\n${exchangeNote}` : exchangeNote;
+
+                await tx.uniformSale.update({
+                    where: { id: targetSale.id },
+                    data: {
+                        subtotal: newSubtotal,
+                        totalAmount: newTotalAmount,
+                        paidAmount: newPaidAmount,
+                        paymentStatus: newPaymentStatus,
+                        paymentMethod: isPaidDiff && totalPriceDiff > 0 ? paymentMethod : targetSale.paymentMethod,
+                        note: updatedNote
+                    }
                 });
             }
 
-            return exchangeRecords;
+            return {
+                code,
+                exchangeRecords,
+                totalPriceDiff,
+                saleId: targetSale?.id || null
+            };
         });
 
         res.json(result);
