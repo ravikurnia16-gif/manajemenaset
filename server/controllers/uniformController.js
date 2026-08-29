@@ -2918,10 +2918,56 @@ exports.manageSaleItems = async (req, res) => {
                 const item = itemsMap.get(parseInt(update.saleItemId));
                 if (!item) continue;
 
-                const oldStatus = item.status;
+                let oldStatus = item.status;
                 const newStatus = update.status;
+                let isVariantChanged = false;
 
-                if (oldStatus === newStatus) continue;
+                // 1. Tangani jika ada perubahan ukuran (variantId) untuk item yang belum diambil
+                if (update.variantId && parseInt(update.variantId) !== item.variantId) {
+                    const newVariant = await tx.uniformVariant.findUnique({
+                        where: { id: parseInt(update.variantId) },
+                        include: { item: true }
+                    });
+
+                    if (newVariant) {
+                        const oldSizeName = item.size;
+                        const newUnitPrice = newVariant.sellPrice || newVariant.item?.basePrice || item.unitPrice;
+                        const oldTotalPrice = item.totalPrice;
+                        const newTotalPrice = newUnitPrice * item.qty;
+
+                        subtotalAdjustment += (newTotalPrice - oldTotalPrice);
+
+                        item.variantId = newVariant.id;
+                        item.size = newVariant.sizeName;
+                        item.itemName = newVariant.item.name;
+                        item.unitPrice = newUnitPrice;
+                        item.totalPrice = newTotalPrice;
+
+                        await tx.uniformSaleItem.update({
+                            where: { id: item.id },
+                            data: {
+                                variantId: newVariant.id,
+                                size: newVariant.sizeName,
+                                itemName: newVariant.item.name,
+                                unitPrice: newUnitPrice,
+                                totalPrice: newTotalPrice
+                            }
+                        });
+
+                        notifications.updates.push({
+                            itemName: item.itemName,
+                            size: `${oldSizeName} ➔ ${newVariant.sizeName}`,
+                            qty: item.qty,
+                            oldStatus: oldStatus,
+                            newStatus: newStatus,
+                            location: 'Ganti Ukuran'
+                        });
+
+                        isVariantChanged = true;
+                    }
+                }
+
+                if (oldStatus === newStatus && !isVariantChanged) continue;
 
                 const qty = item.qty;
                 const generateTrxCode = async (prefix) => {
@@ -3692,6 +3738,17 @@ exports.createExchange = async (req, res) => {
                     throw new Error('Pilih gudang masuk (barang lama) dan gudang keluar (barang baru)');
                 }
 
+                // Validasi bahwa item di pesanan memang sudah diambil (DIAMBIL / DELIVERED)
+                if (item.saleItemId && targetSale) {
+                    const targetItem = targetSale.items?.find(si => si.id === parseInt(item.saleItemId));
+                    if (targetItem) {
+                        const isTaken = targetItem.status === 'DIAMBIL' || targetItem.status === 'DELIVERED' || (targetItem.qtyDelivered && targetItem.qtyDelivered > 0);
+                        if (!isTaken) {
+                            throw new Error(`Item ${targetItem.itemName} (${targetItem.size}) belum diambil/diserahkan. Penukaran ukuran hanya bisa dilakukan untuk barang yang telah diambil.`);
+                        }
+                    }
+                }
+
                 // Ambil info varian baru
                 const toVariant = await tx.uniformVariant.findUnique({
                     where: { id: tVId },
@@ -3902,40 +3959,211 @@ exports.deleteSchedule = async (req, res) => {
 exports.getDashboardStats = async (req, res) => {
     try {
         const { warehouseId } = req.query;
-        const stockWhere = warehouseId ? { warehouseId: parseInt(warehouseId) } : {};
+        const whId = warehouseId ? parseInt(warehouseId) : null;
+        const stockWhere = whId ? { warehouseId: whId } : {};
 
-        const [totalItems, totalVariants, totalStock, totalSales, pendingSales, warehouseCount] = await Promise.all([
+        // 1. Basic Counts & Stock Aggregation
+        const [
+            totalItems, 
+            totalVariants, 
+            totalStockAgg, 
+            allWarehouses,
+            allSales,
+            saleItems,
+            lowStockItems,
+            recentStockTrx,
+            recentExchanges
+        ] = await Promise.all([
             prisma.uniformItem.count({ where: { isActive: true } }),
             prisma.uniformVariant.count({ where: { isActive: true } }),
             prisma.uniformStock.aggregate({ where: stockWhere, _sum: { quantity: true } }),
-            prisma.uniformSale.count(),
-            prisma.uniformSale.count({ where: { status: { in: ['PENDING', 'PARTIAL_DELIVERED'] } } }),
-            prisma.uniformWarehouse.count({ where: { isActive: true } })
+            prisma.uniformWarehouse.findMany({
+                where: { isActive: true },
+                include: {
+                    stocks: {
+                        include: {
+                            variant: { include: { item: true } }
+                        }
+                    }
+                }
+            }),
+            prisma.uniformSale.findMany({
+                select: {
+                    id: true, code: true, type: true, status: true, 
+                    subtotal: true, discount: true, totalAmount: true, 
+                    paidAmount: true, paymentStatus: true, createdAt: true,
+                    customerName: true, studentName: true
+                },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.uniformSaleItem.findMany({
+                select: {
+                    id: true, itemName: true, size: true, qty: true, 
+                    unitPrice: true, totalPrice: true, status: true,
+                    variantId: true, saleId: true
+                }
+            }),
+            prisma.$queryRaw`
+                SELECT us.id, us.quantity, us.minStock, us.modalAwal, uv.sizeName, uv.sku, ui.name as itemName, uw.name as warehouseName
+                FROM seragam_stok us
+                JOIN seragam_varian uv ON us.variantId = uv.id
+                JOIN seragam_barang ui ON uv.itemId = ui.id
+                JOIN seragam_gudang uw ON us.warehouseId = uw.id
+                WHERE us.quantity <= us.minStock
+                ORDER BY us.quantity ASC
+                LIMIT 20
+            `.catch(() => []),
+            prisma.uniformStockTransaction.findMany({
+                take: 10,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    variant: { include: { item: true } },
+                    warehouse: true,
+                    toWarehouse: true
+                }
+            }),
+            prisma.uniformExchange.findMany({
+                take: 6,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    fromVariant: { include: { item: true } },
+                    toVariant: { include: { item: true } }
+                }
+            })
         ]);
 
-        // Low stock: find items where quantity <= minStock
-        const lowStockItems = await prisma.$queryRaw`
-            SELECT us.id, us.quantity, us.minStock, us.modalAwal, uv.sizeName, uv.sku, ui.name as itemName, uw.name as warehouseName
-            FROM seragam_stok us
-            JOIN seragam_varian uv ON us.variantId = uv.id
-            JOIN seragam_barang ui ON uv.itemId = ui.id
-            JOIN seragam_gudang uw ON us.warehouseId = uw.id
-            WHERE us.quantity <= us.minStock
-            ORDER BY us.quantity ASC
-            LIMIT 20
-        `.catch(() => []);
+        // 2. Calculate Warehouse Stock Breakdown & Total Asset Value
+        let totalAssetValue = 0;
+        const warehouseBreakdown = allWarehouses.map(w => {
+            let whStock = 0;
+            let whValue = 0;
+            w.stocks.forEach(st => {
+                const q = st.quantity || 0;
+                const p = st.variant?.sellPrice || st.variant?.item?.basePrice || 0;
+                whStock += q;
+                whValue += q * p;
+            });
+            if (!whId || whId === w.id) {
+                totalAssetValue += whValue;
+            }
+            return {
+                id: w.id,
+                name: w.name,
+                location: w.location,
+                totalStock: whStock,
+                totalValue: whValue
+            };
+        });
+
+        // 3. Sales Analysis
+        const totalSalesCount = allSales.length;
+        const spmbSalesCount = allSales.filter(s => s.type === 'SPMB' || s.type === 'UNIT_ORDER').length;
+        const retailSalesCount = totalSalesCount - spmbSalesCount;
+
+        const completedSalesCount = allSales.filter(s => s.status === 'COMPLETED' || s.status === 'SELESAI').length;
+        const pendingSalesCount = allSales.filter(s => s.status === 'PENDING').length;
+        const processSalesCount = allSales.filter(s => s.status === 'PROSES' || s.status === 'PARTIAL_DELIVERED' || s.status === 'SEDIA').length;
+
+        const totalRevenue = allSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+        const totalPaid = allSales.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
+        const totalUnpaid = Math.max(0, totalRevenue - totalPaid);
+
+        // 4. Fulfillment & Indent Analysis
+        const indentItemsList = saleItems.filter(i => ['INDENT', 'TIDAK_TERSEDIA', 'BACKORDER'].includes(i.status));
+        const sediaItemsCount = saleItems.filter(i => i.status === 'SEDIA').length;
+        const diambilItemsCount = saleItems.filter(i => ['DIAMBIL', 'DELIVERED', 'COMPLETED'].includes(i.status)).length;
+        const batalItemsCount = saleItems.filter(i => i.status === 'BATAL').length;
+
+        // Group Indent by itemName and size to see highest demand
+        const indentMap = new Map();
+        indentItemsList.forEach(item => {
+            const key = `${item.itemName}___${item.size}`;
+            if (!indentMap.has(key)) {
+                indentMap.set(key, { itemName: item.itemName, size: item.size, count: 0 });
+            }
+            indentMap.get(key).count += item.qty;
+        });
+        const topIndentItems = Array.from(indentMap.values())
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 8);
+
+        // 5. Top Selling Items
+        const sellingMap = new Map();
+        saleItems.forEach(item => {
+            if (item.status !== 'BATAL') {
+                const key = item.itemName;
+                if (!sellingMap.has(key)) {
+                    sellingMap.set(key, { itemName: key, qty: 0, revenue: 0 });
+                }
+                const rec = sellingMap.get(key);
+                rec.qty += item.qty;
+                rec.revenue += item.totalPrice || (item.unitPrice * item.qty);
+            }
+        });
+        const topSellingItems = Array.from(sellingMap.values())
+            .sort((a, b) => b.qty - a.qty)
+            .slice(0, 5);
+
+        // 6. Format Activity Feed
+        const combinedActivity = [
+            ...recentStockTrx.map(trx => ({
+                id: `trx-${trx.id}`,
+                type: trx.type, // 'IN', 'OUT', 'MUTATION'
+                title: trx.type === 'IN' ? 'Stok Masuk' : trx.type === 'OUT' ? 'Stok Keluar' : 'Mutasi Antar Gudang',
+                itemName: trx.variant?.item?.name || 'Seragam',
+                size: trx.variant?.sizeName || '-',
+                qty: Math.abs(trx.quantity),
+                warehouse: trx.warehouse?.name || '-',
+                toWarehouse: trx.toWarehouse?.name || null,
+                note: trx.note || trx.reason || '',
+                date: trx.createdAt
+            })),
+            ...recentExchanges.map(exc => ({
+                id: `exc-${exc.id}`,
+                type: 'EXCHANGE',
+                title: 'Tukar Ukuran',
+                itemName: exc.fromVariant?.item?.name || 'Seragam',
+                size: `${exc.fromVariant?.sizeName || '-'} ➔ ${exc.toVariant?.sizeName || '-'}`,
+                qty: exc.qty,
+                warehouse: exc.customerName || exc.studentName || '-',
+                note: exc.note || exc.reason || '',
+                date: exc.createdAt
+            }))
+        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
 
         res.json({
             totalItems,
             totalVariants,
-            totalStock: totalStock._sum.quantity || 0,
+            totalStock: totalStockAgg._sum.quantity || 0,
+            totalAssetValue,
+            warehouses: allWarehouses.length,
+            warehouseBreakdown,
+            sales: {
+                total: totalSalesCount,
+                spmb: spmbSalesCount,
+                retail: retailSalesCount,
+                completed: completedSalesCount,
+                proses: processSalesCount,
+                pending: pendingSalesCount,
+                totalRevenue,
+                totalPaid,
+                totalUnpaid
+            },
+            fulfillment: {
+                totalItemRows: saleItems.length,
+                sedia: sediaItemsCount,
+                diambil: diambilItemsCount,
+                indent: indentItemsList.length,
+                batal: batalItemsCount
+            },
+            topIndentItems,
+            topSellingItems,
             lowStockCount: lowStockItems.length,
             lowStockItems,
-            totalSales,
-            pendingSales,
-            warehouses: warehouseCount
+            recentActivity: combinedActivity
         });
     } catch (error) {
+        console.error('Dashboard Error:', error);
         res.status(500).json({ error: error.message });
     }
 };

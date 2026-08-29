@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Badge } from './UIComponents';
 
-const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
+const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onClose }) => {
   const [itemUpdates, setItemUpdates] = useState([]);
   const [commonWarehouseId, setCommonWarehouseId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -16,15 +16,16 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
       if (sale.items) {
         initial = sale.items.map(i => {
           let initialStatus = i.status || 'PENDING';
-          const totalStock = i.variant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0;
+          const matchedVariant = variants.find(v => String(v.id) === String(i.variantId)) || i.variant;
+          const totalStock = matchedVariant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0;
           
           // Auto-deteksi stok jika masih PENDING
-          if (initialStatus === 'PENDING' && i.variant?.stocks) {
+          if (initialStatus === 'PENDING' && matchedVariant?.stocks) {
             initialStatus = totalStock >= i.qty ? 'SEDIA' : 'TIDAK_TERSEDIA';
           }
 
           // Auto-select warehouse jika hanya ada 1 gudang dengan stok
-          const availableStocks = i.variant?.stocks?.filter(s => s.quantity > 0) || [];
+          const availableStocks = matchedVariant?.stocks?.filter(s => s.quantity > 0) || [];
           let defWhId = '';
           if (availableStocks.length === 1) {
             defWhId = String(availableStocks[0].warehouseId);
@@ -33,6 +34,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
           return {
             saleItemId: i.id,
             variantId: i.variantId,
+            itemId: matchedVariant?.itemId || i.variant?.itemId,
             name: i.itemName,
             size: i.size,
             qty: i.qty,
@@ -43,7 +45,8 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
             returnWarehouseId: '',
             isMoved: false,
             totalStock,
-            stocks: i.variant?.stocks || []
+            stocks: matchedVariant?.stocks || [],
+            isSizeChanged: false
           };
         });
       }
@@ -62,6 +65,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
 
           initial.push({
             saleItemId: ndType,
+            variantId: null,
             name: name,
             size: '-',
             qty: ndQty,
@@ -72,14 +76,55 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
             returnWarehouseId: '',
             isMoved: false,
             totalStock: 9999,
-            stocks: []
+            stocks: [],
+            isSizeChanged: false
           });
         }
       }
 
       setItemUpdates(initial);
     }
-  }, [sale]);
+  }, [sale, variants]);
+
+  // Ganti Ukuran Item Sebelum Diambil
+  const handleSizeChange = (index, newVariantId) => {
+    const newV = variants.find(v => String(v.id) === String(newVariantId));
+    if (!newV) return;
+
+    setItemUpdates(prev => {
+      const next = [...prev];
+      const item = next[index];
+      const totalStock = newV.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0;
+      const hasStock = totalStock >= item.qty;
+
+      const availableStocks = newV.stocks?.filter(s => s.quantity > 0) || [];
+      let defWhId = item.sourceWarehouseId;
+      if (!defWhId && availableStocks.length === 1) {
+        defWhId = String(availableStocks[0].warehouseId);
+      }
+
+      let newStatus = item.status;
+      if (item.status === 'SEDIA' && !hasStock) {
+        newStatus = 'INDENT';
+      } else if (item.status === 'INDENT' && hasStock) {
+        newStatus = 'SEDIA';
+      }
+
+      next[index] = {
+        ...item,
+        variantId: newV.id,
+        size: newV.sizeName,
+        name: newV.item?.name || item.name,
+        totalStock,
+        stocks: newV.stocks || [],
+        status: newStatus,
+        sourceWarehouseId: defWhId || '',
+        transitWarehouseId: item.isMoved ? item.transitWarehouseId : (defWhId || ''),
+        isSizeChanged: true
+      };
+      return next;
+    });
+  };
 
   // Aksi Cepat: Terapkan Gudang Bersama ke Seluruh Item
   const handleApplyCommonWarehouse = (whId) => {
@@ -321,19 +366,57 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
                     {isItemIndent && <span className="text-amber-600">⏳</span>}
                     <span>{item.name}</span>
                   </div>
-                  <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
-                    <span>Ukuran: <strong className="text-slate-700">{item.size}</strong></span>
-                    <span>•</span>
-                    <span>Qty: <strong className="text-slate-700">{item.qty} pcs</strong></span>
-                    {!isNd && (
-                      <>
+                  {(() => {
+                    const currentV = variants.find(v => String(v.id) === String(item.variantId));
+                    const itemIdToMatch = item.itemId || currentV?.itemId;
+                    const availableSizes = itemIdToMatch
+                      ? variants.filter(v => String(v.itemId) === String(itemIdToMatch))
+                      : [];
+
+                    return (
+                      <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-1">
+                          <span>Ukuran:</span>
+                          {!isNd && item.oldStatus !== 'DIAMBIL' && availableSizes.length > 1 ? (
+                            <select
+                              value={item.variantId}
+                              onChange={(e) => handleSizeChange(idx, e.target.value)}
+                              className="bg-blue-100/90 hover:bg-blue-200 text-blue-900 font-black border border-blue-300 rounded px-1.5 py-0.5 text-xs outline-none cursor-pointer shadow-sm transition"
+                              title="Klik untuk mengubah ukuran seragam yang dipesan"
+                            >
+                              {availableSizes.map(v => {
+                                const vStock = v.stocks?.reduce((sum, s) => sum + s.quantity, 0) || 0;
+                                return (
+                                  <option key={v.id} value={v.id}>
+                                    {v.sizeName} (Stok: {vStock})
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          ) : (
+                            <strong className="text-slate-700">{item.size}</strong>
+                          )}
+                        </div>
+
+                        {item.isSizeChanged && (
+                          <span className="text-[10px] bg-blue-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
+                            Ukuran Diubah
+                          </span>
+                        )}
+
                         <span>•</span>
-                        <span className={`inline-flex items-center gap-1 font-extrabold ${hasStock ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          Stok: {item.totalStock} {hasStock ? '✓' : '(Kurang)'}
-                        </span>
-                      </>
-                    )}
-                  </div>
+                        <span>Qty: <strong className="text-slate-700">{item.qty} pcs</strong></span>
+                        {!isNd && (
+                          <>
+                            <span>•</span>
+                            <span className={`inline-flex items-center gap-1 font-extrabold ${hasStock ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              Stok: {item.totalStock} {hasStock ? '✓' : '(Kurang)'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Status Selector */}
@@ -538,7 +621,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], onSave, onClose }) => {
 };
 
 export const SalesTab = ({ 
-  sales = [], loading, search, setSearch, openModal, canFulfill, warehouses = [], onFulfillSale, onDelete, onUpdatePayment 
+  sales = [], loading, search, setSearch, openModal, canFulfill, warehouses = [], variants = [], onFulfillSale, onDelete, onUpdatePayment 
 }) => {
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
@@ -960,6 +1043,7 @@ export const SalesTab = ({
                         <InlineFulfillPanel 
                           sale={s} 
                           warehouses={warehouses} 
+                          variants={variants}
                           onSave={async (fulfillments) => {
                             if (onFulfillSale) {
                               await onFulfillSale(s.id, fulfillments);

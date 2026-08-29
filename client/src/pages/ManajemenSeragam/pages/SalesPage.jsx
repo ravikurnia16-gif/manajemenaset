@@ -177,6 +177,7 @@ export default function SalesPage() {
                             openModal={openModal} 
                             canFulfill={canFulfill}
                             warehouses={warehouses}
+                            variants={variants}
                             onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
                             onUpdatePayment={handleUpdatePayment}
@@ -191,6 +192,7 @@ export default function SalesPage() {
                             openModal={openModal} 
                             canFulfill={canFulfill}
                             warehouses={warehouses}
+                            variants={variants}
                             onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
                             onUpdatePayment={handleUpdatePayment}
