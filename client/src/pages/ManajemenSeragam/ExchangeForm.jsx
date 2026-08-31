@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   RefreshCw, Plus, Trash2, Search, Check, AlertCircle, 
-  ArrowRight, DollarSign, CreditCard, Building, Package, User, FileText
+  ArrowRight, DollarSign, CreditCard, Building, Package, User, FileText,
+  CheckCircle2, Clock, Sparkles, MapPin
 } from 'lucide-react';
+import { Badge } from './UIComponents';
 
 const InputField = ({ label, ...props }) => (
     <div className="space-y-1.5">
@@ -27,14 +29,10 @@ export const ExchangeForm = ({
   initialSale = null, 
   onSave 
 }) => {
-    const [mode, setMode] = useState(initialSale ? 'INVOICE' : 'INVOICE'); // 'INVOICE' | 'MANUAL'
+    const [mode, setMode] = useState('INVOICE'); // 'INVOICE' | 'MANUAL'
     const [selectedSale, setSelectedSale] = useState(initialSale || null);
-    const [searchInvoice, setSearchInvoice] = useState('');
+    const [searchInvoice, setSearchInvoice] = useState(initialSale?.code || '');
     const [showSaleDropdown, setShowSaleDropdown] = useState(false);
-
-    // Global default warehouse
-    const [defaultFromWarehouseId, setDefaultFromWarehouseId] = useState(warehouses[0]?.id ? String(warehouses[0].id) : '');
-    const [defaultToWarehouseId, setDefaultToWarehouseId] = useState(warehouses[0]?.id ? String(warehouses[0].id) : '');
 
     // Form states
     const [studentName, setStudentName] = useState(initialSale?.studentName || '');
@@ -50,13 +48,15 @@ export const ExchangeForm = ({
     // Array of exchange rows
     const [exchanges, setExchanges] = useState([]);
 
+    const defaultWhId = warehouses[0]?.id ? String(warehouses[0].id) : '';
+
     // Initialize or sync with selected sale
     useEffect(() => {
         if (selectedSale) {
             setStudentName(selectedSale.studentName || '');
             setCustomerName(selectedSale.customerName || '');
 
-            // Pre-populate with items from the sale
+            // Pre-populate with items from the sale (allowing DIAMBIL, SEDIA, INDENT, PENDING)
             if (selectedSale.items && selectedSale.items.length > 0) {
                 const initialExchanges = selectedSale.items
                     .filter(item => item.status !== 'BATAL')
@@ -69,8 +69,11 @@ export const ExchangeForm = ({
                         oldUnitPrice: item.unitPrice || 0,
                         toVariantId: '',
                         qty: item.qty || 1,
-                        fromWarehouseId: defaultFromWarehouseId,
-                        toWarehouseId: defaultToWarehouseId
+                        status: item.status || 'PENDING',
+                        newStatus: item.status === 'DIAMBIL' ? 'DIAMBIL' : (item.status === 'SEDIA' ? 'SEDIA' : 'SEDIA'),
+                        fromWarehouseId: defaultWhId,
+                        toWarehouseId: defaultWhId,
+                        transitWarehouseId: defaultWhId
                     }));
                 setExchanges(initialExchanges);
             }
@@ -79,12 +82,15 @@ export const ExchangeForm = ({
                 fromVariantId: '', 
                 toVariantId: '', 
                 qty: 1, 
-                fromWarehouseId: defaultFromWarehouseId, 
-                toWarehouseId: defaultToWarehouseId,
+                status: 'DIAMBIL',
+                newStatus: 'DIAMBIL',
+                fromWarehouseId: defaultWhId, 
+                toWarehouseId: defaultWhId,
+                transitWarehouseId: defaultWhId,
                 oldUnitPrice: 0
             }]);
         }
-    }, [selectedSale, mode, defaultFromWarehouseId, defaultToWarehouseId]);
+    }, [selectedSale, mode, defaultWhId]);
 
     // Filter sales for autocomplete search
     const filteredSales = useMemo(() => {
@@ -118,6 +124,10 @@ export const ExchangeForm = ({
                 const v = variants.find(v => String(v.id) === String(value));
                 next[index].oldUnitPrice = v?.sellPrice || v?.item?.basePrice || 0;
             }
+            // If toWarehouseId changes and transitWarehouseId was same as previous toWarehouseId, sync it
+            if (field === 'toWarehouseId' && (!next[index].transitWarehouseId || next[index].transitWarehouseId === next[index].toWarehouseId)) {
+                next[index].transitWarehouseId = value;
+            }
             return next;
         });
     };
@@ -129,8 +139,11 @@ export const ExchangeForm = ({
                 fromVariantId: '', 
                 toVariantId: '', 
                 qty: 1, 
-                fromWarehouseId: defaultFromWarehouseId, 
-                toWarehouseId: defaultToWarehouseId,
+                status: 'DIAMBIL',
+                newStatus: 'DIAMBIL',
+                fromWarehouseId: defaultWhId, 
+                toWarehouseId: defaultWhId,
+                transitWarehouseId: defaultWhId,
                 oldUnitPrice: 0
             }
         ]);
@@ -192,11 +205,11 @@ export const ExchangeForm = ({
                 return;
             }
             if (!item.fromWarehouseId) {
-                alert('Pilih gudang tempat barang lama dikembalikan (Gudang Masuk)');
+                alert('Pilih gudang tempat barang lama dikembalikan (1. Gudang Pengembalian)');
                 return;
             }
             if (!item.toWarehouseId) {
-                alert('Pilih gudang tempat barang baru diambil (Gudang Keluar)');
+                alert('Pilih gudang tempat barang baru diambil (2. Gudang Sumber)');
                 return;
             }
         }
@@ -218,8 +231,10 @@ export const ExchangeForm = ({
                     oldUnitPrice: item.oldUnitPrice,
                     newUnitPrice: toV?.sellPrice || toV?.item?.basePrice || 0,
                     qty: item.qty || 1,
+                    newStatus: item.newStatus || item.status,
                     fromWarehouseId: item.fromWarehouseId,
-                    toWarehouseId: item.toWarehouseId
+                    toWarehouseId: item.toWarehouseId,
+                    transitWarehouseId: item.transitWarehouseId || item.toWarehouseId
                 };
             })
         };
@@ -289,6 +304,7 @@ export const ExchangeForm = ({
                                             <div>
                                                 <div className="font-bold text-xs text-blue-700 font-mono">{s.code}</div>
                                                 <div className="text-xs font-semibold text-slate-800">{s.customerName} {s.studentName ? `• Siswa: ${s.studentName}` : ''}</div>
+                                                <div className="text-[10px] text-slate-400">Unit: {s.targetUnit || '-'} • Status: {s.status}</div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-xs font-bold text-slate-700">Rp {s.totalAmount?.toLocaleString('id-ID')}</div>
@@ -304,25 +320,26 @@ export const ExchangeForm = ({
                             )}
                         </div>
                     ) : (
-                        <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-3 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                                    <FileText size={18} />
+                        <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex justify-between items-center">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-black text-blue-700 text-sm font-mono">{selectedSale.code}</span>
+                                    <span className="text-xs font-bold bg-white text-blue-800 border border-blue-300 px-2 py-0.5 rounded-full">
+                                        {selectedSale.type}
+                                    </span>
                                 </div>
-                                <div>
-                                    <div className="font-bold text-xs text-blue-800 flex items-center gap-2">
-                                        <span className="font-mono">{selectedSale.code}</span>
-                                        <span className="text-[10px] bg-blue-200 text-blue-800 px-1.5 py-0.2 rounded font-bold">{selectedSale.paymentStatus}</span>
-                                    </div>
-                                    <div className="text-xs text-slate-600 font-semibold">
-                                        {selectedSale.customerName} {selectedSale.studentName ? `• Siswa: ${selectedSale.studentName}` : ''}
-                                    </div>
+                                <div className="text-xs text-slate-700 font-semibold mt-0.5">
+                                    Wali/Pemesan: <strong>{selectedSale.customerName}</strong> {selectedSale.studentName && `• Siswa: ${selectedSale.studentName}`}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                    Unit: {selectedSale.targetUnit || '-'} • Status Tagihan: <strong className={selectedSale.paymentStatus === 'PAID' ? 'text-green-700' : 'text-amber-700'}>{selectedSale.paymentStatus}</strong>
                                 </div>
                             </div>
+
                             <button
                                 type="button"
                                 onClick={handleClearSale}
-                                className="text-xs font-bold text-red-600 hover:text-red-800 bg-white px-2.5 py-1.5 rounded-lg border border-red-200 shadow-sm"
+                                className="text-xs font-bold text-red-600 hover:text-red-800 bg-white hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg transition"
                             >
                                 Ganti Invoice
                             </button>
@@ -331,54 +348,35 @@ export const ExchangeForm = ({
                 </div>
             )}
 
-            {/* General Default Warehouse Selectors */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                        <Building size={13} className="text-emerald-600" />
-                        Gudang Masuk (Barang Lama Dikembalikan):
-                    </label>
-                    <select
-                        value={defaultFromWarehouseId}
-                        onChange={(e) => {
-                            setDefaultFromWarehouseId(e.target.value);
-                            setExchanges(prev => prev.map(ex => ({ ...ex, fromWarehouseId: e.target.value })));
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none"
-                    >
-                        {warehouses.map(w => (
-                            <option key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</option>
-                        ))}
-                    </select>
+            {/* Customer & Student Name if Manual */}
+            {mode === 'MANUAL' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <InputField 
+                        label="Nama Siswa *" 
+                        value={studentName} 
+                        onChange={e => setStudentName(e.target.value)} 
+                        placeholder="Contoh: Ahmad Fauzan" 
+                        required 
+                    />
+                    <InputField 
+                        label="Nama Wali / Pemesan" 
+                        value={customerName} 
+                        onChange={e => setCustomerName(e.target.value)} 
+                        placeholder="Contoh: Bpk. Kurnia" 
+                    />
                 </div>
-
-                <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                        <Building size={13} className="text-blue-600" />
-                        Gudang Keluar (Barang Pengganti Diambil):
-                    </label>
-                    <select
-                        value={defaultToWarehouseId}
-                        onChange={(e) => {
-                            setDefaultToWarehouseId(e.target.value);
-                            setExchanges(prev => prev.map(ex => ({ ...ex, toWarehouseId: e.target.value })));
-                        }}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-700 outline-none"
-                    >
-                        {warehouses.map(w => (
-                            <option key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
+            )}
 
             {/* List of Exchange Items */}
             <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                        <RefreshCw size={14} className="text-blue-600" /> 
-                        {mode === 'INVOICE' ? 'Pilih Item Pesanan yang Ingin Ditukar:' : 'Daftar Barang yang Ditukar:'}
-                    </h3>
+                    <div>
+                        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <RefreshCw size={14} className="text-blue-600" /> 
+                            {mode === 'INVOICE' ? 'Pilih Item Pesanan yang Ingin Ditukar:' : 'Daftar Barang yang Ditukar:'}
+                        </h3>
+                    </div>
+
                     {mode === 'MANUAL' && (
                         <button
                             type="button"
@@ -391,7 +389,7 @@ export const ExchangeForm = ({
                 </div>
 
                 {/* Items Container */}
-                <div className="space-y-3 max-h-[42vh] overflow-y-auto pr-1">
+                <div className="space-y-4 max-h-[52vh] overflow-y-auto pr-1">
                     {mode === 'INVOICE' && (!selectedSale || exchanges.length === 0) ? (
                         <div className="p-6 text-center text-xs text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
                             Silakan cari dan pilih nomor invoice di atas untuk memuat daftar seragam yang dipesan.
@@ -414,13 +412,17 @@ export const ExchangeForm = ({
                         const newPrice = selectedToV ? (selectedToV.sellPrice || selectedToV.item?.basePrice || 0) : oldPrice;
                         const itemPriceDiff = (newPrice - oldPrice) * (exc.qty || 1);
 
+                        const isReady = exc.status === 'SEDIA';
+                        const isTaken = exc.status === 'DIAMBIL' || exc.status === 'DELIVERED';
+                        const isIndent = exc.status === 'INDENT' || exc.status === 'TIDAK_TERSEDIA';
+
                         return (
                             <div 
                                 key={index} 
-                                className={`p-3.5 rounded-xl border transition-all ${
+                                className={`p-4 rounded-2xl border transition-all ${
                                     mode === 'INVOICE' && !exc.selected 
                                         ? 'bg-slate-50/60 border-slate-200 opacity-70' 
-                                        : 'bg-white border-blue-200 shadow-sm ring-1 ring-blue-400/20'
+                                        : 'bg-white border-blue-300 shadow-md ring-1 ring-blue-500/20'
                                 }`}
                             >
                                 <div className="flex items-start gap-3">
@@ -435,19 +437,33 @@ export const ExchangeForm = ({
                                         </div>
                                     )}
 
-                                    <div className="flex-1 space-y-3">
+                                    <div className="flex-1 space-y-3.5">
                                         {/* Row Header Info */}
-                                        <div className="flex justify-between items-start">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                                             <div>
-                                                <div className="font-bold text-xs sm:text-sm text-slate-800">
-                                                    {exc.itemName || fromV?.item?.name || 'Pilih Seragam'}
+                                                <div className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                                                    <span>{exc.itemName || fromV?.item?.name || 'Pilih Seragam'}</span>
+                                                    
+                                                    {/* Status Badge */}
+                                                    {mode === 'INVOICE' && (
+                                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                                            isTaken ? 'bg-blue-100 text-blue-800' :
+                                                            isReady ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                                                            isIndent ? 'bg-amber-100 text-amber-800' :
+                                                            'bg-slate-100 text-slate-700'
+                                                        }`}>
+                                                            {isTaken ? '✓ Sudah Diambil' :
+                                                             isReady ? '📦 Sedia (Belum Diambil / Fitting)' :
+                                                             isIndent ? '⏳ Indent' : exc.status}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                                                    <span>Ukuran Lama: <strong className="text-slate-700">{exc.oldSize || fromV?.sizeName || '-'}</strong></span>
+                                                <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                                                    <span>Ukuran Lama: <strong className="text-slate-800">{exc.oldSize || fromV?.sizeName || '-'}</strong></span>
                                                     <span>•</span>
-                                                    <span>Harga Beli: <strong className="text-slate-700">Rp {oldPrice.toLocaleString('id-ID')}</strong></span>
+                                                    <span>Harga Beli: <strong className="text-slate-800">Rp {oldPrice.toLocaleString('id-ID')}</strong></span>
                                                     <span>•</span>
-                                                    <span>Qty: <strong className="text-slate-700">{exc.qty} pcs</strong></span>
+                                                    <span>Jumlah: <strong className="text-slate-800">{exc.qty} pcs</strong></span>
                                                 </div>
                                             </div>
 
@@ -464,19 +480,20 @@ export const ExchangeForm = ({
 
                                         {/* Dropdown Options if active */}
                                         {(mode === 'MANUAL' || exc.selected) && (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                                                {/* Left: Barang / Ukuran Pengganti Baru */}
-                                                <div>
-                                                    <label className="block text-[11px] font-bold text-blue-700 mb-1">
-                                                        Ukuran Baru Pengganti *
+                                            <div className="space-y-3 pt-3 border-t border-slate-100">
+                                                
+                                                {/* 1. Pilih Ukuran Pengganti Baru */}
+                                                <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-200">
+                                                    <label className="block text-xs font-bold text-blue-800 mb-1">
+                                                        Pilih Ukuran Baru Pengganti *
                                                     </label>
                                                     <select
                                                         value={exc.toVariantId}
                                                         onChange={(e) => updateExchangeRow(index, 'toVariantId', e.target.value)}
                                                         required
-                                                        className="w-full bg-blue-50/60 border border-blue-300 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none"
+                                                        className="w-full bg-white border border-blue-300 rounded-xl p-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none shadow-xs"
                                                     >
-                                                        <option value="">-- Pilih Ukuran Pengganti --</option>
+                                                        <option value="">-- Pilih Ukuran Baru --</option>
                                                         {availableToVariants.map(v => {
                                                             const p = v.sellPrice || v.item?.basePrice || 0;
                                                             const diff = p - oldPrice;
@@ -490,54 +507,114 @@ export const ExchangeForm = ({
                                                     </select>
 
                                                     {selectedToV && (
-                                                        <div className="mt-1 flex items-center justify-between text-[10px]">
+                                                        <div className="mt-2 flex flex-wrap items-center justify-between text-xs pt-1 border-t border-blue-200/60">
                                                             <span className={hasStock ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
-                                                                Stok di Gudang Keluar: {stockInToWh} pcs {hasStock ? '✓' : '(Kosong!)'}
+                                                                Sisa Stok Ukuran {selectedToV.sizeName}: <strong>{stockInToWh} pcs</strong> {hasStock ? '✓ Tersedia' : '⚠️ Kosong/Indent'}
                                                             </span>
                                                             <span className="font-extrabold text-slate-700">
-                                                                Selisih: {itemPriceDiff > 0 ? `+Rp ${itemPriceDiff.toLocaleString('id-ID')}` : itemPriceDiff < 0 ? `-Rp ${Math.abs(itemPriceDiff).toLocaleString('id-ID')}` : 'Rp 0'}
+                                                                Selisih Biaya: <strong className={itemPriceDiff > 0 ? 'text-amber-700' : itemPriceDiff < 0 ? 'text-emerald-700' : 'text-slate-800'}>
+                                                                    {itemPriceDiff > 0 ? `+Rp ${itemPriceDiff.toLocaleString('id-ID')} (Tambah)` : itemPriceDiff < 0 ? `-Rp ${Math.abs(itemPriceDiff).toLocaleString('id-ID')} (Kembalian)` : 'Rp 0 (Pas)'}
+                                                                </strong>
                                                             </span>
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                {/* Right: Gudang Masuk & Keluar Khusus Item Ini */}
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                                                            Gudang Masuk:
+                                                {/* 2. Tiga Pilihan Gudang Jelas Per-Item */}
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                                    
+                                                    {/* Pilihan 1: Gudang Masuk (Barang Lama) */}
+                                                    <div className="space-y-1">
+                                                        <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                                            <Building size={13} className="text-amber-600" />
+                                                            1. Barang Lama Dikembalikan Ke:
                                                         </label>
                                                         <select
                                                             value={exc.fromWarehouseId}
                                                             onChange={(e) => updateExchangeRow(index, 'fromWarehouseId', e.target.value)}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 outline-none font-medium"
+                                                            className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none"
                                                         >
                                                             {warehouses.map(w => (
                                                                 <option key={w.id} value={w.id}>{w.name}</option>
                                                             ))}
                                                         </select>
+                                                        <p className="text-[10px] text-slate-400">Stok ukuran lama masuk ke sini</p>
                                                     </div>
 
-                                                    <div>
-                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">
-                                                            Gudang Keluar:
+                                                    {/* Pilihan 2: Gudang Keluar (Barang Baru) */}
+                                                    <div className="space-y-1">
+                                                        <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                                            <Package size={13} className="text-blue-600" />
+                                                            2. Barang Baru Diambil Dari:
                                                         </label>
                                                         <select
                                                             value={exc.toWarehouseId}
                                                             onChange={(e) => updateExchangeRow(index, 'toWarehouseId', e.target.value)}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 outline-none font-medium"
+                                                            className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none"
                                                         >
                                                             {warehouses.map(w => {
                                                                 const st = selectedToV?.stocks?.find(s => s.warehouseId === w.id);
                                                                 return (
                                                                     <option key={w.id} value={w.id}>
-                                                                        {w.name} {selectedToV ? `(${st?.quantity || 0})` : ''}
+                                                                        {w.name} {selectedToV ? `(${st?.quantity || 0} pcs)` : ''}
                                                                     </option>
                                                                 );
                                                             })}
                                                         </select>
+                                                        <p className="text-[10px] text-slate-400">Stok ukuran baru keluar dari sini</p>
                                                     </div>
+
+                                                    {/* Pilihan 3: Gudang Penjemputan / Lokasi Serah Terima */}
+                                                    <div className="space-y-1">
+                                                        <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                                            <MapPin size={13} className="text-emerald-600" />
+                                                            3. Barang Baru Dijemput di Gudang:
+                                                        </label>
+                                                        <select
+                                                            value={exc.transitWarehouseId || exc.toWarehouseId}
+                                                            onChange={(e) => updateExchangeRow(index, 'transitWarehouseId', e.target.value)}
+                                                            className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none"
+                                                        >
+                                                            {warehouses.map(w => (
+                                                                <option key={w.id} value={w.id}>{w.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        <p className="text-[10px] text-slate-400">Lokasi siswa menjemput seragam</p>
+                                                    </div>
+
                                                 </div>
+
+                                                {/* Pilihan Status Penyerahan jika barang belum diambil (SEDIA / INDENT) */}
+                                                {mode === 'INVOICE' && (isReady || isIndent) && (
+                                                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <span className="text-xs font-bold text-emerald-900">
+                                                            Status Seragam Baru Setelah Ditukar:
+                                                        </span>
+                                                        <div className="flex items-center gap-3 text-xs">
+                                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-300 shadow-xs">
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`newStatus_${index}`}
+                                                                    checked={exc.newStatus === 'SEDIA'}
+                                                                    onChange={() => updateExchangeRow(index, 'newStatus', 'SEDIA')}
+                                                                    className="text-emerald-600"
+                                                                />
+                                                                📦 Tetap Sedia (Disimpan untuk dijemput nanti)
+                                                            </label>
+                                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-blue-800 bg-white px-2.5 py-1 rounded-lg border border-blue-300 shadow-xs">
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`newStatus_${index}`}
+                                                                    checked={exc.newStatus === 'DIAMBIL'}
+                                                                    onChange={() => updateExchangeRow(index, 'newStatus', 'DIAMBIL')}
+                                                                    className="text-blue-600"
+                                                                    />
+                                                                ✓ Langsung Diserahkan Sekarang
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                             </div>
                                         )}
                                     </div>
@@ -632,16 +709,16 @@ export const ExchangeForm = ({
             {/* Reason & Note */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SelectField label="Alasan Penukaran *" value={reason} onChange={e => setReason(e.target.value)} required>
-                    <option value="SIZE_MISMATCH">Ukuran Tidak Pas / Kekecilan / Kebesaran</option>
+                    <option value="SIZE_MISMATCH">Ukuran Tidak Pas / Dicoba Kekecilan / Kebesaran</option>
                     <option value="DEFECTIVE">Barang Cacat / Rusak</option>
-                    <option value="WRONG_ITEM">Salah Barang</option>
+                    <option value="WRONG_ITEM">Salah Varian / Barang</option>
                     <option value="OTHER">Alasan Lainnya</option>
                 </SelectField>
                 <InputField 
                     label="Catatan Tambahan (Opsional)" 
                     value={note} 
                     onChange={e => setNote(e.target.value)} 
-                    placeholder="Contoh: Ditukar saat pengambilan di sekolah..." 
+                    placeholder="Contoh: Ditukar saat fitting di sekolah sebelum dibawa pulang..." 
                 />
             </div>
 
@@ -659,4 +736,3 @@ export const ExchangeForm = ({
         </form>
     );
 };
-

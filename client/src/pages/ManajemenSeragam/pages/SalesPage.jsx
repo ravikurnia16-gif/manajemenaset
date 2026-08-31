@@ -10,23 +10,21 @@ import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
 import { ExchangeForm } from '../ExchangeForm';
 
-const TABS = [
-    { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> },
-    { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> },
-    { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
-    { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
-];
-
 export default function SalesPage() {
-    const [activeTab, setActiveTab] = useState('sales_retail');
-    
-    // Data states
-    const [sales, setSales] = useState([]);
-    const [packages, setPackages] = useState([]);
-    const [exchanges, setExchanges] = useState([]);
-
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canFulfill = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
+    const isSuperOrAdminAset = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user.role);
+    const canFulfill = isSuperOrAdminAset;
+
+    const tabs = isSuperOrAdminAset ? [
+        { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> },
+        { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> },
+        { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
+        { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
+    ] : [
+        { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> }
+    ];
+
+    const [activeTab, setActiveTab] = useState('sales_spmb');
     
     // Lookup states for forms
     const [units, setUnits] = useState([]);
@@ -150,13 +148,17 @@ export default function SalesPage() {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Pesanan & Distribusi</h1>
-                    <p className="text-slate-500">Kelola pesanan, paket SPMB, dan retur/tukar ukuran</p>
+                    <p className="text-slate-500">
+                        {isSuperOrAdminAset 
+                            ? 'Kelola pesanan, paket SPMB, dan retur/tukar ukuran'
+                            : 'Daftar dan pemesanan seragam SPMB unit'}
+                    </p>
                 </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="flex overflow-x-auto border-b border-slate-100 px-2 scrollbar-hide">
-                    {TABS.map(tab => (
+                    {tabs.map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => { setActiveTab(tab.key); setSearch(''); }}

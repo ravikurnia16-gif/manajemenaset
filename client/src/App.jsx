@@ -287,14 +287,14 @@ function App() {
           <Route path="gudang/transaksi" element={<WarehouseTransactions />} />
           <Route path="gudang/transaksi/input" element={<WarehouseTransactionForm />} />
           <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
-          <Route path="gudang/pesanan/unit" element={<UnitOrderForm />} />
-          <Route path="gudang/seragam" element={<Navigate to="/gudang/seragam/dashboard" replace />} />
-          <Route path="gudang/seragam/dashboard" element={<ManajemenSeragamDashboard />} />
-          <Route path="gudang/seragam/master" element={<ManajemenSeragamMaster />} />
-          <Route path="gudang/seragam/stok" element={<ManajemenSeragamStock />} />
+          {/* Module: Manajemen Seragam */}
+          <Route path="gudang/seragam" element={<Navigate to={['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? "/gudang/seragam/dashboard" : "/gudang/seragam/penjualan"} replace />} />
+          <Route path="gudang/seragam/dashboard" element={['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? <ManajemenSeragamDashboard /> : <Navigate to="/gudang/seragam/penjualan" replace />} />
+          <Route path="gudang/seragam/master" element={['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? <ManajemenSeragamMaster /> : <Navigate to="/gudang/seragam/penjualan" replace />} />
+          <Route path="gudang/seragam/stok" element={['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? <ManajemenSeragamStock /> : <Navigate to="/gudang/seragam/penjualan" replace />} />
           <Route path="gudang/seragam/penjualan" element={<ManajemenSeragamSales />} />
-          <Route path="gudang/seragam/vendor" element={<ManajemenSeragamVendor />} />
-          <Route path="gudang/seragam/keuangan" element={<UniformFinancePage />} />
+          <Route path="gudang/seragam/vendor" element={['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? <ManajemenSeragamVendor /> : <Navigate to="/gudang/seragam/penjualan" replace />} />
+          <Route path="gudang/seragam/keuangan" element={['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? <UniformFinancePage /> : <Navigate to="/gudang/seragam/penjualan" replace />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={

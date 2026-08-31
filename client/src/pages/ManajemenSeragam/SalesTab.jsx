@@ -646,6 +646,40 @@ export const SalesTab = ({
     });
   };
 
+  // Helper untuk mengekstrak seluruh item (termasuk Nama Dada bordir dari note)
+  const getSaleItemsAndNd = (sale) => {
+    const items = sale.items || [];
+    const ndItems = [];
+    if (sale.note && sale.note.includes('[NAMADADA')) {
+      const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+      for (const m of matches) {
+        const ndType = m[1];
+        const ndQty = parseInt(m[2]) || 1;
+        const ndPrice = parseInt(m[3]) || 0;
+        const ndStatus = m[4] || 'PENDING';
+        let name = 'Nama Dada (Bordir)';
+        if (ndType === 'NAMADADA_PUTIH') name += ' - Putih';
+        if (ndType === 'NAMADADA_COKLAT') name += ' - Coklat';
+        ndItems.push({
+          isNd: true,
+          ndType,
+          itemName: name,
+          size: '-',
+          qty: ndQty,
+          unitPrice: ndPrice,
+          totalPrice: ndQty * ndPrice,
+          status: ndStatus
+        });
+      }
+    }
+    return { items, ndItems, allItems: [...items, ...ndItems] };
+  };
+
+  const checkSaleHasIndent = (sale) => {
+    const { allItems } = getSaleItemsAndNd(sale);
+    return allItems.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+  };
+
   // Helper untuk menentukan prioritas sorting:
   // 1: PENDING (Paling atas)
   // 2: PROSES dengan Item INDENT (Tinggi)
@@ -654,7 +688,7 @@ export const SalesTab = ({
   // 5: CANCELLED / BATAL (Paling bawah sekali)
   const getStatusPriority = (sale) => {
     const status = sale.status || '';
-    const hasIndent = sale.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+    const hasIndent = checkSaleHasIndent(sale);
 
     if (status === 'PENDING') return 1;
     if (status === 'PROSES' || status === 'SEDIA') {
@@ -677,8 +711,9 @@ export const SalesTab = ({
 
     sales.forEach(s => {
       const isDone = s.status === 'SELESAI' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'BATAL';
-      const hasIndent = s.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
-      const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || s.items?.some(i => i.status === 'SEDIA');
+      const hasIndent = checkSaleHasIndent(s);
+      const { allItems } = getSaleItemsAndNd(s);
+      const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || allItems.some(i => i.status === 'SEDIA');
       const orderDate = new Date(s.updatedAt || s.createdAt);
 
       if (s.status === 'PENDING') pending++;
@@ -703,15 +738,16 @@ export const SalesTab = ({
     if (statusFilter === 'PENDING') {
       list = list.filter(s => s.status === 'PENDING');
     } else if (statusFilter === 'INDENT') {
-      list = list.filter(s => s.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA') && s.status !== 'SELESAI' && s.status !== 'COMPLETED');
+      list = list.filter(s => checkSaleHasIndent(s) && s.status !== 'SELESAI' && s.status !== 'COMPLETED' && s.status !== 'CANCELLED' && s.status !== 'BATAL');
     } else if (statusFilter === 'PROSES') {
-      list = list.filter(s => (s.status === 'PROSES' || s.status === 'SEDIA'));
+      list = list.filter(s => (s.status === 'PROSES' || s.status === 'SEDIA') && !checkSaleHasIndent(s));
     } else if (statusFilter === 'COMPLETED') {
       list = list.filter(s => s.status === 'SELESAI' || s.status === 'COMPLETED');
     } else if (statusFilter === 'OVERDUE30') {
       list = list.filter(s => {
         const isDone = s.status === 'SELESAI' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'BATAL';
-        const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || s.items?.some(i => i.status === 'SEDIA');
+        const { allItems } = getSaleItemsAndNd(s);
+        const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || allItems.some(i => i.status === 'SEDIA');
         const orderDate = new Date(s.updatedAt || s.createdAt);
         return !isDone && isReady && orderDate <= thirtyDaysAgo;
       });
@@ -927,16 +963,17 @@ export const SalesTab = ({
                 }
               }
 
+              const { items: sItems, ndItems: sNdItems, allItems: sAllItems } = getSaleItemsAndNd(s);
               const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
                 ? s.subtotal
                 : ((s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || 0) + ndTotal);
               const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
               const isExpanded = expandedSaleIds.has(s.id);
-              const itemCount = s.items?.length || 0;
+              const itemCount = sAllItems.length || 0;
 
-              // Identifikasi item Indent & Sedia
-              const indentItems = s.items?.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA') || [];
-              const sediaItems = s.items?.filter(i => i.status === 'SEDIA') || [];
+              // Identifikasi item Indent & Sedia (termasuk Nama Dada)
+              const indentItems = sAllItems.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+              const sediaItems = sAllItems.filter(i => i.status === 'SEDIA');
               const isCompleted = s.status === 'SELESAI' || s.status === 'COMPLETED';
               const orderDateObj = new Date(s.updatedAt || s.createdAt);
               const diffDays = Math.floor((Date.now() - orderDateObj) / (1000 * 60 * 60 * 24));
@@ -965,7 +1002,7 @@ export const SalesTab = ({
                         </div>
                       )}
                       {indentItems.length > 0 && !isCompleted && (
-                        <div className="text-[10px] font-extrabold text-amber-700 flex items-center gap-1 mt-0.5">
+                        <div className="text-[10px] font-extrabold text-amber-700 flex items-center gap-1 mt-0.5" title={`Item Indent: ${indentItems.map(i => i.itemName + (i.size !== '-' ? ' (' + i.size + ')' : '')).join(', ')}`}>
                           ⏳ Ada {indentItems.length} Inden
                         </div>
                       )}
@@ -1031,7 +1068,7 @@ export const SalesTab = ({
                         {indentItems.length > 0 && !isCompleted && (
                           <span 
                             className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full shadow-sm"
-                            title={`Item Indent: ${indentItems.map(i => i.itemName + ' (' + i.size + ')').join(', ')}`}
+                            title={`Item Indent: ${indentItems.map(i => i.itemName + (i.size !== '-' ? ' (' + i.size + ')' : '')).join(', ')}`}
                           >
                             ⏳ {indentItems.length} Indent
                           </span>

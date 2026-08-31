@@ -3930,15 +3930,9 @@ exports.createExchange = async (req, res) => {
                     throw new Error('Pilih gudang masuk (barang lama) dan gudang keluar (barang baru)');
                 }
 
-                // Validasi bahwa item di pesanan memang sudah diambil (DIAMBIL / DELIVERED)
+                let targetItem = null;
                 if (item.saleItemId && targetSale) {
-                    const targetItem = targetSale.items?.find(si => si.id === parseInt(item.saleItemId));
-                    if (targetItem) {
-                        const isTaken = targetItem.status === 'DIAMBIL' || targetItem.status === 'DELIVERED' || (targetItem.qtyDelivered && targetItem.qtyDelivered > 0);
-                        if (!isTaken) {
-                            throw new Error(`Item ${targetItem.itemName} (${targetItem.size}) belum diambil/diserahkan. Penukaran ukuran hanya bisa dilakukan untuk barang yang telah diambil.`);
-                        }
-                    }
+                    targetItem = targetSale.items?.find(si => si.id === parseInt(item.saleItemId));
                 }
 
                 // Ambil info varian baru
@@ -3960,6 +3954,20 @@ exports.createExchange = async (req, res) => {
                 const itemPriceDiff = (newUnitPrice - oldUnitPrice) * quantity;
                 totalPriceDiff += itemPriceDiff;
 
+                const isAlreadyTaken = targetItem ? (targetItem.status === 'DIAMBIL' || targetItem.status === 'DELIVERED') : true;
+                const isReadyInWarehouse = targetItem ? targetItem.status === 'SEDIA' : false;
+                const isIndentOrPending = targetItem ? (targetItem.status === 'PENDING' || targetItem.status === 'INDENT' || targetItem.status === 'TIDAK_TERSEDIA') : false;
+
+                // Tentukan status akhir item di pesanan
+                let finalStatus = targetItem ? (item.newStatus || targetItem.status) : 'COMPLETED';
+
+                const itemTransitWhId = parseInt(item.transitWarehouseId || itemToWhId);
+                let transitWhName = '';
+                if (itemTransitWhId) {
+                    const tWh = await tx.uniformWarehouse.findUnique({ where: { id: itemTransitWhId } });
+                    transitWhName = tWh?.name || '';
+                }
+
                 // 1. Catat record tukar ukuran
                 const exchange = await tx.uniformExchange.create({
                     data: {
@@ -3970,65 +3978,74 @@ exports.createExchange = async (req, res) => {
                         toVariantId: tVId,
                         qty: quantity,
                         reason: reason || 'SIZE_MISMATCH',
-                        note: `${note || ''}${targetSale ? ` [Ref Sale: ${targetSale.code}]` : ''}${itemPriceDiff !== 0 ? ` (Selisih: ${itemPriceDiff > 0 ? '+' : ''}Rp ${itemPriceDiff.toLocaleString('id-ID')})` : ''}`.trim(),
+                        note: `${note || ''}${targetSale ? ` [Ref: ${targetSale.code}]` : ''}${!isAlreadyTaken ? ` [Tukar Saat ${targetItem?.status || 'Belum Diambil'}]` : ''}${transitWhName ? ` [Jemput: ${transitWhName}]` : ''}${itemPriceDiff !== 0 ? ` (Selisih: ${itemPriceDiff > 0 ? '+' : ''}Rp ${itemPriceDiff.toLocaleString('id-ID')})` : ''}`.trim(),
                         status: 'COMPLETED',
                         createdById: req.user?.id || null
                     }
                 });
                 exchangeRecords.push(exchange);
 
-                // 2. Stok Masuk (+qty) di gudang pengembalian (barang lama)
-                await tx.uniformStock.upsert({
-                    where: { variantId_warehouseId: { variantId: fVId, warehouseId: itemFromWhId } },
-                    create: { variantId: fVId, warehouseId: itemFromWhId, quantity },
-                    update: { quantity: { increment: quantity } }
-                });
+                // 2. Stok Masuk (+qty) untuk barang lama:
+                // Jika barang sudah diambil (DIAMBIL) atau sudah dialokasikan ke gudang (SEDIA), barang lama dikembalikan ke stok gudang masuk.
+                if (isAlreadyTaken || isReadyInWarehouse || !targetItem) {
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: fVId, warehouseId: itemFromWhId } },
+                        create: { variantId: fVId, warehouseId: itemFromWhId, quantity },
+                        update: { quantity: { increment: quantity } }
+                    });
 
-                // Catat transaksi stok masuk
-                const trxInCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
-                await tx.uniformStockTransaction.create({
-                    data: {
-                        code: trxInCode,
-                        type: 'IN',
-                        variantId: fVId,
-                        warehouseId: itemFromWhId,
-                        quantity: quantity,
-                        referenceType: 'EXCHANGE',
-                        referenceId: exchange.id,
-                        reason: `Retur Tukar Ukuran (${code}) dari ${studentName || targetSale?.studentName || 'Pelanggan'}`,
-                        createdById: req.user?.id || null
-                    }
-                });
-
-                // 3. Stok Keluar (-qty) di gudang pengambilan (barang baru)
-                const stockOut = await tx.uniformStock.findUnique({
-                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: itemToWhId } }
-                });
-
-                if (!stockOut || stockOut.quantity < quantity) {
-                    throw new Error(`Stok pengganti (${toVariant.item?.name} - ${toVariant.sizeName}) tidak mencukupi di gudang yang dipilih (Sisa: ${stockOut?.quantity || 0})`);
+                    const trxInCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxInCode,
+                            type: 'IN',
+                            variantId: fVId,
+                            warehouseId: itemFromWhId,
+                            quantity: quantity,
+                            referenceType: 'EXCHANGE',
+                            referenceId: exchange.id,
+                            reason: `Pengembalian/Tukar Ukuran (${code}) [Status Lama: ${targetItem?.status || 'DIAMBIL'}] dari ${studentName || targetSale?.studentName || 'Pelanggan'}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
                 }
 
-                await tx.uniformStock.update({
-                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: itemToWhId } },
-                    data: { quantity: { decrement: quantity } }
-                });
+                // 3. Stok Keluar (-qty) untuk barang baru:
+                const shouldDeductNewStock = isAlreadyTaken || isReadyInWarehouse || finalStatus === 'SEDIA' || finalStatus === 'DIAMBIL' || !targetItem;
 
-                // Catat transaksi stok keluar
-                const trxOutCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
-                await tx.uniformStockTransaction.create({
-                    data: {
-                        code: trxOutCode,
-                        type: 'OUT',
-                        variantId: tVId,
-                        warehouseId: itemToWhId,
-                        quantity: -quantity,
-                        referenceType: 'EXCHANGE',
-                        referenceId: exchange.id,
-                        reason: `Penyerahan Tukar Ukuran (${code}) untuk ${studentName || targetSale?.studentName || 'Pelanggan'}`,
-                        createdById: req.user?.id || null
+                if (shouldDeductNewStock) {
+                    const stockOut = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: tVId, warehouseId: itemToWhId } }
+                    });
+
+                    if (!stockOut || stockOut.quantity < quantity) {
+                        if (isIndentOrPending) {
+                            finalStatus = 'INDENT';
+                        } else {
+                            throw new Error(`Stok pengganti (${toVariant.item?.name} - ${toVariant.sizeName}) tidak mencukupi di gudang yang dipilih (Sisa: ${stockOut?.quantity || 0} pcs)`);
+                        }
+                    } else {
+                        await tx.uniformStock.update({
+                            where: { variantId_warehouseId: { variantId: tVId, warehouseId: itemToWhId } },
+                            data: { quantity: { decrement: quantity } }
+                        });
+
+                        const trxOutCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                        await tx.uniformStockTransaction.create({
+                            data: {
+                                code: trxOutCode,
+                                type: 'OUT',
+                                variantId: tVId,
+                                warehouseId: itemToWhId,
+                                quantity: -quantity,
+                                referenceType: 'EXCHANGE',
+                                referenceId: exchange.id,
+                                reason: `Penyerahan/Alokasi Tukar Ukuran (${code}) [Status Baru: ${finalStatus}] untuk ${studentName || targetSale?.studentName || 'Pelanggan'}`,
+                                createdById: req.user?.id || null
+                            }
+                        });
                     }
-                });
+                }
 
                 // 4. Update UniformSaleItem jika terhubung dengan pesanan
                 if (item.saleItemId && targetSale) {
@@ -4039,7 +4056,9 @@ exports.createExchange = async (req, res) => {
                             itemName: toVariant.item.name,
                             size: toVariant.sizeName,
                             unitPrice: newUnitPrice,
-                            totalPrice: newUnitPrice * quantity
+                            totalPrice: newUnitPrice * quantity,
+                            status: finalStatus,
+                            ...(finalStatus === 'DIAMBIL' ? { qtyDelivered: quantity, deliveredAt: new Date() } : {})
                         }
                     });
                 }
@@ -4323,6 +4342,102 @@ exports.getDashboardStats = async (req, res) => {
             }))
         ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
 
+        // 6. Comprehensive Urgent Restock Calculation
+        const allActiveVariants = await prisma.uniformVariant.findMany({
+            where: { isActive: true },
+            include: {
+                item: {
+                    select: {
+                        id: true,
+                        name: true,
+                        gender: true,
+                        unit: { select: { name: true } },
+                        category: { select: { name: true } },
+                        clothingType: { select: { name: true } },
+                        basePrice: true
+                    }
+                },
+                stocks: {
+                    include: {
+                        warehouse: { select: { id: true, name: true } }
+                    }
+                }
+            }
+        });
+
+        // Group active indent/pending demands from saleItems
+        const demandMap = new Map();
+        saleItems.forEach(si => {
+            if (['PENDING', 'INDENT', 'TIDAK_TERSEDIA', 'BACKORDER'].includes(si.status)) {
+                const key = si.variantId ? `v-${si.variantId}` : `name-${si.itemName}___${si.size}`;
+                demandMap.set(key, (demandMap.get(key) || 0) + (si.qty || 0));
+            }
+        });
+
+        // Calculate urgent restock items
+        let urgentRestockItems = [];
+        allActiveVariants.forEach(v => {
+            const applicableStocks = whId ? v.stocks.filter(st => st.warehouseId === whId) : v.stocks;
+            const currentStock = applicableStocks.reduce((sum, st) => sum + (st.quantity || 0), 0);
+            const minStock = applicableStocks.reduce((sum, st) => sum + (st.minStock || 0), 0) || 5;
+            
+            const demandByVid = demandMap.get(`v-${v.id}`) || 0;
+            const demandByName = demandMap.get(`name-${v.item?.name}___${v.sizeName}`) || 0;
+            const totalIndentDemand = demandByVid + demandByName;
+
+            const isDeficit = currentStock < totalIndentDemand;
+            const isBelowMin = currentStock <= minStock;
+            const isOutOfStock = currentStock <= 0;
+
+            if (isDeficit || isBelowMin || isOutOfStock) {
+                const deficitFromIndent = Math.max(0, totalIndentDemand - currentStock);
+                const bufferTarget = Math.max(0, minStock - Math.max(0, currentStock - totalIndentDemand));
+                const recommendedQty = Math.max(1, deficitFromIndent + bufferTarget);
+
+                let urgency = 'LOW_STOCK';
+                let urgencyLabel = 'Stok Menipis';
+                if (totalIndentDemand > 0 && currentStock <= 0) {
+                    urgency = 'CRITICAL';
+                    urgencyLabel = 'DARURAT (Inden & Kosong)';
+                } else if (totalIndentDemand > currentStock) {
+                    urgency = 'URGENT';
+                    urgencyLabel = 'Mendesak (Kurang Stok)';
+                } else if (currentStock <= 0) {
+                    urgency = 'OUT_OF_STOCK';
+                    urgencyLabel = 'Stok Habis (0)';
+                }
+
+                urgentRestockItems.push({
+                    variantId: v.id,
+                    itemId: v.itemId,
+                    itemName: v.item?.name || 'Seragam',
+                    unitName: v.item?.unit?.name || '-',
+                    categoryName: v.item?.category?.name || '-',
+                    clothingTypeName: v.item?.clothingType?.name || '-',
+                    gender: v.item?.gender || '-',
+                    sizeName: v.sizeName || '-',
+                    sku: v.sku || '-',
+                    currentStock,
+                    totalIndentDemand,
+                    minStock,
+                    recommendedQty,
+                    urgency,
+                    urgencyLabel,
+                    estBudget: recommendedQty * (v.modalAwal || v.item?.basePrice || 0),
+                    warehouseBreakdown: applicableStocks.map(st => `${st.warehouse?.name || 'Gudang'}: ${st.quantity} pcs`).join(', ')
+                });
+            }
+        });
+
+        // Sort: CRITICAL first, then URGENT, then OUT_OF_STOCK, then LOW_STOCK, then by recommendedQty desc
+        const urgencyWeight = { 'CRITICAL': 1, 'URGENT': 2, 'OUT_OF_STOCK': 3, 'LOW_STOCK': 4 };
+        urgentRestockItems.sort((a, b) => {
+            const wA = urgencyWeight[a.urgency] || 5;
+            const wB = urgencyWeight[b.urgency] || 5;
+            if (wA !== wB) return wA - wB;
+            return b.recommendedQty - a.recommendedQty;
+        });
+
         res.json({
             totalItems,
             totalVariants,
@@ -4352,6 +4467,8 @@ exports.getDashboardStats = async (req, res) => {
             topSellingItems,
             lowStockCount: lowStockItems.length,
             lowStockItems,
+            urgentRestockCount: urgentRestockItems.length,
+            urgentRestockItems,
             recentActivity: combinedActivity
         });
     } catch (error) {
