@@ -2349,6 +2349,171 @@ exports.getSales = async (req, res) => {
     }
 };
 
+exports.exportSalesToExcel = async (req, res) => {
+    try {
+        const { type, status, paymentStatus, search, isOverdue30Days } = req.query;
+        const where = {};
+        if (type) where.type = type;
+        if (status) where.status = status;
+        if (paymentStatus) where.paymentStatus = paymentStatus;
+        if (search) {
+            where.OR = [
+                { code: { contains: search } },
+                { customerName: { contains: search } },
+                { studentName: { contains: search } }
+            ];
+        }
+
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+        let data = await prisma.uniformSale.findMany({
+            where,
+            include: {
+                warehouse: { select: { id: true, name: true } },
+                package: { select: { id: true, name: true } },
+                salePackages: { include: { package: { select: { id: true, name: true } } } },
+                items: { include: { variant: { include: { item: true } } } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (isOverdue30Days === 'true') {
+            data = data.filter(s => {
+                const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || s.items.some(i => i.status === 'SEDIA');
+                const orderDate = new Date(s.updatedAt || s.createdAt);
+                return isReady && orderDate <= thirtyDaysAgo;
+            });
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Daftar_Pesanan_Seragam');
+
+        sheet.columns = [
+            { header: 'No', key: 'no', width: 6 },
+            { header: 'Kode Invoice', key: 'code', width: 22 },
+            { header: 'Tanggal Pesan', key: 'date', width: 15 },
+            { header: 'Tipe', key: 'type', width: 12 },
+            { header: 'Nama Pemesan / Siswa', key: 'name', width: 28 },
+            { header: 'No HP / WA', key: 'phone', width: 18 },
+            { header: 'Unit / Jenjang', key: 'unit', width: 16 },
+            { header: 'Status Pesanan', key: 'status', width: 18 },
+            { header: 'Status Bayar', key: 'paymentStatus', width: 16 },
+            { header: 'Rincian Seragam & Ukuran', key: 'items', width: 45 },
+            { header: 'Total Tagihan (Rp)', key: 'totalAmount', width: 20 },
+            { header: 'Terbayar (Rp)', key: 'paidAmount', width: 18 },
+            { header: 'Sisa Piutang (Rp)', key: 'unpaidAmount', width: 18 },
+            { header: 'Catatan / Gudang', key: 'notes', width: 30 }
+        ];
+
+        // Style header row
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E40AF' }
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+        headerRow.height = 28;
+
+        let totalTagihan = 0;
+        let totalTerbayar = 0;
+        let totalPiutang = 0;
+
+        data.forEach((s, idx) => {
+            const rowNo = idx + 1;
+            const orderDate = new Date(s.createdAt).toLocaleDateString('id-ID');
+            const customer = s.customerName || s.studentName || '-';
+            const phone = s.customerPhone || '-';
+            const unit = s.targetUnit || '-';
+            const tagihan = s.totalAmount || 0;
+            const terbayar = s.paidAmount || 0;
+            const piutang = Math.max(0, tagihan - terbayar);
+
+            totalTagihan += tagihan;
+            totalTerbayar += terbayar;
+            totalPiutang += piutang;
+
+            let itemsStr = s.items.map(i => `${i.itemName} (${i.size}) x${i.qty} [${i.status}]`).join('; ');
+            if (s.note && s.note.includes('[NAMADADA')) {
+                const matches = [...s.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):/g)];
+                matches.forEach(m => {
+                    const type = m[1].includes('PUTIH') ? 'Nama Dada Putih' : 'Nama Dada Coklat';
+                    itemsStr += `; ${type} x${m[2]}`;
+                });
+            }
+
+            const row = sheet.addRow({
+                no: rowNo,
+                code: s.code,
+                date: orderDate,
+                type: s.type,
+                name: customer,
+                phone: phone,
+                unit: unit,
+                status: s.status,
+                paymentStatus: s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'PARTIAL' ? 'SEBAGIAN' : 'BELUM BAYAR',
+                items: itemsStr,
+                totalAmount: tagihan,
+                paidAmount: terbayar,
+                unpaidAmount: piutang,
+                notes: s.note || ''
+            });
+
+            row.alignment = { vertical: 'middle' };
+            row.getCell('no').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('code').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('date').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('type').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('phone').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('unit').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('status').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('paymentStatus').alignment = { horizontal: 'center', vertical: 'middle' };
+            row.getCell('totalAmount').numFmt = '#,##0';
+            row.getCell('paidAmount').numFmt = '#,##0';
+            row.getCell('unpaidAmount').numFmt = '#,##0';
+        });
+
+        // Add Summary Total Row
+        const totalRow = sheet.addRow({
+            no: '',
+            code: 'TOTAL KESELURUHAN',
+            date: '',
+            type: '',
+            name: '',
+            phone: '',
+            unit: '',
+            status: '',
+            paymentStatus: '',
+            items: `${data.length} Pesanan`,
+            totalAmount: totalTagihan,
+            paidAmount: totalTerbayar,
+            unpaidAmount: totalPiutang,
+            notes: ''
+        });
+
+        totalRow.font = { bold: true };
+        totalRow.getCell('totalAmount').numFmt = '#,##0';
+        totalRow.getCell('paidAmount').numFmt = '#,##0';
+        totalRow.getCell('unpaidAmount').numFmt = '#,##0';
+        totalRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF1F5F9' }
+        };
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Pesanan_Seragam_${Date.now()}.xlsx`);
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Export Sales Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.getSaleById = async (req, res) => {
     try {
         const data = await prisma.uniformSale.findUnique({
@@ -3427,7 +3592,8 @@ exports.manageSaleItems = async (req, res) => {
                     });
                 }
 
-                msg += `⏰ *Jadwal Penjemputan:* Hari Kerja (07.30 - 16.00)\n\n`;
+                msg += `⏰ *Jadwal Pengambilan:* Hari Kerja (07.30 - 16.00 WIB)\n`;
+                msg += `⚠️ *Batas Waktu Pengambilan:* Mohon seragam diambil maksimal dalam waktu *30 hari*. Pesanan yang belum diambil setelah 30 hari akan dibatalkan otomatis dan stok dialihkan kepada pemesan lain.\n\n`;
             }
 
             if (diambil.length > 0) {

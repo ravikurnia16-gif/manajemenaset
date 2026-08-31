@@ -281,22 +281,16 @@ export default function UniformOrderPublic() {
                         </div>
                     </div>
 
-                    {/* Notice Box about Transfer & Next Step */}
+                    {/* Notice Box about Next Step */}
                     <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4 text-left space-y-2 text-xs text-blue-900">
                         <div className="font-bold flex items-center gap-1.5 text-blue-800 text-sm">
                             <Info size={16} className="text-blue-600 shrink-0" />
                             <span>Langkah Selanjutnya:</span>
                         </div>
                         <ol className="list-decimal list-inside space-y-1.5 text-blue-800/90 leading-relaxed">
-                            <li>Pesanan Abu/Ummu saat ini berstatus <strong>Menunggu Konfirmasi Admin</strong> untuk pengecekan stok di gudang.</li>
-                            <li>Setelah seragam dipastikan <strong>Tersedia (Siap Diambil)</strong>, sistem akan mengirimkan <strong>Invoice Resmi</strong> dan <strong>Informasi Rekening Pembayaran</strong> ke nomor WhatsApp Abu/Ummu:</li>
+                            <li>Pesanan Abu/Ummu saat ini berstatus <strong>Menunggu Konfirmasi Admin</strong> untuk pengecekan ketersediaan stok fisik di gudang.</li>
+                            <li>Setelah seragam dipastikan <strong>Tersedia (Siap Diambil)</strong>, sistem akan mengirimkan <strong>Invoice Resmi</strong> beserta <strong>Informasi Pembayaran</strong> langsung ke nomor WhatsApp Abu/Ummu.</li>
                         </ol>
-                        <div className="bg-white/80 p-3 rounded-xl border border-blue-200 mt-2 font-mono text-xs">
-                            <div className="text-slate-500 text-[10px] uppercase font-bold">Rekening Pembayaran Yayasan:</div>
-                            <div className="font-bold text-slate-800 text-sm">BSI (Bank Syariah Indonesia)</div>
-                            <div className="font-extrabold text-blue-700 text-sm">7311412188</div>
-                            <div className="text-slate-600 font-semibold">a.n. Syafriyan</div>
-                        </div>
                     </div>
 
                     {/* Navigation Buttons */}
@@ -476,7 +470,7 @@ export default function UniformOrderPublic() {
                         <div className="bg-blue-100/60 p-4 rounded-xl flex gap-3 items-start text-xs text-blue-900 leading-relaxed border border-blue-200/60">
                             <Info size={18} className="shrink-0 mt-0.5 text-blue-700" />
                             <div>
-                                Setelah Anda membuat pesanan, Admin kami akan memeriksa stok seragam terlebih dahulu. Invoice resmi beserta nomor rekening pembayaran (**BSI an Syafriyan : 7311412188**) akan dikirimkan ke WhatsApp Anda begitu seragam telah siap / tersedia.
+                                Setelah Anda membuat pesanan, Admin kami akan memeriksa ketersediaan stok seragam terlebih dahulu. Invoice resmi beserta informasi pembayaran akan dikirimkan otomatis ke WhatsApp Anda begitu seragam telah siap / tersedia.
                             </div>
                         </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
-  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw
+  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw, Download, AlertTriangle
 } from 'lucide-react';
 import { Badge } from './UIComponents';
 
@@ -672,21 +672,32 @@ export const SalesTab = ({
     let indent = 0;
     let proses = 0;
     let completed = 0;
+    let overdue30 = 0;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     sales.forEach(s => {
+      const isDone = s.status === 'SELESAI' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'BATAL';
       const hasIndent = s.items?.some(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+      const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || s.items?.some(i => i.status === 'SEDIA');
+      const orderDate = new Date(s.updatedAt || s.createdAt);
+
       if (s.status === 'PENDING') pending++;
-      if (hasIndent && s.status !== 'SELESAI' && s.status !== 'COMPLETED' && s.status !== 'CANCELLED') indent++;
+      if (hasIndent && !isDone) indent++;
       if ((s.status === 'PROSES' || s.status === 'SEDIA') && !hasIndent) proses++;
       if (s.status === 'SELESAI' || s.status === 'COMPLETED') completed++;
+
+      if (!isDone && isReady && orderDate <= thirtyDaysAgo) {
+        overdue30++;
+      }
     });
 
-    return { all: sales.length, pending, indent, proses, completed };
+    return { all: sales.length, pending, indent, proses, completed, overdue30 };
   }, [sales]);
 
   // Urutkan data: PENDING paling atas, INDENT berikutnya, PROSES, dan SELESAI paling bawah
   const sortedAndFilteredSales = useMemo(() => {
     let list = [...sales];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Filter status jika dipilih
     if (statusFilter === 'PENDING') {
@@ -697,6 +708,13 @@ export const SalesTab = ({
       list = list.filter(s => (s.status === 'PROSES' || s.status === 'SEDIA'));
     } else if (statusFilter === 'COMPLETED') {
       list = list.filter(s => s.status === 'SELESAI' || s.status === 'COMPLETED');
+    } else if (statusFilter === 'OVERDUE30') {
+      list = list.filter(s => {
+        const isDone = s.status === 'SELESAI' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'BATAL';
+        const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || s.items?.some(i => i.status === 'SEDIA');
+        const orderDate = new Date(s.updatedAt || s.createdAt);
+        return !isDone && isReady && orderDate <= thirtyDaysAgo;
+      });
     }
 
     // Urutkan berdasarkan prioritas status lalu tanggal terbaru
@@ -707,6 +725,21 @@ export const SalesTab = ({
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
   }, [sales, statusFilter]);
+
+  const handleExportExcel = () => {
+    let url = `/api/uniforms/sales/export?`;
+    if (search) url += `search=${encodeURIComponent(search)}&`;
+    if (statusFilter === 'OVERDUE30') {
+      url += `isOverdue30Days=true&`;
+    } else if (statusFilter === 'PENDING') {
+      url += `status=PENDING&`;
+    } else if (statusFilter === 'PROSES') {
+      url += `status=PROSES&`;
+    } else if (statusFilter === 'COMPLETED') {
+      url += `status=COMPLETED&`;
+    }
+    window.open(url, '_blank');
+  };
 
   return (
     <div className="space-y-4">
@@ -725,8 +758,19 @@ export const SalesTab = ({
           </div>
         </div>
 
-        {/* Action Buttons: Public Form Link & Create Admin Order */}
+        {/* Action Buttons: Public Form Link & Create Admin Order & Export Excel */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          {/* Tombol Ekspor Pesanan */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0"
+            title="Ekspor Data Pesanan Seragam ke File Excel"
+          >
+            <Download size={13} />
+            <span>Ekspor Excel</span>
+          </button>
+
           {/* Tombol Buka Form Publik */}
           <a
             href="/pesan-seragam"
@@ -828,6 +872,20 @@ export const SalesTab = ({
           🔵 Diproses ({counts.proses})
         </button>
 
+        {counts.overdue30 > 0 && (
+          <button
+            onClick={() => setStatusFilter('OVERDUE30')}
+            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition animate-pulse ${
+              statusFilter === 'OVERDUE30'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'bg-rose-50 border border-rose-300 text-rose-800 hover:bg-rose-100'
+            }`}
+          >
+            <AlertTriangle size={13} className="text-rose-600" />
+            🚨 Siap Ambil &gt; 30 Hari ({counts.overdue30})
+          </button>
+        )}
+
         <button
           onClick={() => setStatusFilter('COMPLETED')}
           className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
@@ -880,11 +938,16 @@ export const SalesTab = ({
               const indentItems = s.items?.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA') || [];
               const sediaItems = s.items?.filter(i => i.status === 'SEDIA') || [];
               const isCompleted = s.status === 'SELESAI' || s.status === 'COMPLETED';
+              const orderDateObj = new Date(s.updatedAt || s.createdAt);
+              const diffDays = Math.floor((Date.now() - orderDateObj) / (1000 * 60 * 60 * 24));
+              const isOverdue30 = (s.status === 'PROSES' || s.status === 'SEDIA' || sediaItems.length > 0) && !isCompleted && s.status !== 'BATAL' && s.status !== 'CANCELLED' && diffDays >= 30;
 
               return (
                 <React.Fragment key={s.id}>
                   <tr className={`hover:bg-slate-50/80 transition-colors ${
-                    isExpanded 
+                    isOverdue30
+                      ? 'bg-rose-50/40 border-l-4 border-l-rose-500'
+                      : isExpanded 
                       ? 'bg-blue-50/40' 
                       : indentItems.length > 0 && !isCompleted 
                       ? 'bg-amber-50/20' 
@@ -896,6 +959,11 @@ export const SalesTab = ({
                     {/* Invoice */}
                     <td className="p-3">
                       <div className="font-mono text-xs font-bold text-slate-700">{s.code}</div>
+                      {isOverdue30 && (
+                        <div className="text-[10px] font-black text-rose-700 bg-rose-100/90 border border-rose-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-1">
+                          🚨 Siap {diffDays} Hari
+                        </div>
+                      )}
                       {indentItems.length > 0 && !isCompleted && (
                         <div className="text-[10px] font-extrabold text-amber-700 flex items-center gap-1 mt-0.5">
                           ⏳ Ada {indentItems.length} Inden

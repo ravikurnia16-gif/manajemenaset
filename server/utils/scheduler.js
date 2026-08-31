@@ -110,10 +110,10 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 2d. UNIFORM ORDER SUMMARY (Monday, Wednesday & Friday at 07:40 AM)
+        // 2d. UNIFORM ORDER SUMMARY (Daily at 07:25 AM to Kepala Bidang Sarana)
         // ----------------------------------------------------
-        if ([1, 3, 5].includes(day) && hour === 7 && minute === 40) {
-            console.log('[Scheduler] Executing Uniform Order Summary...');
+        if (hour === 7 && minute === 25) {
+            console.log('[Scheduler] Executing Daily Uniform Order Summary...');
             try {
                 await sendUniformOrderSummary();
             } catch (err) {

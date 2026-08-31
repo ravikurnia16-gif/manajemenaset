@@ -111,6 +111,7 @@ router.post('/vendor-evaluations', c.createVendorEvaluation);
 router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);
 
 // Sales (POS / SPMB / Unit Order)
+router.get('/sales/export', c.exportSalesToExcel);
 router.get('/sales', c.getSales);
 router.post('/sales', c.createSale);
 router.delete('/sales/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.deleteSale);
