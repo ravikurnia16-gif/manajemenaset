@@ -4121,7 +4121,8 @@ exports.createExchange = async (req, res) => {
 
                 const newPaymentStatus = newPaidAmount >= newTotalAmount ? 'PAID' : (newPaidAmount > 0 ? 'PARTIAL' : 'UNPAID');
 
-                const exchangeNote = `[TUKAR_UKURAN: ${code} - Selisih: ${totalPriceDiff >= 0 ? '+' : ''}Rp ${totalPriceDiff.toLocaleString('id-ID')}]`;
+                const exchangeCodes = exchangeRecords.map(e => e.code).join(', ');
+                const exchangeNote = `[TUKAR_UKURAN: ${exchangeCodes} - Selisih: ${totalPriceDiff >= 0 ? '+' : ''}Rp ${totalPriceDiff.toLocaleString('id-ID')}]`;
                 const updatedNote = targetSale.note ? `${targetSale.note}\n${exchangeNote}` : exchangeNote;
 
                 await tx.uniformSale.update({
@@ -4138,7 +4139,8 @@ exports.createExchange = async (req, res) => {
             }
 
             return {
-                code,
+                code: exchangeRecords[0]?.code || '',
+                codes: exchangeRecords.map(e => e.code),
                 exchangeRecords,
                 totalPriceDiff,
                 saleId: targetSale?.id || null
