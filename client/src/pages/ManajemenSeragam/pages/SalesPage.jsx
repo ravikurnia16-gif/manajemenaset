@@ -26,6 +26,11 @@ export default function SalesPage() {
 
     const [activeTab, setActiveTab] = useState('sales_spmb');
     
+    // Data states
+    const [sales, setSales] = useState([]);
+    const [packages, setPackages] = useState([]);
+    const [exchanges, setExchanges] = useState([]);
+    
     // Lookup states for forms
     const [units, setUnits] = useState([]);
     const [items, setItems] = useState([]);

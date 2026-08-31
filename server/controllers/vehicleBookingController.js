@@ -590,6 +590,7 @@ exports.endTrip = async (req, res) => {
         const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters, fuelCondition, returnLocation, hasIncident, incidentNotes } = req.body;
         const photoUrl = req.fileUrl || null;
         const isIncident = hasIncident === true || hasIncident === 'true';
+        const isFuelRefill = fuelRefill === true || fuelRefill === 'true';
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
@@ -678,9 +679,9 @@ exports.endTrip = async (req, res) => {
                 endKm: parseInt(endKm),
                 tripEndTime: new Date(),
                 tripNotes,
-                fuelRefill: !!fuelRefill,
-                fuelPrice: parseFloat(fuelPrice) || 0,
-                fuelLiters: fuelLiters ? parseFloat(fuelLiters) : null,
+                fuelRefill: isFuelRefill,
+                fuelPrice: isFuelRefill ? (parseFloat(fuelPrice) || 0) : 0,
+                fuelLiters: isFuelRefill && fuelLiters ? parseFloat(fuelLiters) : null,
                 fuelCondition: fuelCondition || null,
                 returnLocation: returnLocation || null,
                 hasIncident: isIncident,
@@ -700,6 +701,8 @@ exports.endTrip = async (req, res) => {
                 ...(returnLocation ? { lastPosition: returnLocation } : {})
             }
         });
+
+        if (req.io) req.io.emit('booking_update');
 
         res.json(updated);
     } catch (error) {
@@ -1249,7 +1252,7 @@ exports.checkUpcomingVehicleBookings = async () => {
 exports.updateBookingHistory = async (req, res) => {
     try {
         const { id } = req.params;
-        const { startKm, endKm, fuelLiters, fuelPrice, tripNotes, returnLocation } = req.body;
+        const { startKm, endKm, fuelRefill, fuelLiters, fuelPrice, tripNotes, returnLocation } = req.body;
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
@@ -1275,25 +1278,70 @@ exports.updateBookingHistory = async (req, res) => {
             return res.status(400).json({ error: 'KM Akhir tidak boleh lebih kecil dari KM Awal.' });
         }
 
+        let isFuelRefill = undefined;
+        if (fuelRefill !== undefined) {
+            isFuelRefill = fuelRefill === true || fuelRefill === 'true';
+        }
+
+        const updatedData = {
+            startKm: parsedStartKm,
+            endKm: parsedEndKm,
+            tripNotes: tripNotes !== undefined ? tripNotes : booking.tripNotes,
+            returnLocation: returnLocation !== undefined ? returnLocation : booking.returnLocation
+        };
+
+        if (isFuelRefill !== undefined) {
+            updatedData.fuelRefill = isFuelRefill;
+            updatedData.fuelPrice = isFuelRefill ? (fuelPrice !== undefined && fuelPrice !== '' ? parseFloat(fuelPrice) : 0) : 0;
+            updatedData.fuelLiters = isFuelRefill ? (fuelLiters !== undefined && fuelLiters !== '' ? parseFloat(fuelLiters) : null) : null;
+        } else {
+            if (fuelPrice !== undefined && fuelPrice !== '') {
+                const parsedPrice = parseFloat(fuelPrice) || 0;
+                updatedData.fuelPrice = parsedPrice;
+                updatedData.fuelRefill = parsedPrice > 0;
+            }
+            if (fuelLiters !== undefined) {
+                updatedData.fuelLiters = fuelLiters !== '' ? parseFloat(fuelLiters) : null;
+            }
+        }
+
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
-            data: {
-                startKm: parsedStartKm,
-                endKm: parsedEndKm,
-                fuelLiters: fuelLiters !== undefined && fuelLiters !== '' ? parseFloat(fuelLiters) : null,
-                fuelPrice: fuelPrice !== undefined && fuelPrice !== '' ? parseFloat(fuelPrice) : 0,
-                tripNotes: tripNotes !== undefined ? tripNotes : booking.tripNotes,
-                returnLocation: returnLocation !== undefined ? returnLocation : booking.returnLocation
-            }
+            data: updatedData
         });
 
-        // Update vehicle odometer if endKm is higher than current odometer
-        if (parsedEndKm && (!booking.vehicle.odometer || booking.vehicle.odometer < parsedEndKm)) {
+        // Sync vehicle odometer and last location based on the latest completed booking
+        const latestCompleted = await prisma.vehicleBooking.findFirst({
+            where: {
+                vehicleId: booking.vehicleId,
+                status: 'COMPLETED',
+                endKm: { not: null }
+            },
+            orderBy: [
+                { tripEndTime: 'desc' },
+                { id: 'desc' }
+            ]
+        });
+
+        if (latestCompleted && latestCompleted.endKm !== null) {
             await prisma.vehicle.update({
                 where: { id: booking.vehicleId },
-                data: { odometer: parsedEndKm }
+                data: {
+                    odometer: latestCompleted.endKm,
+                    ...(latestCompleted.returnLocation ? { lastPosition: latestCompleted.returnLocation } : {})
+                }
+            });
+        } else if (parsedEndKm) {
+            await prisma.vehicle.update({
+                where: { id: booking.vehicleId },
+                data: {
+                    odometer: parsedEndKm,
+                    ...(returnLocation ? { lastPosition: returnLocation } : {})
+                }
             });
         }
+
+        if (req.io) req.io.emit('booking_update');
 
         res.json(updated);
     } catch (error) {

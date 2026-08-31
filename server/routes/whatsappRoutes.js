@@ -7,10 +7,9 @@ const { getRules, createRule, updateRule, deleteRule } = require('../controllers
 
 // Custom middleware to check position
 const authorizeKabidSarpras = (req, res, next) => {
-    const role = req.user.role || '';
     const pos = (req.user.position || '').toLowerCase();
     
-    if (role !== 'KABID_SARPRAS' && !pos.includes('kepala bidang sarana') && !pos.includes('kabid sarpras')) {
+    if (!pos.includes('kepala bidang sarana')) {
         return res.status(403).json({ error: 'Akses ditolak. Khusus Kepala Bidang Sarana.' });
     }
     next();

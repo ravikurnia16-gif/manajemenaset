@@ -174,7 +174,7 @@ const Layout = () => {
     const navItems = [
         { label: 'Kendaraan', icon: Truck, path: '/kendaraan/peminjaman' },
         { label: 'Aset', icon: Box, path: '/peminjaman' },
-        { label: 'Pesanan', icon: ShoppingCart, path: '/gudang/pesanan' },
+        { label: 'Pesanan', icon: ShoppingCart, path: '/inventory/pesanan' },
     ];
 
     return (

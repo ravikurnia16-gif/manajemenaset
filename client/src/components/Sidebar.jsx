@@ -291,11 +291,6 @@ const Sidebar = ({ isOpen = true }) => {
                                 </Link>
                             </>
                         )}
-                        {(isAdmin || user?.role === 'USER') && (
-                            <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
-                                <ShoppingCart size={16} /> Pesanan (Lama)
-                            </Link>
-                        )}
                     </>
                 ))}
 

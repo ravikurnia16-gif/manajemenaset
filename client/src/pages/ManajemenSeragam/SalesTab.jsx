@@ -648,9 +648,10 @@ export const SalesTab = ({
 
   // Helper untuk mengekstrak seluruh item (termasuk Nama Dada bordir dari note)
   const getSaleItemsAndNd = (sale) => {
-    const items = sale.items || [];
+    if (!sale) return { items: [], ndItems: [], allItems: [] };
+    const items = Array.isArray(sale.items) ? sale.items : [];
     const ndItems = [];
-    if (sale.note && sale.note.includes('[NAMADADA')) {
+    if (sale.note && typeof sale.note === 'string' && sale.note.includes('[NAMADADA')) {
       const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
       for (const m of matches) {
         const ndType = m[1];
@@ -687,6 +688,7 @@ export const SalesTab = ({
   // 4: SELESAI / COMPLETED (Paling bawah)
   // 5: CANCELLED / BATAL (Paling bawah sekali)
   const getStatusPriority = (sale) => {
+    if (!sale) return 3;
     const status = sale.status || '';
     const hasIndent = checkSaleHasIndent(sale);
 
@@ -708,13 +710,15 @@ export const SalesTab = ({
     let completed = 0;
     let overdue30 = 0;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const safeSales = Array.isArray(sales) ? sales : [];
 
-    sales.forEach(s => {
+    safeSales.forEach(s => {
+      if (!s) return;
       const isDone = s.status === 'SELESAI' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'BATAL';
       const hasIndent = checkSaleHasIndent(s);
       const { allItems } = getSaleItemsAndNd(s);
       const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || allItems.some(i => i.status === 'SEDIA');
-      const orderDate = new Date(s.updatedAt || s.createdAt);
+      const orderDate = new Date(s.updatedAt || s.createdAt || 0);
 
       if (s.status === 'PENDING') pending++;
       if (hasIndent && !isDone) indent++;
@@ -726,29 +730,30 @@ export const SalesTab = ({
       }
     });
 
-    return { all: sales.length, pending, indent, proses, completed, overdue30 };
+    return { all: safeSales.length, pending, indent, proses, completed, overdue30 };
   }, [sales]);
 
   // Urutkan data: PENDING paling atas, INDENT berikutnya, PROSES, dan SELESAI paling bawah
   const sortedAndFilteredSales = useMemo(() => {
-    let list = [...sales];
+    let list = Array.isArray(sales) ? [...sales] : [];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Filter status jika dipilih
     if (statusFilter === 'PENDING') {
-      list = list.filter(s => s.status === 'PENDING');
+      list = list.filter(s => s?.status === 'PENDING');
     } else if (statusFilter === 'INDENT') {
-      list = list.filter(s => checkSaleHasIndent(s) && s.status !== 'SELESAI' && s.status !== 'COMPLETED' && s.status !== 'CANCELLED' && s.status !== 'BATAL');
+      list = list.filter(s => checkSaleHasIndent(s) && s?.status !== 'SELESAI' && s?.status !== 'COMPLETED' && s?.status !== 'CANCELLED' && s?.status !== 'BATAL');
     } else if (statusFilter === 'PROSES') {
-      list = list.filter(s => (s.status === 'PROSES' || s.status === 'SEDIA') && !checkSaleHasIndent(s));
+      list = list.filter(s => (s?.status === 'PROSES' || s?.status === 'SEDIA') && !checkSaleHasIndent(s));
     } else if (statusFilter === 'COMPLETED') {
-      list = list.filter(s => s.status === 'SELESAI' || s.status === 'COMPLETED');
+      list = list.filter(s => s?.status === 'SELESAI' || s?.status === 'COMPLETED');
     } else if (statusFilter === 'OVERDUE30') {
       list = list.filter(s => {
+        if (!s) return false;
         const isDone = s.status === 'SELESAI' || s.status === 'COMPLETED' || s.status === 'CANCELLED' || s.status === 'BATAL';
         const { allItems } = getSaleItemsAndNd(s);
         const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || allItems.some(i => i.status === 'SEDIA');
-        const orderDate = new Date(s.updatedAt || s.createdAt);
+        const orderDate = new Date(s.updatedAt || s.createdAt || 0);
         return !isDone && isReady && orderDate <= thirtyDaysAgo;
       });
     }
@@ -758,7 +763,7 @@ export const SalesTab = ({
       const pA = getStatusPriority(a);
       const pB = getStatusPriority(b);
       if (pA !== pB) return pA - pB;
-      return new Date(b.createdAt) - new Date(a.createdAt);
+      return new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0);
     });
   }, [sales, statusFilter]);
 
@@ -965,9 +970,9 @@ export const SalesTab = ({
 
               const { items: sItems, ndItems: sNdItems, allItems: sAllItems } = getSaleItemsAndNd(s);
               const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
-                ? s.subtotal
-                : ((s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + item.totalPrice, 0) || 0) + ndTotal);
-              const activeTotalAmount = Math.max(0, activeSubtotal - (s.discount || 0));
+                ? (Number(s.subtotal) || 0)
+                : ((s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + (Number(item.totalPrice) || 0), 0) || 0) + ndTotal);
+              const activeTotalAmount = Math.max(0, activeSubtotal - (Number(s.discount) || 0));
               const isExpanded = expandedSaleIds.has(s.id);
               const itemCount = sAllItems.length || 0;
 
@@ -975,7 +980,7 @@ export const SalesTab = ({
               const indentItems = sAllItems.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
               const sediaItems = sAllItems.filter(i => i.status === 'SEDIA');
               const isCompleted = s.status === 'SELESAI' || s.status === 'COMPLETED';
-              const orderDateObj = new Date(s.updatedAt || s.createdAt);
+              const orderDateObj = new Date(s.updatedAt || s.createdAt || 0);
               const diffDays = Math.floor((Date.now() - orderDateObj) / (1000 * 60 * 60 * 24));
               const isOverdue30 = (s.status === 'PROSES' || s.status === 'SEDIA' || sediaItems.length > 0) && !isCompleted && s.status !== 'BATAL' && s.status !== 'CANCELLED' && diffDays >= 30;
 
@@ -1023,9 +1028,9 @@ export const SalesTab = ({
 
                     {/* Total Tagihan */}
                     <td className="p-3 text-right">
-                      {s.totalAmount > activeTotalAmount ? (
+                      {(Number(s.totalAmount) || 0) > activeTotalAmount ? (
                         <div className="flex flex-col items-end">
-                          <span className="text-xs text-rose-400 line-through" title="Total Awal">Rp {(s.totalAmount).toLocaleString('id-ID')}</span>
+                          <span className="text-xs text-rose-400 line-through" title="Total Awal">Rp {(Number(s.totalAmount) || 0).toLocaleString('id-ID')}</span>
                           <span className="font-bold text-slate-800" title="Total Setelah Batal">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
                         </div>
                       ) : (
@@ -1179,7 +1184,7 @@ export const SalesTab = ({
                           </div>
                         </td>
                         <td colSpan="3" className="p-2.5 border-r border-slate-100 text-slate-500">
-                          Harga: Rp {pkg.price.toLocaleString('id-ID')}
+                          Harga: Rp {(Number(pkg.price) || 0).toLocaleString('id-ID')}
                         </td>
                         <td colSpan="2" className="p-2.5">
                           {isPkgPending ? (

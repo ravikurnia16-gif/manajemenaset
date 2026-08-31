@@ -20,11 +20,12 @@ export const Badge = ({ children, color = 'slate' }) => {
         red: 'bg-red-50 text-red-600 border-red-200',
         blue: 'bg-blue-50 text-blue-600 border-blue-200',
         orange: 'bg-orange-50 text-orange-600 border-orange-200',
+        yellow: 'bg-amber-50 text-amber-600 border-amber-200',
         purple: 'bg-purple-50 text-purple-600 border-purple-200',
         slate: 'bg-slate-50 text-slate-600 border-slate-200',
         indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200',
     };
-    return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${colors[color]}`}>{children}</span>;
+    return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${colors[color] || colors.slate}`}>{children}</span>;
 };
 
 export const Modal = ({ isOpen, onClose, title, children, wide }) => {

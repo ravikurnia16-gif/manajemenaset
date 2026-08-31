@@ -315,7 +315,7 @@ const Settings = () => {
     };
 
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(currentUser.role);
-    const isKabidSarpras = currentUser?.position === 'Kepala Bidang Sarana';
+    const isKabidSarpras = currentUser?.position?.toLowerCase().includes('kepala bidang sarana');
 
     const handleFixGenders = async () => {
         if (!window.confirm('Bersihkan data gender "Akhowat/Ikhwan" menjadi "P/L"? Proses ini tidak bisa dibatalkan.')) return;

@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { Badge } from './UIComponents';
 
-export const PackagesTab = ({ packages, openModal }) => (
+export const PackagesTab = ({ packages = [], openModal }) => (
     <div className="space-y-4">
         <div className="flex justify-end">
             <button onClick={() => openModal('package')} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20">

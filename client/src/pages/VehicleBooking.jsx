@@ -729,7 +729,7 @@ const VehicleBooking = () => {
             fd.append('endKm', parseInt(actionData.km));
             fd.append('tripNotes', actionData.notes || '');
             fd.append('fuelRefill', actionData.fuelRefill);
-            fd.append('fuelPrice', actionData.fuelPrice || 0);
+            fd.append('fuelPrice', actionData.fuelRefill ? (actionData.fuelPrice || 0) : 0);
             if (actionData.fuelCondition) fd.append('fuelCondition', actionData.fuelCondition);
             if (finalLocation) fd.append('returnLocation', finalLocation);
             fd.append('hasIncident', actionData.hasIncident);
@@ -824,8 +824,9 @@ const VehicleBooking = () => {
             await api.put(`/vehicles/booking/${showActionModal.data.id}/history`, {
                 startKm: actionData.startKm,
                 endKm: actionData.endKm,
-                fuelLiters: actionData.fuelLiters,
-                fuelPrice: actionData.fuelPrice,
+                fuelRefill: actionData.fuelRefill,
+                fuelLiters: actionData.fuelRefill ? (actionData.fuelLiters || null) : null,
+                fuelPrice: actionData.fuelRefill ? (actionData.fuelPrice || 0) : 0,
                 tripNotes: actionData.tripNotes,
                 returnLocation: actionData.returnLocation
             });
@@ -2427,7 +2428,7 @@ const VehicleBooking = () => {
                                                 {b.status === 'COMPLETED' && canManageBooking && (
                                                     <button
                                                         onClick={() => {
-                                                            setActionData({ ...actionData, startKm: b.startKm || '', endKm: b.endKm || '', fuelLiters: b.fuelLiters || '', fuelPrice: b.fuelPrice || '', tripNotes: b.tripNotes || '', returnLocation: b.returnLocation || '' });
+                                                            setActionData({ ...actionData, startKm: b.startKm || '', endKm: b.endKm || '', fuelRefill: !!b.fuelRefill, fuelLiters: b.fuelLiters || '', fuelPrice: b.fuelPrice || '', tripNotes: b.tripNotes || '', returnLocation: b.returnLocation || '' });
                                                             setShowActionModal({ type: 'EDIT_HISTORY', data: b });
                                                         }}
                                                         className="flex-1 py-2 bg-amber-50 text-amber-500 rounded-xl text-xs font-bold hover:bg-amber-100 transition-all border border-amber-100"
@@ -2532,7 +2533,7 @@ const VehicleBooking = () => {
                                                             {b.status === 'COMPLETED' && canManageBooking && (
                                                                 <button
                                                                     onClick={() => {
-                                                                        setActionData({ ...actionData, startKm: b.startKm || '', endKm: b.endKm || '', fuelLiters: b.fuelLiters || '', fuelPrice: b.fuelPrice || '', tripNotes: b.tripNotes || '', returnLocation: b.returnLocation || '' });
+                                                                        setActionData({ ...actionData, startKm: b.startKm || '', endKm: b.endKm || '', fuelRefill: !!b.fuelRefill, fuelLiters: b.fuelLiters || '', fuelPrice: b.fuelPrice || '', tripNotes: b.tripNotes || '', returnLocation: b.returnLocation || '' });
                                                                         setShowActionModal({ type: 'EDIT_HISTORY', data: b });
                                                                     }}
                                                                     className="p-1.5 text-slate-400 hover:text-amber-500 transition-colors"
@@ -4124,30 +4125,50 @@ const VehicleBooking = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">BBM (Liter)</label>
-                                            <input
-                                                type="number"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                placeholder="0"
-                                                value={actionData.fuelLiters || ''}
-                                                onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Biaya BBM (Rp)</label>
-                                            <div className="relative">
-                                                <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                <input
-                                                    type="number"
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    placeholder="0"
-                                                    value={actionData.fuelPrice || ''}
-                                                    onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
-                                                />
+                                    {/* Fuel Section in EDIT_HISTORY */}
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
+                                                <Fuel size={16} className="text-orange-500" />
+                                                Isi BBM di Perjalanan?
+                                            </div>
+                                            <div
+                                                onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
+                                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
+                                            >
+                                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
                                             </div>
                                         </div>
+
+                                        {actionData.fuelRefill ? (
+                                            <div className="animate-in slide-in-from-top-2 duration-200 mt-4 grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">BBM (Liter)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        placeholder="0"
+                                                        value={actionData.fuelLiters || ''}
+                                                        onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Biaya BBM (Rp)</label>
+                                                    <div className="relative">
+                                                        <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                        <input
+                                                            type="number"
+                                                            className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            placeholder="Rp 0"
+                                                            value={actionData.fuelPrice || ''}
+                                                            onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">Tidak ada pengisian BBM untuk perjalanan ini.</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Lokasi Akhir & Catatan</label>
