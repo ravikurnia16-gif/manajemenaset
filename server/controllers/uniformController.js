@@ -172,8 +172,11 @@ exports.getSizes = async (req, res) => {
 exports.getVariants = async (req, res) => {
     try {
         const data = await prisma.uniformVariant.findMany({
+            where: { isActive: true },
             include: {
-                item: { include: { category: true, clothingType: true, unit: true, vendor: true } }
+                item: { include: { category: true, clothingType: true, unit: true, vendor: true } },
+                size: true,
+                stocks: { include: { warehouse: true } }
             },
             orderBy: { sku: 'asc' }
         });
@@ -805,7 +808,12 @@ exports.getItems = async (req, res) => {
 exports.getVariants = async (req, res) => {
     try {
         const variants = await prisma.uniformVariant.findMany({
-            include: { item: { include: { category: true, clothingType: true, unit: true } }, size: true },
+            where: { isActive: true },
+            include: { 
+                item: { include: { category: true, clothingType: true, unit: true, vendor: true } }, 
+                size: true,
+                stocks: { include: { warehouse: true } }
+            },
             orderBy: { sku: 'asc' }
         });
         res.json(variants);
@@ -1296,8 +1304,11 @@ exports.getSizes = async (req, res) => {
 exports.getVariants = async (req, res) => {
     try {
         const data = await prisma.uniformVariant.findMany({
+            where: { isActive: true },
             include: {
-                item: { include: { category: true, clothingType: true, unit: true, vendor: true } }
+                item: { include: { category: true, clothingType: true, unit: true, vendor: true } },
+                size: true,
+                stocks: { include: { warehouse: true } }
             },
             orderBy: { sku: 'asc' }
         });
@@ -1603,7 +1614,12 @@ exports.getItems = async (req, res) => {
 exports.getVariants = async (req, res) => {
     try {
         const variants = await prisma.uniformVariant.findMany({
-            include: { item: { include: { category: true, clothingType: true, unit: true } }, size: true },
+            where: { isActive: true },
+            include: { 
+                item: { include: { category: true, clothingType: true, unit: true, vendor: true } }, 
+                size: true,
+                stocks: { include: { warehouse: true } }
+            },
             orderBy: { sku: 'asc' }
         });
         res.json(variants);
@@ -2738,7 +2754,7 @@ exports.createSale = async (req, res) => {
                 itemDetails = result.items.map(i => `- ${i.itemName} (${i.size || '-'}) x${i.qty}`).join('\n');
             }
 
-            const message = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nAlhamdulillah! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\nKode Referensi: *${result.code}*\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi dari Admin Kita ya.\n\nAbu/Ummu dapat mengecek status pesanan menggunakan Kode Referensi di link berikut:\nhttps://sarpras.dareliman.or.id/public/lacak-pesanan\n\nAtau lihat langsung di:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${result.id}\n\nSyukron, Jazakumullah khairan.`;
+            const message = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nAlhamdulillah! Pesanan seragam atas nama *${result.customerName || result.studentName || '-'}* telah kami terima dengan rincian sebagai berikut:\n\nKode Referensi: *${result.code}*\n\n${itemDetails}\n\nTotal tagihan: Rp${result.totalAmount.toLocaleString('id-ID')}\n\nMohon ditunggu konfirmasi ketersediaan barang dari Admin kami ya.\n\nAbu/Ummu dapat mengecek status pesanan menggunakan Kode Referensi di link berikut:\nhttps://sarpras.dareliman.or.id/public/lacak-pesanan\n\n_Catatan: Invoice resmi dan nomor rekening transfer akan kami kirimkan via WhatsApp setelah pesanan siap/tersedia._\n\nSyukron, Jazakumullah khairan.`;
 
             try {
                 sendMessage(result.customerPhone, message);
@@ -3450,7 +3466,17 @@ exports.manageSaleItems = async (req, res) => {
                 msg += `Untuk barang yang KOSONG, mohon konfirmasi Abu/Ummu apakah bersedia menunggu (INDENT) atau membatalkannya melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/konfirmasi-indent/${updatedSale.id}\n\n`;
             }
 
-            msg += `Cek invoice lengkap pesanan Abu/Ummu melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\nSyukron, Jazakumullah khairan.`;
+            if (sedia.length > 0) {
+                msg += `💳 *Informasi Pembayaran / Transfer:*\n`;
+                msg += `Bank: *BSI (Bank Syariah Indonesia)*\n`;
+                msg += `No. Rekening: *7311412188*\n`;
+                msg += `Atas Nama: *Syafriyan*\n\n`;
+                msg += `Lihat invoice rincian & total tagihan pesanan Abu/Ummu di link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${updatedSale.id}\n\n`;
+            } else {
+                msg += `Cek status dan rincian pesanan Abu/Ummu di link berikut:\nhttps://sarpras.dareliman.or.id/public/lacak-pesanan\n\n`;
+            }
+
+            msg += `Syukron, Jazakumullah khairan.`;
 
             try {
                 sendMessage(updatedSale.customerPhone, msg);

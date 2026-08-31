@@ -17,15 +17,18 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
         initial = sale.items.map(i => {
           let initialStatus = i.status || 'PENDING';
           const matchedVariant = variants.find(v => String(v.id) === String(i.variantId)) || i.variant;
-          const totalStock = matchedVariant?.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0;
+          const stocksList = (matchedVariant?.stocks && matchedVariant.stocks.length > 0)
+            ? matchedVariant.stocks
+            : (i.variant?.stocks || []);
+          const totalStock = stocksList.reduce((acc, s) => acc + (s.quantity || 0), 0);
           
           // Auto-deteksi stok jika masih PENDING
-          if (initialStatus === 'PENDING' && matchedVariant?.stocks) {
+          if (initialStatus === 'PENDING') {
             initialStatus = totalStock >= i.qty ? 'SEDIA' : 'TIDAK_TERSEDIA';
           }
 
           // Auto-select warehouse jika hanya ada 1 gudang dengan stok
-          const availableStocks = matchedVariant?.stocks?.filter(s => s.quantity > 0) || [];
+          const availableStocks = stocksList.filter(s => (s.quantity || 0) > 0);
           let defWhId = '';
           if (availableStocks.length === 1) {
             defWhId = String(availableStocks[0].warehouseId);
@@ -45,7 +48,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
             returnWarehouseId: '',
             isMoved: false,
             totalStock,
-            stocks: matchedVariant?.stocks || [],
+            stocks: stocksList,
             isSizeChanged: false
           };
         });
