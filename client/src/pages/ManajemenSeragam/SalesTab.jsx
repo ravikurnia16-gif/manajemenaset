@@ -264,20 +264,20 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
   const currentIndentItems = itemUpdates.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
 
   return (
-    <div className="bg-gradient-to-b from-blue-50/70 to-indigo-50/40 p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-inner space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div className="bg-gradient-to-b from-blue-50/70 to-indigo-50/40 p-3.5 sm:p-5 rounded-2xl border border-blue-200/80 shadow-inner space-y-4 animate-in fade-in zoom-in-95 duration-200">
       
       {/* Header & Quick Action Bar */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 pb-3 border-b border-blue-200/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0">
             <Package size={16} />
           </div>
-          <div>
-            <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              Kelola Item: <span className="font-mono text-blue-700">{sale?.code}</span>
-              <span className="text-slate-400 font-normal">({sale?.customerName})</span>
+          <div className="min-w-0">
+            <div className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-2 flex-wrap">
+              <span>Kelola Item: <span className="font-mono text-blue-700">{sale?.code}</span></span>
+              <span className="text-slate-400 font-normal truncate">({sale?.customerName})</span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-[11px] sm:text-xs text-slate-500">
               Total {itemUpdates.length} item seragam terdaftar pada pesanan ini.
             </p>
           </div>
@@ -288,7 +288,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
           <button
             type="button"
             onClick={handleSetAllSedia}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap"
             title="Set semua item yang stoknya ada menjadi SEDIA"
           >
             <Sparkles size={13} /> Set Semua SEDIA
@@ -297,7 +297,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
           <button
             type="button"
             onClick={handleSetAllDiambil}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap"
             title="Set semua item menjadi DIAMBIL (Sudah Diserahkan)"
           >
             <CheckCheck size={13} /> Set Semua DIAMBIL
@@ -306,19 +306,19 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
           <button
             type="button"
             onClick={handleSetAllIndent}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition whitespace-nowrap"
             title="Set semua item menjadi INDENT"
           >
             ⏳ Set Semua INDENT
           </button>
 
           {/* Quick Common Warehouse Selector */}
-          <div className="flex items-center gap-1 bg-white border border-blue-200 rounded-xl px-2.5 py-1 text-xs shadow-sm">
+          <div className="w-full sm:w-auto flex items-center gap-1.5 bg-white border border-blue-200 rounded-xl px-2.5 py-1.5 text-xs shadow-sm">
             <MapPin size={13} className="text-blue-600 shrink-0" />
             <select
               value={commonWarehouseId}
               onChange={(e) => handleApplyCommonWarehouse(e.target.value)}
-              className="bg-transparent font-bold text-slate-700 outline-none text-xs"
+              className="w-full sm:w-auto bg-transparent font-bold text-slate-700 outline-none text-xs truncate cursor-pointer"
             >
               <option value="">-- Lokasi Gudang Pengambilan (Semua) --</option>
               {warehouses.map(w => (
@@ -345,92 +345,55 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
       )}
 
       {/* Items List Cards / Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 max-h-[55vh] overflow-y-auto pr-1 custom-scrollbar">
         {itemUpdates.map((item, idx) => {
           const changed = item.status !== item.oldStatus;
           const isNd = String(item.saleItemId).startsWith('NAMADADA');
           const hasStock = isNd || item.totalStock >= item.qty;
           const isItemIndent = item.status === 'INDENT' || item.status === 'TIDAK_TERSEDIA';
 
+          const currentV = (Array.isArray(variants) ? variants : []).find(v => String(v.id) === String(item.variantId));
+          const itemIdToMatch = item.itemId || currentV?.itemId;
+          const availableSizes = itemIdToMatch
+            ? (Array.isArray(variants) ? variants : []).filter(v => String(v.itemId) === String(itemIdToMatch))
+            : [];
+
           return (
             <div 
               key={item.saleItemId}
-              className={`p-3.5 rounded-xl border transition-all ${
+              className={`p-3.5 sm:p-4 rounded-xl border transition-all space-y-2.5 ${
                 isItemIndent
-                  ? 'bg-amber-50/60 border-amber-300 ring-1 ring-amber-400/30'
+                  ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-400/30'
                   : changed 
                   ? 'bg-blue-50/90 border-blue-300 ring-1 ring-blue-400/30' 
                   : 'bg-white border-slate-200/80 shadow-sm'
               }`}
             >
-              <div className="flex justify-between items-start gap-2 mb-2">
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-slate-800 text-xs sm:text-sm truncate flex items-center gap-1.5" title={item.name}>
+              {/* Card Header: Item Name, Old Status, and Status Selector */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100/90">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 flex-wrap" title={item.name}>
                     {isItemIndent && <span className="text-amber-600">⏳</span>}
-                    <span>{item.name}</span>
+                    <span className="break-words">{item.name}</span>
+                    {item.isSizeChanged && (
+                      <span className="text-[10px] bg-blue-600 text-white font-extrabold px-2 py-0.5 rounded-full">
+                        Ukuran Diubah
+                      </span>
+                    )}
                   </div>
-                  {(() => {
-                    const currentV = variants.find(v => String(v.id) === String(item.variantId));
-                    const itemIdToMatch = item.itemId || currentV?.itemId;
-                    const availableSizes = itemIdToMatch
-                      ? variants.filter(v => String(v.itemId) === String(itemIdToMatch))
-                      : [];
-
-                    return (
-                      <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
-                        <div className="flex items-center gap-1">
-                          <span>Ukuran:</span>
-                          {!isNd && item.oldStatus !== 'DIAMBIL' && availableSizes.length > 1 ? (
-                            <select
-                              value={item.variantId}
-                              onChange={(e) => handleSizeChange(idx, e.target.value)}
-                              className="bg-blue-100/90 hover:bg-blue-200 text-blue-900 font-black border border-blue-300 rounded px-1.5 py-0.5 text-xs outline-none cursor-pointer shadow-sm transition"
-                              title="Klik untuk mengubah ukuran seragam yang dipesan"
-                            >
-                              {availableSizes.map(v => {
-                                const vStock = v.stocks?.reduce((sum, s) => sum + s.quantity, 0) || 0;
-                                return (
-                                  <option key={v.id} value={v.id}>
-                                    {v.sizeName} (Stok: {vStock})
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          ) : (
-                            <strong className="text-slate-700">{item.size}</strong>
-                          )}
-                        </div>
-
-                        {item.isSizeChanged && (
-                          <span className="text-[10px] bg-blue-600 text-white font-extrabold px-1.5 py-0.2 rounded-full">
-                            Ukuran Diubah
-                          </span>
-                        )}
-
-                        <span>•</span>
-                        <span>Qty: <strong className="text-slate-700">{item.qty} pcs</strong></span>
-                        {!isNd && (
-                          <>
-                            <span>•</span>
-                            <span className={`inline-flex items-center gap-1 font-extrabold ${hasStock ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              Stok: {item.totalStock} {hasStock ? '✓' : '(Kurang)'}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <div className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
+                    <span>Status Awal:</span>
+                    <span className="font-bold text-slate-600 px-1.5 py-0.2 bg-slate-100 rounded text-[10px]">{item.oldStatus}</span>
+                  </div>
                 </div>
 
-                {/* Status Selector */}
-                <div className="flex flex-col items-end shrink-0">
-                  <div className="text-[10px] text-slate-400 font-medium mb-1">
-                    Status: <span className="font-bold text-slate-600">{item.oldStatus}</span>
-                  </div>
+                {/* Status Selector Dropdown */}
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase sm:hidden">Ubah:</label>
                   <select
                     value={item.status}
                     onChange={(e) => handleStatusChange(idx, e.target.value)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border outline-none shadow-sm transition ${
+                    className={`flex-1 sm:flex-initial px-2.5 py-1.5 rounded-xl text-xs font-bold border outline-none shadow-sm transition cursor-pointer ${
                       item.status === 'SEDIA' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
                       item.status === 'DIAMBIL' ? 'bg-blue-50 text-blue-700 border-blue-300' :
                       item.status === 'INDENT' ? 'bg-amber-50 text-amber-800 border-amber-300 font-extrabold' :
@@ -449,16 +412,56 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
                 </div>
               </div>
 
+              {/* Card Middle: Size selector, Qty, and Available Stocks Info */}
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs bg-slate-50/90 p-2.5 rounded-xl border border-slate-100">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-slate-500 font-medium">Ukuran:</span>
+                  {!isNd && item.oldStatus !== 'DIAMBIL' && availableSizes.length > 1 ? (
+                    <select
+                      value={item.variantId}
+                      onChange={(e) => handleSizeChange(idx, e.target.value)}
+                      className="bg-white hover:bg-blue-50 text-blue-900 font-black border border-blue-300 rounded-lg px-2 py-1 text-xs outline-none cursor-pointer shadow-sm transition max-w-[170px]"
+                      title="Klik untuk mengubah ukuran seragam yang dipesan"
+                    >
+                      {availableSizes.map(v => {
+                        const vStock = v.stocks?.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0) || 0;
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {v.sizeName} (Stok: {vStock})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  ) : (
+                    <strong className="text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded text-xs">
+                      {item.size}
+                    </strong>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2.5 text-xs flex-wrap">
+                  <div className="text-slate-600">
+                    Qty: <strong className="text-slate-800">{item.qty} pcs</strong>
+                  </div>
+                  {!isNd && (
+                    <div className={`font-extrabold flex items-center gap-1 text-[11px] ${hasStock ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'} px-2 py-0.5 rounded`}>
+                      <span>Stok: {item.totalStock}</span>
+                      <span>{hasStock ? '✓' : '(Kurang)'}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Warehouse selector options */}
               {changed && (
-                <div className="pt-2.5 mt-2 border-t border-slate-100/80 text-xs space-y-2">
+                <div className="pt-2 mt-1 border-t border-slate-100 text-xs space-y-2">
                   {/* Case 1: Nama Dada -> SEDIA */}
                   {isNd && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA' && (
-                    <div className="flex gap-2 items-center">
-                      <label className="text-[11px] font-bold text-slate-500 shrink-0">Lokasi Penjemputan:</label>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                      <label className="text-[11px] font-bold text-slate-600 shrink-0">Lokasi Penjemputan:</label>
                       <select
                         required
-                        className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
+                        className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-medium outline-none focus:border-blue-400"
                         value={item.transitWarehouseId}
                         onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}
                       >
@@ -472,52 +475,62 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
 
                   {/* Case 2: Regular Item -> SEDIA */}
                   {!isNd && ['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'BATAL'].includes(item.oldStatus) && item.status === 'SEDIA' && (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-600">
-                          {item.isMoved ? 'Gudang Asal & Tujuan:' : 'Gudang Tempat Pengambilan:'}
+                    <div className="space-y-2 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          {item.isMoved ? 'Alur Pemindahan Gudang:' : 'Gudang Pengambilan Barang:'}
                         </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-blue-600 font-bold">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-blue-700 font-bold bg-white px-2 py-0.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition">
                           <input 
                             type="checkbox" 
                             checked={item.isMoved} 
                             onChange={(e) => handleWhChange(idx, 'isMoved', e.target.checked)} 
-                            className="rounded text-blue-600" 
+                            className="rounded text-blue-600 focus:ring-blue-500" 
                           />
                           Pindah Gudang?
                         </label>
                       </div>
 
-                      <div className="flex gap-2">
-                        <select
-                          required
-                          className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
-                          value={item.sourceWarehouseId}
-                          onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}
-                        >
-                          <option value="">{item.isMoved ? '-- Gudang Asal --' : '-- Gudang Pengambilan --'}</option>
-                          {warehouses.map(w => {
-                            const st = item.stocks?.find(s => s.warehouseId === w.id);
-                            return (
-                              <option key={w.id} value={w.id}>
-                                {w.name} {st ? `(Stok: ${st.quantity})` : '(Stok: 0)'}
-                              </option>
-                            );
-                          })}
-                        </select>
-
-                        {item.isMoved && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-slate-500 block">
+                            {item.isMoved ? '1. Gudang Asal (Stok Diambil):' : 'Pilih Gudang Pengambilan:'}
+                          </span>
                           <select
                             required
-                            className="flex-1 bg-white border border-blue-300 rounded-lg p-1.5 text-xs font-medium"
-                            value={item.transitWarehouseId}
-                            onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-medium outline-none focus:border-blue-400"
+                            value={item.sourceWarehouseId}
+                            onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}
                           >
-                            <option value="">-- Gudang Tujuan --</option>
-                            {warehouses.map(w => (
-                              <option key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</option>
-                            ))}
+                            <option value="">-- Pilih Gudang Asal --</option>
+                            {warehouses.map(w => {
+                              const st = item.stocks?.find(s => s.warehouseId === w.id);
+                              return (
+                                <option key={w.id} value={w.id}>
+                                  {w.name} {st ? `(Stok: ${st.quantity})` : '(Stok: 0)'}
+                                </option>
+                              );
+                            })}
                           </select>
+                        </div>
+
+                        {item.isMoved && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-blue-700 block">
+                              2. Gudang Tujuan (Tempat Jemput):
+                            </span>
+                            <select
+                              required
+                              className="w-full bg-white border border-blue-300 rounded-xl p-2 text-xs font-medium outline-none focus:border-blue-500"
+                              value={item.transitWarehouseId}
+                              onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}
+                            >
+                              <option value="">-- Pilih Gudang Tujuan --</option>
+                              {warehouses.map(w => (
+                                <option key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</option>
+                              ))}
+                            </select>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -525,17 +538,17 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
 
                   {/* Case 3: Regular Item -> DIAMBIL */}
                   {!isNd && item.status === 'DIAMBIL' && (
-                    <div>
+                    <div className="space-y-1.5">
                       {item.oldStatus === 'SEDIA' ? (
-                        <p className="text-[11px] text-slate-500 italic">
-                          *Stok akan otomatis terpotong dari riwayat gudang saat barang diset SEDIA.
+                        <p className="text-[11px] text-slate-500 italic bg-white/70 p-2 rounded-lg border border-slate-100">
+                          * Stok otomatis terpotong dari gudang yang dipilih saat status diset SEDIA.
                         </p>
                       ) : (
-                        <div className="flex gap-2 items-center">
-                          <label className="text-[11px] font-bold text-slate-500 shrink-0">Gudang Asal:</label>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                          <label className="text-[11px] font-bold text-slate-600 shrink-0">Gudang Asal Barang:</label>
                           <select
                             required
-                            className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-medium"
+                            className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-medium outline-none focus:border-blue-400"
                             value={item.sourceWarehouseId}
                             onChange={(e) => handleWhChange(idx, 'sourceWarehouseId', e.target.value)}
                           >
@@ -556,27 +569,33 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
 
                   {/* Case 4: Item -> BATAL */}
                   {!isNd && item.status === 'BATAL' && ['SEDIA', 'DIAMBIL'].includes(item.oldStatus) && (
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {item.oldStatus === 'SEDIA' && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-slate-500 block">Gudang Transit Sebelumnya:</span>
+                          <select
+                            required
+                            className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs outline-none focus:border-blue-400"
+                            value={item.transitWarehouseId}
+                            onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}
+                          >
+                            <option value="">-- Pilih Gudang Transit --</option>
+                            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 block">Gudang Pengembalian Stok:</span>
                         <select
                           required
-                          className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs"
-                          value={item.transitWarehouseId}
-                          onChange={(e) => handleWhChange(idx, 'transitWarehouseId', e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs outline-none focus:border-blue-400"
+                          value={item.returnWarehouseId}
+                          onChange={(e) => handleWhChange(idx, 'returnWarehouseId', e.target.value)}
                         >
-                          <option value="">-- Gudang Transit Mana? --</option>
+                          <option value="">-- Pilih Gudang Pengembalian --</option>
                           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>
-                      )}
-                      <select
-                        required
-                        className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs"
-                        value={item.returnWarehouseId}
-                        onChange={(e) => handleWhChange(idx, 'returnWarehouseId', e.target.value)}
-                      >
-                        <option value="">-- Gudang Pengembalian --</option>
-                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                      </select>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -587,31 +606,31 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
       </div>
 
       {/* Footer Actions */}
-      <div className="flex flex-wrap justify-between items-center gap-3 pt-3 border-t border-blue-200/60 bg-white/50 p-2.5 rounded-xl">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-3 border-t border-blue-200/60 bg-white/70 p-3 rounded-xl">
         <div className="text-xs text-slate-500 flex items-center gap-2">
           {totalChanged > 0 ? (
-            <span className="font-bold text-blue-700 bg-blue-100/80 px-2.5 py-1 rounded-lg">
+            <span className="font-bold text-blue-700 bg-blue-100/90 border border-blue-200 px-3 py-1 rounded-lg">
               {totalChanged} item mengalami perubahan status
             </span>
           ) : (
-            <span>Belum ada perubahan status item.</span>
+            <span className="text-slate-500 font-medium">Belum ada perubahan status item.</span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition"
+            className="flex-1 sm:flex-initial px-4 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition text-center"
           >
-            Tutup Dropdown
+            Tutup Panel
           </button>
 
           <button
             type="button"
             onClick={handleSubmit}
             disabled={isSaving || totalChanged === 0}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-500/20 disabled:opacity-50"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-500/20 disabled:opacity-50 text-center"
           >
             <Save size={14} />
             {isSaving ? 'Menyimpan...' : 'Simpan Perubahan & Kirim WA'}
@@ -940,8 +959,8 @@ export const SalesTab = ({
       </div>
 
       {/* Main Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto custom-scrollbar">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
             <tr>
               <th className="p-3 text-left">Invoice</th>

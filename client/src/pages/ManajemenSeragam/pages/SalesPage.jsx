@@ -24,7 +24,7 @@ export default function SalesPage() {
         { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> }
     ];
 
-    const [activeTab, setActiveTab] = useState('sales_spmb');
+    const [activeTab, setActiveTab] = useState('sales_retail');
     
     // Data states
     const [sales, setSales] = useState([]);

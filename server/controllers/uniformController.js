@@ -4215,7 +4215,7 @@ exports.getDashboardStats = async (req, res) => {
                 }
             }),
             prisma.$queryRaw`
-                SELECT us.id, us.quantity, us.minStock, us.modalAwal, uv.sizeName, uv.sku, ui.name as itemName, uw.name as warehouseName
+                SELECT us.id, us.quantity, us.minStock, us.avgCost, uv.sizeName, uv.sku, ui.name as itemName, uw.name as warehouseName
                 FROM seragam_stok us
                 JOIN seragam_varian uv ON us.variantId = uv.id
                 JOIN seragam_barang ui ON uv.itemId = ui.id
@@ -4354,7 +4354,7 @@ exports.getDashboardStats = async (req, res) => {
                         unit: { select: { name: true } },
                         category: { select: { name: true } },
                         clothingType: { select: { name: true } },
-                        basePrice: true
+                        sellPrice: true
                     }
                 },
                 stocks: {
@@ -4423,7 +4423,7 @@ exports.getDashboardStats = async (req, res) => {
                     recommendedQty,
                     urgency,
                     urgencyLabel,
-                    estBudget: recommendedQty * (v.modalAwal || v.item?.basePrice || 0),
+                    estBudget: recommendedQty * (v.sellPrice || v.item?.sellPrice || 0),
                     warehouseBreakdown: applicableStocks.map(st => `${st.warehouse?.name || 'Gudang'}: ${st.quantity} pcs`).join(', ')
                 });
             }
