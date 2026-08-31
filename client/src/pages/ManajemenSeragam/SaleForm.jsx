@@ -19,6 +19,7 @@ const SelectField = ({ label, children, ...props }) => (
 );
 
 export const SaleForm = ({ warehouses = [], packages = [], variants = [], units = [], onSave, initialData }) => {
+    const currentUser = JSON.parse(localStorage.getItem('user')) || {};
     const defaultWarehouseId = warehouses[0]?.id || '';
 
     const [form, setForm] = useState(initialData || {
@@ -253,7 +254,8 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 ...p, items: p.items.filter(i => i.qty > 0)
             })).filter(p => p.items.length > 0);
             
-            if (!dataToSave.customerName) dataToSave.customerName = `Pesanan SPMB ${form.targetUnit || ''}`;
+            if (!dataToSave.customerName) dataToSave.customerName = currentUser.name || `Pesanan SPMB ${form.targetUnit || ''}`;
+            if (!dataToSave.customerPhone) dataToSave.customerPhone = currentUser.phone || '';
             dataToSave.paidAmount = 0; 
             dataToSave.discount = 0;
             dataToSave.paymentMethod = 'TRANSFER';
@@ -300,19 +302,23 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <InputField 
-                        label="Nama Siswa / Pemesan *" 
-                        value={form.customerName} 
-                        onChange={e => setForm({ ...form, customerName: e.target.value, studentName: e.target.value })} 
-                        required 
-                        placeholder="Contoh: Ahmad Fauzan" 
-                    />
-                    <InputField 
-                        label="No. WhatsApp / HP" 
-                        value={form.customerPhone} 
-                        onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
-                        placeholder="Contoh: 08123456789" 
-                    />
+                    {form.type !== 'SPMB' && (
+                        <>
+                            <InputField 
+                                label="Nama Siswa / Pemesan *" 
+                                value={form.customerName} 
+                                onChange={e => setForm({ ...form, customerName: e.target.value, studentName: e.target.value })} 
+                                required 
+                                placeholder="Contoh: Ahmad Fauzan" 
+                            />
+                            <InputField 
+                                label="No. WhatsApp / HP" 
+                                value={form.customerPhone} 
+                                onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
+                                placeholder="Contoh: 08123456789" 
+                            />
+                        </>
+                    )}
                     <SelectField 
                         label="Jenjang / Unit *" 
                         value={form.targetUnit} 

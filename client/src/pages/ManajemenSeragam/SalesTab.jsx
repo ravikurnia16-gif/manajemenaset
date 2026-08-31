@@ -787,7 +787,7 @@ export const SalesTab = ({
   }, [sales, statusFilter]);
 
   const handleExportExcel = () => {
-    let url = `/api/uniforms/sales/export?`;
+    let url = `/api/uniforms/export-sales?`;
     if (search) url += `search=${encodeURIComponent(search)}&`;
     if (statusFilter === 'OVERDUE30') {
       url += `isOverdue30Days=true&`;

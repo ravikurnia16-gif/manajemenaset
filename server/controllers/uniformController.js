@@ -3890,7 +3890,31 @@ exports.createExchange = async (req, res) => {
     } = req.body;
 
     try {
-        const code = await generateCode('EXC/SRG', 'uniformExchange');
+        const year = new Date().getFullYear();
+        
+        // Prepare Exchange sequence
+        const lastExc = await prisma.uniformExchange.findFirst({
+            where: { code: { startsWith: `EXC/SRG/${year}/` } },
+            orderBy: { code: 'desc' }
+        });
+        let nextExcSeq = 1;
+        if (lastExc) {
+            const parts = lastExc.code.split('/');
+            const lastSeq = parseInt(parts[parts.length - 1]);
+            if (!isNaN(lastSeq)) nextExcSeq = lastSeq + 1;
+        }
+
+        // Prepare Stock Transaction sequence
+        const lastTrx = await prisma.uniformStockTransaction.findFirst({
+            where: { code: { startsWith: `TRX/SRG/${year}/` } },
+            orderBy: { code: 'desc' }
+        });
+        let nextTrxSeq = 1;
+        if (lastTrx) {
+            const parts = lastTrx.code.split('/');
+            const lastSeq = parseInt(parts[parts.length - 1]);
+            if (!isNaN(lastSeq)) nextTrxSeq = lastSeq + 1;
+        }
         const defaultWhId = parseInt(warehouseId || fromWarehouseId || toWarehouseId || 0);
 
         let itemsToExchange = exchanges || [];
@@ -3969,6 +3993,9 @@ exports.createExchange = async (req, res) => {
                 }
 
                 // 1. Catat record tukar ukuran
+                const code = `EXC/SRG/${year}/${nextExcSeq.toString().padStart(3, '0')}`;
+                nextExcSeq++;
+                
                 const exchange = await tx.uniformExchange.create({
                     data: {
                         code,
@@ -3994,7 +4021,9 @@ exports.createExchange = async (req, res) => {
                         update: { quantity: { increment: quantity } }
                     });
 
-                    const trxInCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                    const trxInCode = `TRX/SRG/${year}/${nextTrxSeq.toString().padStart(3, '0')}`;
+                    nextTrxSeq++;
+                    
                     await tx.uniformStockTransaction.create({
                         data: {
                             code: trxInCode,
@@ -4030,7 +4059,9 @@ exports.createExchange = async (req, res) => {
                             data: { quantity: { decrement: quantity } }
                         });
 
-                        const trxOutCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                        const trxOutCode = `TRX/SRG/${year}/${nextTrxSeq.toString().padStart(3, '0')}`;
+                        nextTrxSeq++;
+                        
                         await tx.uniformStockTransaction.create({
                             data: {
                                 code: trxOutCode,
