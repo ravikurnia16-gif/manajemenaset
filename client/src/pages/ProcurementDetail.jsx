@@ -1645,30 +1645,45 @@ const ProcurementDetail = () => {
                                                                 <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                                                                     {/* Select InvItem */}
                                                                     <div>
-                                                                        <Label>Barang Gudang *</Label>
-                                                                        <select
-                                                                            value={warehouseFulfillments[it.id]?.invItemId || ''}
-                                                                            onChange={e => setWarehouseFulfillments(prev => ({
-                                                                                ...prev,
-                                                                                [it.id]: { ...prev[it.id], invItemId: e.target.value, warehouseId: '' }
-                                                                            }))}
-                                                                            style={{
-                                                                                width: '100%', padding: '9px 10px',
-                                                                                border: `1.5px solid ${T.border}`, borderRadius: 8,
-                                                                                fontSize: 12.5, background: '#fff', color: T.text,
-                                                                                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif"
-                                                                            }}
-                                                                        >
-                                                                            <option value="">— Pilih Barang —</option>
-                                                                            {invItems.map(inv => {
-                                                                                const totalStock = (inv.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
-                                                                                return (
-                                                                                    <option key={inv.id} value={inv.id}>
-                                                                                        {inv.name} (Stok: {totalStock} {inv.unit})
-                                                                                    </option>
-                                                                                );
-                                                                            })}
-                                                                        </select>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                                            <Label style={{ marginBottom: 0 }}>Barang Gudang (Khusus Aset) *</Label>
+                                                                            <span style={{ fontSize: 10, color: T.gold, fontWeight: 700 }}>Filter: Aset Saja</span>
+                                                                        </div>
+                                                                        {(() => {
+                                                                            const assetOnlyItems = invItems.filter(inv => req?.type === 'ASSET' ? !!inv.isAsset : true);
+                                                                            return (
+                                                                                <>
+                                                                                    <select
+                                                                                        value={warehouseFulfillments[it.id]?.invItemId || ''}
+                                                                                        onChange={e => setWarehouseFulfillments(prev => ({
+                                                                                            ...prev,
+                                                                                            [it.id]: { ...prev[it.id], invItemId: e.target.value, warehouseId: '' }
+                                                                                        }))}
+                                                                                        style={{
+                                                                                            width: '100%', padding: '9px 10px',
+                                                                                            border: `1.5px solid ${T.border}`, borderRadius: 8,
+                                                                                            fontSize: 12.5, background: '#fff', color: T.text,
+                                                                                            cursor: 'pointer', fontFamily: "'DM Sans', sans-serif"
+                                                                                        }}
+                                                                                    >
+                                                                                        <option value="">— Pilih Barang Aset di Gudang —</option>
+                                                                                        {assetOnlyItems.map(inv => {
+                                                                                            const totalStock = (inv.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
+                                                                                            return (
+                                                                                                <option key={inv.id} value={inv.id}>
+                                                                                                    {inv.name} (Stok: {totalStock} {inv.unit}) {inv.isAsset ? '🏷️ [Aset]' : ''}
+                                                                                                </option>
+                                                                                            );
+                                                                                        })}
+                                                                                    </select>
+                                                                                    {assetOnlyItems.length === 0 && (
+                                                                                        <div style={{ marginTop: 4, fontSize: 11, color: T.warn, lineHeight: 1.4 }}>
+                                                                                            ⚠️ Belum ada barang di Manajemen Gudang yang ditandai sebagai <b>Aset</b>. Silakan atur klasifikasi barang di <i>Master Data Gudang</i> terlebih dahulu.
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            );
+                                                                        })()}
                                                                     </div>
 
                                                                     {/* Select Warehouse */}

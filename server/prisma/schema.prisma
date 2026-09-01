@@ -2189,6 +2189,7 @@ model InvItem {
   price       Float?   // Estimasi harga satuan (modal)
   sellingPrice Float? // Harga jual
   image       String?  @db.LongText
+  isAsset     Boolean  @default(false)
   
   categoryId  Int
   category    InvCategory @relation(fields: [categoryId], references: [id])

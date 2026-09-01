@@ -118,10 +118,13 @@ const generateItemCode = async (prefix = 'INV/BRG') => {
 };
 
 exports.getItems = async (req, res) => {
-    const { categoryId, search } = req.query;
+    const { categoryId, search, isAsset } = req.query;
     try {
         const where = {};
         if (categoryId) where.categoryId = parseInt(categoryId);
+        if (isAsset !== undefined && isAsset !== '') {
+            where.isAsset = isAsset === 'true' || isAsset === true;
+        }
         if (search) {
             where.OR = [
                 { name: { contains: search } },
@@ -150,7 +153,7 @@ exports.getItems = async (req, res) => {
 
 exports.createItem = async (req, res) => {
     try {
-        const { id, category, stocks, totalStock, image, ...rest } = req.body;
+        const { id, category, stocks, totalStock, image, isAsset, ...rest } = req.body;
         const code = await generateItemCode();
 
         let imageUrl = null;
@@ -168,6 +171,7 @@ exports.createItem = async (req, res) => {
                 minStock: req.body.minStock ? parseInt(req.body.minStock) : 5,
                 price: req.body.price ? parseFloat(req.body.price) : null,
                 sellingPrice: req.body.sellingPrice ? parseFloat(req.body.sellingPrice) : null,
+                isAsset: isAsset === true || isAsset === 'true',
                 image: imageUrl
             }
         });
@@ -177,7 +181,7 @@ exports.createItem = async (req, res) => {
 
 exports.updateItem = async (req, res) => {
     try {
-        const { id, category, stocks, totalStock, image, ...rest } = req.body;
+        const { id, category, stocks, totalStock, image, isAsset, ...rest } = req.body;
         const itemId = parseInt(req.params.id);
         const existingItem = await prisma.invItem.findUnique({ where: { id: itemId } });
 
@@ -206,6 +210,7 @@ exports.updateItem = async (req, res) => {
                 minStock: req.body.minStock !== undefined ? parseInt(req.body.minStock) : undefined,
                 price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined,
                 sellingPrice: req.body.sellingPrice !== undefined ? parseFloat(req.body.sellingPrice) : undefined,
+                isAsset: isAsset !== undefined ? (isAsset === true || isAsset === 'true') : undefined,
                 image: imageUrl
             }
         });

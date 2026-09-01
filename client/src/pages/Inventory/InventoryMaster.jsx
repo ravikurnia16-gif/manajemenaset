@@ -52,10 +52,11 @@ const ItemsTab = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [assetFilter, setAssetFilter] = useState('ALL'); // ALL, ASSET, NON_ASSET
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '', image: null });
+  const [formData, setFormData] = useState({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '', image: null, isAsset: false });
 
   useEffect(() => {
     fetchItems();
@@ -124,16 +125,31 @@ const ItemsTab = () => {
     }
   };
 
-  const filteredItems = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()) || i.code.toLowerCase().includes(search.toLowerCase()));
+  const filteredItems = items.filter(i => {
+    const matchSearch = i.name.toLowerCase().includes(search.toLowerCase()) || i.code.toLowerCase().includes(search.toLowerCase());
+    const matchAsset = assetFilter === 'ALL' ? true : (assetFilter === 'ASSET' ? !!i.isAsset : !i.isAsset);
+    return matchSearch && matchAsset;
+  });
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input type="text" placeholder="Cari barang..." className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-blue-500 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input type="text" placeholder="Cari barang..." className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-blue-500 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <select 
+            value={assetFilter} 
+            onChange={e => setAssetFilter(e.target.value)}
+            className="border p-2 rounded-lg text-sm bg-white text-gray-700 font-medium"
+          >
+            <option value="ALL">Semua Klasifikasi</option>
+            <option value="ASSET">Hanya Jenis Aset</option>
+            <option value="NON_ASSET">Non-Aset (Habis Pakai)</option>
+          </select>
         </div>
-        <button onClick={() => { setFormData({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '', image: null }); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center shadow-sm">
+        <button onClick={() => { setFormData({ id: null, name: '', categoryId: '', unit: '', minStock: 5, price: '', sellingPrice: '', image: null, isAsset: false }); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center shadow-sm">
           <Plus className="w-4 h-4 mr-2" /> Tambah Barang
         </button>
       </div>
@@ -145,6 +161,7 @@ const ItemsTab = () => {
               <th className="p-3 border-b">Foto</th>
               <th className="p-3 border-b">Kode</th>
               <th className="p-3 border-b">Nama Barang</th>
+              <th className="p-3 border-b">Klasifikasi</th>
               <th className="p-3 border-b">Kategori</th>
               <th className="p-3 border-b">Satuan</th>
               <th className="p-3 border-b">Min Stok</th>
@@ -153,8 +170,8 @@ const ItemsTab = () => {
             </tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan="8" className="text-center p-4">Memuat...</td></tr> : 
-             filteredItems.length === 0 ? <tr><td colSpan="8" className="text-center p-4 text-gray-500">Belum ada barang</td></tr> :
+            {loading ? <tr><td colSpan="9" className="text-center p-4">Memuat...</td></tr> : 
+             filteredItems.length === 0 ? <tr><td colSpan="9" className="text-center p-4 text-gray-500">Belum ada barang</td></tr> :
              filteredItems.map(item => (
               <tr key={item.id} className="border-b hover:bg-gray-50">
                 <td className="p-3">
@@ -168,12 +185,23 @@ const ItemsTab = () => {
                 </td>
                 <td className="p-3 font-mono text-sm">{item.code}</td>
                 <td className="p-3 font-medium text-gray-800">{item.name}</td>
+                <td className="p-3">
+                  {item.isAsset ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                      📦 Aset
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      Habis Pakai
+                    </span>
+                  )}
+                </td>
                 <td className="p-3">{item.category?.name || '-'}</td>
                 <td className="p-3">{item.unit}</td>
                 <td className="p-3">{item.minStock}</td>
                 <td className="p-3">{item.sellingPrice ? `Rp ${item.sellingPrice.toLocaleString('id-ID')}` : '-'}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => { setFormData({ ...item, categoryId: item.categoryId || '', image: item.image || null }); setIsModalOpen(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded"><Edit className="w-4 h-4"/></button>
+                  <button onClick={() => { setFormData({ ...item, categoryId: item.categoryId || '', image: item.image || null, isAsset: !!item.isAsset }); setIsModalOpen(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded"><Edit className="w-4 h-4"/></button>
                   <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:bg-red-100 p-2 rounded ml-2"><Trash2 className="w-4 h-4"/></button>
                 </td>
               </tr>
@@ -227,22 +255,44 @@ const ItemsTab = () => {
               </div>
             </div>
 
-            <div><label className="block text-sm mb-1">Nama Barang</label><input required type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
-            <div><label className="block text-sm mb-1">Kategori</label>
-              <select required className="w-full border p-2 rounded" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Nama Barang</label><input required type="text" className="w-full border p-2 rounded-lg" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
+            
+            {/* Klasifikasi Aset Toggle Card */}
+            <div className={`p-3.5 rounded-xl border transition-all ${formData.isAsset ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={!!formData.isAsset} 
+                  onChange={e => setFormData({ ...formData, isAsset: e.target.checked })}
+                  className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <div>
+                  <div className="font-semibold text-sm text-gray-800 flex items-center gap-1.5">
+                    <span>Termasuk Jenis Aset (Inventaris)</span>
+                    {formData.isAsset && <span className="text-[11px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">Aset</span>}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    Centang jika barang ini adalah aset/inventaris. Barang jenis ini dapat dipilih saat pemenuhan pengadaan aset langsung dari gudang di menu Pengadaan.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+              <select required className="w-full border p-2 rounded-lg" value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})}>
                 <option value="">-- Pilih Kategori --</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm mb-1">Satuan (Pcs, Box, dll)</label><input required type="text" className="w-full border p-2 rounded" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})}/></div>
-              <div><label className="block text-sm mb-1">Minimal Stok (Peringatan)</label><input required type="number" min="0" className="w-full border p-2 rounded" value={formData.minStock} onChange={e => setFormData({...formData, minStock: e.target.value})}/></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Satuan (Pcs, Box, dll)</label><input required type="text" className="w-full border p-2 rounded-lg" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})}/></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Minimal Stok (Peringatan)</label><input required type="number" min="0" className="w-full border p-2 rounded-lg" value={formData.minStock} onChange={e => setFormData({...formData, minStock: e.target.value})}/></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm mb-1">Estimasi Harga Modal</label><input type="number" className="w-full border p-2 rounded" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})}/></div>
-              <div><label className="block text-sm mb-1">Harga Jual</label><input type="number" className="w-full border p-2 rounded" value={formData.sellingPrice || ''} onChange={e => setFormData({...formData, sellingPrice: e.target.value})}/></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Estimasi Harga Modal</label><input type="number" className="w-full border p-2 rounded-lg" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})}/></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Harga Jual</label><input type="number" className="w-full border p-2 rounded-lg" value={formData.sellingPrice || ''} onChange={e => setFormData({...formData, sellingPrice: e.target.value})}/></div>
             </div>
-            <div className="flex justify-end pt-4"><button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Simpan</button></div>
+            <div className="flex justify-end pt-4"><button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium shadow-sm">Simpan</button></div>
           </form>
         </Modal>
       )}
