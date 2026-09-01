@@ -644,11 +644,23 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
 };
 
 export const SalesTab = ({ 
-  sales = [], loading, search, setSearch, openModal, canFulfill, warehouses = [], variants = [], onFulfillSale, onDelete, onUpdatePayment 
+  sales = [], 
+  type = 'ALL',
+  loading, 
+  search, 
+  setSearch, 
+  openModal, 
+  canFulfill, 
+  warehouses = [], 
+  variants = [], 
+  onFulfillSale, 
+  onDelete, 
+  onUpdatePayment 
 }) => {
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
   const [copied, setCopied] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleCopyPublicLink = () => {
     const url = `${window.location.origin}/pesan-seragam`;
