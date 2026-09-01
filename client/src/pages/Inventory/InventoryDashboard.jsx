@@ -14,6 +14,7 @@ export default function InventoryDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -22,12 +23,14 @@ export default function InventoryDashboard() {
   const fetchDashboardData = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
+    setError(null);
 
     try {
       const res = await api.get('/inventory/dashboard/summary');
       setData(res.data);
     } catch (e) {
       console.error('Failed to fetch inventory dashboard:', e);
+      setError(e.response?.data?.error || e.message || 'Gagal memuat data dashboard logistik');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -39,6 +42,26 @@ export default function InventoryDashboard() {
       <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
         <RefreshCw className="w-10 h-10 text-blue-600 animate-spin" />
         <p className="text-sm font-semibold text-slate-500">Memuat Dashboard Manajemen Gudang...</p>
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4 p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+          <AlertTriangle size={32} />
+        </div>
+        <div className="max-w-md">
+          <h2 className="text-lg font-bold text-slate-800">Gagal Memuat Data Dashboard</h2>
+          <p className="text-xs text-slate-500 mt-1">{error}</p>
+        </div>
+        <button
+          onClick={() => fetchDashboardData()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
+        >
+          <RefreshCw size={14} /> Coba Lagi
+        </button>
       </div>
     );
   }

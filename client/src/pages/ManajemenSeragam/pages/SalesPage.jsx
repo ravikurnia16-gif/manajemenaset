@@ -178,6 +178,7 @@ export default function SalesPage() {
                     {activeTab === 'sales_spmb' && (
                         <SalesTab 
                             sales={sales.filter(s => s.type === 'SPMB')} 
+                            type="SPMB"
                             loading={loading} 
                             search={search} 
                             setSearch={setSearch} 
@@ -193,6 +194,7 @@ export default function SalesPage() {
                     {activeTab === 'sales_retail' && (
                         <SalesTab 
                             sales={sales.filter(s => s.type !== 'SPMB')} 
+                            type="RETAIL"
                             loading={loading} 
                             search={search} 
                             setSearch={setSearch} 

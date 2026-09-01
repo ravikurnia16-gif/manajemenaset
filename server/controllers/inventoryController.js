@@ -276,80 +276,183 @@ exports.getTransactions = async (req, res) => {
 };
 
 exports.createTransaction = async (req, res) => {
-    const { type, date, note, itemId, warehouseId, toWarehouseId, quantity } = req.body;
+    const { type, date, note, itemId, warehouseId, toWarehouseId, quantity, items } = req.body;
     try {
-        const parsedQty = parseInt(quantity);
-        if (parsedQty <= 0) return res.status(400).json({ error: 'Quantity must be greater than 0' });
-        
-        const code = await generateTxCode();
-        
-        const result = await prisma.$transaction(async (tx) => {
-            // Check current stock for OUT or MUTATION
-            if (type === 'OUT' || type === 'MUTATION') {
-                const stock = await tx.invStock.findUnique({
-                    where: { itemId_warehouseId: { itemId: parseInt(itemId), warehouseId: parseInt(warehouseId) } }
-                });
-                if (!stock || stock.quantity < parsedQty) {
-                    throw new Error('Stock is insufficient for this operation.');
-                }
+        if (!type || !['IN', 'OUT', 'MUTATION'].includes(type)) {
+            return res.status(400).json({ error: 'Tipe transaksi harus IN, OUT, atau MUTATION' });
+        }
+        if (!warehouseId) {
+            return res.status(400).json({ error: 'Gudang sumber wajib dipilih' });
+        }
+
+        const sourceWhId = parseInt(warehouseId);
+        let destWhId = null;
+        if (type === 'MUTATION') {
+            if (!toWarehouseId) return res.status(400).json({ error: 'Gudang tujuan wajib dipilih untuk mutasi' });
+            destWhId = parseInt(toWarehouseId);
+            if (sourceWhId === destWhId) return res.status(400).json({ error: 'Gudang sumber dan tujuan tidak boleh sama' });
+        }
+
+        // Format items list (supports multi-item or single item)
+        let transactionItems = [];
+        if (Array.isArray(items) && items.length > 0) {
+            transactionItems = items.map(it => ({
+                itemId: parseInt(it.itemId),
+                quantity: parseInt(it.quantity, 10),
+                note: (it.note || note || '').toString().trim()
+            }));
+        } else if (itemId && quantity) {
+            transactionItems = [{
+                itemId: parseInt(itemId),
+                quantity: parseInt(quantity, 10),
+                note: (note || '').toString().trim()
+            }];
+        } else {
+            return res.status(400).json({ error: 'Minimal harus memilih 1 barang untuk ditransaksikan' });
+        }
+
+        // Validation for each item
+        for (const it of transactionItems) {
+            if (isNaN(it.itemId) || !it.itemId) {
+                return res.status(400).json({ error: 'Ada barang yang belum dipilih dengan benar' });
             }
-
-            // Create Transaction Record
-            const transaction = await tx.invStockTransaction.create({
-                data: {
-                    code, type, note,
-                    date: date ? new Date(date) : new Date(),
-                    itemId: parseInt(itemId),
-                    warehouseId: parseInt(warehouseId),
-                    toWarehouseId: toWarehouseId ? parseInt(toWarehouseId) : null,
-                    quantity: parsedQty,
-                    createdById: req.user.id
-                }
-            });
-
-            // Update Stock Source (Decrement for OUT / MUTATION, Increment for IN)
-            const delta = type === 'IN' ? parsedQty : -parsedQty;
-            await tx.invStock.upsert({
-                where: { itemId_warehouseId: { itemId: parseInt(itemId), warehouseId: parseInt(warehouseId) } },
-                create: { itemId: parseInt(itemId), warehouseId: parseInt(warehouseId), quantity: delta },
-                update: { quantity: { increment: delta } }
-            });
-
-            // If MUTATION, increment destination stock
-            if (type === 'MUTATION' && toWarehouseId) {
-                await tx.invStock.upsert({
-                    where: { itemId_warehouseId: { itemId: parseInt(itemId), warehouseId: parseInt(toWarehouseId) } },
-                    create: { itemId: parseInt(itemId), warehouseId: parseInt(toWarehouseId), quantity: parsedQty },
-                    update: { quantity: { increment: parsedQty } }
-                });
+            if (isNaN(it.quantity) || it.quantity <= 0) {
+                return res.status(400).json({ error: 'Jumlah / kuantitas barang harus lebih dari 0' });
             }
+        }
 
-            return transaction;
+        // Generate base sequence for TxCode
+        const year = new Date().getFullYear();
+        const prefix = `TRX/INV/${year}/`;
+        const existingTxs = await prisma.invStockTransaction.findMany({
+            where: { code: { startsWith: prefix } },
+            select: { code: true }
         });
-        
-        res.json({ message: 'Transaction successful', data: result });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        let maxSeq = 0;
+        for (const tx of existingTxs) {
+            const parts = tx.code.split('/');
+            if (parts.length === 4) {
+                const seq = parseInt(parts[3], 10);
+                if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+            }
+        }
+
+        const txDate = date ? new Date(date) : new Date();
+
+        const result = await prisma.$transaction(async (tx) => {
+            const createdRecords = [];
+
+            for (const item of transactionItems) {
+                // Check stock if OUT or MUTATION
+                if (type === 'OUT' || type === 'MUTATION') {
+                    const stock = await tx.invStock.findUnique({
+                        where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: sourceWhId } }
+                    });
+                    const available = stock?.quantity || 0;
+                    if (available < item.quantity) {
+                        const itInfo = await tx.invItem.findUnique({
+                            where: { id: item.itemId },
+                            select: { name: true, unit: true }
+                        });
+                        throw new Error(`Stok "${itInfo?.name || 'Barang'}" tidak mencukupi di gudang ini (Tersedia: ${available} ${itInfo?.unit || ''}, Diminta: ${item.quantity})`);
+                    }
+                }
+
+                maxSeq++;
+                const code = `${prefix}${maxSeq.toString().padStart(4, '0')}`;
+
+                const createdTx = await tx.invStockTransaction.create({
+                    data: {
+                        code,
+                        type,
+                        note: item.note || `Transaksi ${type}`,
+                        date: txDate,
+                        itemId: item.itemId,
+                        warehouseId: sourceWhId,
+                        toWarehouseId: destWhId,
+                        quantity: item.quantity,
+                        createdById: req.user.id
+                    },
+                    include: {
+                        item: true,
+                        warehouse: true,
+                        toWarehouse: true
+                    }
+                });
+
+                // Update source warehouse stock
+                const delta = type === 'IN' ? item.quantity : -item.quantity;
+                await tx.invStock.upsert({
+                    where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: sourceWhId } },
+                    create: { itemId: item.itemId, warehouseId: sourceWhId, quantity: delta },
+                    update: { quantity: { increment: delta } }
+                });
+
+                // Update destination warehouse stock if MUTATION
+                if (type === 'MUTATION' && destWhId) {
+                    await tx.invStock.upsert({
+                        where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: destWhId } },
+                        create: { itemId: item.itemId, warehouseId: destWhId, quantity: item.quantity },
+                        update: { quantity: { increment: item.quantity } }
+                    });
+                }
+
+                createdRecords.push(createdTx);
+            }
+
+            return createdRecords;
+        });
+
+        res.json({
+            message: `Berhasil mencatat ${result.length} transaksi barang`,
+            data: result
+        });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+};
+
+const parseExcelDate = (val) => {
+    if (!val) return new Date();
+    if (val instanceof Date && !isNaN(val.getTime())) return val;
+    if (typeof val === 'number') {
+        // Excel serial date conversion
+        return new Date(Math.round((val - 25569) * 86400 * 1000));
+    }
+    const d = new Date(val);
+    return !isNaN(d.getTime()) ? d : new Date();
 };
 
 exports.importTransactions = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Tidak ada file yang diunggah' });
 
-        const workbook = xlsx.readFile(req.file.path);
+        const workbook = xlsx.readFile(req.file.path, { cellDates: true });
         const sheetName = workbook.SheetNames[0];
-        const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
 
         if (data.length === 0) {
-            fs.unlinkSync(req.file.path);
-            return res.status(400).json({ error: 'Data kosong' });
+            if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: 'Data file import kosong' });
         }
 
-        // Ambil data referensi
-        const items = await prisma.invItem.findMany({ select: { id: true, code: true } });
+        // Ambil data referensi Master Data
+        const items = await prisma.invItem.findMany({ select: { id: true, code: true, name: true, unit: true } });
         const warehouses = await prisma.uniformWarehouse.findMany({ select: { id: true, name: true } });
 
-        const itemMap = new Map(items.map(i => [i.code.trim().toLowerCase(), i.id]));
-        const whMap = new Map(warehouses.map(w => [w.name.trim().toLowerCase(), w.id]));
+        const normalize = (str) => (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+        const itemNameMap = new Map();
+        const itemCodeMap = new Map();
+        for (const item of items) {
+            if (item.name) itemNameMap.set(normalize(item.name), item);
+            if (item.code) itemCodeMap.set(normalize(item.code), item);
+        }
+
+        const whMap = new Map();
+        for (const wh of warehouses) {
+            if (wh.name) whMap.set(normalize(wh.name), wh);
+        }
 
         let successCount = 0;
         let errors = [];
@@ -372,37 +475,85 @@ exports.importTransactions = async (req, res) => {
 
         for (const [index, row] of data.entries()) {
             try {
-                const type = (row['Tipe'] || row['Type'] || '').toString().trim().toUpperCase();
-                const itemCode = (row['Kode Barang'] || '').toString().trim().toLowerCase();
-                const qtyStr = (row['Kuantitas'] || row['Quantity'] || '').toString();
-                const parsedQty = parseInt(qtyStr, 10);
-                const whName = (row['Gudang Sumber'] || '').toString().trim().toLowerCase();
-                const toWhName = (row['Gudang Tujuan'] || '').toString().trim().toLowerCase();
-                const note = (row['Catatan'] || row['Keterangan'] || '').toString().trim();
+                // Normalisasi Tipe Transaksi
+                let type = (row['Tipe'] || row['Type'] || row['Jenis'] || '').toString().trim().toUpperCase();
+                if (type === 'MASUK' || type === 'STOK MASUK') type = 'IN';
+                if (type === 'KELUAR' || type === 'STOK KELUAR') type = 'OUT';
+                if (type === 'MUTASI' || type === 'MUTASI GUDANG' || type === 'PINDAH') type = 'MUTATION';
 
-                if (!['IN', 'OUT', 'MUTATION'].includes(type)) throw new Error('Tipe harus IN, OUT, atau MUTATION');
-                if (!itemCode || !itemMap.has(itemCode)) throw new Error(`Barang dengan kode ${row['Kode Barang']} tidak ditemukan`);
-                if (isNaN(parsedQty) || parsedQty <= 0) throw new Error('Kuantitas tidak valid');
-                if (!whName || !whMap.has(whName)) throw new Error(`Gudang sumber ${row['Gudang Sumber']} tidak ditemukan`);
-
-                const itemId = itemMap.get(itemCode);
-                const warehouseId = whMap.get(whName);
-                let toWarehouseId = null;
-
-                if (type === 'MUTATION') {
-                    if (!toWhName || !whMap.has(toWhName)) throw new Error(`Gudang tujuan ${row['Gudang Tujuan']} tidak valid`);
-                    toWarehouseId = whMap.get(toWhName);
-                    if (warehouseId === toWarehouseId) throw new Error('Gudang sumber dan tujuan tidak boleh sama');
+                if (!['IN', 'OUT', 'MUTATION'].includes(type)) {
+                    throw new Error(`Tipe "${row['Tipe'] || row['Type'] || ''}" tidak valid. Harus IN (Masuk), OUT (Keluar), atau MUTATION (Mutasi)`);
                 }
 
+                // Pencarian Nama Barang (harus sesuai master data barang)
+                const rawItemName = (row['Nama Barang'] || row['Nama'] || row['Item Name'] || row['Barang'] || row['Item'] || '').toString().trim();
+                const rawItemCode = (row['Kode Barang'] || row['Kode'] || row['Item Code'] || '').toString().trim();
+
+                let item = null;
+                if (rawItemName && itemNameMap.has(normalize(rawItemName))) {
+                    item = itemNameMap.get(normalize(rawItemName));
+                } else if (rawItemCode && itemCodeMap.has(normalize(rawItemCode))) {
+                    item = itemCodeMap.get(normalize(rawItemCode));
+                } else if (rawItemName && itemCodeMap.has(normalize(rawItemName))) {
+                    item = itemCodeMap.get(normalize(rawItemName));
+                }
+
+                if (!item) {
+                    throw new Error(`Barang "${rawItemName || rawItemCode || 'Tidak Disebutkan'}" tidak ditemukan di Master Data Barang`);
+                }
+
+                // Kuantitas
+                const qtyVal = row['Kuantitas'] ?? row['Jumlah'] ?? row['Qty'] ?? row['Quantity'];
+                const parsedQty = parseInt(qtyVal, 10);
+                if (isNaN(parsedQty) || parsedQty <= 0) {
+                    throw new Error(`Kuantitas tidak valid: "${qtyVal || ''}" (harus bilangan bulat lebih dari 0)`);
+                }
+
+                // Gudang Sumber (harus sesuai nama gudang yang ada)
+                const rawWhSource = (row['Gudang Sumber'] || row['Gudang Asal'] || row['Gudang'] || row['Warehouse'] || row['Source Warehouse'] || '').toString().trim();
+                if (!rawWhSource) throw new Error('Gudang Sumber wajib diisi');
+
+                const whSource = whMap.get(normalize(rawWhSource));
+                if (!whSource) {
+                    throw new Error(`Gudang sumber "${rawWhSource}" tidak ditemukan di Master Gudang`);
+                }
+                const warehouseId = whSource.id;
+
+                // Gudang Tujuan (wajib jika MUTATION, harus sesuai nama gudang yang ada)
+                let toWarehouseId = null;
+                let whTargetName = '';
+                if (type === 'MUTATION') {
+                    const rawWhTarget = (row['Gudang Tujuan'] || row['Gudang Ke'] || row['Target Warehouse'] || row['Destination Warehouse'] || '').toString().trim();
+                    if (!rawWhTarget) throw new Error('Gudang Tujuan wajib diisi untuk transaksi MUTATION');
+
+                    const whTarget = whMap.get(normalize(rawWhTarget));
+                    if (!whTarget) {
+                        throw new Error(`Gudang tujuan "${rawWhTarget}" tidak ditemukan di Master Gudang`);
+                    }
+                    toWarehouseId = whTarget.id;
+                    whTargetName = whTarget.name;
+                    if (warehouseId === toWarehouseId) {
+                        throw new Error('Gudang sumber dan gudang tujuan tidak boleh sama');
+                    }
+                }
+
+                // Tanggal: Terisi otomatis waktu sekarang jika tidak ada / kosong
+                const rawDate = row['Tanggal'] || row['Date'] || row['Tgl'];
+                const date = parseExcelDate(rawDate);
+
+                // Catatan
+                const rawNote = (row['Catatan'] || row['Keterangan'] || row['Note'] || row['Notes'] || '').toString().trim();
+                const note = rawNote || (type === 'MUTATION' ? `Mutasi dari ${whSource.name} ke ${whTargetName}` : `Import Transaksi ${type}`);
+
                 await prisma.$transaction(async (tx) => {
-                    // Check stock for OUT/MUTATION
+                    // Check stock for OUT / MUTATION
                     if (type === 'OUT' || type === 'MUTATION') {
                         const stock = await tx.invStock.findUnique({
-                            where: { itemId_warehouseId: { itemId, warehouseId } }
+                            where: { itemId_warehouseId: { itemId: item.id, warehouseId } }
                         });
-                        if (!stock || stock.quantity < parsedQty) {
-                            throw new Error(`Stok tidak mencukupi (Tersedia: ${stock?.quantity || 0})`);
+                        const currentQty = stock?.quantity || 0;
+                        if (currentQty < parsedQty) {
+                            throw new Error(`Stok "${item.name}" di ${whSource.name} tidak mencukupi (Tersedia: ${currentQty}, Diminta: ${parsedQty})`);
                         }
                     }
 
@@ -411,9 +562,13 @@ exports.importTransactions = async (req, res) => {
 
                     await tx.invStockTransaction.create({
                         data: {
-                            code, type, note,
-                            date: row['Tanggal'] ? new Date(row['Tanggal']) : new Date(),
-                            itemId, warehouseId, toWarehouseId,
+                            code,
+                            type,
+                            note,
+                            date,
+                            itemId: item.id,
+                            warehouseId,
+                            toWarehouseId,
                             quantity: parsedQty,
                             createdById: req.user.id
                         }
@@ -421,15 +576,15 @@ exports.importTransactions = async (req, res) => {
 
                     const delta = type === 'IN' ? parsedQty : -parsedQty;
                     await tx.invStock.upsert({
-                        where: { itemId_warehouseId: { itemId, warehouseId } },
-                        create: { itemId, warehouseId, quantity: delta },
+                        where: { itemId_warehouseId: { itemId: item.id, warehouseId } },
+                        create: { itemId: item.id, warehouseId, quantity: delta },
                         update: { quantity: { increment: delta } }
                     });
 
                     if (type === 'MUTATION' && toWarehouseId) {
                         await tx.invStock.upsert({
-                            where: { itemId_warehouseId: { itemId, warehouseId: toWarehouseId } },
-                            create: { itemId, warehouseId: toWarehouseId, quantity: parsedQty },
+                            where: { itemId_warehouseId: { itemId: item.id, warehouseId: toWarehouseId } },
+                            create: { itemId: item.id, warehouseId: toWarehouseId, quantity: parsedQty },
                             update: { quantity: { increment: parsedQty } }
                         });
                     }
@@ -441,7 +596,7 @@ exports.importTransactions = async (req, res) => {
             }
         }
 
-        fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
         res.json({
             message: 'Import selesai',
@@ -648,10 +803,10 @@ exports.getDashboardSummary = async (req, res) => {
                 }
             }),
             prisma.uniformWarehouse.findMany({ orderBy: { name: 'asc' } }),
-            prisma.invTransaction.findMany({
+            prisma.invStockTransaction.findMany({
                 take: 10,
-                orderBy: { date: 'desc' },
-                include: { item: true, warehouse: true }
+                orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+                include: { item: true, warehouse: true, toWarehouse: true, createdBy: { select: { id: true, name: true, username: true } } }
             }),
             prisma.invOrder.findMany({
                 orderBy: { date: 'desc' },

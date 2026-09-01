@@ -58,6 +58,7 @@ router.get('/projects', projectCtrl.getProjects);
 router.post('/projects', isAdmin, projectCtrl.createProject);
 router.put('/projects/:id', isAdmin, projectCtrl.updateProject);
 router.delete('/projects/:id', isSuperAdminOrIT, projectCtrl.deleteProject);
+router.post('/projects/:id/receive', isAdmin, projectCtrl.receiveProjectGoods);
 
 // VENDOR SELECTIONS
 router.get('/vendor-selections', projectCtrl.getVendorSelections);

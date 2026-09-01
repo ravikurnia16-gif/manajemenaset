@@ -2353,7 +2353,15 @@ exports.exportSalesToExcel = async (req, res) => {
     try {
         const { type, status, paymentStatus, search, isOverdue30Days } = req.query;
         const where = {};
-        if (type) where.type = type;
+        if (type) {
+            if (type === 'SPMB') {
+                where.type = 'SPMB';
+            } else if (type === 'RETAIL') {
+                where.type = { not: 'SPMB' };
+            } else {
+                where.type = type;
+            }
+        }
         if (status) where.status = status;
         if (paymentStatus) where.paymentStatus = paymentStatus;
         if (search) {
@@ -2380,14 +2388,15 @@ exports.exportSalesToExcel = async (req, res) => {
 
         if (isOverdue30Days === 'true') {
             data = data.filter(s => {
-                const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || s.items.some(i => i.status === 'SEDIA');
+                const isReady = s.status === 'PROSES' || s.status === 'SEDIA' || (s.items && s.items.some(i => i.status === 'SEDIA'));
                 const orderDate = new Date(s.updatedAt || s.createdAt);
                 return isReady && orderDate <= thirtyDaysAgo;
             });
         }
 
         const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Daftar_Pesanan_Seragam');
+        const sheetName = type === 'SPMB' ? 'Pesanan_SPMB' : (type === 'RETAIL' ? 'Pesanan_Warid' : 'Daftar_Pesanan');
+        const sheet = workbook.addWorksheet(sheetName);
 
         sheet.columns = [
             { header: 'No', key: 'no', width: 6 },
@@ -2435,12 +2444,18 @@ exports.exportSalesToExcel = async (req, res) => {
             totalTerbayar += terbayar;
             totalPiutang += piutang;
 
-            let itemsStr = s.items.map(i => `${i.itemName} (${i.size}) x${i.qty} [${i.status}]`).join('; ');
+            let itemsStr = (s.items || []).map(i => `${i.itemName} (${i.size}) x${i.qty} [${i.status}]`).join('; ');
+            if (!itemsStr && s.salePackages && s.salePackages.length > 0) {
+                itemsStr = s.salePackages.map(sp => `${sp.package?.name || 'Paket'} (x${sp.qty})`).join('; ');
+            } else if (!itemsStr && s.package) {
+                itemsStr = `${s.package.name || 'Paket'}`;
+            }
+
             if (s.note && s.note.includes('[NAMADADA')) {
                 const matches = [...s.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):/g)];
                 matches.forEach(m => {
-                    const type = m[1].includes('PUTIH') ? 'Nama Dada Putih' : 'Nama Dada Coklat';
-                    itemsStr += `; ${type} x${m[2]}`;
+                    const ndType = m[1].includes('PUTIH') ? 'Nama Dada Putih' : 'Nama Dada Coklat';
+                    itemsStr += `${itemsStr ? '; ' : ''}${ndType} x${m[2]}`;
                 });
             }
 
@@ -2503,8 +2518,9 @@ exports.exportSalesToExcel = async (req, res) => {
             fgColor: { argb: 'FFF1F5F9' }
         };
 
+        const filePrefix = type === 'SPMB' ? 'Laporan_Pesanan_SPMB' : (type === 'RETAIL' ? 'Laporan_Pesanan_Warid' : 'Laporan_Pesanan_Seragam');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Pesanan_Seragam_${Date.now()}.xlsx`);
+        res.setHeader('Content-Disposition', `attachment; filename=${filePrefix}_${Date.now()}.xlsx`);
 
         await workbook.xlsx.write(res);
         res.end();
@@ -3593,6 +3609,7 @@ exports.manageSaleItems = async (req, res) => {
                 }
 
                 msg += `⏰ *Jadwal Pengambilan:* Hari Kerja (07.30 - 16.00 WIB)\n`;
+                msg += `📌 *Waktu Pengambilan:* Sudah boleh diambil mulai besok.\n`;
                 msg += `⚠️ *Batas Waktu Pengambilan:* Mohon seragam diambil maksimal dalam waktu *30 hari*. Pesanan yang belum diambil setelah 30 hari akan dibatalkan otomatis dan stok dialihkan kepada pemesan lain.\n\n`;
             }
 

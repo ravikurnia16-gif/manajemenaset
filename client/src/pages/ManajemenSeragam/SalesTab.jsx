@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
-  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw, Download, AlertTriangle
+  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw, Download, AlertTriangle, Loader2
 } from 'lucide-react';
+import api from '../../lib/axios';
 import { Badge } from './UIComponents';
 
 const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onClose }) => {
@@ -786,19 +787,41 @@ export const SalesTab = ({
     });
   }, [sales, statusFilter]);
 
-  const handleExportExcel = () => {
-    let url = `/api/uniforms/export-sales?`;
-    if (search) url += `search=${encodeURIComponent(search)}&`;
-    if (statusFilter === 'OVERDUE30') {
-      url += `isOverdue30Days=true&`;
-    } else if (statusFilter === 'PENDING') {
-      url += `status=PENDING&`;
-    } else if (statusFilter === 'PROSES') {
-      url += `status=PROSES&`;
-    } else if (statusFilter === 'COMPLETED') {
-      url += `status=COMPLETED&`;
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const params = {};
+      if (type && type !== 'ALL') params.type = type;
+      if (search) params.search = search;
+      if (statusFilter === 'OVERDUE30') {
+        params.isOverdue30Days = 'true';
+      } else if (['PENDING', 'PROSES', 'COMPLETED'].includes(statusFilter)) {
+        params.status = statusFilter;
+      }
+
+      const res = await api.get('/uniforms/export-sales', {
+        params,
+        responseType: 'blob'
+      });
+
+      const blob = new Blob([res.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const filePrefix = type === 'SPMB' ? 'Laporan_Pesanan_SPMB' : (type === 'RETAIL' ? 'Laporan_Pesanan_Warid' : 'Laporan_Pesanan_Seragam');
+      link.setAttribute('download', `${filePrefix}_${Date.now()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export Error:', err);
+      alert('Gagal mengekspor data pesanan ke Excel. Silakan coba lagi.');
+    } finally {
+      setIsExporting(false);
     }
-    window.open(url, '_blank');
   };
 
   return (
@@ -824,11 +847,12 @@ export const SalesTab = ({
           <button
             type="button"
             onClick={handleExportExcel}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0"
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0 cursor-pointer disabled:cursor-not-allowed"
             title="Ekspor Data Pesanan Seragam ke File Excel"
           >
-            <Download size={13} />
-            <span>Ekspor Excel</span>
+            {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            <span>{isExporting ? 'Mengekspor...' : 'Ekspor Excel'}</span>
           </button>
 
           {/* Tombol Buka Form Publik */}

@@ -2196,6 +2196,7 @@ model InvItem {
   stocks      InvStock[]
   transactions InvStockTransaction[]
   orderItems  InvOrderItem[]
+  projectItems InvProjectItem[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2278,19 +2279,37 @@ model InvOrderItem {
 }
 
 model InvProject {
-  id            Int      @id @default(autoincrement())
-  name          String
-  year          Int
-  type          String   @default("REGULAR") // REGULAR, HIBAH
-  budget        Float    @default(0)
-  status        String   @default("AKTIF") // AKTIF, SELESAI
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  title          String?
+  name           String
+  year           Int
+  type           String   @default("REGULAR") // REGULAR, HIBAH, SELEKSI, PENUNJUKAN_LANGSUNG
+  budget         Float    @default(0)
+  targetQuantity Int      @default(0)
+  status         String   @default("AKTIF") // AKTIF, PERENCANAAN, SELEKSI, BERJALAN, SELESAI
+  note           String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  orders        InvOrder[]
+  orders           InvOrder[]
   vendorSelections InvVendorSelection[]
   mous             InvVendorMoU[]
   evaluations      InvVendorEvaluation[]
+  projectItems     InvProjectItem[]
+}
+
+model InvProjectItem {
+  id               Int        @id @default(autoincrement())
+  projectId        Int
+  project          InvProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  itemId           Int
+  item             InvItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity         Int        @default(0)
+  receivedQuantity Int        @default(0)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@unique([projectId, itemId])
 }
 
 model InvVendor {
