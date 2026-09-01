@@ -256,11 +256,8 @@ const Sidebar = ({ isOpen = true }) => {
                                 <Link to="/inventory/master" className={subNavItemClass('/inventory/master')}>
                                     <Database size={16} /> Master Data
                                 </Link>
-                                <Link to="/inventory/stok" className={subNavItemClass('/inventory/stok')}>
-                                    <Box size={16} /> Stok Barang
-                                </Link>
-                                <Link to="/inventory/transaksi" className={subNavItemClass('/inventory/transaksi')}>
-                                    <ArrowLeftRight size={16} /> Transaksi
+                                <Link to="/inventory/stok" className={isActive('/inventory/stok') || isActive('/inventory/transaksi') ? subNavItemClass('/inventory/stok') : subNavItemClass('/inventory/stok')}>
+                                    <Box size={16} /> Stok & Transaksi
                                 </Link>
                                 <Link to="/inventory/vendor" className={subNavItemClass('/inventory/vendor')}>
                                     <Users size={16} /> Vendor & Produksi

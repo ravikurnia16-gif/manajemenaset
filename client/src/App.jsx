@@ -102,6 +102,7 @@ import InventoryStock from './pages/Inventory/InventoryStock';
 import InventoryTransactions from './pages/Inventory/InventoryTransactions';
 import InventoryVendorPage from './pages/Inventory/Vendor/InventoryVendorPage';
 import InventoryOrders from './pages/Inventory/InventoryOrders';
+import InventoryInvoicePublic from './pages/Inventory/InventoryInvoicePublic';
 
 
 
@@ -193,6 +194,8 @@ function App() {
         <Route path="/public/invoice-bus/batch" element={<BusInvoiceBatchPrint />} />
         <Route path="/public/invoice-bus/:id" element={<BusInvoicePublic />} />
         <Route path="/public/invoice-seragam/:id" element={<UniformInvoicePublic />} />
+        <Route path="/public/invoice-gudang/:id" element={<InventoryInvoicePublic />} />
+        <Route path="/verify/invoice-gudang/:id" element={<InventoryInvoicePublic />} />
         <Route path="/public/pesan-seragam" element={<UniformOrderPublic />} />
         <Route path="/public/lacak-pesanan" element={<UniformTrackOrderPublic />} />
         <Route path="/public/konfirmasi-indent/:id" element={<UniformConfirmIndentPublic />} />
@@ -274,9 +277,12 @@ function App() {
           {/* Module: Manajemen Gudang Baru (Inventory) */}
           <Route path="inventory/dashboard" element={<InventoryDashboard />} />
           <Route path="inventory/master" element={<InventoryMaster />} />
-          <Route path="inventory/stok" element={<InventoryStock />} />
-          <Route path="inventory/transaksi" element={<InventoryTransactions />} />
+          <Route path="inventory/stok" element={<InventoryStock defaultTab="stock" />} />
+          <Route path="inventory/stock" element={<Navigate to="/inventory/stok" replace />} />
+          <Route path="inventory/transaksi" element={<InventoryStock defaultTab="transactions" />} />
+          <Route path="inventory/transactions" element={<Navigate to="/inventory/transaksi" replace />} />
           <Route path="inventory/pesanan" element={<InventoryOrders />} />
+          <Route path="inventory/invoice/:id" element={<InventoryInvoicePublic />} />
           <Route path="inventory/vendor" element={<InventoryVendorPage />} />
 
           {/* Module: Manajemen Gudang (Lama) */}

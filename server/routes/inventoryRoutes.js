@@ -8,6 +8,10 @@ const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT']);
 const isSuperAdminOrIT = authorizeRole(['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS']);
 
+// Public Invoice & Bukti Transaksi Endpoints
+router.get('/orders/public/:id', invCtrl.getOrderById);
+router.get('/transactions/public/:id', invCtrl.getTransactionById);
+
 router.use(verifyToken);
 
 // DASHBOARD
@@ -33,11 +37,13 @@ router.delete('/items/:id', isSuperAdminOrIT, invCtrl.deleteItem);
 
 // TRANSACTIONS
 router.get('/transactions', invCtrl.getTransactions);
+router.get('/transactions/:id', invCtrl.getTransactionById);
 router.post('/transactions', isAdmin, invCtrl.createTransaction);
 router.post('/transactions/import', isAdmin, upload.single('file'), invCtrl.importTransactions);
 
 // ORDERS
 router.get('/orders', invCtrl.getOrders);
+router.get('/orders/:id', invCtrl.getOrderById);
 router.post('/orders', invCtrl.createOrder); // Any user can create order? Maybe need a specific role or just verifyToken
 router.put('/orders/:id/status', isAdmin, invCtrl.updateOrderStatus);
 

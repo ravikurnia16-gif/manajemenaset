@@ -394,17 +394,37 @@ const ProcurementDetail = () => {
     const [workshopOrderDeadline, setWorkshopOrderDeadline] = useState('');
     const [workshopOrderNotes, setWorkshopOrderNotes] = useState('');
 
+    // ─── Warehouse Fulfillment States ───
+    // warehouseFulfillments: { [procItemId]: { enabled, invItemId, warehouseId, quantity } }
+    const [warehouseFulfillments, setWarehouseFulfillments] = useState({});
+    const [invItems, setInvItems] = useState([]);          // All InvItems with stocks
+    const [invWarehouses, setInvWarehouses] = useState([]); // All warehouses
+
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
     const isRequester = req?.userId === user?.id;
 
-    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); fetchSettings(); }, [id]);
+    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); fetchSettings(); fetchInvItems(); fetchInvWarehouses(); }, [id]);
 
     const fetchSettings = async () => {
         try { const res = await api.get('/settings'); setSettings(res.data); }
         catch (e) { console.error(e); }
+    };
+
+    const fetchInvItems = async () => {
+        try {
+            const res = await api.get('/inventory/items?includeStocks=true');
+            setInvItems(res.data || []);
+        } catch (e) { console.error('fetchInvItems error', e); }
+    };
+
+    const fetchInvWarehouses = async () => {
+        try {
+            const res = await api.get('/inventory/warehouses');
+            setInvWarehouses(res.data || []);
+        } catch (e) { console.error('fetchInvWarehouses error', e); }
     };
 
     const fetchUsers = async () => {
@@ -562,6 +582,10 @@ const ProcurementDetail = () => {
         if (!bastDate) return alert('Pilih tanggal serah terima');
         if (req.type === 'ASSET') {
             for (const item of req.items) {
+                const fulfillment = warehouseFulfillments[item.id];
+                // Skip BAST detail validation if using warehouse fulfillment
+                if (fulfillment?.enabled) continue;
+
                 const det = assetDetails[item.id];
                 if (!det?.categoryId) return alert(`Pilih Kategori untuk item: ${item.name}`);
 
@@ -574,11 +598,27 @@ const ProcurementDetail = () => {
             }
         }
 
+        // Validate warehouse fulfillment selections
+        const fulfillmentList = [];
+        for (const [procItemId, f] of Object.entries(warehouseFulfillments)) {
+            if (!f.enabled) continue;
+            if (!f.invItemId) return alert('Pilih barang gudang untuk item yang menggunakan pemenuhan gudang');
+            if (!f.warehouseId) return alert('Pilih gudang untuk item yang menggunakan pemenuhan gudang');
+            if (!f.quantity || parseInt(f.quantity) <= 0) return alert('Masukkan jumlah yang valid untuk pemenuhan gudang');
+            fulfillmentList.push({
+                procurementItemId: parseInt(procItemId),
+                invItemId: parseInt(f.invItemId),
+                warehouseId: parseInt(f.warehouseId),
+                quantity: parseInt(f.quantity)
+            });
+        }
+
         try {
             setLoading(true);
             const formData = new FormData();
             formData.append('bastDate', bastDate);
             formData.append('assetDetails', JSON.stringify(req.type === 'ASSET' ? assetDetails : {}));
+            formData.append('warehouseFulfillments', JSON.stringify(fulfillmentList));
 
             if (handoverFile) {
                 formData.append('bastFile', handoverFile);
@@ -590,7 +630,10 @@ const ProcurementDetail = () => {
 
             localStorage.removeItem(`bast_draft_${id}`); // Bersihkan draft jika BAST sukses
 
-            alert('BAST Berhasil. Aset telah dibuat.');
+            const hasWarehouseFulfillment = fulfillmentList.length > 0;
+            alert(hasWarehouseFulfillment
+                ? 'BAST Berhasil. Stok gudang telah berkurang otomatis.'
+                : 'BAST Berhasil. Aset telah dibuat.');
             window.location.reload();
         } catch (e) {
             console.error("BAST Error:", e);
@@ -1538,7 +1581,184 @@ const ProcurementDetail = () => {
                                                         <div style={{ fontSize: 11, color: T.slate, background: T.cream, padding: '4px 8px', borderRadius: 6 }}>Qty: {it.qty} {it.unit}</div>
                                                     </div>
 
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                                    {/* ═══ WAREHOUSE FULFILLMENT TOGGLE ═══ */}
+                                                    {!itemDisabled && (
+                                                        <div style={{
+                                                            marginBottom: 16, padding: 14, borderRadius: 10,
+                                                            background: warehouseFulfillments[it.id]?.enabled
+                                                                ? 'linear-gradient(135deg, #edf7f2, #d9f0e8)'
+                                                                : '#f7f5f0',
+                                                            border: `1.5px solid ${warehouseFulfillments[it.id]?.enabled ? '#a3d9c0' : T.border}`,
+                                                            transition: 'all 0.3s ease'
+                                                        }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <div style={{
+                                                                        width: 32, height: 32, borderRadius: 8,
+                                                                        background: warehouseFulfillments[it.id]?.enabled ? T.success : T.navy,
+                                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                        transition: 'background 0.2s'
+                                                                    }}>
+                                                                        <Package size={15} color="#fff" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div style={{ fontWeight: 700, fontSize: 12.5, color: T.navy }}>
+                                                                            Penuhi dari Stok Gudang
+                                                                        </div>
+                                                                        <div style={{ fontSize: 11, color: T.slate }}>
+                                                                            Ambil barang yang sudah ada di gudang, stok berkurang otomatis saat BAST
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                {/* Toggle Switch */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setWarehouseFulfillments(prev => ({
+                                                                            ...prev,
+                                                                            [it.id]: {
+                                                                                ...prev[it.id],
+                                                                                enabled: !prev[it.id]?.enabled,
+                                                                                quantity: prev[it.id]?.quantity || it.qty
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                    style={{
+                                                                        width: 48, height: 26, borderRadius: 13,
+                                                                        background: warehouseFulfillments[it.id]?.enabled ? T.success : T.border,
+                                                                        border: 'none', cursor: 'pointer', position: 'relative',
+                                                                        transition: 'background 0.25s', flexShrink: 0
+                                                                    }}
+                                                                >
+                                                                    <div style={{
+                                                                        position: 'absolute', top: 3,
+                                                                        left: warehouseFulfillments[it.id]?.enabled ? 25 : 3,
+                                                                        width: 20, height: 20, borderRadius: '50%',
+                                                                        background: '#fff', transition: 'left 0.25s',
+                                                                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
+                                                                    }} />
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Fulfillment Details Panel */}
+                                                            {warehouseFulfillments[it.id]?.enabled && (
+                                                                <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                                                    {/* Select InvItem */}
+                                                                    <div>
+                                                                        <Label>Barang Gudang *</Label>
+                                                                        <select
+                                                                            value={warehouseFulfillments[it.id]?.invItemId || ''}
+                                                                            onChange={e => setWarehouseFulfillments(prev => ({
+                                                                                ...prev,
+                                                                                [it.id]: { ...prev[it.id], invItemId: e.target.value, warehouseId: '' }
+                                                                            }))}
+                                                                            style={{
+                                                                                width: '100%', padding: '9px 10px',
+                                                                                border: `1.5px solid ${T.border}`, borderRadius: 8,
+                                                                                fontSize: 12.5, background: '#fff', color: T.text,
+                                                                                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif"
+                                                                            }}
+                                                                        >
+                                                                            <option value="">— Pilih Barang —</option>
+                                                                            {invItems.map(inv => {
+                                                                                const totalStock = (inv.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
+                                                                                return (
+                                                                                    <option key={inv.id} value={inv.id}>
+                                                                                        {inv.name} (Stok: {totalStock} {inv.unit})
+                                                                                    </option>
+                                                                                );
+                                                                            })}
+                                                                        </select>
+                                                                    </div>
+
+                                                                    {/* Select Warehouse */}
+                                                                    <div>
+                                                                        <Label>Pilih Gudang *</Label>
+                                                                        <select
+                                                                            value={warehouseFulfillments[it.id]?.warehouseId || ''}
+                                                                            onChange={e => setWarehouseFulfillments(prev => ({
+                                                                                ...prev,
+                                                                                [it.id]: { ...prev[it.id], warehouseId: e.target.value }
+                                                                            }))}
+                                                                            style={{
+                                                                                width: '100%', padding: '9px 10px',
+                                                                                border: `1.5px solid ${T.border}`, borderRadius: 8,
+                                                                                fontSize: 12.5, background: '#fff', color: T.text,
+                                                                                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif"
+                                                                            }}
+                                                                        >
+                                                                            <option value="">— Pilih Gudang —</option>
+                                                                            {(() => {
+                                                                                const selectedInvItem = invItems.find(i => String(i.id) === String(warehouseFulfillments[it.id]?.invItemId));
+                                                                                const availableStocks = selectedInvItem?.stocks?.filter(s => s.quantity > 0) || [];
+                                                                                return availableStocks.length > 0
+                                                                                    ? availableStocks.map(s => (
+                                                                                        <option key={s.warehouseId} value={s.warehouseId}>
+                                                                                            {invWarehouses.find(w => w.id === s.warehouseId)?.name || `Gudang #${s.warehouseId}`} — Stok: {s.quantity}
+                                                                                        </option>
+                                                                                    ))
+                                                                                    : invWarehouses.map(w => (
+                                                                                        <option key={w.id} value={w.id}>{w.name}</option>
+                                                                                    ));
+                                                                            })()}
+                                                                        </select>
+                                                                        {/* Stock Indicator */}
+                                                                        {warehouseFulfillments[it.id]?.invItemId && warehouseFulfillments[it.id]?.warehouseId && (() => {
+                                                                            const selItem = invItems.find(i => String(i.id) === String(warehouseFulfillments[it.id]?.invItemId));
+                                                                            const selStock = selItem?.stocks?.find(s => String(s.warehouseId) === String(warehouseFulfillments[it.id]?.warehouseId));
+                                                                            const qty = selStock?.quantity || 0;
+                                                                            return (
+                                                                                <div style={{
+                                                                                    marginTop: 5, padding: '4px 8px', borderRadius: 6,
+                                                                                    background: qty > 0 ? T.successBg : T.dangerBg,
+                                                                                    color: qty > 0 ? T.success : T.danger,
+                                                                                    fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4
+                                                                                }}>
+                                                                                    {qty > 0 ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                                                                                    {qty > 0 ? `Stok tersedia: ${qty} unit` : 'Stok kosong di gudang ini'}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                    </div>
+
+                                                                    {/* Quantity */}
+                                                                    <div>
+                                                                        <Label>Jumlah Diambil *</Label>
+                                                                        <input
+                                                                            type="number"
+                                                                            min={1}
+                                                                            value={warehouseFulfillments[it.id]?.quantity || it.qty}
+                                                                            onChange={e => setWarehouseFulfillments(prev => ({
+                                                                                ...prev,
+                                                                                [it.id]: { ...prev[it.id], quantity: e.target.value }
+                                                                            }))}
+                                                                            style={{
+                                                                                width: '100%', padding: '9px 10px',
+                                                                                border: `1.5px solid ${T.border}`, borderRadius: 8,
+                                                                                fontSize: 12.5, background: '#fff', color: T.text,
+                                                                                fontFamily: "'DM Sans', sans-serif"
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {warehouseFulfillments[it.id]?.enabled && (
+                                                                <div style={{
+                                                                    marginTop: 10, padding: '8px 12px', borderRadius: 8,
+                                                                    background: 'rgba(45,122,95,0.08)', fontSize: 11.5, color: T.success,
+                                                                    display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600
+                                                                }}>
+                                                                    <CheckCircle size={13} />
+                                                                    Detail aset di bawah tidak diperlukan saat menggunakan pemenuhan gudang
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+
+                                                    {/* Asset detail form – hidden when using warehouse fulfillment */}
+                                                    {!warehouseFulfillments[it.id]?.enabled && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                                         <div>
                                                             <Label>Kategori *</Label>
                                                             <Select disabled={itemDisabled} value={det.categoryId || ''} onChange={e => updateDet('categoryId', e.target.value)}>
@@ -1636,6 +1856,7 @@ const ProcurementDetail = () => {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    )} {/* end !warehouseFulfillments */}
                                                     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
                                                             <input
@@ -1696,7 +1917,7 @@ const ProcurementDetail = () => {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', paddingTop: 16, borderTop: `1px solid ${T.creamDk}` }}>
                                                         <button
                                                             onClick={() => handleSaveDraftItem(it.id)}

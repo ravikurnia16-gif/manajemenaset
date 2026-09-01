@@ -811,11 +811,16 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    let { bastDate, bastFile, assetDetails } = req.body;
+    let { bastDate, bastFile, assetDetails, warehouseFulfillments } = req.body;
 
     if (typeof assetDetails === 'string') {
         try { assetDetails = JSON.parse(assetDetails); } catch (e) { }
     }
+    // warehouseFulfillments: [{ procurementItemId, invItemId, warehouseId, quantity }]
+    if (typeof warehouseFulfillments === 'string') {
+        try { warehouseFulfillments = JSON.parse(warehouseFulfillments); } catch (e) { warehouseFulfillments = []; }
+    }
+    if (!Array.isArray(warehouseFulfillments)) warehouseFulfillments = [];
 
     try {
         const uploadBase64 = async (base64String, folder = 'assets') => {
@@ -950,6 +955,53 @@ exports.processBAST = async (req, res) => {
                         });
                     }
                 }
+            }
+
+            // 3. Process Warehouse Fulfillments (create OUT stock transactions)
+            for (const fulfillment of warehouseFulfillments) {
+                const { invItemId, warehouseId, quantity } = fulfillment;
+                if (!invItemId || !warehouseId || !quantity) continue;
+
+                // Check stock availability
+                const stock = await prisma.invStock.findUnique({
+                    where: { itemId_warehouseId: { itemId: parseInt(invItemId), warehouseId: parseInt(warehouseId) } }
+                });
+                if (!stock || stock.quantity < parseInt(quantity)) {
+                    throw new Error(`Stok gudang tidak mencukupi untuk item ID ${invItemId}. Tersedia: ${stock?.quantity || 0}, diminta: ${quantity}`);
+                }
+
+                // Generate unique transaction code
+                const trxYear = new Date().getFullYear();
+                const lastTrx = await prisma.invStockTransaction.findFirst({
+                    where: { code: { startsWith: `OUT/${trxYear}/` } },
+                    orderBy: { code: 'desc' }
+                });
+                let nextSeq = 1;
+                if (lastTrx) {
+                    const parts = lastTrx.code.split('/');
+                    nextSeq = (parseInt(parts[2]) || 0) + 1;
+                }
+                const trxCode = `OUT/${trxYear}/${nextSeq.toString().padStart(4, '0')}`;
+
+                // Deduct stock
+                await prisma.invStock.update({
+                    where: { itemId_warehouseId: { itemId: parseInt(invItemId), warehouseId: parseInt(warehouseId) } },
+                    data: { quantity: { decrement: parseInt(quantity) } }
+                });
+
+                // Create OUT transaction record
+                await prisma.invStockTransaction.create({
+                    data: {
+                        code: trxCode,
+                        type: 'OUT',
+                        date: new Date(bastDate),
+                        itemId: parseInt(invItemId),
+                        warehouseId: parseInt(warehouseId),
+                        quantity: parseInt(quantity),
+                        note: `Pemenuhan Pengadaan: ${procurement.code} — ${procurement.title || ''}`,
+                        createdById: req.user.id
+                    }
+                });
             }
         });
 

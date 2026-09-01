@@ -275,6 +275,28 @@ exports.getTransactions = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+exports.getTransactionById = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const tx = await prisma.invStockTransaction.findFirst({
+            where: {
+                OR: [
+                    { id: isNaN(parseInt(id)) ? -1 : parseInt(id) },
+                    { code: id }
+                ]
+            },
+            include: {
+                item: { include: { category: true } },
+                warehouse: true,
+                toWarehouse: true,
+                createdBy: { select: { name: true, username: true } }
+            }
+        });
+        if (!tx) return res.status(404).json({ error: 'Bukti transaksi tidak ditemukan' });
+        res.json(tx);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
 exports.createTransaction = async (req, res) => {
     const { type, date, note, itemId, warehouseId, toWarehouseId, quantity, items } = req.body;
     try {
@@ -647,6 +669,32 @@ exports.getOrders = async (req, res) => {
             orderBy: { date: 'desc' }
         });
         res.json(orders);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.getOrderById = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const order = await prisma.invOrder.findFirst({
+            where: {
+                OR: [
+                    { id: isNaN(parseInt(id)) ? -1 : parseInt(id) },
+                    { code: id }
+                ]
+            },
+            include: {
+                items: {
+                    include: {
+                        item: {
+                            include: { category: true }
+                        }
+                    }
+                },
+                createdBy: { select: { name: true, username: true } }
+            }
+        });
+        if (!order) return res.status(404).json({ error: 'Invoice pesanan gudang tidak ditemukan' });
+        res.json(order);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
