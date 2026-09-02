@@ -636,20 +636,40 @@ exports.batchImportAssets = async (req, res) => {
             return res.status(400).json({ error: 'Data import kosong' });
         }
 
+        // Filter out empty rows (e.g. trailing empty rows from Excel)
+        const validAssets = assetsData.filter(item => {
+            if (!item || typeof item !== 'object') return false;
+            const hasAnyValue = Object.values(item).some(v => v !== null && v !== undefined && String(v).trim() !== '');
+            const hasAssetName = item['Nama Aset'] && String(item['Nama Aset']).trim() !== '';
+            return hasAnyValue && hasAssetName;
+        });
+
+        if (validAssets.length === 0) {
+            return res.status(400).json({ error: 'File Excel tidak berisi data aset yang valid atau nama aset kosong.' });
+        }
+
         const requiredColumns = [
-            { key: 'Nama Aset', label: 'Kolom A (Nama Aset)' },
-            { key: 'Merek Aset', label: 'Kolom B (Merek Aset)' },
-            { key: 'Vendor Aset', label: 'Kolom C (Vendor Aset - Opsional)' },
-            { key: 'Umur Ekonomis Aset(tahun)', label: 'Kolom F (Umur Ekonomis)' },
-            { key: 'Kondisi Aset', label: 'Kolom G (Kondisi Aset)' },
-            { key: 'Sumber Dana Aset', label: 'Kolom H (Sumber Dana)' },
-            { key: 'Ruangan Aset', label: 'Kolom I (Ruangan Aset)' },
-            { key: 'Unit Aset', label: 'Kolom J (Unit Aset)' },
-            { key: 'Kategori', label: 'Kolom K (Kategori)' },
-            { key: 'Tanggal Transaksi Masuk (yyyy-mm-dd)', label: 'Kolom L (Tanggal Transaksi Masuk)' },
-            { key: 'Jenis Transaksi Masuk', label: 'Kolom M (Jenis Transaksi Masuk)' },
-            { key: 'Harga Perolehan', label: 'Kolom O (Harga Perolehan)' }
+            { key: 'Nama Aset', label: 'Kolom (Nama Aset)' },
+            { key: 'Ruangan Aset', label: 'Kolom (Ruangan Aset)' },
+            { key: 'Unit Aset', label: 'Kolom (Unit Aset)' },
+            { key: 'Kategori', label: 'Kolom (Kategori)' },
+            { key: 'Tanggal Transaksi Masuk (yyyy-mm-dd)', label: 'Kolom (Tanggal Transaksi Masuk)' },
+            { key: 'Harga Perolehan', label: 'Kolom (Harga Perolehan)' }
         ];
+
+        // Date helper
+        const parseDate = (rawDate) => {
+            if (!rawDate) return null;
+            if (rawDate instanceof Date && !isNaN(rawDate.getTime())) return rawDate;
+            const str = String(rawDate).trim();
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) return d;
+            const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (ddmmyyyy) {
+                return new Date(parseInt(ddmmyyyy[3]), parseInt(ddmmyyyy[2]) - 1, parseInt(ddmmyyyy[1]));
+            }
+            return null;
+        };
 
         // --- Step 1: Validation Pass (Strict) ---
         const [existingUnits, existingCategories] = await Promise.all([
@@ -659,16 +679,16 @@ exports.batchImportAssets = async (req, res) => {
         const unitNames = existingUnits.map(u => u.name.toLowerCase());
         const categoryNames = existingCategories.map(c => c.name.toLowerCase());
 
-        for (let i = 0; i < assetsData.length; i++) {
-            const item = assetsData[i];
-            const rowNum = i + 1;
+        for (let i = 0; i < validAssets.length; i++) {
+            const item = validAssets[i];
+            const excelRowNum = i + 2; // Excel row number (1-based + 1 for header)
 
             // Check required fields
             for (const col of requiredColumns) {
                 const val = item[col.key];
                 if (val === undefined || val === null || String(val).trim() === '') {
                     return res.status(400).json({
-                        error: `Data tidak lengkap di baris ${rowNum}: ${col.label} wajib diisi.`
+                        error: `Data tidak lengkap di baris Excel ${excelRowNum}: ${col.label} wajib diisi.`
                     });
                 }
             }
@@ -677,7 +697,7 @@ exports.batchImportAssets = async (req, res) => {
             const unitNameInput = String(item['Unit Aset']).trim().toLowerCase();
             if (!unitNames.includes(unitNameInput)) {
                 return res.status(400).json({
-                    error: `Unit "${item['Unit Aset']}" di baris ${rowNum} tidak terdaftar di sistem. Silakan hubungi Super Admin.`
+                    error: `Unit "${item['Unit Aset']}" di baris Excel ${excelRowNum} tidak terdaftar di sistem. Silakan sesuaikan dengan nama Unit di Master Data.`
                 });
             }
 
@@ -685,30 +705,32 @@ exports.batchImportAssets = async (req, res) => {
             const categoryInput = String(item['Kategori']).trim().toLowerCase();
             if (!categoryNames.includes(categoryInput)) {
                 return res.status(400).json({
-                    error: `Kategori "${item['Kategori']}" di baris ${rowNum} tidak terdaftar di sistem. Silakan tambahkan kategori tersebut ke Master Data terlebih dahulu.`
+                    error: `Kategori "${item['Kategori']}" di baris Excel ${excelRowNum} tidak terdaftar di sistem. Silakan tambahkan kategori tersebut ke Master Data terlebih dahulu.`
                 });
             }
 
             // Check numeric formats
-            const price = parseFloat(String(item['Harga Perolehan']).replace(/[^\d.-]/g, ''));
-            if (isNaN(price)) {
+            const rawPrice = item['Harga Perolehan'];
+            const price = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice || 0).replace(/[^\d.-]/g, ''));
+            if (isNaN(price) || price < 0) {
                 return res.status(400).json({
-                    error: `Format Harga Perolehan salah di baris ${rowNum}: harus berupa angka.`
+                    error: `Format Harga Perolehan salah di baris Excel ${excelRowNum}: harus berupa angka nominal.`
                 });
             }
 
-            const usefulLife = parseInt(item['Umur Ekonomis Aset(tahun)']);
-            if (isNaN(usefulLife)) {
+            const rawLife = item['Umur Ekonomis Aset(tahun)'];
+            const usefulLife = (rawLife !== undefined && rawLife !== null && String(rawLife).trim() !== '') ? parseInt(rawLife) : 5;
+            if (isNaN(usefulLife) || usefulLife <= 0) {
                 return res.status(400).json({
-                    error: `Format Umur Ekonomis salah di baris ${rowNum}: harus berupa angka.`
+                    error: `Format Umur Ekonomis salah di baris Excel ${excelRowNum}: harus berupa angka tahun.`
                 });
             }
 
             // Check date format
-            const purchaseDate = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']);
-            if (isNaN(purchaseDate.getTime())) {
+            const purchaseDate = parseDate(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']);
+            if (!purchaseDate) {
                 return res.status(400).json({
-                    error: `Format Tanggal Transaksi Masuk salah di baris ${rowNum}: gunakan format YYYY-MM-DD.`
+                    error: `Format Tanggal Transaksi Masuk salah di baris Excel ${excelRowNum}: gunakan format YYYY-MM-DD.`
                 });
             }
         }
@@ -718,7 +740,7 @@ exports.batchImportAssets = async (req, res) => {
             const seqCache = {};
             let successCount = 0;
 
-            for (const item of assetsData) {
+            for (const item of validAssets) {
                 // 1. Category Lookup (STRICT - NO CREATE)
                 const catName = String(item.Kategori).trim();
                 let category = await tx.category.findFirst({
@@ -746,7 +768,6 @@ exports.batchImportAssets = async (req, res) => {
                 });
 
                 if (!room) {
-                    // Get next sequence for room code
                     const lastRoom = await tx.room.findFirst({
                         where: {
                             unitId: unit.id,
@@ -777,13 +798,13 @@ exports.batchImportAssets = async (req, res) => {
                     });
                 }
 
-                // 4. Vendor Name (standalone text, not linked to Vendor table)
+                // 4. Vendor Name (optional text)
                 const vendorInput = String(item['Vendor Aset'] || '').trim();
 
                 // 5. Code Generation
-                const year = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']).getFullYear();
+                const purchaseDate = parseDate(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']);
+                const year = purchaseDate.getFullYear();
 
-                // Fetch prefix from settings (could be optimized with cache if needed, but simple for now)
                 const settings = await tx.setting.findFirst();
                 const prefix = settings?.assetCodePrefix || 'AST';
                 const patternPrefix = `${prefix}.${unit.code}.${category.code}.${year}.`;
@@ -808,27 +829,33 @@ exports.batchImportAssets = async (req, res) => {
                 const SUPPORTED_FUNDING_SOURCES = ['Yayasan', 'BOS', 'Hibah', 'Pemerintah', 'Cashback', 'Mandiri', 'Lainnya'];
                 const rawSource = String(item['Sumber Dana Aset'] || '').trim();
                 const matchedSource = SUPPORTED_FUNDING_SOURCES.find(s => s.toLowerCase() === rawSource.toLowerCase());
-                const finalSource = matchedSource || rawSource || 'Lainnya';
+                const finalSource = matchedSource || rawSource || 'Yayasan';
 
-                // 7. Create Asset
+                // 7. Parse price & usefulLife
+                const rawPrice = item['Harga Perolehan'];
+                const price = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice || 0).replace(/[^\d.-]/g, ''));
+                const rawLife = item['Umur Ekonomis Aset(tahun)'];
+                const usefulLife = (rawLife !== undefined && rawLife !== null && String(rawLife).trim() !== '') ? parseInt(rawLife) : 5;
+
+                // 8. Create Asset
                 await tx.asset.create({
                     data: {
                         code,
-                        name: String(item['Nama Aset']),
-                        brand: String(item['Merek Aset']),
+                        name: String(item['Nama Aset']).trim(),
+                        brand: item['Merek Aset'] ? String(item['Merek Aset']).trim() : '-',
                         categoryId: category.id,
                         unitId: unit.id,
                         roomId: room.id,
                         vendorName: vendorInput || null,
-                        price: parseFloat(String(item['Harga Perolehan']).replace(/[^\d.-]/g, '')),
-                        purchaseDate: new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']),
-                        usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
-                        condition: String(item['Kondisi Aset']).toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
+                        price: price,
+                        purchaseDate: purchaseDate,
+                        usefulLife: usefulLife,
+                        condition: String(item['Kondisi Aset'] || '').toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
                         sourceOfFunds: finalSource,
-                        picName: item['PIC (Nama Manual)'] ? String(item['PIC (Nama Manual)']) : null,
-                        specification: null, // Kosongkan saat import
-                        needsRoutineMaintenance: false, // Proteksi otomatis: default tidak rutin
-                        maintenanceInterval: 180, // Default 6 bulan
+                        picName: item['PIC (Nama Manual)'] ? String(item['PIC (Nama Manual)']).trim() : null,
+                        specification: null,
+                        needsRoutineMaintenance: false,
+                        maintenanceInterval: 180,
                         quantity: 1
                     }
                 });
@@ -836,8 +863,8 @@ exports.batchImportAssets = async (req, res) => {
             }
             return successCount;
         }, {
-            maxWait: 10000, // 10s wait for lock
-            timeout: 60000  // 60s transaction timeout
+            maxWait: 10000,
+            timeout: 60000
         });
 
         res.json({ success: result, message: `Berhasil mengimport ${result} aset.` });

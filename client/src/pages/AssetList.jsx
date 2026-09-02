@@ -371,16 +371,38 @@ const AssetList = ({ validationMode = false }) => {
         : rooms;
 
     const handleTemplateDownload = () => {
-        const headers = [[
-            'Nama Aset', 'Merek Aset', 'Vendor Aset', 'Umur Ekonomis Aset(hari)', 'Umur Ekonomis Aset(bulan)', 'Umur Ekonomis Aset(tahun)',
-            'Kondisi Aset', 'Sumber Dana Aset', 'Ruangan Aset', 'Unit Aset', 'Kategori', 'Tanggal Transaksi Masuk (yyyy-mm-dd)',
-            'Jenis Transaksi Masuk', 'Bukti Transaksi Masuk', 'Harga Perolehan', 'PIC (Nama Manual)', 'NIK/NIY Pihak Kedua', 'Apakah Pihak Kedua Karyawan? (ya/tidak)',
-            'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)',
-            'Tanggal Transaksi Keluar (yyyy-mm-dd)', 'Jenis Transaksi Keluar', 'Bukti Transaksi Keluar', 'Harga Jual',
-            'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)'
-        ]];
-        const ws = XLSX.utils.aoa_to_sheet(headers);
-        const wscols = headers[0].map(() => ({ wch: 25 }));
+        const data = [
+            [
+                'Nama Aset',
+                'Merek Aset',
+                'Vendor Aset',
+                'Umur Ekonomis Aset(tahun)',
+                'Kondisi Aset',
+                'Sumber Dana Aset',
+                'Ruangan Aset',
+                'Unit Aset',
+                'Kategori',
+                'Tanggal Transaksi Masuk (yyyy-mm-dd)',
+                'Harga Perolehan',
+                'PIC (Nama Manual)'
+            ],
+            [
+                'Laptop Asus Vivobook 14',
+                'Asus',
+                'Toko Komputer Mandiri',
+                5,
+                'BAIK',
+                'Yayasan',
+                'R. Tata Usaha',
+                'KANTOR YAYASAN',
+                'Elektronik',
+                '2026-01-15',
+                7500000,
+                'Ahmad'
+            ]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wscols = data[0].map(() => ({ wch: 25 }));
         ws['!cols'] = wscols;
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Template_Import");
@@ -406,15 +428,22 @@ const AssetList = ({ validationMode = false }) => {
             for (const name of workbook.SheetNames) {
                 const worksheet = workbook.Sheets[name];
                 const temp = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                if (temp.length > 0) {
-                    jsonData = temp;
+                // Filter out empty rows / trailing blank lines from Excel
+                const validRows = temp.filter(row => {
+                    const hasAnyValue = Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== '');
+                    const hasAssetName = row['Nama Aset'] && String(row['Nama Aset']).trim() !== '';
+                    return hasAnyValue && hasAssetName;
+                });
+
+                if (validRows.length > 0) {
+                    jsonData = validRows;
                     sheetUsed = name;
                     break;
                 }
             }
 
             if (jsonData.length === 0) {
-                alert(`File dianggap kosong! \nJumlah Sheet: ${workbook.SheetNames.length} \nNama Sheet Pertama: ${workbook.SheetNames[0]} \n\nPastikan data Bapak tidak berada di sheet tersembunyi atau sheet kedua.`);
+                alert(`File Excel tidak berisi data aset yang dapat diimpor!\n\nPastikan kolom "Nama Aset" terisi dan file tidak kosong.`);
                 return;
             }
 
@@ -425,7 +454,7 @@ const AssetList = ({ validationMode = false }) => {
             } catch (error) {
                 console.error("Import error details:", error);
                 const msg = error.response?.data?.error || error.message;
-                alert("Gagal melakukan import data ke server: " + msg);
+                alert("Gagal melakukan import data ke server:\n" + msg);
             } finally {
                 // Reset file input so user can import the same/another file without refresh
                 e.target.value = '';
