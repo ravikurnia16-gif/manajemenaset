@@ -5,7 +5,8 @@ import {
     Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles, 
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
-    Warehouse, Box, Wrench, Truck, FileSignature, ArrowRight, Share2, Layers
+    Warehouse, Box, Wrench, Truck, FileSignature, ArrowRight, Share2, Layers,
+    Copy, Check, Trash2
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -17,8 +18,8 @@ import { getMediaUrl } from '../lib/media';
 import dayjs from 'dayjs';
 
 const DIVISION_TAGS = [
+    { key: 'ASET', label: 'Staff Manajemen Aset', icon: Box, color: 'bg-blue-500' },
     { key: 'GUDANG', label: 'Gudang & Logistik', icon: Warehouse, color: 'bg-amber-500' },
-    { key: 'ASET', label: 'Inventaris Aset', icon: Box, color: 'bg-blue-500' },
     { key: 'TEKNISI', label: 'Teknisi & Maintenance', icon: Wrench, color: 'bg-emerald-500' },
     { key: 'KENDARAAN', label: 'Armada Kendaraan', icon: Truck, color: 'bg-indigo-500' },
     { key: 'KEUANGAN', label: 'Keuangan & Admin', icon: FileSignature, color: 'bg-violet-500' },
@@ -26,17 +27,19 @@ const DIVISION_TAGS = [
 ];
 
 const ROUTINE_TEMPLATES = {
+    ASET: [
+        'Pengecekan fisik dan verifikasi kondisi aset ruangan/gedung sekolah & kantor yayasan',
+        'Pencetakan, penempelan, dan pemindaian label barcode/QR Code pada aset inventaris baru',
+        'Pembaruan Kartu Inventaris Ruangan (KIR) dan pencatatan mutasi/perpindahan aset antar unit',
+        'Audit fisik berkala dan rekonsiliasi data inventaris sarana dan prasarana lingkungan yayasan',
+        'Identifikasi aset rusak/rusak berat serta penyusunan usulan perbaikan atau penghapusan aset',
+        'Pendataan, dokumentasi serah terima sarana baru, dan verifikasi fisik kelengkapan barang'
+    ],
     GUDANG: [
         'Pengecekan dan rekonsiliasi stok seragam & ATK di rak penyimpanan',
         'Penerimaan dan inspeksi barang masuk dari vendor/supplier',
         'Penataan, labeling dus barang, dan pembersihan area gudang logistik',
         'Pemeriksaan dan pengemasan pesanan seragam untuk unit pemesan'
-    ],
-    ASET: [
-        'Pengecekan fisik dan verifikasi kondisi aset ruangan/gedung',
-        'Pemasangan dan penempelan label barcode/QR Code pada aset baru',
-        'Pembaruan kartu inventaris ruangan (KIR) dan pencatatan mutasi aset',
-        'Audit fisik berkala sarana dan prasarana lingkungan yayasan'
     ],
     TEKNISI: [
         'Inspeksi dan pembersihan filter unit AC di ruangan kantor/kelas',
@@ -84,6 +87,19 @@ const LaporanStaff = () => {
         return role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     }, [user]);
 
+    const userDivision = useMemo(() => {
+        const pos = (user.position || '').toLowerCase();
+        const role = (user.role || '').toLowerCase();
+        if (pos.includes('keuangan') || pos.includes('administrasi') || pos.includes('finance')) return 'KEUANGAN';
+        if (pos.includes('kendaraan') || pos.includes('driver') || pos.includes('supir') || pos.includes('transport') || pos.includes('armada')) return 'KENDARAAN';
+        if (pos.includes('gudang') || pos.includes('logistik') || pos.includes('warehouse')) return 'GUDANG';
+        if (pos.includes('teknisi') || pos.includes('maintenance') || pos.includes('listrik') || pos.includes('bangunan') || pos.includes('ac')) return 'TEKNISI';
+        if (pos.includes('manajemen aset') || pos.includes('aset') || pos.includes('inventaris') || pos.includes('asset') || role.includes('aset')) return 'ASET';
+        return 'UMUM';
+    }, [user.position, user.role]);
+
+    const [showAllTemplates, setShowAllTemplates] = useState(false);
+
     // Active Navigation Tab
     const [activeTab, setActiveTab] = useState(() => {
         if (tab) return tab;
@@ -118,11 +134,16 @@ const LaporanStaff = () => {
     const [verifyingReportId, setVerifyingReportId] = useState(null);
     const [verificationForm, setVerificationForm] = useState({ status: 'VERIFIED', feedbackNote: '' });
 
-    // AI Analysis Modal
+    // AI Analysis Modal & Date Range
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
     const [aiAnalysisResult, setAiAnalysisResult] = useState('');
     const [loadingAi, setLoadingAi] = useState(false);
     const [aiAnalysisType, setAiAnalysisType] = useState('DAILY_DIGEST');
+    const [aiStartDate, setAiStartDate] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
+    const [aiEndDate, setAiEndDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [aiRangePreset, setAiRangePreset] = useState('WEEK'); // 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM'
+    const [aiAnalysisMeta, setAiAnalysisMeta] = useState(null);
+    const [copiedAi, setCopiedAi] = useState(false);
 
     // Monthly Matrix States
     const [matrixSummary, setMatrixSummary] = useState([]);
@@ -475,18 +496,46 @@ const LaporanStaff = () => {
         }
     };
 
-    const runAiAnalysis = async (mode = 'DAILY_DIGEST') => {
+    const setAiPreset = (preset) => {
+        setAiRangePreset(preset);
+        const now = dayjs();
+        if (preset === 'TODAY') {
+            setAiStartDate(now.format('YYYY-MM-DD'));
+            setAiEndDate(now.format('YYYY-MM-DD'));
+        } else if (preset === 'WEEK') {
+            setAiStartDate(now.startOf('week').add(1, 'day').format('YYYY-MM-DD'));
+            setAiEndDate(now.format('YYYY-MM-DD'));
+        } else if (preset === 'MONTH') {
+            setAiStartDate(now.startOf('month').format('YYYY-MM-DD'));
+            setAiEndDate(now.format('YYYY-MM-DD'));
+        }
+    };
+
+    const runAiAnalysis = async (mode = 'DAILY_DIGEST', start = null, end = null) => {
         try {
             setLoadingAi(true);
             setAiAnalysisType(mode);
             setIsAiModalOpen(true);
             setAiAnalysisResult('');
+            setCopiedAi(false);
+
+            const sDate = start || aiStartDate;
+            const eDate = end || aiEndDate;
+
             const res = await api.post('/laporan/ai/analyze', {
-                date: selectedDate,
+                startDate: sDate,
+                endDate: eDate,
                 mode
             });
             if (res.data.success) {
                 setAiAnalysisResult(res.data.analysis);
+                setAiAnalysisMeta({
+                    period: res.data.period,
+                    totalActivities: res.data.totalActivities,
+                    totalObstacles: res.data.totalObstacles,
+                    startDate: res.data.startDate,
+                    endDate: res.data.endDate
+                });
             }
         } catch (error) {
             console.error('AI Analysis failed:', error);
@@ -606,7 +655,7 @@ const LaporanStaff = () => {
                                 {isKabid ? 'Manajemen & Laporan Kinerja Staf' : 'Laporan Harian Staf'}
                             </h1>
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isKabid ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {isKabid ? 'Kepala Bidang Sarana' : 'Admin Aset'}
+                                {isKabid ? 'Kepala Bidang Sarana' : (user.position || 'Staff Manajemen Aset')}
                             </span>
                         </div>
                         <p className="text-slate-400 text-xs sm:text-sm font-medium mt-0.5">
@@ -795,28 +844,102 @@ const LaporanStaff = () => {
                                 </div>
                             </div>
 
-                            {/* AI BANNER & ACTIONS */}
-                            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-widest">
-                                        <Sparkles size={16} /> Analitik Cerdas AI (Google Gemini)
+                            {/* AI BANNER & DATE RANGE ANALYSIS */}
+                            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl space-y-4">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-widest">
+                                            <Sparkles size={16} /> Analitik Cerdas AI (Google Gemini)
+                                        </div>
+                                        <h3 className="text-lg font-bold">Ringkasan Eksekutif & Evaluasi Kinerja Tim Berdasarkan Rentang Tanggal</h3>
+                                        <p className="text-xs text-slate-300">Pilih rentang tanggal untuk menganalisis pencapaian staf, evaluasi beban kerja, atau solusi kendala.</p>
                                     </div>
-                                    <h3 className="text-lg font-bold">Dapatkan Ringkasan Eksekutif & Evaluasi Kinerja Tim Otomatis</h3>
-                                    <p className="text-xs text-slate-300">AI merangkum pencapaian seluruh staf, menganalisis beban kerja, dan mendeteksi solusi kendala.</p>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                    <button
-                                        onClick={() => runAiAnalysis('DAILY_DIGEST')}
-                                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
-                                    >
-                                        <Sparkles size={14} /> ✨ Ringkasan Eksekutif AI
-                                    </button>
-                                    <button
-                                        onClick={() => runAiAnalysis('OBSTACLE_SOLUTIONS')}
-                                        className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-white/20 cursor-pointer"
-                                    >
-                                        <Wrench size={14} /> Solusi AI Kendala
-                                    </button>
+
+                                {/* DATE RANGE SELECTOR & PRESETS */}
+                                <div className="flex flex-wrap items-center gap-3 bg-white/10 p-3.5 rounded-2xl border border-white/10 backdrop-blur-xs">
+                                    <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiPreset('TODAY')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                aiRangePreset === 'TODAY' ? 'bg-amber-500 text-slate-900 shadow-sm' : 'text-slate-300 hover:text-white'
+                                            }`}
+                                        >
+                                            Hari Ini
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiPreset('WEEK')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                aiRangePreset === 'WEEK' ? 'bg-amber-500 text-slate-900 shadow-sm' : 'text-slate-300 hover:text-white'
+                                            }`}
+                                        >
+                                            Pekan Ini
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiPreset('MONTH')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                aiRangePreset === 'MONTH' ? 'bg-amber-500 text-slate-900 shadow-sm' : 'text-slate-300 hover:text-white'
+                                            }`}
+                                        >
+                                            Bulan Ini
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiRangePreset('CUSTOM')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                aiRangePreset === 'CUSTOM' ? 'bg-amber-500 text-slate-900 shadow-sm' : 'text-slate-300 hover:text-white'
+                                            }`}
+                                        >
+                                            Kustom
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 text-xs font-bold">
+                                        <span className="text-slate-300">Dari:</span>
+                                        <input 
+                                            type="date"
+                                            value={aiStartDate}
+                                            onChange={(e) => {
+                                                setAiStartDate(e.target.value);
+                                                setAiRangePreset('CUSTOM');
+                                            }}
+                                            className="bg-black/30 border border-white/20 px-2.5 py-1.5 rounded-xl text-white text-xs outline-none cursor-pointer focus:border-amber-400"
+                                        />
+                                        <span className="text-slate-300">s.d.</span>
+                                        <input 
+                                            type="date"
+                                            value={aiEndDate}
+                                            onChange={(e) => {
+                                                setAiEndDate(e.target.value);
+                                                setAiRangePreset('CUSTOM');
+                                            }}
+                                            className="bg-black/30 border border-white/20 px-2.5 py-1.5 rounded-xl text-white text-xs outline-none cursor-pointer focus:border-amber-400"
+                                        />
+                                    </div>
+
+                                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                                        <button
+                                            onClick={() => runAiAnalysis('DAILY_DIGEST')}
+                                            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
+                                        >
+                                            <Sparkles size={14} /> ✨ Ringkasan Eksekutif
+                                        </button>
+                                        <button
+                                            onClick={() => runAiAnalysis('TEAM_PERFORMANCE')}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-400/30 cursor-pointer"
+                                        >
+                                            <TrendingUp size={14} /> Evaluasi Tim
+                                        </button>
+                                        <button
+                                            onClick={() => runAiAnalysis('OBSTACLE_SOLUTIONS')}
+                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-white/20 cursor-pointer"
+                                        >
+                                            <Wrench size={14} /> Solusi Kendala
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1321,7 +1444,7 @@ const LaporanStaff = () => {
                                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-3xl shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
                                     <div className="space-y-1">
                                         <span className="text-[10px] font-black uppercase tracking-widest text-blue-200">Kartu Skor Kinerja Personal</span>
-                                        <h3 className="text-lg font-black">{user.name} ({user.position || 'Admin Aset'})</h3>
+                                        <h3 className="text-lg font-black">{user.name} ({user.position || 'Staff Manajemen Aset'})</h3>
                                         {personalStats.latestFeedback && (
                                             <div className="mt-2 bg-white/10 backdrop-blur-sm p-2.5 rounded-xl text-xs text-white/90 border border-white/20">
                                                 💬 <b>Catatan Kabid ({personalStats.latestFeedback.date}):</b> "{personalStats.latestFeedback.note}"
@@ -1335,34 +1458,149 @@ const LaporanStaff = () => {
                                         </div>
                                         <div className="border-l border-white/20 pl-6">
                                             <span className="text-[10px] font-bold text-blue-200 block">Hari Lengkap</span>
-                                            <span className="text-2xl font-black text-white">{personalStats.completedDays} Hari</span>
+                                            <span className="text-2xl font-black text-white">{personalStats.completedDays} / {personalStats.totalWorkDaysPassed || 0} Hari</span>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
+                            {/* RANGKUMAN TANGGAL BELUM LAPOR (SENIN - JUMAT) */}
+                            {personalStats?.missedDates && personalStats.missedDates.length > 0 ? (
+                                <div className="bg-amber-50 border border-amber-300 p-5 rounded-3xl space-y-3 shadow-2xs">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+                                                <AlertCircle size={18} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                                                    Rangkuman Laporan Belum Lengkap ({personalStats.missedDates.length} Hari Kerja Bulan Ini)
+                                                </h4>
+                                                <p className="text-[11px] text-amber-800 font-medium">
+                                                    Klik tanggal di bawah ini untuk mengisi susulan laporan harian (Senin - Jumat) yang belum dilaporkan.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1">
+                                        {personalStats.missedDates.map((mItem, idx) => {
+                                            const isSelected = selectedDate === mItem.date;
+                                            return (
+                                                <div 
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setSelectedDate(mItem.date);
+                                                    }}
+                                                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-2 group ${
+                                                        isSelected
+                                                            ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-400'
+                                                            : 'bg-white hover:bg-amber-100/60 border-amber-200 text-slate-800 shadow-2xs'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-1">
+                                                        <div>
+                                                            <span className="text-xs font-black block leading-tight">
+                                                                {mItem.formattedDate}
+                                                            </span>
+                                                            <span className={`text-[10px] font-medium ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                                {mItem.isToday ? 'Hari Kerja Ini' : 'Hari Kerja'}
+                                                            </span>
+                                                        </div>
+                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg shrink-0 ${
+                                                            isSelected 
+                                                                ? 'bg-white text-blue-700' 
+                                                                : (mItem.status === 'BELUM' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800')
+                                                        }`}>
+                                                            {mItem.status === 'BELUM' ? 'Belum Diisi' : 'Parsial'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className={`flex items-center justify-between text-[11px] pt-1.5 border-t ${
+                                                        isSelected ? 'border-blue-500' : 'border-slate-100'
+                                                    }`}>
+                                                        <span className={`font-medium ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                                                            {mItem.hasMorning ? 'Pagi ✅' : 'Pagi ❌'} | {mItem.hasAfternoon ? 'Siang ✅' : 'Siang ❌'}
+                                                        </span>
+                                                        <span className={`font-bold flex items-center gap-1 ${
+                                                            isSelected ? 'text-white underline' : 'text-blue-600 group-hover:text-blue-800'
+                                                        }`}>
+                                                            {isSelected ? 'Sedang Dipilih' : '✍️ Isi Laporan'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 font-bold shadow-2xs">
+                                    <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                                    <span>Alhamdulillah! Seluruh laporan hari kerja Anda (Senin s.d. Jumat) bulan ini telah terisi lengkap.</span>
+                                </div>
+                            )}
+
                             {/* ROUTINE CHECKLIST & TASK CONVERTER SECTION */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Daily Routine Checklist */}
+                                {/* Daily Routine Checklist (Filtered by Position) */}
                                 <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                                            <CheckSquare size={16} className="text-emerald-600" /> Template Rutinitas Harian (1-Klik)
-                                        </h3>
-                                        <span className="text-[10px] text-slate-400">Klik untuk masukkan ke form</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                                <CheckSquare size={16} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                                                    Template Rutinitas ({DIVISION_TAGS.find(d => d.key === userDivision)?.label || userDivision})
+                                                </h3>
+                                                <p className="text-[10px] text-slate-400">Disesuaikan untuk posisi: <b>{user.position || 'Staf Sarana'}</b></p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllTemplates(!showAllTemplates)}
+                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                                        >
+                                            {showAllTemplates ? 'Hanya Posisi Saya' : 'Lihat Semua Divisi'}
+                                        </button>
                                     </div>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                                        {Object.entries(ROUTINE_TEMPLATES).map(([catKey, routines]) => (
-                                            <div key={catKey} className="space-y-1">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pt-1">{catKey}</span>
+
+                                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                                        {(showAllTemplates 
+                                            ? Object.entries(ROUTINE_TEMPLATES)
+                                            : Object.entries(ROUTINE_TEMPLATES).filter(([k]) => k === userDivision)
+                                        ).map(([catKey, routines]) => (
+                                            <div key={catKey} className="space-y-1.5 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-100">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                                                        {DIVISION_TAGS.find(d => d.key === catKey)?.label || catKey}
+                                                    </span>
+                                                </div>
                                                 {routines.map((rText, rIdx) => (
                                                     <div 
                                                         key={rIdx}
-                                                        onClick={() => applyRoutine(rText, catKey, 'morning')}
-                                                        className="p-2.5 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-xl text-xs font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all group"
+                                                        className="p-2.5 bg-white border border-slate-200/70 hover:border-blue-300 rounded-xl text-xs font-medium text-slate-700 flex items-center justify-between gap-2 transition-all shadow-2xs group"
                                                     >
-                                                        <span className="flex-1 truncate pr-2">{rText}</span>
-                                                        <span className="text-[10px] font-bold text-blue-600 opacity-0 group-hover:opacity-100 shrink-0">+ Pagi</span>
+                                                        <span className="flex-1 text-slate-700 text-xs leading-relaxed">{rText}</span>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => applyRoutine(rText, catKey, 'morning')}
+                                                                className="px-2 py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                                                                title="Tambahkan ke Sesi Pagi"
+                                                            >
+                                                                + Pagi
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => applyRoutine(rText, catKey, 'afternoon')}
+                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                                                                title="Tambahkan ke Sesi Siang"
+                                                            >
+                                                                + Siang
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1373,29 +1611,46 @@ const LaporanStaff = () => {
                                 {/* Active Assigned Tasks Converter */}
                                 <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                                            <Layers size={16} className="text-blue-600" /> Penugasan Aktif dari Kabid
-                                        </h3>
-                                        <span className="text-[10px] text-slate-400">Jadikan butir laporan</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                                <Layers size={16} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                    Penugasan Khusus dari Kabid
+                                                </h3>
+                                                <p className="text-[10px] text-slate-400">Jadikan butir laporan kerja Anda</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
                                         {assignments.filter(t => t.assigneeId === user.id && t.progressPercentage < 100).length === 0 ? (
-                                            <div className="p-6 text-center text-slate-400 text-xs italic">
-                                                Tidak ada penugasan aktif yang tertunda untuk Anda.
+                                            <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                                Tidak ada penugasan khusus aktif yang tertunda untuk Anda.
                                             </div>
                                         ) : (
                                             assignments.filter(t => t.assigneeId === user.id && t.progressPercentage < 100).map(t => (
-                                                <div key={t.id} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between gap-2">
+                                                <div key={t.id} className="p-3 bg-slate-50 border border-slate-200/70 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
                                                     <div>
                                                         <h4 className="text-xs font-bold text-slate-800">{t.title}</h4>
                                                         <p className="text-[10px] text-slate-500 truncate max-w-xs">{t.description}</p>
                                                     </div>
-                                                    <button
-                                                        onClick={() => convertTaskToReport(t, 'morning')}
-                                                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold transition-all shrink-0 cursor-pointer"
-                                                    >
-                                                        + Jadikan Laporan
-                                                    </button>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => convertTaskToReport(t, 'morning')}
+                                                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                        >
+                                                            + Pagi
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => convertTaskToReport(t, 'afternoon')}
+                                                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                        >
+                                                            + Siang
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))
                                         )}
@@ -2037,36 +2292,124 @@ const LaporanStaff = () => {
             {/* AI ANALYSIS MODAL */}
             {isAiModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-100 max-h-[85vh] flex flex-col">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] flex flex-col">
+                        {/* MODAL HEADER */}
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 to-indigo-600 text-white flex items-center justify-center font-bold">
-                                    <Sparkles size={18} />
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-indigo-600 text-white flex items-center justify-center font-bold shadow-md shadow-amber-500/20">
+                                    <Sparkles size={20} />
                                 </div>
-                                <h3 className="text-base font-black text-slate-800">
-                                    {aiAnalysisType === 'OBSTACLE_SOLUTIONS' ? '✨ Rekomendasi Solusi AI Kendala' : '✨ Executive Summary & AI Analysis'}
-                                </h3>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-800">
+                                        {aiAnalysisType === 'OBSTACLE_SOLUTIONS' 
+                                            ? '✨ Rekomendasi Solusi AI Kendala Lapangan' 
+                                            : (aiAnalysisType === 'TEAM_PERFORMANCE' 
+                                                ? '✨ Evaluasi Produktivitas & Kinerja Tim' 
+                                                : '✨ Ringkasan Eksekutif & Analitik Kinerja Tim')}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 font-medium">Didukung Google Gemini AI - Analisis multi-hari terintegrasi</p>
+                                </div>
                             </div>
-                            <button onClick={() => setIsAiModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1"><X size={20} /></button>
+                            <button onClick={() => setIsAiModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+                                <X size={20} />
+                            </button>
                         </div>
 
+                        {/* MODAL DATE RANGE & FILTER TOOLBAR */}
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2.5">
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                    <Calendar size={14} className="text-slate-400" />
+                                    <span>Rentang Tanggal:</span>
+                                    <input 
+                                        type="date"
+                                        value={aiStartDate}
+                                        onChange={(e) => setAiStartDate(e.target.value)}
+                                        className="bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <span className="text-slate-400">s.d.</span>
+                                    <input 
+                                        type="date"
+                                        value={aiEndDate}
+                                        onChange={(e) => setAiEndDate(e.target.value)}
+                                        className="bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value={aiAnalysisType}
+                                        onChange={(e) => setAiAnalysisType(e.target.value)}
+                                        className="bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                                    >
+                                        <option value="DAILY_DIGEST">🎯 Ringkasan Eksekutif</option>
+                                        <option value="TEAM_PERFORMANCE">📊 Evaluasi Tim</option>
+                                        <option value="OBSTACLE_SOLUTIONS">⚠️ Solusi Kendala</option>
+                                    </select>
+                                    <button
+                                        onClick={() => runAiAnalysis(aiAnalysisType, aiStartDate, aiEndDate)}
+                                        disabled={loadingAi}
+                                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                    >
+                                        {loadingAi ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                                        Analisis Ulang
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* ANALYSIS METADATA PILLS */}
+                            {aiAnalysisMeta && !loadingAi && (
+                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 text-[11px] font-bold text-slate-600">
+                                    <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-lg">
+                                        📅 {aiAnalysisMeta.period}
+                                    </span>
+                                    <span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-lg">
+                                        📋 {aiAnalysisMeta.totalActivities} Butir Pekerjaan Teranalisis
+                                    </span>
+                                    {aiAnalysisMeta.totalObstacles > 0 && (
+                                        <span className="bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-lg">
+                                            ⚠️ {aiAnalysisMeta.totalObstacles} Kendala Lapangan
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* MODAL CONTENT BODY */}
                         <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar text-xs sm:text-sm text-slate-700 leading-relaxed">
                             {loadingAi ? (
-                                <div className="h-48 flex flex-col items-center justify-center gap-3 text-slate-400">
-                                    <Loader2 className="animate-spin text-amber-500" size={32} />
-                                    <span className="font-bold">Gemini AI sedang menganalisis seluruh data laporan tim...</span>
+                                <div className="h-56 flex flex-col items-center justify-center gap-3 text-slate-400">
+                                    <Loader2 className="animate-spin text-amber-500" size={36} />
+                                    <span className="font-bold text-slate-600">Gemini AI sedang memproses laporan seluruh staf pada rentang tanggal terpilih...</span>
+                                    <span className="text-[11px] text-slate-400">Mengevaluasi pembagian beban kerja, efisiensi tugas, dan solusi kendala...</span>
                                 </div>
                             ) : (
-                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 whitespace-pre-line font-medium leading-relaxed">
+                                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 whitespace-pre-line font-medium leading-relaxed shadow-2xs">
                                     {aiAnalysisResult}
                                 </div>
                             )}
                         </div>
 
-                        <div className="pt-3 border-t border-slate-100 flex justify-end">
+                        {/* MODAL FOOTER */}
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                            <button
+                                onClick={() => {
+                                    if (aiAnalysisResult) {
+                                        navigator.clipboard.writeText(aiAnalysisResult);
+                                        setCopiedAi(true);
+                                        setTimeout(() => setCopiedAi(false), 2000);
+                                    }
+                                }}
+                                disabled={loadingAi || !aiAnalysisResult}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                                {copiedAi ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                                {copiedAi ? 'Tersalin ke Clipboard!' : 'Salin Teks Analisis'}
+                            </button>
+
                             <button
                                 onClick={() => setIsAiModalOpen(false)}
-                                className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all cursor-pointer"
+                                className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all cursor-pointer shadow-sm"
                             >
                                 Tutup
                             </button>

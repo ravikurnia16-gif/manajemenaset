@@ -13,11 +13,15 @@ dayjs.extend(timezone);
 
 const SARPRAS_KEYWORDS = [
     'manajemen aset',
+    'staff manajemen aset',
+    'aset',
     'gudang dan logistik',
+    'gudang',
     'kendaraan',
     'teknisi aset',
     'teknisi',
     'keuangan dan administrasi',
+    'keuangan',
     'admin aset'
 ];
 
@@ -717,20 +721,20 @@ exports.verifyReport = async (req, res) => {
 
 /**
  * GET /api/laporan/my-stats
- * Personal scorecard for Admin Aset.
+ * Personal scorecard for Admin Aset including missed working days list.
  */
 exports.getMyStats = async (req, res) => {
     try {
         const userId = req.user.id;
         const now = dayjs().tz('Asia/Jakarta');
-        const monthStart = now.startOf('month').toDate();
-        const monthEnd = now.endOf('month').toDate();
+        const monthStart = now.startOf('month');
+        const monthEnd = now.endOf('month');
 
         const monthReports = await prisma.personnelReport.findMany({
             where: {
                 userId,
                 type: 'DAILY',
-                date: { gte: monthStart, lte: monthEnd }
+                date: { gte: monthStart.toDate(), lte: monthEnd.toDate() }
             },
             orderBy: { date: 'desc' }
         });
@@ -739,14 +743,50 @@ exports.getMyStats = async (req, res) => {
         let totalActivities = 0;
         let latestFeedback = null;
 
+        // Calculate missed working days (Monday - Friday only, from 1st of month up to today)
+        const missedDates = [];
+        let curr = monthStart.clone();
+        const todayStr = now.format('YYYY-MM-DD');
+
+        while (curr.isBefore(now) || curr.format('YYYY-MM-DD') === todayStr) {
+            const dayOfWeek = curr.day(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+                const dateStr = curr.format('YYYY-MM-DD');
+                const report = monthReports.find(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
+                
+                let hasM = false;
+                let hasA = false;
+                if (report && report.metadata && report.metadata.manualPoints) {
+                    const pts = report.metadata.manualPoints;
+                    const m = pts.morning || pts.morningPoints || [];
+                    const a = pts.afternoon || pts.afternoonPoints || [];
+                    hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+                    hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+                }
+
+                if (hasM && hasA) {
+                    completedDays++;
+                } else {
+                    missedDates.push({
+                        date: dateStr,
+                        formattedDate: curr.format('dddd, DD MMMM YYYY'),
+                        shortDate: curr.format('DD MMM'),
+                        hasMorning: hasM,
+                        hasAfternoon: hasA,
+                        status: (!hasM && !hasA) ? 'BELUM' : 'PARSIAL',
+                        isToday: dateStr === todayStr
+                    });
+                }
+            }
+            curr = curr.add(1, 'day');
+        }
+
+        // Count total activities and grab latest feedback
         monthReports.forEach(r => {
             const pts = r.metadata?.manualPoints;
             const m = pts?.morning || pts?.morningPoints || [];
             const a = pts?.afternoon || pts?.afternoonPoints || [];
-            const hasM = Array.isArray(m) && m.length > 0;
-            const hasA = Array.isArray(a) && a.length > 0;
-            if (hasM && hasA) completedDays++;
-            totalActivities += (m.length + a.length);
+            totalActivities += ((Array.isArray(m) ? m.length : 0) + (Array.isArray(a) ? a.length : 0));
 
             if (!latestFeedback && r.metadata?.verification?.feedbackNote) {
                 latestFeedback = {
@@ -758,16 +798,28 @@ exports.getMyStats = async (req, res) => {
             }
         });
 
-        const workingDaysPassed = Math.max(1, now.date());
-        const disciplineScore = Math.min(100, Math.round((completedDays / workingDaysPassed) * 100));
+        // Total working days passed so far in current month
+        let totalWorkDaysPassed = 0;
+        let countCurr = monthStart.clone();
+        while (countCurr.isBefore(now) || countCurr.format('YYYY-MM-DD') === todayStr) {
+            const d = countCurr.day();
+            if (d >= 1 && d <= 5) totalWorkDaysPassed++;
+            countCurr = countCurr.add(1, 'day');
+        }
+
+        const disciplineScore = totalWorkDaysPassed > 0 
+            ? Math.min(100, Math.round((completedDays / totalWorkDaysPassed) * 100)) 
+            : 100;
 
         res.json({
             success: true,
             stats: {
                 completedDays,
+                totalWorkDaysPassed,
                 totalActivities,
                 disciplineScore,
-                latestFeedback
+                latestFeedback,
+                missedDates // Array of missed work days
             }
         });
     } catch (error) {
@@ -778,7 +830,7 @@ exports.getMyStats = async (req, res) => {
 
 /**
  * POST /api/laporan/ai/analyze
- * Gemini AI analysis for Kabid Sarpras.
+ * Gemini AI analysis for Kabid Sarpras (Single Date or Custom Date Range).
  */
 exports.analyzeWithAI = async (req, res) => {
     try {
@@ -786,40 +838,61 @@ exports.analyzeWithAI = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
-        const { date, mode } = req.body; // mode: 'DAILY_DIGEST' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
-        const targetDate = date ? dayjs(date).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
-        const startOfDay = targetDate.startOf('day').toDate();
-        const endOfDay = targetDate.endOf('day').toDate();
+        const { date, startDate, endDate, mode = 'DAILY_DIGEST' } = req.body; // mode: 'DAILY_DIGEST' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
+        
+        let targetStart, targetEnd, formattedPeriod;
+        
+        if (startDate && endDate) {
+            targetStart = dayjs(startDate).tz('Asia/Jakarta').startOf('day');
+            targetEnd = dayjs(endDate).tz('Asia/Jakarta').endOf('day');
+            formattedPeriod = targetStart.isSame(targetEnd, 'day')
+                ? targetStart.format('DD MMMM YYYY')
+                : `${targetStart.format('DD MMMM YYYY')} s.d. ${targetEnd.format('DD MMMM YYYY')}`;
+        } else {
+            const targetDate = date ? dayjs(date).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
+            targetStart = targetDate.startOf('day');
+            targetEnd = targetDate.endOf('day');
+            formattedPeriod = targetStart.format('DD MMMM YYYY');
+        }
 
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOfDay, lte: endOfDay }
+                date: { gte: targetStart.toDate(), lte: targetEnd.toDate() }
             },
             include: {
                 user: { select: { name: true, position: true } }
-            }
+            },
+            orderBy: { date: 'asc' }
         });
 
         const activityList = [];
         const obstacles = [];
+        const staffTaskCount = {};
 
         reports.forEach(r => {
             const pts = r.metadata?.manualPoints;
             const m = pts?.morning || pts?.morningPoints || [];
             const a = pts?.afternoon || pts?.afternoonPoints || [];
+            const staffName = r.user?.name || 'Staf';
+            const staffPos = r.user?.position || 'Staf Sarana';
+            const dateStr = dayjs(r.date).format('DD/MM/YYYY');
+
             [...m, ...a].forEach(item => {
                 if (item.text) {
+                    staffTaskCount[staffName] = (staffTaskCount[staffName] || 0) + 1;
                     activityList.push({
-                        staff: r.user?.name,
-                        position: r.user?.position,
+                        date: dateStr,
+                        staff: staffName,
+                        position: staffPos,
                         category: item.categoryTag || 'UMUM',
                         text: item.text,
                         status: item.status || 'COMPLETED'
                     });
                     if (item.status === 'OBSTACLE' || item.obstacleNote) {
                         obstacles.push({
-                            staff: r.user?.name,
+                            date: dateStr,
+                            staff: staffName,
                             activity: item.text,
                             obstacleNote: item.obstacleNote
                         });
@@ -831,33 +904,52 @@ exports.analyzeWithAI = async (req, res) => {
         let prompt = '';
         if (mode === 'OBSTACLE_SOLUTIONS') {
             prompt = `
-Anda adalah Konsultan Ahli Manajemen Fasilitas & Aset (Sarana & Prasarana).
-Berikut adalah daftar kendala/masalah operasional yang dilaporkan oleh staf di lapangan hari ini (${targetDate.format('DD MMMM YYYY')}):
+Anda adalah Konsultan Ahli Manajemen Fasilitas & Sarana Prasarana Yayasan Dar el-Iman Padang.
+Berikut daftar kendala operasional lapangan yang dilaporkan tim selama periode (${formattedPeriod}):
 
-${obstacles.length === 0 ? 'Tidak ada kendala kritis yang dilaporkan hari ini.' : obstacles.map((o, idx) => `${idx + 1}. Staf: ${o.staff} | Pekerjaan: ${o.activity} | Kendala: ${o.obstacleNote}`).join('\n')}
+${obstacles.length === 0 ? 'Alhamdulillah, tidak ada kendala/masalah kritis yang dilaporkan pada periode ini.' : obstacles.map((o, idx) => `${idx + 1}. [${o.date}] Staf: ${o.staff} | Pekerjaan: ${o.activity} | Kendala: ${o.obstacleNote}`).join('\n')}
 
 TUGAS ANDA:
-Berikan rekomendasi solusi praktis, langkah mitigasi cepat, dan alokasi tindakan prioritas bagi Kepala Bidang Sarana untuk menyelesaikan kendala tersebut.
-Gunakan format poin yang tegas, profesional, dan aplikatif.
+Berikan analisis akar masalah, langkah mitigasi cepat, alokasi solusi praktis, dan rekomendasi arahan prioritas bagi Kepala Bidang Sarana (Ustadz Ravi Kurnia) untuk mengatasi kendala-kendala tersebut.
+Gunakan format poin yang tegas, profesional, dan solutif.
+`;
+        } else if (mode === 'TEAM_PERFORMANCE') {
+            prompt = `
+Anda adalah Asisten Eksekutif Evaluasi Kinerja untuk Kepala Bidang Sarana Yayasan Dar el-Iman Padang.
+Berikut data kontribusi kerja staf Sarpras selama periode (${formattedPeriod}):
+
+TOTAL PEKERJAAN TERCATAT: ${activityList.length} butir
+DISTRIBUSI PEKERJAAN PER STAF:
+${Object.entries(staffTaskCount).map(([name, count]) => `- ${name}: ${count} kegiatan tercatat`).join('\n')}
+
+TUGAS ANDA:
+Buatkan "Evaluasi Produktivitas & Distribusi Beban Kerja Tim" untuk Kepala Bidang Sarana:
+1. 📊 Penilaian Keseimbangan & Beban Kerja (Apakah pembagian tugas antar staf sudah proporsional).
+2. 🌟 Staf Berkontribusi Paling Aktif & Catatan Khusus.
+3. 💡 Saran Strategis untuk Peningkatan Efektivitas & Koordinasi Lapangan.
+
+Gunakan bahasa Indonesia formal, elegan, dan objektif.
 `;
         } else {
             prompt = `
-Anda adalah Asisten Eksekutif Cerdas untuk Kepala Bidang Sarana Yayasan Dar el-Iman.
-Berikut adalah data laporan kegiatan staf hari ini (${targetDate.format('DD MMMM YYYY')}):
+Anda adalah Asisten Eksekutif Cerdas untuk Kepala Bidang Sarana Yayasan Dar el-Iman Padang.
+Berikut data laporan kinerja & aktivitas kerja tim Sarpras untuk periode (${formattedPeriod}):
 
-TOTAL PEKERJAAN DILAPORKAN: ${activityList.length} butir
-RINCIAN AKTIVITAS STAF:
-${activityList.map(a => `- [${a.category}] ${a.staff} (${a.position}): ${a.text} [Status: ${a.status}]`).join('\n')}
+TOTAL PEKERJAAN TERCATAT: ${activityList.length} butir
+TOTAL KENDALA LAPANGAN: ${obstacles.length} isu
+RINCIAN PEKERJAAN TIM:
+${activityList.slice(0, 150).map(a => `- [${a.date} | ${a.category}] ${a.staff} (${a.position}): ${a.text} [Status: ${a.status}]`).join('\n')}
+${activityList.length > 150 ? `... dan ${activityList.length - 150} butir kegiatan lainnya.` : ''}
 
-KENDALA: ${obstacles.length > 0 ? obstacles.map(o => `${o.staff}: ${o.obstacleNote}`).join(', ') : 'Nihil'}
+KENDALA UTAMA: ${obstacles.length > 0 ? obstacles.map(o => `[${o.date}] ${o.staff}: ${o.obstacleNote}`).join('; ') : 'Nihil (Operasional Lancar)'}
 
 TUGAS ANDA:
-Buatkan "Executive Summary & AI Performance Analysis" yang ringkas, elegan, dan profesional yang memuat:
-1. 🎯 Ringkasan Pencapaian Utama Hari Ini (Highlight hasil kerja signifikan).
-2. 📊 Analisis Distribusi & Produktivitas Tim (Evaluasi apakah pembagian kerja sudah proporsional).
-3. ⚠️ Isu/Kendala Kritis & Rekomendasi Tindak Lanjut untuk Kepala Bidang Sarana.
+Buatkan "Ringkasan Eksekutif & Analitik AI Kinerja Tim Sarana" untuk periode ${formattedPeriod} yang memuat:
+1. 🎯 Capaian Utama & Progres Operasional (Highlight hasil kerja signifikan).
+2. 📊 Analisis Efisiensi & Produktivitas Tim.
+3. ⚠️ Isu/Hambatan Kritis & Rekomendasi Langkah Strategis untuk Kepala Bidang Sarana.
 
-Gunakan bahasa Indonesia yang formal, padat, dan bernilai eksekutif tinggi.
+Gunakan bahasa Indonesia yang lugas, terstruktur rapi, dan bernilai eksekutif tinggi.
 `;
         }
 
@@ -866,6 +958,11 @@ Gunakan bahasa Indonesia yang formal, padat, dan bernilai eksekutif tinggi.
 
         res.json({
             success: true,
+            period: formattedPeriod,
+            startDate: targetStart.format('YYYY-MM-DD'),
+            endDate: targetEnd.format('YYYY-MM-DD'),
+            totalActivities: activityList.length,
+            totalObstacles: obstacles.length,
             analysis: resultText,
             generatedAt: new Date().toISOString()
         });
