@@ -383,6 +383,7 @@ const AssetList = ({ validationMode = false }) => {
                 'Unit Aset',
                 'Kategori',
                 'Tanggal Transaksi Masuk (yyyy-mm-dd)',
+                'Jenis Transaksi Masuk',
                 'Harga Perolehan',
                 'PIC (Nama Manual)'
             ],
@@ -397,6 +398,7 @@ const AssetList = ({ validationMode = false }) => {
                 'KANTOR YAYASAN',
                 'Elektronik',
                 '2026-01-15',
+                'Pembelian',
                 7500000,
                 'Ahmad'
             ]

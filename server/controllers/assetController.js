@@ -649,12 +649,18 @@ exports.batchImportAssets = async (req, res) => {
         }
 
         const requiredColumns = [
-            { key: 'Nama Aset', label: 'Kolom (Nama Aset)' },
-            { key: 'Ruangan Aset', label: 'Kolom (Ruangan Aset)' },
-            { key: 'Unit Aset', label: 'Kolom (Unit Aset)' },
-            { key: 'Kategori', label: 'Kolom (Kategori)' },
-            { key: 'Tanggal Transaksi Masuk (yyyy-mm-dd)', label: 'Kolom (Tanggal Transaksi Masuk)' },
-            { key: 'Harga Perolehan', label: 'Kolom (Harga Perolehan)' }
+            { key: 'Nama Aset', label: 'Nama Aset' },
+            { key: 'Merek Aset', label: 'Merek Aset' },
+            { key: 'Vendor Aset', label: 'Vendor Aset' },
+            { key: 'Umur Ekonomis Aset(tahun)', label: 'Umur Ekonomis Aset(tahun)' },
+            { key: 'Kondisi Aset', label: 'Kondisi Aset' },
+            { key: 'Sumber Dana Aset', label: 'Sumber Dana Aset' },
+            { key: 'Ruangan Aset', label: 'Ruangan Aset' },
+            { key: 'Unit Aset', label: 'Unit Aset' },
+            { key: 'Kategori', label: 'Kategori' },
+            { key: 'Tanggal Transaksi Masuk (yyyy-mm-dd)', label: 'Tanggal Transaksi Masuk (yyyy-mm-dd)' },
+            { key: 'Jenis Transaksi Masuk', label: 'Jenis Transaksi Masuk' },
+            { key: 'Harga Perolehan', label: 'Harga Perolehan' }
         ];
 
         // Date helper
