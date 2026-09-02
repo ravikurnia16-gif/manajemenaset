@@ -1469,6 +1469,26 @@ export const SalesTab = ({
                       <div className="text-xs text-slate-500 mb-1">
                         {new Date(s.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       </div>
+                      {(() => {
+                        if (!s.note || !s.note.includes('[DEADLINE:')) return null;
+                        const match = s.note.match(/\[DEADLINE:(.*?)\]/);
+                        if (!match || !match[1]) return null;
+                        const dlStr = match[1].trim();
+                        const dlDate = /^\d{4}-\d{2}-\d{2}$/.test(dlStr) ? new Date(dlStr + 'T23:59:59') : new Date(dlStr);
+                        const isOverdue = dlDate && (new Date() > dlDate) && s.paymentStatus !== 'PAID';
+                        const formatted = dlDate && !isNaN(dlDate.getTime()) 
+                          ? dlDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                          : dlStr;
+                        return (
+                          <div className={`text-[9px] font-bold mb-1 px-1.5 py-0.5 rounded-md inline-block ${
+                            isOverdue 
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                              : 'bg-amber-50 text-amber-800 border border-amber-200'
+                          }`}>
+                            {isOverdue ? '⚠️ Lewat:' : '⏳ Batas:'} {formatted}
+                          </div>
+                        );
+                      })()}
                       <div className="flex flex-wrap items-center justify-center gap-1">
                         <a 
                           href={`/public/invoice-seragam/${s.id}`} 
@@ -1482,21 +1502,24 @@ export const SalesTab = ({
                           <button
                             type="button"
                             onClick={async () => {
-                              if (!s.customerPhone) {
-                                alert('Nomor WhatsApp pemesan tidak tersedia');
-                                return;
+                              let phone = s.customerPhone;
+                              if (!phone) {
+                                phone = prompt('Nomor WhatsApp belum tersedia. Masukkan Nomor WA Pemesan:');
+                                if (!phone) return;
                               }
-                              const deadline = prompt('Masukkan Batas Waktu Pembayaran (Deadline):', 'Sebelum Pengambilan Seragam');
+                              const existingDl = s.note?.match(/\[DEADLINE:(.*?)\]/)?.[1] || new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+                              const deadline = prompt('Masukkan Batas Tanggal Pembayaran (YYYY-MM-DD):', existingDl);
                               if (deadline === null) return;
                               try {
-                                const res = await api.post(`/uniforms/sales/${s.id}/send-billing-wa`, { deadline });
+                                const res = await api.post(`/uniforms/sales/${s.id}/send-billing-wa`, { phone, deadline });
                                 alert(res.data.message || 'Tagihan WhatsApp berhasil dikirim ke pemesan!');
+                                if (onRefresh) onRefresh();
                               } catch (err) {
                                 alert(err.response?.data?.error || 'Gagal mengirimkan tagihan WhatsApp');
                               }
                             }}
                             className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg inline-flex items-center gap-1"
-                            title="Kirimkan Tagihan Resmi ke WhatsApp Pemesan"
+                            title="Kirimkan Tagihan / Pengingat Resmi ke WhatsApp Pemesan"
                           >
                             <Send size={10} /> WA Tagihan
                           </button>

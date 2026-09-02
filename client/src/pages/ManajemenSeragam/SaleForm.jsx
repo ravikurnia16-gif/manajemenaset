@@ -254,11 +254,16 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 ...p, items: p.items.filter(i => i.qty > 0)
             })).filter(p => p.items.length > 0);
             
-            if (!dataToSave.customerName) dataToSave.customerName = currentUser.name || `Pesanan SPMB ${form.targetUnit || ''}`;
-            if (!dataToSave.customerPhone) dataToSave.customerPhone = currentUser.phone || '';
+            if (!dataToSave.customerName) dataToSave.customerName = `Admin Unit ${form.targetUnit || ''}`;
+            dataToSave.customerPhone = form.customerPhone || '';
             dataToSave.paidAmount = 0; 
             dataToSave.discount = 0;
             dataToSave.paymentMethod = 'TRANSFER';
+
+            let notesArr = [];
+            if (form.paymentDeadline) notesArr.push(`[DEADLINE:${form.paymentDeadline}]`);
+            if (form.note) notesArr.push(form.note);
+            dataToSave.note = notesArr.join('\n');
         } else {
             dataToSave.items = form.items.filter(i => i.qty > 0);
 
@@ -286,6 +291,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                         type: e.target.value, 
                         items: [], 
                         packages: [], 
+                        customerName: e.target.value === 'SPMB' && form.targetUnit ? `Admin Unit ${form.targetUnit}` : form.customerName,
                         status: 'PENDING' 
                     })}
                 >
@@ -302,32 +308,49 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    {form.type !== 'SPMB' && (
-                        <>
-                            <InputField 
-                                label="Nama Siswa / Pemesan *" 
-                                value={form.customerName} 
-                                onChange={e => setForm({ ...form, customerName: e.target.value, studentName: e.target.value })} 
-                                required 
-                                placeholder="Contoh: Ahmad Fauzan" 
-                            />
-                            <InputField 
-                                label="No. WhatsApp / HP" 
-                                value={form.customerPhone} 
-                                onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
-                                placeholder="Contoh: 08123456789" 
-                            />
-                        </>
-                    )}
+                    <InputField 
+                        label={form.type === 'SPMB' ? "Nama Pemesan / Admin Unit *" : "Nama Siswa / Pemesan *"} 
+                        value={form.customerName} 
+                        onChange={e => setForm({ ...form, customerName: e.target.value, studentName: form.type === 'SPMB' ? '' : e.target.value })} 
+                        required 
+                        placeholder={form.type === 'SPMB' ? "Contoh: Admin SDIT 1 / Ustadz Ahmad" : "Contoh: Ahmad Fauzan"} 
+                    />
+                    <InputField 
+                        label={form.type === 'SPMB' ? "No. WhatsApp Pemesan *" : "No. WhatsApp / HP"} 
+                        value={form.customerPhone} 
+                        onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
+                        required={form.type === 'SPMB'}
+                        placeholder="Contoh: 08123456789" 
+                    />
                     <SelectField 
                         label="Jenjang / Unit *" 
                         value={form.targetUnit} 
-                        onChange={e => setForm({ ...form, targetUnit: e.target.value, items: [] })} 
+                        onChange={e => {
+                            const newUnit = e.target.value;
+                            setForm(f => ({
+                                ...f,
+                                targetUnit: newUnit,
+                                customerName: (f.type === 'SPMB' && (!f.customerName || f.customerName.startsWith('Admin Unit')))
+                                    ? (newUnit ? `Admin Unit ${newUnit}` : '')
+                                    : f.customerName,
+                                items: []
+                            }));
+                        }} 
                         required
                     >
                         <option value="">-- Pilih Unit --</option>
                         {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </SelectField>
+
+                    {form.type === 'SPMB' && (
+                        <InputField 
+                            type="date"
+                            label="Batas Tanggal Pembayaran *" 
+                            value={form.paymentDeadline || ''} 
+                            onChange={e => setForm({ ...form, paymentDeadline: e.target.value })} 
+                            required
+                        />
+                    )}
 
                     {form.type === 'RETAIL' && (
                         <SelectField 

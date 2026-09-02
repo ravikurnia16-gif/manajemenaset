@@ -2566,10 +2566,53 @@ exports.getBatchInvoices = async (req, res) => {
     }
 };
 
+const parseDeadlineInfo = (rawDeadline, saleNote, salePaymentStatus) => {
+    let deadlineStr = rawDeadline;
+    if (!deadlineStr && saleNote && saleNote.includes('[DEADLINE:')) {
+        const match = saleNote.match(/\[DEADLINE:(.*?)\]/);
+        if (match && match[1]) deadlineStr = match[1].trim();
+    }
+
+    if (!deadlineStr) {
+        return {
+            raw: null,
+            displayText: 'Sesuai Ketentuan SPMB / Sebelum Pengambilan Seragam',
+            isOverdue: false
+        };
+    }
+
+    let deadlineDate = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(deadlineStr)) {
+        deadlineDate = new Date(deadlineStr + 'T23:59:59');
+    } else {
+        const parsed = new Date(deadlineStr);
+        if (!isNaN(parsed.getTime())) deadlineDate = parsed;
+    }
+
+    let isOverdue = false;
+    let displayText = deadlineStr;
+
+    if (deadlineDate && !isNaN(deadlineDate.getTime())) {
+        const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+        displayText = deadlineDate.toLocaleDateString('id-ID', options);
+        
+        const now = new Date();
+        if (now > deadlineDate && salePaymentStatus !== 'PAID') {
+            isOverdue = true;
+        }
+    }
+
+    return {
+        raw: deadlineStr,
+        displayText,
+        isOverdue
+    };
+};
+
 exports.sendSpmbBillingWhatsApp = async (req, res) => {
     try {
         const { id } = req.params;
-        const { deadline, customNote } = req.body || {};
+        const { deadline, customNote, phone } = req.body || {};
 
         const sale = await prisma.uniformSale.findUnique({
             where: { id: parseInt(id) },
@@ -2581,32 +2624,29 @@ exports.sendSpmbBillingWhatsApp = async (req, res) => {
         });
 
         if (!sale) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
-        if (!sale.customerPhone) return res.status(400).json({ error: 'Nomor WhatsApp pemesan tidak tersedia' });
+        
+        const targetPhone = phone || sale.customerPhone;
+        if (!targetPhone) return res.status(400).json({ error: 'Nomor WhatsApp pemesan tidak tersedia' });
+
+        // Update phone / note deadline if provided
+        const updateData = {};
+        if (phone && phone !== sale.customerPhone) updateData.customerPhone = phone;
+        if (deadline) {
+            let cleanNote = (sale.note || '').replace(/\[DEADLINE:[^\]]*\]/g, '').trim();
+            cleanNote = (cleanNote ? cleanNote + '\n' : '') + `[DEADLINE:${deadline}]`;
+            updateData.note = cleanNote;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            await prisma.uniformSale.update({
+                where: { id: parseInt(id) },
+                data: updateData
+            });
+        }
 
         const clientUrl = process.env.CLIENT_URL || 'https://aset.dareliman.sch.id';
         const invoiceLink = `${clientUrl}/public/invoice-seragam/${sale.id}`;
-
-        // 1. Salam & Identitas Unit
-        const studentName = sale.customerName || sale.studentName || 'Siswa';
         const unitName = sale.targetUnit || 'Sekolah Dar el-Iman';
-
-        // 2. Rincian Pesanan
-        let packageNames = [];
-        if (sale.salePackages && sale.salePackages.length > 0) {
-            packageNames = sale.salePackages.map(sp => sp.package?.name).filter(Boolean);
-        } else if (sale.package?.name) {
-            packageNames = [sale.package.name];
-        }
-
-        let itemLines = (sale.items || []).map(i => `  • ${i.itemName} (Ukuran: ${i.size}) - ${i.qty} pcs`).join('\n');
-
-        if (sale.note && sale.note.includes('[NAMADADA')) {
-            const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):/g)];
-            matches.forEach(m => {
-                const ndType = m[1].includes('PUTIH') ? 'Nama Dada Putih' : 'Nama Dada Coklat';
-                itemLines += `\n  • ${ndType} (Bordir) - ${m[2]} pcs`;
-            });
-        }
 
         // 3. Rincian Pembayaran
         const totalTagihan = (sale.totalAmount || 0).toLocaleString('id-ID');
@@ -2614,36 +2654,61 @@ exports.sendSpmbBillingWhatsApp = async (req, res) => {
         const sisaTagihan = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0)).toLocaleString('id-ID');
         const statusBayar = sale.paymentStatus === 'PAID' ? 'LUNAS' : (sale.paymentStatus === 'PARTIAL' ? 'SEBAGIAN (PARSIAL)' : 'BELUM LUNAS');
 
-        // 4. Batas Pembayaran (Diatur oleh Admin)
-        let deadlineText = deadline || 'Sesuai Ketentuan SPMB / Sebelum Pengambilan Seragam';
-        if (!deadline && sale.note && sale.note.includes('[DEADLINE:')) {
-            const match = sale.note.match(/\[DEADLINE:(.*?)\]/);
-            if (match && match[1]) deadlineText = match[1];
+        // 4. Batas Pembayaran & Deteksi Jatuh Tempo
+        const deadlineInfo = parseDeadlineInfo(deadline, sale.note, sale.paymentStatus);
+
+        let message = '';
+        if (deadlineInfo.isOverdue) {
+            message = `*⚠️ PENGINGAT JATUH TEMPO PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
+                `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                `Yth. *Admin Unit ${unitName}*\n` +
+                `Yayasan Dar El-Iman Padang\n\n` +
+                `⚠️ *PERINGATAN JATUH TEMPO:*\n` +
+                `Batas waktu pembayaran tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}* telah *MELEWATI BATAS WAKTU (${deadlineInfo.displayText})*.\n\n` +
+                `Mohon bantuan untuk segera melakukan penyelesaian pembayaran:\n` +
+                `• Kode Invoice: *${sale.code}*\n\n` +
+                `💰 *RINCIAN PEMBAYARAN:*\n` +
+                `• Total Tagihan: *Rp ${totalTagihan}*\n` +
+                `• Sudah Dibayar: Rp ${sudahBayar}\n` +
+                `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
+                `• Status: *${statusBayar}*\n\n` +
+                `⏳ *BATAS PEMBAYARAN:*\n` +
+                `• Batas Waktu: *${deadlineInfo.displayText} (JATUH TEMPO)*\n\n` +
+                `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
+                `${invoiceLink}\n\n` +
+                (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
+                `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
+                `Jazakumullahu Khairan Katsiran.\n\n` +
+                `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+        } else {
+            message = `*TAGIHAN PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
+                `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                `Yth. *Admin Unit ${unitName}*\n` +
+                `Yayasan Dar El-Iman Padang\n\n` +
+                `Berikut kami sampaikan rincian tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}*:\n` +
+                `• Kode Invoice: *${sale.code}*\n\n` +
+                `💰 *RINCIAN PEMBAYARAN:*\n` +
+                `• Total Tagihan: *Rp ${totalTagihan}*\n` +
+                `• Sudah Dibayar: Rp ${sudahBayar}\n` +
+                `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
+                `• Status: *${statusBayar}*\n\n` +
+                `⏳ *BATAS PEMBAYARAN:*\n` +
+                `• Batas Waktu: *${deadlineInfo.displayText}*\n\n` +
+                `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
+                `${invoiceLink}\n\n` +
+                (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
+                `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
+                `Jazakumullahu Khairan Katsiran.\n\n` +
+                `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
         }
 
-        const message = `*TAGIHAN PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
-            `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
-            `Yth. *Admin Unit ${unitName}*\n` +
-            `Yayasan Dar El-Iman Padang\n\n` +
-            `Berikut kami sampaikan rincian tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}*:\n` +
-            `• Kode Invoice: *${sale.code}*\n\n` +
-            `💰 *RINCIAN PEMBAYARAN:*\n` +
-            `• Total Tagihan: *Rp ${totalTagihan}*\n` +
-            `• Sudah Dibayar: Rp ${sudahBayar}\n` +
-            `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
-            `• Status: *${statusBayar}*\n\n` +
-            `⏳ *BATAS PEMBAYARAN:*\n` +
-            `• Batas Waktu: *${deadlineText}*\n\n` +
-            `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
-            `${invoiceLink}\n\n` +
-            (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
-            `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
-            `Jazakumullahu Khairan Katsiran.\n\n` +
-            `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+        await sendMessage(targetPhone, message);
 
-        await sendMessage(sale.customerPhone, message);
-
-        res.json({ message: 'Tagihan WhatsApp berhasil dikirim ke Admin Unit', phone: sale.customerPhone });
+        res.json({ 
+            message: deadlineInfo.isOverdue ? 'Pengingat jatuh tempo berhasil dikirim ke Admin Unit' : 'Tagihan WhatsApp berhasil dikirim ke Admin Unit', 
+            phone: targetPhone,
+            isOverdue: deadlineInfo.isOverdue
+        });
     } catch (error) {
         console.error('sendSpmbBillingWhatsApp Error:', error);
         res.status(500).json({ error: error.message });
@@ -2679,6 +2744,15 @@ exports.batchSendSpmbBillingWhatsApp = async (req, res) => {
             }
 
             try {
+                if (deadline) {
+                    let cleanNote = (sale.note || '').replace(/\[DEADLINE:[^\]]*\]/g, '').trim();
+                    cleanNote = (cleanNote ? cleanNote + '\n' : '') + `[DEADLINE:${deadline}]`;
+                    await prisma.uniformSale.update({
+                        where: { id: sale.id },
+                        data: { note: cleanNote }
+                    });
+                }
+
                 const invoiceLink = `${clientUrl}/public/invoice-seragam/${sale.id}`;
                 const unitName = sale.targetUnit || 'Sekolah Dar el-Iman';
 
@@ -2687,31 +2761,52 @@ exports.batchSendSpmbBillingWhatsApp = async (req, res) => {
                 const sisaTagihan = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0)).toLocaleString('id-ID');
                 const statusBayar = sale.paymentStatus === 'PAID' ? 'LUNAS' : (sale.paymentStatus === 'PARTIAL' ? 'SEBAGIAN (PARSIAL)' : 'BELUM LUNAS');
 
-                let deadlineText = deadline || 'Sesuai Ketentuan SPMB / Sebelum Pengambilan Seragam';
-                if (!deadline && sale.note && sale.note.includes('[DEADLINE:')) {
-                    const match = sale.note.match(/\[DEADLINE:(.*?)\]/);
-                    if (match && match[1]) deadlineText = match[1];
-                }
+                const deadlineInfo = parseDeadlineInfo(deadline, sale.note, sale.paymentStatus);
 
-                const message = `*TAGIHAN PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
-                    `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
-                    `Yth. *Admin Unit ${unitName}*\n` +
-                    `Yayasan Dar El-Iman Padang\n\n` +
-                    `Berikut kami sampaikan rincian tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}*:\n` +
-                    `• Kode Invoice: *${sale.code}*\n\n` +
-                    `💰 *RINCIAN PEMBAYARAN:*\n` +
-                    `• Total Tagihan: *Rp ${totalTagihan}*\n` +
-                    `• Sudah Dibayar: Rp ${sudahBayar}\n` +
-                    `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
-                    `• Status: *${statusBayar}*\n\n` +
-                    `⏳ *BATAS PEMBAYARAN:*\n` +
-                    `• Batas Waktu: *${deadlineText}*\n\n` +
-                    `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
-                    `${invoiceLink}\n\n` +
-                    (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
-                    `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
-                    `Jazakumullahu Khairan Katsiran.\n\n` +
-                    `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+                let message = '';
+                if (deadlineInfo.isOverdue) {
+                    message = `*⚠️ PENGINGAT JATUH TEMPO PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
+                        `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                        `Yth. *Admin Unit ${unitName}*\n` +
+                        `Yayasan Dar El-Iman Padang\n\n` +
+                        `⚠️ *PERINGATAN JATUH TEMPO:*\n` +
+                        `Batas waktu pembayaran tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}* telah *MELEWATI BATAS WAKTU (${deadlineInfo.displayText})*.\n\n` +
+                        `Mohon bantuan untuk segera melakukan penyelesaian pembayaran:\n` +
+                        `• Kode Invoice: *${sale.code}*\n\n` +
+                        `💰 *RINCIAN PEMBAYARAN:*\n` +
+                        `• Total Tagihan: *Rp ${totalTagihan}*\n` +
+                        `• Sudah Dibayar: Rp ${sudahBayar}\n` +
+                        `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
+                        `• Status: *${statusBayar}*\n\n` +
+                        `⏳ *BATAS PEMBAYARAN:*\n` +
+                        `• Batas Waktu: *${deadlineInfo.displayText} (JATUH TEMPO)*\n\n` +
+                        `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
+                        `${invoiceLink}\n\n` +
+                        (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
+                        `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
+                        `Jazakumullahu Khairan Katsiran.\n\n` +
+                        `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+                } else {
+                    message = `*TAGIHAN PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
+                        `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                        `Yth. *Admin Unit ${unitName}*\n` +
+                        `Yayasan Dar El-Iman Padang\n\n` +
+                        `Berikut kami sampaikan rincian tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}*:\n` +
+                        `• Kode Invoice: *${sale.code}*\n\n` +
+                        `💰 *RINCIAN PEMBAYARAN:*\n` +
+                        `• Total Tagihan: *Rp ${totalTagihan}*\n` +
+                        `• Sudah Dibayar: Rp ${sudahBayar}\n` +
+                        `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
+                        `• Status: *${statusBayar}*\n\n` +
+                        `⏳ *BATAS PEMBAYARAN:*\n` +
+                        `• Batas Waktu: *${deadlineInfo.displayText}*\n\n` +
+                        `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
+                        `${invoiceLink}\n\n` +
+                        (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
+                        `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
+                        `Jazakumullahu Khairan Katsiran.\n\n` +
+                        `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+                }
 
                 await sendMessage(sale.customerPhone, message);
                 successCount++;
@@ -3092,12 +3187,18 @@ exports.createSale = async (req, res) => {
             const paid = parseFloat(paidAmount || 0);
             const allDelivered = saleItems.length > 0 && saleItems.every(i => i.qtyDelivered >= i.qty);
 
+            const finalCustomerPhone = customerPhone || req.body.phone || req.body.noHp || req.body.whatsapp || req.body.noTelepon || null;
+            const finalCustomerName = customerName || studentName || (targetUnit ? `Admin Unit ${targetUnit}` : 'Pemesan');
+
             // Create sale first to get ID, then we will attach items with their specific package ID if needed
             const sale = await tx.uniformSale.create({
                 data: {
                     code, type: type || 'RETAIL',
                     warehouseId: parseInt(warehouseId),
-                    customerName, customerPhone, studentName, studentClass, targetUnit,
+                    customerName: finalCustomerName,
+                    customerPhone: finalCustomerPhone,
+                    studentName: studentName || (type === 'SPMB' ? null : finalCustomerName),
+                    studentClass, targetUnit,
                     packageId: packageId ? parseInt(packageId) : null,
                     subtotal, discount: disc, totalAmount,
                     paidAmount: paid,

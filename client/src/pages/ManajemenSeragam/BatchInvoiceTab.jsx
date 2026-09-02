@@ -22,6 +22,29 @@ import {
 } from 'lucide-react';
 import api from '../../lib/axios';
 
+// Helper parsing deadline & overdue status
+export const getDeadlineInfo = (note, paymentStatus) => {
+    if (!note || !note.includes('[DEADLINE:')) return null;
+    const match = note.match(/\[DEADLINE:(.*?)\]/);
+    if (!match || !match[1]) return null;
+    const deadlineStr = match[1].trim();
+
+    let deadlineDate = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(deadlineStr)) {
+        deadlineDate = new Date(deadlineStr + 'T23:59:59');
+    } else {
+        const parsed = new Date(deadlineStr);
+        if (!isNaN(parsed.getTime())) deadlineDate = parsed;
+    }
+
+    const isOverdue = deadlineDate && (new Date() > deadlineDate) && paymentStatus !== 'PAID';
+    const formatted = deadlineDate 
+        ? deadlineDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+        : deadlineStr;
+
+    return { deadlineStr, formatted, isOverdue, date: deadlineDate };
+};
+
 export const BatchInvoiceTab = ({ 
     sales = [], 
     units = [], 
@@ -34,13 +57,14 @@ export const BatchInvoiceTab = ({
     const [typeFilter, setTypeFilter] = useState('ALL'); // 'ALL' | 'SPMB' | 'RETAIL'
     const [unitFilter, setUnitFilter] = useState('ALL');
     const [paymentFilter, setPaymentFilter] = useState('ALL'); // 'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID'
-    const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'SEDIA' | 'DIAMBIL' | 'INDENT' | 'PENDING'
+    const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'SEDIA' | 'DIAMBIL' | 'INDENT' | 'PENDING' | 'OVERDUE'
 
     // Selection states
     const [selectedIds, setSelectedIds] = useState(new Set());
 
     // WhatsApp Broadcast Modal State
     const [waModal, setWaModal] = useState({ open: false, singleSale: null, isBatch: false });
+    const [waPhone, setWaPhone] = useState('');
     const [waDeadline, setWaDeadline] = useState('');
     const [waCustomNote, setWaCustomNote] = useState('');
     const [isSendingWA, setIsSendingWA] = useState(false);
@@ -61,8 +85,13 @@ export const BatchInvoiceTab = ({
             if (paymentFilter === 'UNPAID' && (s.paymentStatus === 'PAID' || s.paymentStatus === 'PARTIAL')) return false;
             if (paymentFilter === 'PARTIAL' && s.paymentStatus !== 'PARTIAL') return false;
 
-            // Status filter
-            if (statusFilter !== 'ALL' && s.status !== statusFilter) return false;
+            // Status filter (including OVERDUE)
+            if (statusFilter === 'OVERDUE') {
+                const dl = getDeadlineInfo(s.note, s.paymentStatus);
+                if (!dl || !dl.isOverdue) return false;
+            } else if (statusFilter !== 'ALL' && s.status !== statusFilter) {
+                return false;
+            }
 
             // Search query
             if (searchQuery.trim()) {
@@ -106,6 +135,14 @@ export const BatchInvoiceTab = ({
         setSelectedIds(new Set(ready.map(s => s.id)));
     };
 
+    const handleSelectOverdue = () => {
+        const overdues = filteredSales.filter(s => {
+            const dl = getDeadlineInfo(s.note, s.paymentStatus);
+            return dl && dl.isOverdue;
+        });
+        setSelectedIds(new Set(overdues.map(s => s.id)));
+    };
+
     // Calculate selection totals
     const selectedSales = useMemo(() => {
         return sales.filter(s => selectedIds.has(s.id));
@@ -138,6 +175,9 @@ export const BatchInvoiceTab = ({
     const handleOpenWAModal = (sale = null) => {
         setWaResult(null);
         if (sale) {
+            setWaPhone(sale.customerPhone || '');
+            const dl = getDeadlineInfo(sale.note, sale.paymentStatus);
+            setWaDeadline(dl?.deadlineStr || '');
             setWaModal({ open: true, singleSale: sale, isBatch: false });
         } else {
             if (spmbSelectedSales.length === 0) {
@@ -166,8 +206,10 @@ export const BatchInvoiceTab = ({
                     type: 'success',
                     message: res.data.message || 'Pesan tagihan WhatsApp berhasil diproses!'
                 });
+                if (onRefresh) onRefresh();
             } else if (waModal.singleSale) {
                 const res = await api.post(`/uniforms/sales/${waModal.singleSale.id}/send-billing-wa`, {
+                    phone: waPhone,
                     deadline: waDeadline,
                     customNote: waCustomNote
                 });
@@ -175,6 +217,7 @@ export const BatchInvoiceTab = ({
                     type: 'success',
                     message: res.data.message || `Tagihan WhatsApp berhasil dikirim ke ${res.data.phone}`
                 });
+                if (onRefresh) onRefresh();
             }
         } catch (error) {
             setWaResult({
@@ -268,6 +311,7 @@ export const BatchInvoiceTab = ({
                         className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         <option value="ALL">-- Status Pengambilan --</option>
+                        <option value="OVERDUE">⚠️ Jatuh Tempo (Lewat Deadline)</option>
                         <option value="SEDIA">Siap Diambil (SEDIA)</option>
                         <option value="DIAMBIL">Sudah Diterima (DIAMBIL)</option>
                         <option value="INDENT">Inden / Menunggu Stok</option>
@@ -307,6 +351,13 @@ export const BatchInvoiceTab = ({
                             className="px-2.5 py-1 bg-rose-500/30 hover:bg-rose-500/50 text-rose-200 rounded-lg text-[11px] font-semibold transition"
                         >
                             Pilih Belum Lunas
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSelectOverdue}
+                            className="px-2.5 py-1 bg-amber-500/30 hover:bg-amber-500/50 text-amber-200 border border-amber-400/30 rounded-lg text-[11px] font-bold transition flex items-center gap-1"
+                        >
+                            ⚠️ Lewat Jatuh Tempo
                         </button>
                         <button
                             type="button"
@@ -421,6 +472,19 @@ export const BatchInvoiceTab = ({
                                                 <div className="text-[10px] text-slate-400 mt-0.5">
                                                     {new Date(sale.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                 </div>
+                                                {(() => {
+                                                    const dl = getDeadlineInfo(sale.note, sale.paymentStatus);
+                                                    if (!dl) return null;
+                                                    return (
+                                                        <div className={`text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 ${
+                                                            dl.isOverdue 
+                                                                ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                                                                : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                                        }`}>
+                                                            {dl.isOverdue ? '⚠️ Lewat Batas:' : '⏳ Batas:'} {dl.formatted}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </td>
 
                                             {/* Student */}
@@ -573,19 +637,70 @@ export const BatchInvoiceTab = ({
                         )}
 
                         <form onSubmit={handleSendWA} className="space-y-3.5">
+                            {/* Nomor WhatsApp Tujuan (Khusus Single Send) */}
+                            {!waModal.isBatch && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                        Nomor WhatsApp Tujuan *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={waPhone}
+                                        onChange={e => setWaPhone(e.target.value)}
+                                        placeholder="Contoh: 08123456789"
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                                        required
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Nomor ini akan otomatis disimpan ke data pesanan di sistem.
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Batas Waktu Pembayaran */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                                    Batas Waktu Pembayaran (Deadline) *
+                                    Batas Tanggal Pembayaran (Deadline) *
                                 </label>
                                 <input
-                                    type="text"
+                                    type="date"
                                     value={waDeadline}
                                     onChange={e => setWaDeadline(e.target.value)}
-                                    placeholder="Contoh: 15 Juli 2026 / Sebelum Masuk Sekolah"
                                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                                     required
                                 />
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date(); d.setDate(d.getDate() + 3);
+                                            setWaDeadline(d.toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-semibold transition"
+                                    >
+                                        +3 Hari
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date(); d.setDate(d.getDate() + 7);
+                                            setWaDeadline(d.toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-semibold transition"
+                                    >
+                                        +7 Hari (1 Minggu)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date(); d.setDate(d.getDate() + 14);
+                                            setWaDeadline(d.toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-semibold transition"
+                                    >
+                                        +14 Hari (2 Minggu)
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Catatan Tambahan */}
