@@ -6,6 +6,8 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 
 // === PUBLIC ROUTES ===
+// Diakses untuk cetak invoice massal (bisa dibuka publik via QR/link atau dashboard)
+router.get('/sales/batch-invoice', c.getBatchInvoices);
 // Diakses oleh wali murid lewat scan QR untuk melihat tagihan
 router.get('/sales/:id', c.getSaleById);
 // Diakses oleh wali murid untuk membuat form pesanan mandiri
@@ -113,7 +115,6 @@ router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);
 // Sales (POS / SPMB / Unit Order)
 router.get('/export-sales', c.exportSalesToExcel);
 router.get('/sales', c.getSales);
-router.get('/sales/batch-invoice', c.getBatchInvoices);
 router.post('/sales', c.createSale);
 router.delete('/sales/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.deleteSale);
 // Hanya Super Admin & Admin Aset yang boleh memproses/mengeluarkan barang dari gudang

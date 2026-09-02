@@ -2739,8 +2739,12 @@ exports.batchSendSpmbBillingWhatsApp = async (req, res) => {
 
 exports.getSaleById = async (req, res) => {
     try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'ID penjualan tidak valid' });
+        }
         const data = await prisma.uniformSale.findUnique({
-            where: { id: parseInt(req.params.id) },
+            where: { id },
             include: {
                 warehouse: true,
                 package: { include: { items: { include: { item: true } } } }, // Legacy

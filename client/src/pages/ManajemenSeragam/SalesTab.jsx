@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
   Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw, Download, AlertTriangle, Loader2,
-  CreditCard, Coins, DollarSign, Receipt
+  CreditCard, Coins, DollarSign, Receipt, Send
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { Badge } from './UIComponents';
