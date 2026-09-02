@@ -1373,8 +1373,38 @@ export const SalesTab = ({
                         )}
 
                         {s.paymentStatus === 'PAID' && (
-                          <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
-                            Rp {(Number(s.paidAmount) || activeTotalAmount).toLocaleString('id-ID')}
+                          <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                            <div className="text-[10px] text-emerald-700 font-bold font-mono">
+                              Rp {(Number(s.paidAmount) || activeTotalAmount).toLocaleString('id-ID')}
+                            </div>
+                            {(() => {
+                              let paidDate = null;
+                              if (s.note && s.note.includes('[PAID_AT:')) {
+                                const match = s.note.match(/\[PAID_AT:(.*?)\]/);
+                                if (match && match[1]) {
+                                  const parsed = new Date(match[1]);
+                                  if (!isNaN(parsed.getTime())) paidDate = parsed;
+                                }
+                              }
+                              if (!paidDate && s.paymentStatus === 'PAID') {
+                                const dt = s.updatedAt || s.completedAt || s.createdAt;
+                                if (dt) paidDate = new Date(dt);
+                              }
+                              if (!paidDate) return null;
+
+                              return (
+                                <div 
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-semibold"
+                                  title={`Dilunasi pada: ${paidDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} pukul ${paidDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`}
+                                >
+                                  <CheckCircle size={9} className="text-emerald-600 shrink-0" />
+                                  <span>
+                                    {paidDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}{' '}
+                                    {paidDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 

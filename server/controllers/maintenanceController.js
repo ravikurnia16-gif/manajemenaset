@@ -6,29 +6,71 @@ const { createNotification } = require('./notificationController');
 const predictiveService = require('../services/predictiveService');
 const crypto = require('crypto');
 
-// --- Business Day Helpers for SLA Respon Awal ---
+// --- Business Day & Working Hours Helpers for SLA Respon Awal (07:15 - 16:15 WIB, Senin - Jumat) ---
 
 /**
- * Adjust a date to the next business day (Mon-Fri).
- * Saturday -> Monday, Sunday -> Monday.
- */
-const adjustToBusinessDay = (date) => {
-    const d = new Date(date);
-    const day = d.getDay(); // 0=Sunday, 6=Saturday
-    if (day === 0) d.setDate(d.getDate() + 1); // Sunday -> Monday
-    if (day === 6) d.setDate(d.getDate() + 2); // Saturday -> Monday
-    return d;
-};
-
-/**
- * Calculate difference in hours between adjusted business start and response time.
- * Start date is adjusted to next business day if weekend.
+ * Calculate working hours difference strictly within:
+ * - Working Days: Monday - Friday (Senin - Jumat, excluding Saturday & Sunday)
+ * - Working Hours: 07:15 - 16:15 WIB (9 hours / 540 minutes per day)
  */
 const calculateBusinessHoursDiff = (createdAt, respondedAt) => {
-    const start = adjustToBusinessDay(createdAt);
+    if (!createdAt || !respondedAt) return 0;
+
+    const start = new Date(createdAt);
     const end = new Date(respondedAt);
-    const diffMs = Math.abs(end - start);
-    return diffMs / (1000 * 60 * 60); // hours
+    if (end <= start) return 0;
+
+    const WORK_START_HOUR = 7;
+    const WORK_START_MIN = 15;
+    const WORK_START_TOTAL_MINS = WORK_START_HOUR * 60 + WORK_START_MIN; // 435 mins
+
+    const WORK_END_HOUR = 16;
+    const WORK_END_MIN = 15;
+    const WORK_END_TOTAL_MINS = WORK_END_HOUR * 60 + WORK_END_MIN; // 975 mins
+
+    let totalWorkingMinutes = 0;
+
+    let current = new Date(start);
+    current.setHours(0, 0, 0, 0);
+
+    const endMidnight = new Date(end);
+    endMidnight.setHours(0, 0, 0, 0);
+
+    while (current <= endMidnight) {
+        const dayOfWeek = current.getDay(); // 0 = Sun, 6 = Sat
+        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+        if (!isWeekend) {
+            const isStartDay = (current.getTime() === (new Date(start)).setHours(0, 0, 0, 0));
+            const isEndDay = (current.getTime() === endMidnight.getTime());
+
+            let startMinutesToday = WORK_START_TOTAL_MINS;
+            if (isStartDay) {
+                const sHour = start.getHours();
+                const sMin = start.getMinutes();
+                const actualStartMins = sHour * 60 + sMin;
+                startMinutesToday = Math.max(WORK_START_TOTAL_MINS, actualStartMins);
+                startMinutesToday = Math.min(WORK_END_TOTAL_MINS, startMinutesToday);
+            }
+
+            let endMinutesToday = WORK_END_TOTAL_MINS;
+            if (isEndDay) {
+                const eHour = end.getHours();
+                const eMin = end.getMinutes();
+                const actualEndMins = eHour * 60 + eMin;
+                endMinutesToday = Math.min(WORK_END_TOTAL_MINS, actualEndMins);
+                endMinutesToday = Math.max(WORK_START_TOTAL_MINS, endMinutesToday);
+            }
+
+            if (endMinutesToday > startMinutesToday) {
+                totalWorkingMinutes += (endMinutesToday - startMinutesToday);
+            }
+        }
+
+        current.setDate(current.getDate() + 1);
+    }
+
+    return totalWorkingMinutes / 60; // return duration in hours
 };
 
 // Get Dashboard Stats

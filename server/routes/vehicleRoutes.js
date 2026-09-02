@@ -65,6 +65,7 @@ router.post('/booking/:id/cancel', verifyToken, bookingCtrl.cancelBooking);
 router.put('/booking/:id/history', verifyToken, bookingCtrl.updateBookingHistory);
 router.post('/booking/:id/location', verifyToken, bookingCtrl.updateBookingLocation);
 router.get('/booking/:id/route', verifyToken, bookingCtrl.getBookingRoute);
+router.get('/discrepancies/analytics', verifyToken, bookingCtrl.getDiscrepancyAnalytics);
 router.get('/history', verifyToken, bookingCtrl.getVehicleRouteHistory);
 
 // Fallback route with parameter MUST be at the very bottom

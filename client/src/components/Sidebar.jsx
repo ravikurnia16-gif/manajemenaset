@@ -309,41 +309,15 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* 4. Menu Laporan (Menggantikan Personalia) - Hanya untuk staff Sarpras */}
-                {isStaffSarpras && renderCollapsible('laporan', <FileText size={18} />, 'Laporan Harian', (
-                    <>
-                        {isStaffGudang && (
-                            <Link to="/laporan/gudang" className={subNavItemClass('/laporan/gudang')}>
-                                <Warehouse size={16} /> Laporan Gudang
-                            </Link>
-                        )}
-                        {canViewLaporanAset && (
-                            <Link to="/laporan/aset" className={subNavItemClass('/laporan/aset')}>
-                                <Box size={16} /> Laporan Aset
-                            </Link>
-                        )}
-                        {canViewLaporanTeknisi && (
-                            <Link to="/laporan/teknisi" className={subNavItemClass('/laporan/teknisi')}>
-                                <Wrench size={16} /> Laporan Teknisi Aset
-                            </Link>
-                        )}
-                        {canViewLaporanKendaraan && (
-                            <Link to="/laporan/kendaraan" className={subNavItemClass('/laporan/kendaraan')}>
-                                <Truck size={16} /> Laporan Kendaraan
-                            </Link>
-                        )}
-                        {canViewLaporanKeuangan && (
-                            <Link to="/laporan/keuangan" className={subNavItemClass('/laporan/keuangan')}>
-                                <FileSignature size={16} /> Laporan Keuangan & Admin
-                            </Link>
-                        )}
-                        {isKabidSarpras && (
-                            <Link to="/laporan/kabid" className={subNavItemClass('/laporan/kabid')}>
-                                <FileText size={16} /> Laporan Kabid
-                            </Link>
-                        )}
-                    </>
-                ))}
+                {/* 4. Menu Laporan Terpadu - Hanya untuk Kepala Bidang Sarana dan Admin Aset */}
+                {(isKabidSarpras || isAdminAset) && (
+                    <Link to="/laporan" className={navItemClass('/laporan')}>
+                        <FileText size={18} />
+                        <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
+                            {isKabidSarpras ? 'Laporan & Kinerja Staf' : 'Laporan Harian Saya'}
+                        </span>
+                    </Link>
+                )}
 
 
 

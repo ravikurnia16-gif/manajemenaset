@@ -183,6 +183,9 @@ function App() {
 
   const role = user?.role || '';
   const pos = (user?.position || '').toLowerCase();
+  const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+  const isAdminAset = role === 'ADMIN_ASET' || pos.includes('admin aset');
+  const canViewLaporan = isKabidSarpras || isAdminAset;
   const canViewEOffice = role === 'ADMIN_ASET' || pos.includes('kepala bidang sarana');
 
   return (
@@ -321,13 +324,13 @@ function App() {
           <Route path="security/anggota" element={<SecurityGuards />} />
           <Route path="security/jadwal" element={<SecuritySchedule />} /> */}
           
-          <Route path="laporan" element={<ReportPage />} />
-          <Route path="laporan/kabid" element={
-            isStaffSarpras ? <LaporanKabid /> : <Navigate to="/dashboard" />
+          <Route path="laporan" element={
+            canViewLaporan ? <LaporanStaff /> : <Navigate to="/dashboard" />
           } />
-          <Route path="laporan/:category" element={
-            isStaffSarpras ? <LaporanStaff /> : <Navigate to="/dashboard" />
+          <Route path="laporan/:tab" element={
+            canViewLaporan ? <LaporanStaff /> : <Navigate to="/dashboard" />
           } />
+          <Route path="laporan-aset-keuangan" element={<ReportPage />} />
 
           {/* Module: E-Office */}
           <Route path="e-office" element={

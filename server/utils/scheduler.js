@@ -50,10 +50,10 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 0.5 REPORT REMINDERS (Daily at 11:52 and 16:07)
+        // 0.5 REPORT REMINDERS (Daily at 13:30 and 16:16)
         // ----------------------------------------------------
-        if ((hour === 11 && minute === 52) || (hour === 16 && minute === 7)) {
-            console.log('[Scheduler] Executing Report Reminders...');
+        if ((hour === 13 && minute === 30) || (hour === 16 && minute === 16)) {
+            console.log('[Scheduler] Executing Report Reminders at 13:30 / 16:16...');
             try {
                 await sendReportReminders();
             } catch (err) {

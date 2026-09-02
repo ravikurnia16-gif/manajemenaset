@@ -1509,3 +1509,235 @@ exports.getVehicleRouteHistory = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+/**
+ * Discrepancy & Fleet System Usage Audit Analytics
+ * Compares trips conducted WITH system vs WITHOUT system (discrepancy incidents).
+ * Example: 8 system trips + 2 discrepancy incidents = 10 total trips (80% system, 20% off-system).
+ */
+exports.getDiscrepancyAnalytics = async (req, res) => {
+    try {
+        const { month, year, startDate, endDate, vehicleType } = req.query;
+
+        // Date range filter
+        let dateFilter = null;
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter = { gte: start, lte: end };
+        } else if (month && year) {
+            const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(start);
+            end.setMonth(end.getMonth() + 1);
+            dateFilter = { gte: start, lt: end };
+        }
+
+        // Get all vehicles
+        const vehicles = await prisma.vehicle.findMany({
+            where: vehicleType && vehicleType !== 'ALL' ? { type: vehicleType } : {},
+            orderBy: { name: 'asc' }
+        });
+
+        // Get bookings sorted chronologically by tripStartTime / startDate
+        const allBookings = await prisma.vehicleBooking.findMany({
+            where: {
+                status: { in: ['COMPLETED', 'BERLANGSUNG'] },
+                startKm: { not: null }
+            },
+            include: {
+                vehicle: true,
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        position: true,
+                        unit: { select: { id: true, name: true } }
+                    }
+                },
+                driver: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true
+                    }
+                }
+            },
+            orderBy: [
+                { tripStartTime: 'asc' },
+                { startDate: 'asc' },
+                { id: 'asc' }
+            ]
+        });
+
+        // Group bookings by vehicleId
+        const vehicleBookingsMap = {};
+        for (const b of allBookings) {
+            if (!vehicleBookingsMap[b.vehicleId]) {
+                vehicleBookingsMap[b.vehicleId] = [];
+            }
+            vehicleBookingsMap[b.vehicleId].push(b);
+        }
+
+        const discrepancyLogs = [];
+        const vehicleStatsMap = {};
+
+        // Initialize vehicle stats
+        for (const v of vehicles) {
+            vehicleStatsMap[v.id] = {
+                vehicleId: v.id,
+                name: v.name,
+                plateNumber: v.plateNumber,
+                type: v.type || 'Mobil',
+                systemTripsCount: 0,
+                discrepancyCount: 0,
+                systemKm: 0,
+                discrepancyKm: 0,
+                lastOdometer: v.odometer || 0
+            };
+        }
+
+        // Process each vehicle's chronological booking chain
+        for (const [vehicleIdStr, vBookings] of Object.entries(vehicleBookingsMap)) {
+            const vId = parseInt(vehicleIdStr);
+            const vStat = vehicleStatsMap[vId];
+
+            for (let i = 0; i < vBookings.length; i++) {
+                const b = vBookings[i];
+                const bookingDate = b.tripStartTime || b.startDate;
+
+                // Check if this booking falls within filtered period
+                let inPeriod = true;
+                if (dateFilter) {
+                    const bTime = new Date(bookingDate).getTime();
+                    if (dateFilter.gte && bTime < new Date(dateFilter.gte).getTime()) inPeriod = false;
+                    if (dateFilter.lte && bTime > new Date(dateFilter.lte).getTime()) inPeriod = false;
+                    if (dateFilter.lt && bTime >= new Date(dateFilter.lt).getTime()) inPeriod = false;
+                }
+
+                // Check discrepancy against previous booking
+                if (i > 0) {
+                    const prevB = vBookings[i - 1];
+                    if (prevB.endKm !== null && prevB.endKm !== undefined) {
+                        const diff = (b.startKm || 0) - prevB.endKm;
+                        if (diff > 1) {
+                            if (inPeriod) {
+                                discrepancyLogs.push({
+                                    id: `${b.id}-disc`,
+                                    bookingId: b.id,
+                                    date: bookingDate,
+                                    vehicleId: b.vehicleId,
+                                    vehicleName: b.vehicle?.name,
+                                    plateNumber: b.vehicle?.plateNumber,
+                                    vehicleType: b.vehicle?.type || 'Mobil',
+                                    userName: b.user?.name || 'Sistem',
+                                    userUnit: b.user?.unit?.name || '-',
+                                    userPhone: b.user?.phone,
+                                    driverName: b.driver?.name || b.driverName || b.user?.name,
+                                    prevEndKm: prevB.endKm,
+                                    currentStartKm: b.startKm,
+                                    discrepancyKm: diff,
+                                    startPhoto: b.startPhoto,
+                                    preTripNotes: b.preTripNotes,
+                                    destination: b.destination,
+                                    isRented: b.isRented
+                                });
+
+                                if (vStat) {
+                                    vStat.discrepancyCount += 1;
+                                    vStat.discrepancyKm += diff;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Record system trip
+                if (inPeriod) {
+                    const tripKm = (b.endKm && b.endKm >= b.startKm) ? (b.endKm - b.startKm) : 0;
+                    if (vStat) {
+                        vStat.systemTripsCount += 1;
+                        vStat.systemKm += tripKm;
+                    }
+                }
+            }
+        }
+
+        // Aggregate by category (Mobil, Bus, Motor, Lainnya)
+        const categoryStats = {
+            Mobil: { category: 'Mobil', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
+            Bus: { category: 'Bus', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
+            Motor: { category: 'Motor', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
+            Lainnya: { category: 'Lainnya', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 }
+        };
+
+        let overallSystemTrips = 0;
+        let overallDiscrepancyTrips = 0;
+        let overallSystemKm = 0;
+        let overallDiscrepancyKm = 0;
+
+        for (const stat of Object.values(vehicleStatsMap)) {
+            const rawType = (stat.type || 'Mobil').toLowerCase();
+            let catKey = 'Lainnya';
+            if (rawType.includes('mobil')) catKey = 'Mobil';
+            else if (rawType.includes('bus') || rawType.includes('microbus') || rawType.includes('minibus')) catKey = 'Bus';
+            else if (rawType.includes('motor') || rawType.includes('sepeda motor')) catKey = 'Motor';
+
+            categoryStats[catKey].systemTrips += stat.systemTripsCount;
+            categoryStats[catKey].discrepancyTrips += stat.discrepancyCount;
+            categoryStats[catKey].systemKm += stat.systemKm;
+            categoryStats[catKey].discrepancyKm += stat.discrepancyKm;
+
+            overallSystemTrips += stat.systemTripsCount;
+            overallDiscrepancyTrips += stat.discrepancyCount;
+            overallSystemKm += stat.systemKm;
+            overallDiscrepancyKm += stat.discrepancyKm;
+
+            // Calculate percentage per vehicle
+            const vTotalTrips = stat.systemTripsCount + stat.discrepancyCount;
+            stat.totalTrips = vTotalTrips;
+            stat.systemPercent = vTotalTrips > 0 ? ((stat.systemTripsCount / vTotalTrips) * 100) : 100;
+            stat.discrepancyPercent = vTotalTrips > 0 ? ((stat.discrepancyCount / vTotalTrips) * 100) : 0;
+        }
+
+        // Calculate percentage for each category
+        const byCategoryFormatted = Object.values(categoryStats).map(c => {
+            const total = c.systemTrips + c.discrepancyTrips;
+            return {
+                ...c,
+                totalTrips: total,
+                systemPercent: total > 0 ? ((c.systemTrips / total) * 100) : 100,
+                discrepancyPercent: total > 0 ? ((c.discrepancyTrips / total) * 100) : 0
+            };
+        });
+
+        const overallTotalTrips = overallSystemTrips + overallDiscrepancyTrips;
+        const overallSystemPercent = overallTotalTrips > 0 ? ((overallSystemTrips / overallTotalTrips) * 100) : 100;
+        const overallDiscrepancyPercent = overallTotalTrips > 0 ? ((overallDiscrepancyTrips / overallTotalTrips) * 100) : 0;
+
+        // Sort discrepancy logs descending (newest first)
+        discrepancyLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        res.json({
+            summary: {
+                systemTripsCount: overallSystemTrips,
+                discrepancyTripsCount: overallDiscrepancyTrips,
+                totalTrips: overallTotalTrips,
+                systemPercent: overallSystemPercent,
+                discrepancyPercent: overallDiscrepancyPercent,
+                systemKm: overallSystemKm,
+                discrepancyKm: overallDiscrepancyKm,
+                totalKm: overallSystemKm + overallDiscrepancyKm
+            },
+            byCategory: byCategoryFormatted,
+            byVehicle: Object.values(vehicleStatsMap),
+            discrepancyLogs
+        });
+    } catch (error) {
+        console.error('getDiscrepancyAnalytics error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};

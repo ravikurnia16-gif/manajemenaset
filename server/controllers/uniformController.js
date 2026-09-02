@@ -3998,12 +3998,22 @@ exports.updateSalePayment = async (req, res) => {
             newPaymentStatus = 'UNPAID';
         }
 
+        let cleanNote = (sale.note || '');
+        if (newPaymentStatus === 'PAID') {
+            if (!cleanNote.includes('[PAID_AT:')) {
+                cleanNote = (cleanNote ? cleanNote + '\n' : '') + `[PAID_AT:${new Date().toISOString()}]`;
+            }
+        } else {
+            cleanNote = cleanNote.replace(/\[PAID_AT:[^\]]*\]/g, '').trim();
+        }
+
         const data = await prisma.uniformSale.update({
             where: { id: saleId },
             data: {
                 paidAmount: newPaid,
                 paymentMethod: paymentMethod || sale.paymentMethod,
-                paymentStatus: newPaymentStatus
+                paymentStatus: newPaymentStatus,
+                note: cleanNote
             }
         });
 
@@ -4207,9 +4217,19 @@ exports.updateSalePayment = async (req, res) => {
             return res.status(400).json({ error: 'Data pembayaran tidak lengkap' });
         }
 
+        let cleanNote = (sale.note || '');
+        if (finalStatus === 'PAID') {
+            if (!cleanNote.includes('[PAID_AT:')) {
+                cleanNote = (cleanNote ? cleanNote + '\n' : '') + `[PAID_AT:${new Date().toISOString()}]`;
+            }
+        } else {
+            cleanNote = cleanNote.replace(/\[PAID_AT:[^\]]*\]/g, '').trim();
+        }
+
         const updateData = {
             paymentStatus: finalStatus,
-            paidAmount: finalPaidAmount
+            paidAmount: finalPaidAmount,
+            note: cleanNote
         };
 
         if (paymentMethod) {

@@ -349,7 +349,7 @@ const MaintenanceDashboard = () => {
                             <Clock className="text-blue-500" size={20} />
                             <div>
                                 <h3 className="text-base font-bold text-slate-800">Kecepatan Respon Awal (Sarpras)</h3>
-                                <p className="text-xs text-slate-500">Rata-rata waktu respon pertama (Setujui/Tolak) — hari kerja Senin-Jumat</p>
+                                <p className="text-xs text-slate-500">Rata-rata waktu respon pertama (Setujui/Tolak) — jam kerja Senin-Jumat (07.15 - 16.15 WIB)</p>
                             </div>
                         </div>
                         <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-lg">

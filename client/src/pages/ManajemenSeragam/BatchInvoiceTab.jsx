@@ -161,13 +161,13 @@ export const BatchInvoiceTab = ({
     }, [selectedSales]);
 
     // Trigger Batch Print
-    const handleBatchPrint = () => {
+    const handleBatchPrint = (layout = 8) => {
         if (selectedIds.size === 0) {
             alert('Pilih setidaknya 1 invoice untuk dicetak.');
             return;
         }
         const idsArray = Array.from(selectedIds);
-        const url = `/public/invoice-seragam/batch?ids=${idsArray.join(',')}`;
+        const url = `/public/invoice-seragam/batch?ids=${idsArray.join(',')}&layout=${layout}`;
         window.open(url, '_blank');
     };
 
@@ -386,12 +386,13 @@ export const BatchInvoiceTab = ({
                     {/* Batch Print Button */}
                     <button
                         type="button"
-                        onClick={handleBatchPrint}
+                        onClick={() => handleBatchPrint(8)}
                         disabled={selectedIds.size === 0}
-                        className="flex-1 sm:flex-initial px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-900 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex-1 sm:flex-initial px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-900 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        title="Cetak massal invoice format hemat 8 invoice dalam 1 lembar A4"
                     >
                         <Printer size={16} className="text-blue-600" />
-                        Cetak {selectedIds.size} Invoice (6/Lembar)
+                        Cetak {selectedIds.size} Invoice (8 / Lembar A4)
                     </button>
                 </div>
             </div>
@@ -543,6 +544,27 @@ export const BatchInvoiceTab = ({
                                                 }`}>
                                                     {isPaid ? 'LUNAS' : (isPartial ? 'PARSIAL' : 'BELUM')}
                                                 </span>
+                                                {isPaid && (() => {
+                                                    let paidDate = null;
+                                                    if (sale.note && sale.note.includes('[PAID_AT:')) {
+                                                        const match = sale.note.match(/\[PAID_AT:(.*?)\]/);
+                                                        if (match && match[1]) {
+                                                            const parsed = new Date(match[1]);
+                                                            if (!isNaN(parsed.getTime())) paidDate = parsed;
+                                                        }
+                                                    }
+                                                    if (!paidDate && sale.paymentStatus === 'PAID') {
+                                                        const dt = sale.updatedAt || sale.completedAt || sale.createdAt;
+                                                        if (dt) paidDate = new Date(dt);
+                                                    }
+                                                    if (!paidDate) return null;
+
+                                                    return (
+                                                        <div className="text-[9px] text-emerald-700 font-semibold mt-0.5" title={`Lunas pada: ${paidDate.toLocaleString('id-ID')}`}>
+                                                            ✓ {paidDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </td>
 
                                             {/* Goods Badge */}

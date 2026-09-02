@@ -11,6 +11,7 @@ import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
 import VehicleChecklistTab from '../components/VehicleChecklistTab';
+import VehicleDiscrepancyTab from '../components/VehicleDiscrepancyTab';
 
 import LiveTrackingMap from '../components/LiveTrackingMap';
 
@@ -970,6 +971,7 @@ const VehicleBooking = () => {
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
         ...((isSuperAdmin || isAdminAset || isPIC) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
+        ...((canApprove || isStaffKendaraan) ? [{ id: 'DISCREPANCIES', label: 'Audit & Diskrepansi KM', icon: <Gauge size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
         ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : []),
@@ -1175,6 +1177,7 @@ const VehicleBooking = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
                 {activeTab === 'TRACKING_MAP' && <LiveTrackingMap />}
                 {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile} isAdmin={isAdminAset || isSuperAdmin} />}
+                {activeTab === 'DISCREPANCIES' && <VehicleDiscrepancyTab currentUserProfile={currentUserProfile} isAdmin={canApprove} />}
                 {activeTab === 'CURRENT_FLEET' && (
                     <div className="p-6">
                         {/* Search & Filter Bar */}

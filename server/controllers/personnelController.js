@@ -2552,3 +2552,59 @@ exports.getSanctionedUsers = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getStaffSarpras = async (req, res) => {
+    try {
+        const sarprasKeywords = [
+            'manajemen aset',
+            'gudang dan logistik',
+            'kendaraan',
+            'teknisi aset',
+            'teknisi',
+            'keuangan dan administrasi',
+            'admin aset',
+            'sarana dan prasarana'
+        ];
+
+        const staff = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'ADMIN_ASET' },
+                    ...sarprasKeywords.map(kw => ({ position: { contains: kw } }))
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                position: true,
+                role: true,
+                phone: true
+            },
+            orderBy: { name: 'asc' }
+        });
+        res.json({ success: true, staff });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getAllUsersForSelection = async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                position: true,
+                role: true,
+                phone: true
+            },
+            orderBy: { name: 'asc' }
+        });
+        res.json({ success: true, users });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+

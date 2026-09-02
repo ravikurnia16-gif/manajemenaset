@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save, MessageSquare, Phone, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save, MessageSquare, Phone, Users, ListOrdered } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -203,7 +203,7 @@ const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
                 {points.length > 0 && (
                     <div className="space-y-2 pl-1">
                         {points.map((p, idx) => {
-                            const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
+                            const pt = typeof p === 'string' ? { text: p, subs: [] } : (p || { text: '', subs: [] });
                             if (!pt.text && (!pt.subs || pt.subs.length === 0)) return null;
                             return (
                                 <div key={idx} className="space-y-1">
@@ -213,7 +213,7 @@ const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
                                     </div>
                                     {pt.subs && pt.subs.length > 0 && (
                                         <div className="pl-6 space-y-1">
-                                            {pt.subs.filter(s => s && s.trim()).map((sub, sIdx) => (
+                                            {pt.subs.filter(s => s && String(s).trim()).map((sub, sIdx) => (
                                                 <div key={sIdx} className="flex items-start gap-2">
                                                     <span className="font-medium text-slate-600 min-w-[18px] shrink-0 text-right">{String.fromCharCode(97 + sIdx)}.</span>
                                                     <span className="flex-1 text-slate-600">{sub}</span>
@@ -231,8 +231,20 @@ const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
         );
     }
 
-    const rawText = typeof content === 'string' ? content : (parsed?.text || parsed?.body || fallbackText);
-    if (!rawText) return <span className="text-slate-400 italic">(Tanpa isi)</span>;
+    let rawText = '';
+    if (typeof content === 'string') {
+        rawText = content;
+    } else if (parsed && typeof parsed.body === 'string') {
+        rawText = parsed.body;
+    } else if (parsed && typeof parsed.text === 'string') {
+        rawText = parsed.text;
+    } else if (typeof fallbackText === 'string') {
+        rawText = fallbackText;
+    } else {
+        rawText = '';
+    }
+
+    if (!rawText || !rawText.trim()) return <span className="text-slate-400 italic">(Tanpa isi)</span>;
 
     const lines = rawText.split('\n');
     return (
@@ -2526,8 +2538,16 @@ const EOffice = () => {
                         setEditingDoc({ type: 'SURAT_KELUAR', category: 'SPK' });
                     } else if (type === 'BA_KERUSAKAN') {
                         setEditingDoc({ type: 'SURAT_KELUAR', category: 'Berita Acara Kerusakan' });
+                    } else if (type === 'SURAT_MASUK') {
+                        setEditingDoc({ type: 'SURAT_MASUK', category: 'Umum' });
+                    } else if (type === 'SURAT_KELUAR') {
+                        setEditingDoc({ type: 'SURAT_KELUAR', category: category || 'Undangan' });
+                    } else if (type === 'INVOICE') {
+                        setEditingDoc({ type: 'INVOICE', category: 'Invoice' });
+                    } else if (type === 'LAINNYA') {
+                        setEditingDoc({ type: 'LAINNYA', category: category || 'Lainnya' });
                     } else {
-                        setEditingDoc({ type, category: category || undefined });
+                        setEditingDoc({ type, category: category || 'Undangan' });
                     }
                     setIsFormOpen(true);
                 }}

@@ -88,7 +88,7 @@ const BusInvoiceBatchPrint = () => {
                                                 </div>
                                                 <div>
                                                     <h1 className="text-xs print:text-[11px] font-black text-slate-800 leading-tight tracking-tight">YAYASAN DAR EL-IMAN</h1>
-                                                    <div className="text-[10px] print:text-[8px] text-slate-500 font-medium">Biro Perlengkapan & Aset</div>
+                                                    <div className="text-[10px] print:text-[8px] text-slate-500 font-semibold">Bidang Sarana</div>
                                                 </div>
                                             </div>
                                             <div className="text-right">

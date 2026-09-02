@@ -42,9 +42,16 @@ const Layout = () => {
 
     useEffect(() => {
         const checkReportStatus = async () => {
-            const sarprasKeywords = ['manajemen aset', 'admin aset', 'gudang dan logistik', 'teknisi', 'keuangan dan administrasi', 'kendaraan', 'kepala bidang sarana'];
-            const isSarpras = user?.position && sarprasKeywords.some(kw => user.position.toLowerCase().includes(kw));
-            if (!isSarpras) return;
+            const pos = (user?.position || '').toLowerCase();
+            const role = user?.role || '';
+            const isKabid = role === 'KABID_SARPRAS' || pos.includes('kepala bidang');
+            const isAdminAset = role === 'ADMIN_ASET' || pos.includes('admin aset') || pos.includes('teknisi') || pos.includes('gudang') || pos.includes('kendaraan') || pos.includes('aset');
+            
+            // Kepala Bidang Sarana TIDAK ADA kewajiban melapor, hanya Admin Aset
+            if (isKabid || !isAdminAset) {
+                setHasReported(true);
+                return;
+            }
 
             try {
                 const res = await api.get('/laporan/status');
@@ -57,14 +64,13 @@ const Layout = () => {
                 let shouldWarn = false;
                 let warningType = '';
 
-                // Laporan Pagi: check if missing after 12:00
-                if (currentTime >= 12 && !res.data.hasMorning) {
+                // Laporan Pagi: check if missing after 13:30 WIB
+                if (currentTime >= 13.5 && !res.data.hasMorning) {
                     shouldWarn = true;
                     warningType = 'Pagi';
                 }
 
-                // Laporan Siang: check if missing after 16:16
-                // 16.16 in decimal is 16 + 16/60 = 16.266...
+                // Laporan Siang: check if missing after 16:16 WIB (16 + 16/60 = 16.266)
                 if (currentTime >= 16.266 && !res.data.hasAfternoon) {
                     shouldWarn = true;
                     warningType = warningType ? 'Pagi & Siang' : 'Siang';
@@ -312,7 +318,7 @@ const Layout = () => {
                             Anda belum mengisi Laporan Kegiatan {reportWarningType || ''} hari ini!
                         </div>
                         <Link 
-                            to="/laporan/umum" 
+                            to="/laporan" 
                             className="bg-white text-rose-600 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-rose-50 transition-colors shadow-sm"
                         >
                             Isi Sekarang
