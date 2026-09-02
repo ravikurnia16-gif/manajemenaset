@@ -14,15 +14,13 @@ dayjs.extend(timezone);
 const SARPRAS_KEYWORDS = [
     'manajemen aset',
     'staff manajemen aset',
-    'aset',
+    'admin aset',
     'gudang dan logistik',
-    'gudang',
     'kendaraan',
     'teknisi aset',
     'teknisi',
     'keuangan dan administrasi',
-    'keuangan',
-    'admin aset'
+    'sarana dan prasarana'
 ];
 
 /**
@@ -351,7 +349,9 @@ exports.getDashboardAnalytics = async (req, res) => {
                 ],
                 NOT: [
                     { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } }
+                    { position: { contains: 'Kepala Bidang' } },
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
             },
             select: { id: true, name: true, position: true, role: true, phone: true }
@@ -1035,7 +1035,9 @@ exports.sendReportReminders = async () => {
                 ],
                 NOT: [
                     { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } }
+                    { position: { contains: 'Kepala Bidang' } },
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
             },
             select: { id: true, name: true, phone: true }
@@ -1116,7 +1118,9 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
                 ],
                 NOT: [
                     { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } }
+                    { position: { contains: 'Kepala Bidang' } },
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
             },
             select: { id: true, name: true, position: true, phone: true }
@@ -1212,7 +1216,9 @@ exports.getKabidSummary = async (req, res) => {
                 ],
                 NOT: [
                     { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } }
+                    { position: { contains: 'Kepala Bidang' } },
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
             },
             select: { id: true, name: true, position: true }

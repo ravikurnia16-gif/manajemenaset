@@ -1,4 +1,63 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+/**
+ * Helper to parse colloquial Indonesian date & time strings
+ */
+function parseIndoDateTime(str, defaultHour = 8) {
+    if (!str) return null;
+    const now = dayjs().tz("Asia/Jakarta");
+    const s = String(str).toLowerCase().trim();
+
+    // Check ISO or standard formats (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const d = dayjs(s).tz("Asia/Jakarta");
+        if (d.isValid()) return d.toDate();
+    }
+
+    // Check DD/MM/YYYY or DD-MM-YYYY
+    let targetDate = now;
+    const dmyMatch = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmyMatch) {
+        const day = parseInt(dmyMatch[1], 10);
+        const month = parseInt(dmyMatch[2], 10) - 1;
+        const year = parseInt(dmyMatch[3], 10);
+        targetDate = targetDate.year(year).month(month).date(day);
+    } else if (s.includes('lusa')) {
+        targetDate = targetDate.add(2, 'day');
+    } else if (s.includes('besok')) {
+        targetDate = targetDate.add(1, 'day');
+    } else if (s.includes('hari ini')) {
+        targetDate = now;
+    }
+
+    // Parse time / hour & minute
+    let hour = defaultHour;
+    let minute = 0;
+
+    // Pattern: 08:00, 14.30
+    const timeMatch = s.match(/(\d{1,2})[:.](\d{2})/);
+    if (timeMatch) {
+        hour = parseInt(timeMatch[1], 10);
+        minute = parseInt(timeMatch[2], 10);
+    } else {
+        // Pattern: jam 8, jam 2 siang, jam 7 malam
+        const jamMatch = s.match(/jam\s*(\d{1,2})/);
+        if (jamMatch) {
+            hour = parseInt(jamMatch[1], 10);
+            if ((s.includes('siang') || s.includes('sore') || s.includes('malam')) && hour < 12) {
+                hour += 12;
+            }
+        }
+    }
+
+    return targetDate.hour(hour).minute(minute).second(0).millisecond(0).toDate();
+}
 
 /**
  * AI Service for generating narrative summaries and chat responses using Gemini.
@@ -20,10 +79,10 @@ class AIService {
     async generateContentWithFallback(prompt) {
         if (!this.genAI) throw new Error("AI Service is not configured (missing API Key)");
         const fallbackModels = [
-            "gemini-1.5-flash", 
-            "gemini-1.5-flash-8b", 
             "gemini-2.5-flash", 
             "gemini-2.0-flash", 
+            "gemini-1.5-flash", 
+            "gemini-1.5-flash-8b", 
             "gemini-1.5-pro", 
             "gemini-1.0-pro",
             "gemini-pro",
@@ -192,16 +251,18 @@ class AIService {
                 },
                 {
                     name: "buat_pengajuan_peminjaman_mobil",
-                    description: "Membuat draf pengajuan peminjaman mobil (VehicleBooking) dengan status PENDING.",
+                    description: "Membuat draf pengajuan peminjaman mobil / kendaraan operasional (VehicleBooking) di sistem Manajemen Aset dengan status PENDING. Gunakan tool ini saat user di grup atau chat WhatsApp ingin meminjam kendaraan atau mengirimkan format #PINJAM / /pinjam.",
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            vehicleId: { type: "NUMBER", description: "ID kendaraan di database" },
-                            tujuan: { type: "STRING", description: "Tujuan peminjaman" },
-                            waktuMulai: { type: "STRING", description: "Waktu mulai format YYYY-MM-DDTHH:mm:ssZ" },
-                            waktuSelesai: { type: "STRING", description: "Waktu selesai format YYYY-MM-DDTHH:mm:ssZ" }
+                            namaKendaraan: { type: "STRING", description: "Nama, tipe, atau plat nomor kendaraan yang ingin dipinjam (contoh: 'Avanza', 'Innova', 'Hiace', 'Bus', 'Hilux', 'BA 1234 XY')." },
+                            vehicleId: { type: "NUMBER", description: "ID kendaraan di database (opsional jika namaKendaraan diisi)" },
+                            tujuan: { type: "STRING", description: "Tujuan atau keperluan peminjaman kendaraan (contoh: 'Antar tamu ke Bandara BIM', 'Dinas ke Bukittinggi')" },
+                            waktuMulai: { type: "STRING", description: "Waktu mulai peminjaman (contoh: '2026-09-04 08:00', 'besok jam 08:00', 'hari ini jam 13:00')" },
+                            waktuSelesai: { type: "STRING", description: "Waktu selesai / pengembalian kendaraan (contoh: '2026-09-04 16:00', 'besok jam 16:00', atau jika tidak disebutkan tentukan jam perkiraan di hari yang sama)" },
+                            namaPeminjam: { type: "STRING", description: "Nama peminjam / penanggung jawab (bisa diambil dari nama pengirim chat atau yang tertera di format)" }
                         },
-                        required: ["vehicleId", "tujuan", "waktuMulai", "waktuSelesai"]
+                        required: ["tujuan", "waktuMulai"]
                     }
                 },
                 {
@@ -274,6 +335,19 @@ SKEMA DATABASE PENTING (Prisma camelCase):
 4. "vehicleBooking" (Peminjaman Kendaraan): { id, vehicleId, destination, startDate, endDate, status, user: { name } }.
 5. "maintenance" (Pemeliharaan/Perbaikan): { id, title, description, status, type, cost }.
 
+PANDUAN KHUSUS PEMINJAMAN KENDARAAN (MOBIL/BUS/MOTOR):
+1. Pengguna BISA meminjam kendaraan melalui 2 cara:
+   a. Chat Bebas Langsung di Grup/Pribadi (misal: "admin pinjam mobil avanza besok jam 8 pagi ke bandara bim", "min mau pinjam innova", dll).
+   b. Format Kode Cepat (#PINJAM atau /pinjam):
+      #PINJAM
+      Kendaraan: [Nama Mobil]
+      Tujuan: [Keperluan]
+      Mulai: [Tgl/Jam Mulai]
+      Selesai: [Tgl/Jam Selesai]
+      Peminjam: [Nama Anda]
+2. Jika pengguna meminta pinjam kendaraan dengan menyebutkan mobil dan waktu/tujuan, Anda WAJIB LANGSUNG memanggil tool "buat_pengajuan_peminjaman_mobil" dan konfirmasi detailnya dengan ramah dan rapi.
+3. Jika pengguna bertanya bagaimana cara meminjam atau meminta format/kode pinjam kendaraan, berikan penjelasan yang sangat jelas merangkum 2 cara di atas dengan contoh yang siap disalin.
+
 AKSES FRONTEND WEB:
 Jika pengguna butuh melihat data lengkap atau menginput data, arahkan mereka ke link web (Frontend) berikut:
 - Dashboard Utama: https://[domain_anda]/dashboard
@@ -292,10 +366,10 @@ PANDUAN MENJAWAB:
 
         // Daftar model Gemini untuk fallback jika kuota (Rate Limit) habis
         const fallbackModels = [
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-8b",
             "gemini-2.5-flash",
             "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b",
             "gemini-1.5-pro",
             "gemini-1.0-pro",
             "gemini-pro", // Legacy name that usually works on all keys
@@ -309,7 +383,11 @@ PANDUAN MENJAWAB:
         let result = null;
         let lastError = null;
 
-        const promptToSend = senderName ? `${senderName}: ${userMessage}` : userMessage;
+        let promptToSend = senderName ? `${senderName}: ${userMessage}` : userMessage;
+        const isBorrowIntent = /(pinjam|booking|sewa|peminjaman|#pinjam|\/pinjam)/i.test(userMessage);
+        if (isBorrowIntent) {
+            promptToSend = `[INSTRUKSI SISTEM: Pesan ini berkaitan dengan peminjaman kendaraan. Jika pengguna bermaksud meminjam kendaraan (ada nama kendaraan/tujuan/waktu), segera panggil tool "buat_pengajuan_peminjaman_mobil". Jika pengguna menanyakan cara/format pinjam, jelaskan 2 cara: chat langsung atau kode #PINJAM.]\n${promptToSend}`;
+        }
 
         for (const modelName of fallbackModels) {
             try {
@@ -339,9 +417,31 @@ PANDUAN MENJAWAB:
             let mediaAttachment = null;
             let currentUser = null;
             if (senderPhone) {
-                const p1 = senderPhone.split('@')[0];
-                const p2 = p1.replace(/^62/, '0');
-                currentUser = await prisma.user.findFirst({ where: { OR: [{ phone: p1 }, { phone: p2 }] } });
+                const rawDigits = senderPhone.split('@')[0].split(':')[0].replace(/\D/g, '');
+                const p62 = rawDigits.startsWith('0') ? '62' + rawDigits.slice(1) : (rawDigits.startsWith('62') ? rawDigits : '62' + rawDigits);
+                const p0 = rawDigits.startsWith('62') ? '0' + rawDigits.slice(2) : (rawDigits.startsWith('0') ? rawDigits : '0' + rawDigits);
+                const pRaw = rawDigits.replace(/^62|^0/, '');
+
+                currentUser = await prisma.user.findFirst({
+                    where: {
+                        OR: [
+                            { phone: p62 },
+                            { phone: p0 },
+                            { phone: rawDigits },
+                            { phone: { contains: pRaw } }
+                        ]
+                    }
+                });
+            }
+
+            // Fallback cari user berdasarkan nama pengirim jika nomor belum cocok
+            if (!currentUser && (senderName || senderDisplayName)) {
+                const sName = (senderName || senderDisplayName || "").trim();
+                if (sName.length >= 3 && sName !== "User") {
+                    currentUser = await prisma.user.findFirst({
+                        where: { name: { contains: sName } }
+                    });
+                }
             }
 
             if (calls && calls.length > 0) {
@@ -350,25 +450,156 @@ PANDUAN MENJAWAB:
                 console.log(`[AIService] Tool called: ${call.name} with args`, call.args);
                 
                 if (call.name === "buat_pengajuan_peminjaman_mobil") {
-                    if (!currentUser) {
-                        apiResponse = { status: "error", message: "Maaf, nomor HP Anda belum terdaftar di sistem. Anda tidak bisa mengajukan form." };
-                    } else {
-                        try {
-                            const newBooking = await prisma.vehicleBooking.create({
-                                data: {
-                                    vehicleId: call.args.vehicleId,
-                                    userId: currentUser.id,
-                                    startDate: new Date(call.args.waktuMulai),
-                                    endDate: new Date(call.args.waktuSelesai),
-                                    destination: call.args.tujuan,
-                                    purpose: call.args.tujuan,
-                                    status: "PENDING"
-                                }
+                    try {
+                        const { vehicleId, namaKendaraan, keyword, tujuan, waktuMulai, waktuSelesai, namaPeminjam } = call.args;
+
+                        // 1. Resolve Peminjam (User)
+                        let applicant = currentUser;
+                        const explicitName = (namaPeminjam || senderName || senderDisplayName || "User").trim();
+                        if (!applicant && explicitName && explicitName !== "User") {
+                            applicant = await prisma.user.findFirst({
+                                where: { name: { contains: explicitName } }
                             });
-                            apiResponse = { status: "success", message: "Pengajuan peminjaman kendaraan berhasil dibuat", data: newBooking };
-                        } catch (e) {
-                            apiResponse = { status: "error", message: `Gagal membuat pengajuan: ${e.message}` };
                         }
+                        if (!applicant) {
+                            applicant = await prisma.user.findFirst({
+                                where: { role: { in: ['ADMIN_ASET', 'KEPALA_BIDANG', 'SUPER_ADMIN'] } }
+                            }) || await prisma.user.findFirst();
+                        }
+
+                        if (!applicant) {
+                            apiResponse = { status: "error", message: "Database belum memiliki akun pengguna untuk mencatat peminjaman." };
+                        } else {
+                            // 2. Resolve Kendaraan
+                            let vehicle = null;
+                            if (vehicleId) {
+                                vehicle = await prisma.vehicle.findUnique({ where: { id: Number(vehicleId) } });
+                            }
+
+                            const targetCarName = (namaKendaraan || keyword || "").trim();
+                            if (!vehicle && targetCarName) {
+                                vehicle = await prisma.vehicle.findFirst({
+                                    where: {
+                                        OR: [
+                                            { name: { contains: targetCarName } },
+                                            { brand: { contains: targetCarName } },
+                                            { plateNumber: { contains: targetCarName } },
+                                            { type: { contains: targetCarName } }
+                                        ],
+                                        status: "ACTIVE"
+                                    }
+                                });
+                            }
+
+                            // Jika belum spesifik, ambil daftar armada aktif
+                            if (!vehicle) {
+                                const activeVehicles = await prisma.vehicle.findMany({
+                                    where: { status: "ACTIVE" },
+                                    select: { id: true, name: true, plateNumber: true, type: true }
+                                });
+
+                                if (activeVehicles.length === 1) {
+                                    vehicle = activeVehicles[0];
+                                } else if (activeVehicles.length > 0) {
+                                    const carList = activeVehicles.map(v => `• *${v.name}* (${v.plateNumber})`).join('\n');
+                                    apiResponse = {
+                                        status: "error",
+                                        message: `Kendaraan "${targetCarName || ''}" belum ditemukan atau belum spesifik.\n\nArmada aktif yang tersedia:\n${carList}\n\nSilakan sebutkan nama armada yang ingin Anda gunakan.`
+                                    };
+                                } else {
+                                    apiResponse = { status: "error", message: "Saat ini tidak ada unit kendaraan aktif di database." };
+                                }
+                            }
+
+                            if (vehicle) {
+                                // 3. Parsing Tanggal & Waktu Mulai & Selesai
+                                const startDateTime = parseIndoDateTime(waktuMulai, 8) || dayjs().tz('Asia/Jakarta').hour(8).minute(0).toDate();
+                                let endDateTime = waktuSelesai ? parseIndoDateTime(waktuSelesai, 17) : null;
+
+                                if (!endDateTime || dayjs(endDateTime).isBefore(dayjs(startDateTime))) {
+                                    endDateTime = dayjs(startDateTime).hour(17).minute(0).toDate();
+                                    if (dayjs(endDateTime).isBefore(dayjs(startDateTime))) {
+                                        endDateTime = dayjs(startDateTime).add(4, 'hour').toDate();
+                                    }
+                                }
+
+                                // 4. Deteksi Jadwal Bertabrakan (Double Booking / Conflict Check)
+                                const conflict = await prisma.vehicleBooking.findFirst({
+                                    where: {
+                                        vehicleId: vehicle.id,
+                                        status: { in: ['PENDING', 'APPROVED'] },
+                                        AND: [
+                                            { startDate: { lt: endDateTime } },
+                                            { endDate: { gt: startDateTime } }
+                                        ]
+                                    },
+                                    include: {
+                                        user: { select: { name: true } }
+                                    }
+                                });
+
+                                if (conflict) {
+                                    const conflictUser = conflict.driverName || conflict.user?.name || "pengguna lain";
+                                    const conflictTime = `${dayjs(conflict.startDate).tz('Asia/Jakarta').format('DD/MM HH:mm')} - ${dayjs(conflict.endDate).tz('Asia/Jakarta').format('HH:mm')}`;
+                                    apiResponse = {
+                                        status: "warning",
+                                        message: `⚠️ Kendaraan *${vehicle.name}* (${vehicle.plateNumber}) sudah dipesan pada waktu tersebut oleh *${conflictUser}* (${conflictTime}). Silakan ajukan jadwal lain atau gunakan armada lainnya.`
+                                    };
+                                } else {
+                                    // 5. Simpan VehicleBooking ke Database
+                                    const finalBorrower = explicitName && explicitName !== "User" ? explicitName : (applicant.name || "Staf Yayasan");
+                                    const finalPurpose = tujuan || "Keperluan operasional/dinas";
+
+                                    const newBooking = await prisma.vehicleBooking.create({
+                                        data: {
+                                            vehicleId: vehicle.id,
+                                            userId: applicant.id,
+                                            driverName: finalBorrower,
+                                            destination: finalPurpose,
+                                            purpose: finalPurpose,
+                                            startDate: startDateTime,
+                                            endDate: endDateTime,
+                                            status: "PENDING"
+                                        },
+                                        include: {
+                                            vehicle: true,
+                                            user: true
+                                        }
+                                    });
+
+                                    // 6. Buat Notifikasi Sistem
+                                    try {
+                                        const { createNotification } = require('../controllers/notificationController');
+                                        await createNotification({
+                                            userId: applicant.id,
+                                            title: 'Pengajuan Peminjaman Kendaraan (WhatsApp)',
+                                            message: `${finalBorrower} mengajukan peminjaman ${vehicle.name} (${vehicle.plateNumber}) untuk ${finalPurpose} pada ${dayjs(startDateTime).tz('Asia/Jakarta').format('DD MMM YYYY HH:mm')}`,
+                                            type: 'VEHICLE_BOOKING',
+                                            referenceId: newBooking.id
+                                        });
+                                    } catch (nErr) {
+                                        console.warn('[AIService] Warning saat createNotification:', nErr.message);
+                                    }
+
+                                    apiResponse = {
+                                        status: "success",
+                                        message: "Alhamdulillah, draf pengajuan peminjaman kendaraan berhasil dicatat di sistem Manajemen Aset!",
+                                        data: {
+                                            id: newBooking.id,
+                                            kendaraan: `${vehicle.name} (${vehicle.plateNumber})`,
+                                            peminjam: finalBorrower,
+                                            tujuan: finalPurpose,
+                                            waktuMulai: dayjs(startDateTime).tz('Asia/Jakarta').format('dddd, DD MMMM YYYY [pukul] HH:mm [WIB]'),
+                                            waktuSelesai: dayjs(endDateTime).tz('Asia/Jakarta').format('dddd, DD MMMM YYYY [pukul] HH:mm [WIB]'),
+                                            status: "MENUNGGU PERSETUJUAN (PENDING)"
+                                        }
+                                    };
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[AIService] Error buat_pengajuan_peminjaman_mobil:', e);
+                        apiResponse = { status: "error", message: `Gagal membuat pengajuan peminjaman: ${e.message}` };
                     }
                 } 
                 else if (call.name === "buat_laporan_pemeliharaan") {

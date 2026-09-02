@@ -22,7 +22,7 @@ const DIVISION_TAGS = [
     { key: 'GUDANG', label: 'Gudang & Logistik', icon: Warehouse, color: 'bg-amber-500' },
     { key: 'TEKNISI', label: 'Teknisi & Maintenance', icon: Wrench, color: 'bg-emerald-500' },
     { key: 'KENDARAAN', label: 'Armada Kendaraan', icon: Truck, color: 'bg-indigo-500' },
-    { key: 'KEUANGAN', label: 'Keuangan & Admin', icon: FileSignature, color: 'bg-violet-500' },
+    { key: 'KEUANGAN', label: 'Staff Keuangan & Administrasi', icon: FileSignature, color: 'bg-violet-500' },
     { key: 'UMUM', label: 'Operasional Umum', icon: Layers, color: 'bg-slate-500' }
 ];
 
@@ -90,7 +90,7 @@ const LaporanStaff = () => {
     const userDivision = useMemo(() => {
         const pos = (user.position || '').toLowerCase();
         const role = (user.role || '').toLowerCase();
-        if (pos.includes('keuangan') || pos.includes('administrasi') || pos.includes('finance')) return 'KEUANGAN';
+        if (pos.includes('keuangan dan administrasi') || (pos.includes('administrasi') && pos.includes('keuangan'))) return 'KEUANGAN';
         if (pos.includes('kendaraan') || pos.includes('driver') || pos.includes('supir') || pos.includes('transport') || pos.includes('armada')) return 'KENDARAAN';
         if (pos.includes('gudang') || pos.includes('logistik') || pos.includes('warehouse')) return 'GUDANG';
         if (pos.includes('teknisi') || pos.includes('maintenance') || pos.includes('listrik') || pos.includes('bangunan') || pos.includes('ac')) return 'TEKNISI';

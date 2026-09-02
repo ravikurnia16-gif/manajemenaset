@@ -187,11 +187,12 @@ const initializeWhatsApp = () => {
 
             const triggerRegex = /\b(admin|min|\@admin)\b/i;
             const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
+            const isCodeCommand = msg.body.startsWith('/') || msg.body.startsWith('#');
             
-            // Both Private and Group MUST use trigger word or slash command
-            if (triggerRegex.test(msg.body) || isMentioned || msg.body.startsWith('/')) {
+            // Both Private and Group MUST use trigger word, mention, or code/command (e.g. /pinjam, #PINJAM)
+            if (triggerRegex.test(msg.body) || isMentioned || isCodeCommand) {
                 shouldTrigger = true;
-                if (!msg.body.startsWith('/')) {
+                if (!isCodeCommand) {
                      cleanMessage = msg.body.replace(triggerRegex, '').trim();
                 }
             }

@@ -2598,6 +2598,12 @@ exports.getStaffSarpras = async (req, res) => {
                 OR: [
                     { role: 'ADMIN_ASET' },
                     ...sarprasKeywords.map(kw => ({ position: { contains: kw } }))
+                ],
+                NOT: [
+                    { role: 'KABID_SARPRAS' },
+                    { position: { contains: 'Kepala Bidang' } },
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
             },
             select: {
