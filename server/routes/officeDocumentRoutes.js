@@ -23,6 +23,9 @@ router.post('/extract-docx', handleBulkUpload('files', 1, 'e-office/temp'), ctrl
 // Internal Users for WA sending
 router.get('/internal-users', ctrl.getInternalUsers);
 
+// Root list
+router.get('/', ctrl.getOutgoingDocuments);
+
 // Surat Masuk (Incoming Mail)
 router.get('/incoming', ctrl.getIncomingMail);
 router.post('/incoming', handleBulkUpload('files', 5, 'e-office/surat-masuk'), ctrl.createIncomingMail);

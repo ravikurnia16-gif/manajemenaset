@@ -1847,19 +1847,18 @@ const EOffice = () => {
     const fetchDocuments = async () => {
         setLoading(true);
         try {
-            let endpoint = '/office-documents';
-            let params = {};
+            let endpoint = '/office-documents/outgoing';
+            let params = { limit: 100000 };
 
             if (tab === 'surat-masuk') {
-                params.type = 'SURAT_MASUK';
+                endpoint = '/office-documents/incoming';
             } else if (tab === 'invoice') {
                 params.type = 'INVOICE';
             } else if (tab === 'manajemen-dokumen') {
                 params.type = 'LAINNYA';
-                params.isManagement = true;
+                params.categories = 'SOP,Peraturan,Surat Edaran';
             } else if (tab === 'lainnya') {
                 params.type = 'LAINNYA';
-                params.isManagement = false;
             } else if (tab === 'surat-keluar') {
                 params.typeGroup = 'OUTGOING_STANDARD';
             } else {
@@ -1918,6 +1917,8 @@ const EOffice = () => {
                 matchesStatus = doc.dispositions && doc.dispositions.length > 0;
             } else if (statusFilter === 'NO_DISPOSITION') {
                 matchesStatus = !doc.dispositions || doc.dispositions.length === 0;
+            } else if (statusFilter === 'SIGNED') {
+                matchesStatus = doc.status === 'SIGNED' || doc.status === 'APPROVED';
             } else {
                 matchesStatus = doc.status === statusFilter;
             }
