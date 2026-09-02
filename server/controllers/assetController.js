@@ -652,15 +652,35 @@ exports.batchImportAssets = async (req, res) => {
             { key: 'Nama Aset', label: 'Nama Aset' },
             { key: 'Merek Aset', label: 'Merek Aset' },
             { key: 'Vendor Aset', label: 'Vendor Aset' },
-            { key: 'Umur Ekonomis Aset(tahun)', label: 'Umur Ekonomis Aset(tahun)' },
+            { key: 'Kategori', label: 'Kategori' },
+            { key: 'Unit Aset', label: 'Unit Aset' },
+            { key: 'Ruangan Aset', label: 'Ruangan Aset' },
             { key: 'Kondisi Aset', label: 'Kondisi Aset' },
             { key: 'Sumber Dana Aset', label: 'Sumber Dana Aset' },
-            { key: 'Ruangan Aset', label: 'Ruangan Aset' },
-            { key: 'Unit Aset', label: 'Unit Aset' },
-            { key: 'Kategori', label: 'Kategori' },
+            {
+                key: ['Status Perolehan', 'Jenis Transaksi Masuk'],
+                label: 'Status Perolehan'
+            },
             { key: 'Tanggal Transaksi Masuk (yyyy-mm-dd)', label: 'Tanggal Transaksi Masuk (yyyy-mm-dd)' },
-            { key: 'Jenis Transaksi Masuk', label: 'Jenis Transaksi Masuk' },
-            { key: 'Harga Perolehan', label: 'Harga Perolehan' }
+            { key: 'Harga Perolehan', label: 'Harga Perolehan' },
+            { key: 'Umur Ekonomis Aset(tahun)', label: 'Umur Ekonomis Aset(tahun)' },
+            {
+                key: [
+                    'Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)',
+                    'Butuh Pemeliharaan (Hari / 0 jika tidak)',
+                    'Butuh Pemeliharaan (ya/tidak)',
+                    'Butuh Pemeliharaan'
+                ],
+                label: 'Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)'
+            },
+            {
+                key: ['Bisa Dipinjam (ya/tidak)', 'Bisa Dipinjam'],
+                label: 'Bisa Dipinjam (ya/tidak)'
+            },
+            {
+                key: ['Biaya Pinjam', 'Biaya Sewa'],
+                label: 'Biaya Pinjam'
+            }
         ];
 
         // Date helper
@@ -691,7 +711,18 @@ exports.batchImportAssets = async (req, res) => {
 
             // Check required fields
             for (const col of requiredColumns) {
-                const val = item[col.key];
+                let val;
+                if (Array.isArray(col.key)) {
+                    for (const k of col.key) {
+                        if (item[k] !== undefined && item[k] !== null && String(item[k]).trim() !== '') {
+                            val = item[k];
+                            break;
+                        }
+                    }
+                } else {
+                    val = item[col.key];
+                }
+
                 if (val === undefined || val === null || String(val).trim() === '') {
                     return res.status(400).json({
                         error: `Data tidak lengkap di baris Excel ${excelRowNum}: ${col.label} wajib diisi.`
@@ -804,7 +835,7 @@ exports.batchImportAssets = async (req, res) => {
                     });
                 }
 
-                // 4. Vendor Name (optional text)
+                // 4. Vendor Name
                 const vendorInput = String(item['Vendor Aset'] || '').trim();
 
                 // 5. Code Generation
@@ -831,19 +862,83 @@ exports.batchImportAssets = async (req, res) => {
                 seqCache[patternPrefix]++;
                 const code = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
 
-                // 6. Support Case-Insensitive Funding Source Matching
+                // 6. Kondisi Matching
+                const rawCond = String(item['Kondisi Aset'] || '').toUpperCase().trim();
+                let condition = 'BAIK';
+                if (rawCond.includes('BERAT')) condition = 'RUSAK_BERAT';
+                else if (rawCond.includes('RINGAN') || rawCond.includes('RUSAK')) condition = 'RUSAK_RINGAN';
+                else condition = 'BAIK';
+
+                // 7. Sumber Dana Matching
                 const SUPPORTED_FUNDING_SOURCES = ['Yayasan', 'BOS', 'Hibah', 'Pemerintah', 'Cashback', 'Mandiri', 'Lainnya'];
                 const rawSource = String(item['Sumber Dana Aset'] || '').trim();
                 const matchedSource = SUPPORTED_FUNDING_SOURCES.find(s => s.toLowerCase() === rawSource.toLowerCase());
                 const finalSource = matchedSource || rawSource || 'Yayasan';
 
-                // 7. Parse price & usefulLife
+                // 8. Status Perolehan Matching
+                const SUPPORTED_ACQUISITIONS = ['Pembelian', 'Hibah/Wakaf', 'Sewa', 'Lainnya'];
+                const rawAcq = String(item['Status Perolehan'] ?? item['Jenis Transaksi Masuk'] ?? '').trim();
+                let matchedAcq = SUPPORTED_ACQUISITIONS.find(a => a.toLowerCase() === rawAcq.toLowerCase());
+                if (!matchedAcq) {
+                    if (rawAcq.toLowerCase().includes('hibah') || rawAcq.toLowerCase().includes('wakaf')) matchedAcq = 'Hibah/Wakaf';
+                    else if (rawAcq.toLowerCase().includes('sewa')) matchedAcq = 'Sewa';
+                    else if (rawAcq.toLowerCase().includes('beli') || rawAcq.toLowerCase().includes('pengadaan')) matchedAcq = 'Pembelian';
+                    else matchedAcq = rawAcq || 'Pembelian';
+                }
+
+                // 9. Butuh Pemeliharaan & Interval
+                const rawMaint = item['Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)'] ??
+                                 item['Butuh Pemeliharaan (Hari / 0 jika tidak)'] ??
+                                 item['Butuh Pemeliharaan (ya/tidak)'] ??
+                                 item['Butuh Pemeliharaan'];
+                let needsRoutineMaintenance = false;
+                let maintenanceInterval = 180;
+                if (rawMaint !== undefined && rawMaint !== null) {
+                    const strMaint = String(rawMaint).trim().toLowerCase();
+                    const numMaint = parseInt(strMaint);
+                    if (!isNaN(numMaint) && numMaint > 0) {
+                        needsRoutineMaintenance = true;
+                        maintenanceInterval = numMaint;
+                    } else if (['ya', 'true', '1', 'y', 'yes'].includes(strMaint)) {
+                        needsRoutineMaintenance = true;
+                        maintenanceInterval = 180;
+                    } else {
+                        needsRoutineMaintenance = false;
+                        maintenanceInterval = 0;
+                    }
+                }
+
+                let nextMaintenanceEst = null;
+                if (needsRoutineMaintenance && maintenanceInterval > 0) {
+                    nextMaintenanceEst = new Date(purchaseDate.getTime() + maintenanceInterval * 24 * 60 * 60 * 1000);
+                }
+
+                // 10. Bisa Dipinjam & Biaya Pinjam
+                const rawLend = item['Bisa Dipinjam (ya/tidak)'] ?? item['Bisa Dipinjam'];
+                let isLendable = false;
+                if (rawLend !== undefined && rawLend !== null) {
+                    const strLend = String(rawLend).trim().toLowerCase();
+                    if (['ya', 'true', '1', 'y', 'yes', 'bisa'].includes(strLend)) {
+                        isLendable = true;
+                    }
+                }
+
+                const rawRental = item['Biaya Pinjam'] ?? item['Biaya Sewa'];
+                let rentalFee = null;
+                if (rawRental !== undefined && rawRental !== null && String(rawRental).trim() !== '') {
+                    const numRental = parseFloat(String(rawRental).replace(/[^\d.-]/g, ''));
+                    if (!isNaN(numRental) && numRental > 0) {
+                        rentalFee = numRental;
+                    }
+                }
+
+                // 11. Parse price & usefulLife
                 const rawPrice = item['Harga Perolehan'];
                 const price = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice || 0).replace(/[^\d.-]/g, ''));
                 const rawLife = item['Umur Ekonomis Aset(tahun)'];
                 const usefulLife = (rawLife !== undefined && rawLife !== null && String(rawLife).trim() !== '') ? parseInt(rawLife) : 5;
 
-                // 8. Create Asset
+                // 12. Create Asset
                 await tx.asset.create({
                     data: {
                         code,
@@ -856,12 +951,16 @@ exports.batchImportAssets = async (req, res) => {
                         price: price,
                         purchaseDate: purchaseDate,
                         usefulLife: usefulLife,
-                        condition: String(item['Kondisi Aset'] || '').toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
+                        condition: condition,
                         sourceOfFunds: finalSource,
+                        acquisitionStatus: matchedAcq,
+                        isLendable: isLendable,
+                        rentalFee: rentalFee,
+                        needsRoutineMaintenance: needsRoutineMaintenance,
+                        maintenanceInterval: maintenanceInterval,
+                        nextMaintenanceEst: nextMaintenanceEst,
                         picName: item['PIC (Nama Manual)'] ? String(item['PIC (Nama Manual)']).trim() : null,
                         specification: null,
-                        needsRoutineMaintenance: false,
-                        maintenanceInterval: 180,
                         quantity: 1
                     }
                 });
