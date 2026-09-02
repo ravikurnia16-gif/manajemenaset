@@ -182,6 +182,405 @@ const LampiranPreview = ({ doc }) => {
     );
 };
 
+/**
+ * FormattedContentRenderer: Renders structured or plain text letter bodies with beautiful hanging indents
+ */
+const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
+    let parsed = null;
+    if (typeof content === 'object' && content !== null) {
+        parsed = content;
+    } else if (typeof content === 'string' && content.trim()) {
+        try {
+            parsed = JSON.parse(content);
+        } catch (e) {}
+    }
+
+    if (parsed && (parsed.points || parsed.pembukaan || parsed.penutup)) {
+        const points = Array.isArray(parsed.points) ? parsed.points : [];
+        return (
+            <div className="space-y-3 text-slate-700 leading-relaxed text-xs sm:text-sm">
+                {parsed.pembukaan && <div className="whitespace-pre-wrap">{parsed.pembukaan}</div>}
+                {points.length > 0 && (
+                    <div className="space-y-2 pl-1">
+                        {points.map((p, idx) => {
+                            const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
+                            if (!pt.text && (!pt.subs || pt.subs.length === 0)) return null;
+                            return (
+                                <div key={idx} className="space-y-1">
+                                    <div className="flex items-start gap-2">
+                                        <span className="font-bold text-slate-800 min-w-[22px] shrink-0 text-right">{idx + 1}.</span>
+                                        <span className="flex-1 text-slate-700">{pt.text}</span>
+                                    </div>
+                                    {pt.subs && pt.subs.length > 0 && (
+                                        <div className="pl-6 space-y-1">
+                                            {pt.subs.filter(s => s && s.trim()).map((sub, sIdx) => (
+                                                <div key={sIdx} className="flex items-start gap-2">
+                                                    <span className="font-medium text-slate-600 min-w-[18px] shrink-0 text-right">{String.fromCharCode(97 + sIdx)}.</span>
+                                                    <span className="flex-1 text-slate-600">{sub}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                {parsed.penutup && <div className="whitespace-pre-wrap pt-1">{parsed.penutup}</div>}
+            </div>
+        );
+    }
+
+    const rawText = typeof content === 'string' ? content : (parsed?.text || parsed?.body || fallbackText);
+    if (!rawText) return <span className="text-slate-400 italic">(Tanpa isi)</span>;
+
+    const lines = rawText.split('\n');
+    return (
+        <div className="space-y-1.5 text-slate-700 leading-relaxed text-xs sm:text-sm">
+            {lines.map((line, idx) => {
+                if (!line.trim()) return <div key={idx} className="h-2" />;
+                const subMatch = line.match(/^(\s*)([a-zA-Z][\.\)]|[ivxLCDM]+[\.\)])\s+(.*)/i);
+                const mainMatch = line.match(/^(\s*)(\d+[\.\)]|[•\-\*])\s+(.*)/);
+
+                if (subMatch && (line.startsWith(' ') || line.startsWith('\t') || subMatch[1].length > 0 || subMatch[2].length <= 3)) {
+                    return (
+                        <div key={idx} className="flex items-start gap-2 pl-6">
+                            <span className="font-medium text-slate-600 min-w-[18px] shrink-0 text-right">{subMatch[2]}</span>
+                            <span className="flex-1 text-slate-600">{subMatch[3]}</span>
+                        </div>
+                    );
+                }
+                if (mainMatch) {
+                    return (
+                        <div key={idx} className="flex items-start gap-2 pl-1">
+                            <span className="font-bold text-slate-800 min-w-[22px] shrink-0 text-right">{mainMatch[2]}</span>
+                            <span className="flex-1 text-slate-700">{mainMatch[3]}</span>
+                        </div>
+                    );
+                }
+                return <div key={idx} className="text-slate-700">{line}</div>;
+            })}
+        </div>
+    );
+};
+
+/**
+ * PointListEditor: Interactive builder for multi-level points (1., 2., 3. and a., b., c.)
+ * With quick toolbars & toggle between structured mode and smart plain text mode
+ */
+const PointListEditor = ({ value, onChange, label = "Isi Dokumen & Butir Poin" }) => {
+    const [editorMode, setEditorMode] = useState('structured'); // 'structured' or 'raw'
+    
+    // Parse initial value
+    const [pembukaan, setPembukaan] = useState(() => {
+        if (typeof value === 'object' && value !== null) return value.pembukaan || '';
+        try {
+            const p = JSON.parse(value);
+            return p?.pembukaan || '';
+        } catch (e) {
+            return '';
+        }
+    });
+
+    const [points, setPoints] = useState(() => {
+        if (typeof value === 'object' && value !== null && Array.isArray(value.points)) {
+            return value.points.map(p => typeof p === 'string' ? { text: p, subs: [] } : { text: p.text || '', subs: p.subs || [] });
+        }
+        try {
+            const p = JSON.parse(value);
+            if (p && Array.isArray(p.points)) {
+                return p.points.map(pt => typeof pt === 'string' ? { text: pt, subs: [] } : { text: pt.text || '', subs: pt.subs || [] });
+            }
+        } catch (e) {}
+        return [{ text: '', subs: [] }];
+    });
+
+    const [penutup, setPenutup] = useState(() => {
+        if (typeof value === 'object' && value !== null) return value.penutup || '';
+        try {
+            const p = JSON.parse(value);
+            return p?.penutup || '';
+        } catch (e) {
+            return '';
+        }
+    });
+
+    const [rawText, setRawText] = useState(() => {
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && value !== null) {
+            let str = '';
+            if (value.pembukaan) str += value.pembukaan + '\n\n';
+            if (value.points && Array.isArray(value.points)) {
+                value.points.forEach((p, idx) => {
+                    const txt = typeof p === 'string' ? p : p.text;
+                    str += `${idx + 1}. ${txt}\n`;
+                    if (p.subs && Array.isArray(p.subs)) {
+                        p.subs.forEach((s, sIdx) => {
+                            str += `   ${String.fromCharCode(97 + sIdx)}. ${s}\n`;
+                        });
+                    }
+                });
+            }
+            if (value.penutup) str += '\n' + value.penutup;
+            return str.trim();
+        }
+        return '';
+    });
+
+    const notifyStructuredChange = (newPem, newPts, newPen) => {
+        const obj = { pembukaan: newPem, points: newPts, penutup: newPen };
+        onChange(obj);
+    };
+
+    const handleAddPoint = () => {
+        const newPts = [...points, { text: '', subs: [] }];
+        setPoints(newPts);
+        notifyStructuredChange(pembukaan, newPts, penutup);
+    };
+
+    const handleRemovePoint = (idx) => {
+        const newPts = points.filter((_, i) => i !== idx);
+        setPoints(newPts);
+        notifyStructuredChange(pembukaan, newPts, penutup);
+    };
+
+    const handlePointTextChange = (idx, text) => {
+        const newPts = [...points];
+        newPts[idx] = { ...newPts[idx], text };
+        setPoints(newPts);
+        notifyStructuredChange(pembukaan, newPts, penutup);
+    };
+
+    const handleAddSub = (idx) => {
+        const newPts = [...points];
+        newPts[idx] = { ...newPts[idx], subs: [...(newPts[idx].subs || []), ''] };
+        setPoints(newPts);
+        notifyStructuredChange(pembukaan, newPts, penutup);
+    };
+
+    const handleRemoveSub = (pIdx, sIdx) => {
+        const newPts = [...points];
+        newPts[pIdx] = { ...newPts[pIdx], subs: newPts[pIdx].subs.filter((_, i) => i !== sIdx) };
+        setPoints(newPts);
+        notifyStructuredChange(pembukaan, newPts, penutup);
+    };
+
+    const handleSubTextChange = (pIdx, sIdx, text) => {
+        const newPts = [...points];
+        const newSubs = [...(newPts[pIdx].subs || [])];
+        newSubs[sIdx] = text;
+        newPts[pIdx] = { ...newPts[pIdx], subs: newSubs };
+        setPoints(newPts);
+        notifyStructuredChange(pembukaan, newPts, penutup);
+    };
+
+    const insertRawHelper = (prefix) => {
+        setRawText(prev => {
+            const trimmed = prev.trimEnd();
+            const next = trimmed ? `${trimmed}\n${prefix}` : prefix;
+            onChange(next);
+            return next;
+        });
+    };
+
+    return (
+        <div className="col-span-full space-y-4 bg-slate-50/80 p-5 rounded-2xl border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <ListOrdered size={16} className="text-blue-600" />
+                    <span>{label}</span>
+                </label>
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-start sm:self-auto">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setEditorMode('structured');
+                            notifyStructuredChange(pembukaan, points, penutup);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            editorMode === 'structured' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                    >
+                        <ListOrdered size={13} />
+                        <span>Mode Poin Berstruktur (1, 2, 3 -> a, b, c)</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setEditorMode('raw');
+                            onChange(rawText);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            editorMode === 'raw' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                    >
+                        <FileText size={13} />
+                        <span>Mode Teks Bebas</span>
+                    </button>
+                </div>
+            </div>
+
+            {editorMode === 'structured' ? (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">
+                            Paragraf Pengantar / Pembuka (Opsional)
+                        </label>
+                        <textarea
+                            rows={2}
+                            value={pembukaan}
+                            onChange={(e) => {
+                                setPembukaan(e.target.value);
+                                notifyStructuredChange(e.target.value, points, penutup);
+                            }}
+                            placeholder="Contoh: Sehubungan dengan agenda kegiatan sarana yayasan, bersama ini kami sampaikan ketentuan sebagai berikut:"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white outline-none text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                                <span>Butir Poin Surat (1, 2, 3...) & Sub-Poin (a, b, c...)</span>
+                            </label>
+                            <button
+                                type="button"
+                                onClick={handleAddPoint}
+                                className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                            >
+                                <Plus size={14} /> + Tambah Poin Utama (1, 2, 3...)
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {points.map((point, pIdx) => (
+                                <div key={pIdx} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
+                                    <div className="flex items-start gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 shadow-2xs">
+                                            {pIdx + 1}
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            value={point.text}
+                                            onChange={(e) => handlePointTextChange(pIdx, e.target.value)}
+                                            placeholder={`Isi Poin ${pIdx + 1}...`}
+                                            className="flex-1 px-3 py-2 rounded-xl border border-slate-200 outline-none text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAddSub(pIdx)}
+                                            className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-[11px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+                                            title="Tambah Sub-Poin Huruf (a, b, c)"
+                                        >
+                                            <Plus size={12} /> + Sub (a, b, c)
+                                        </button>
+                                        {points.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemovePoint(pIdx)}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shrink-0 transition"
+                                                title="Hapus Poin Ini"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {point.subs && point.subs.length > 0 && (
+                                        <div className="ml-9 pl-3 border-l-2 border-emerald-200 space-y-2 pt-1">
+                                            {point.subs.map((sub, sIdx) => (
+                                                <div key={sIdx} className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center text-[11px] font-bold shrink-0">
+                                                        {String.fromCharCode(97 + sIdx)}
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={sub}
+                                                        onChange={(e) => handleSubTextChange(pIdx, sIdx, e.target.value)}
+                                                        placeholder={`Sub-poin ${String.fromCharCode(97 + sIdx)}...`}
+                                                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 outline-none text-xs font-medium bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveSub(pIdx, sIdx)}
+                                                        className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded"
+                                                        title="Hapus Sub-Poin"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">
+                            Paragraf Penutup (Opsional)
+                        </label>
+                        <textarea
+                            rows={2}
+                            value={penutup}
+                            onChange={(e) => {
+                                setPenutup(e.target.value);
+                                notifyStructuredChange(pembukaan, points, e.target.value);
+                            }}
+                            placeholder="Contoh: Demikian surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih."
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white outline-none text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-2 animate-in fade-in duration-200">
+                    <div className="flex flex-wrap items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+                            Toolbar Sisip:
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => insertRawHelper('1. ')}
+                            className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                            + 1. Poin Utama
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => insertRawHelper('   a. ')}
+                            className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                            + a. Sub-Poin
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => insertRawHelper('• ')}
+                            className="px-2.5 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                            + • Simbol Bullet
+                        </button>
+                    </div>
+
+                    <textarea
+                        rows={8}
+                        value={rawText}
+                        onChange={(e) => {
+                            setRawText(e.target.value);
+                            onChange(e.target.value);
+                        }}
+                        placeholder="Tuliskan isi surat Anda secara bebas di sini... (Gunakan tombol di atas untuk menyisipkan penomoran rapi)"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white outline-none text-xs sm:text-sm font-medium leading-relaxed focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-[11px] text-slate-500 italic">
+                        💡 Sistem otomatis memformat nomor poin (1., 2.) dan sub-poin (a., b.) agar rata dan rapi dengan indentasi gantung saat dicetak ke PDF.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const ListView = ({
     loading,
     filteredDocs,
@@ -1432,8 +1831,8 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                 />
                             </div>
                         ) : (
-                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
-                                {viewingDoc.content || '(Tanpa isi)'}
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 leading-relaxed font-medium">
+                                <FormattedContentRenderer content={viewingDoc.content} />
                             </div>
                         )}
                     </div>
@@ -3705,60 +4104,26 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </div>
                                 </div>
 
-                                {/* Pembukaan */}
                                 <div className="pt-4 border-t border-green-100/50">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Paragraf Pembukaan</label>
-                                    <textarea
-                                        rows={4}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
-                                        placeholder="Melalui surat ini, kami Bidang Sarana ingin memberitahukan kepada seluruh pihak terkait mengenai..."
-                                        value={pemberitahuanData.pembukaan}
-                                        onChange={(e) => setPemberitahuanData({ ...pemberitahuanData, pembukaan: e.target.value })}
-                                    />
-                                </div>
-
-                                {/* Poin-poin */}
-                                <div className="pt-4 border-t border-green-100/50">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Poin-poin Penting</label>
-                                        <button type="button" onClick={() => setPemberitahuanData({ ...pemberitahuanData, points: [...(pemberitahuanData.points || []), ''] })} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
-                                            <Plus size={12} /> Tambah Poin
-                                        </button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {(pemberitahuanData.points || []).map((point, idx) => (
-                                            <div key={idx} className="flex gap-2">
-                                                <div className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center text-[10px] font-bold text-green-600 shrink-0">{idx + 1}</div>
-                                                <textarea
-                                                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
-                                                    placeholder={`Poin penting ${idx + 1}...`}
-                                                    rows={2}
-                                                    value={point}
-                                                    onChange={(e) => {
-                                                        const newPoints = [...pemberitahuanData.points];
-                                                        newPoints[idx] = e.target.value;
-                                                        setPemberitahuanData({ ...pemberitahuanData, points: newPoints });
-                                                    }}
-                                                />
-                                                {pemberitahuanData.points.length > 1 && (
-                                                    <button type="button" onClick={() => setPemberitahuanData({ ...pemberitahuanData, points: pemberitahuanData.points.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Penutup */}
-                                <div className="pt-4 border-t border-green-100/50">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Paragraf Penutup</label>
-                                    <textarea
-                                        rows={3}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
-                                        placeholder="Demikian pemberitahuan ini kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan Jazaakumullahu Khayran."
-                                        value={pemberitahuanData.penutup}
-                                        onChange={(e) => setPemberitahuanData({ ...pemberitahuanData, penutup: e.target.value })}
+                                    <PointListEditor
+                                        value={pemberitahuanData}
+                                        onChange={(val) => {
+                                            if (typeof val === 'object' && val !== null) {
+                                                setPemberitahuanData(prev => ({
+                                                    ...prev,
+                                                    pembukaan: val.pembukaan,
+                                                    points: val.points,
+                                                    penutup: val.penutup
+                                                }));
+                                            } else if (typeof val === 'string') {
+                                                setPemberitahuanData(prev => ({
+                                                    ...prev,
+                                                    pembukaan: val,
+                                                    points: []
+                                                }));
+                                            }
+                                        }}
+                                        label="Struktur Surat Pemberitahuan"
                                     />
                                 </div>
                             </div>
@@ -3975,16 +4340,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         )}
 
                         {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
-                            <div className="col-span-full">
-                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan (Opsional)</label>
-                                <textarea
-                                    rows={6}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-medium leading-relaxed"
-                                    value={formData.content}
-                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                    placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Opsional: Tuliskan isi surat atau keterangan tambahan di sini...'}
-                                />
-                            </div>
+                            <PointListEditor
+                                value={formData.content}
+                                onChange={(val) => setFormData({ ...formData, content: typeof val === 'object' ? JSON.stringify(val) : val })}
+                                label={`Isi Naskah Dokumen (${formData.category || 'Surat Keluar'})`}
+                            />
                         )}
 
                         {formData.category === 'Lainnya' && (
@@ -4223,12 +4583,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         "Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin."
                                     </p>
                                 </div>
-                                <textarea
-                                    rows={10}
-                                    className="w-full px-5 py-4 rounded-2xl border-2 border-blue-100 focus:border-blue-500 focus:ring-0 outline-none font-medium leading-relaxed text-sm shadow-sm"
+                                <PointListEditor
                                     value={umumData.body}
-                                    onChange={(e) => setUmumData({ ...umumData, body: e.target.value })}
-                                    placeholder="Opsional: Tuliskan inti surat di sini (tanpa perlu salam pembuka/penutup)..."
+                                    onChange={(val) => setUmumData({ ...umumData, body: typeof val === 'object' ? JSON.stringify(val) : val })}
+                                    label="Isi Inti Surat & Butir Poin"
                                 />
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 opacity-60">
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Penutup (Otomatis):</div>
@@ -4626,8 +4984,11 @@ const LivePreviewPanel = ({ formData, taskData, purchasingItems, bastItems, edar
                     )}
 
                     {cat !== 'Tugas' && cat !== 'SPK' && cat !== 'Perjanjian Kerja' && cat !== 'Berita Acara Kerusakan' && (
-                        <div className="text-slate-700 whitespace-pre-wrap">
-                            {formData.content || formData.subject || '<Isi naskah surat resmi akan terformat secara otomatis di sini...>'}
+                        <div className="text-slate-700">
+                            <FormattedContentRenderer
+                                content={formData.content || (cat === 'Pemberitahuan' ? pemberitahuanData : (cat === 'Umum' ? umumData.body : null))}
+                                fallbackText={formData.subject || '<Isi naskah surat resmi akan terformat secara otomatis di sini...>'}
+                            />
                         </div>
                     )}
 

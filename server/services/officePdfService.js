@@ -319,10 +319,155 @@ function drawJustifiedText(page, text, x, y, maxWidth, size, font) {
     return currentY;
 }
 
+/**
+ * Helper to draw structured or formatted body text with true hanging indent
+ * Supports:
+ * 1. JSON structure: { pembukaan, points: [{ text, subs: [] }], penutup }
+ * 2. Raw text strings with automatically detected numbered lists (1., 2., a., b., •, -)
+ */
+function drawStructuredBodyText(page, contentObj, startY, width, margin, fontRegular, fontBold, checkPage, fontItalic = fontRegular) {
+    let y = startY;
+    const contentWidth = width - margin * 2;
+    const fontSize = 11;
+    const lineSpacing = 15;
+
+    // Internal block drawer for lines with fixed wrap indent (hanging indent)
+    const drawIndentedBlock = (text, blockX, maxW, isBold = false, isItalic = false) => {
+        if (!text) return;
+        const plain = sanitizeTextForWinAnsi(text).trim();
+        if (!plain) return;
+
+        const words = plain.split(/\s+/).filter(w => w.length > 0);
+        if (words.length === 0) return;
+
+        let currentLine = words[0];
+        const font = isBold ? fontBold : (isItalic ? fontItalic : fontRegular);
+
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const testLine = currentLine + " " + word;
+            const w = font.widthOfTextAtSize(testLine, fontSize);
+            if (w < maxW) {
+                currentLine = testLine;
+            } else {
+                if (checkPage) checkPage(20);
+                page.drawText(currentLine, { x: blockX, y, size: fontSize, font });
+                y -= lineSpacing;
+                currentLine = word;
+            }
+        }
+        if (currentLine) {
+            if (checkPage) checkPage(20);
+            page.drawText(currentLine, { x: blockX, y, size: fontSize, font });
+            y -= lineSpacing;
+        }
+    };
+
+    // Case 1: Structured Object with points
+    if (contentObj && (contentObj.points || contentObj.pembukaan || contentObj.penutup)) {
+        if (contentObj.pembukaan) {
+            const paras = contentObj.pembukaan.split('\n');
+            paras.forEach(p => {
+                if (p.trim()) {
+                    drawIndentedBlock(p, margin, contentWidth);
+                    y -= 5;
+                }
+            });
+        }
+
+        const points = Array.isArray(contentObj.points) ? contentObj.points : [];
+        points.forEach((p, idx) => {
+            const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
+            if (!pt || (!pt.text && (!pt.subs || pt.subs.length === 0))) return;
+
+            if (checkPage) checkPage(24);
+            const numLabel = `${idx + 1}.`;
+            page.drawText(numLabel, { x: margin + 10, y, size: fontSize, font: fontBold });
+
+            const pointX = margin + 28;
+            const pointW = contentWidth - 28;
+            drawIndentedBlock(pt.text || '', pointX, pointW);
+
+            const subs = (pt.subs || []).filter(s => s && s.trim());
+            if (subs.length > 0) {
+                subs.forEach((sub, sIdx) => {
+                    if (checkPage) checkPage(20);
+                    const subLabel = `${String.fromCharCode(97 + sIdx)}.`;
+                    page.drawText(subLabel, { x: margin + 28, y, size: fontSize, font: fontRegular });
+
+                    const subX = margin + 46;
+                    const subW = contentWidth - 46;
+                    drawIndentedBlock(sub, subX, subW);
+                });
+            }
+            y -= 4;
+        });
+
+        if (contentObj.penutup) {
+            y -= 4;
+            const paras = contentObj.penutup.split('\n');
+            paras.forEach(p => {
+                if (p.trim()) {
+                    drawIndentedBlock(p, margin, contentWidth);
+                    y -= 5;
+                }
+            });
+        }
+        return y;
+    }
+
+    // Case 2: Plain text string or content.text / content.body
+    let rawText = '';
+    if (typeof contentObj === 'string') rawText = contentObj;
+    else if (contentObj && (contentObj.text || contentObj.body)) rawText = contentObj.text || contentObj.body;
+
+    if (!rawText) return y;
+
+    const plain = rawText
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+
+    const lines = plain.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.trim() === '') {
+            y -= 8;
+            continue;
+        }
+
+        // Subpoint e.g. "   a. ", "a. ", "a) ", "i. "
+        const subMatch = line.match(/^(\s*)([a-zA-Z][\.\)]|[ivxLCDM]+[\.\)])\s+(.*)/i);
+        // Main point e.g. "1. ", "2) ", "• ", "- "
+        const mainMatch = line.match(/^(\s*)(\d+[\.\)]|[•\-\*])\s+(.*)/);
+
+        if (subMatch && (line.startsWith(' ') || line.startsWith('\t') || subMatch[1].length > 0 || (subMatch[2].length <= 3 && !line.startsWith('Yth')))) {
+            const label = subMatch[2];
+            const text = subMatch[3];
+            if (checkPage) checkPage(20);
+            page.drawText(label, { x: margin + 28, y, size: fontSize, font: fontRegular });
+            drawIndentedBlock(text, margin + 46, contentWidth - 46);
+        } else if (mainMatch) {
+            const label = mainMatch[2];
+            const text = mainMatch[3];
+            if (checkPage) checkPage(24);
+            page.drawText(label, { x: margin + 10, y, size: fontSize, font: fontBold });
+            drawIndentedBlock(text, margin + 28, contentWidth - 28);
+        } else {
+            drawIndentedBlock(line, margin, contentWidth);
+        }
+    }
+
+    return y;
+}
+
 async function generateSuratPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
     const images = await embedKopSuratImages(pdfDoc);
     
     let content = {};
@@ -349,71 +494,19 @@ async function generateSuratPDF(doc, setting) {
         // === HEADER DOKUMEN ===
         if (doc.number) {
             page.drawText(`Nomor     : ${doc.number}`, { x: margin, y, size: 11, font: fontRegular });
-            y -= 16;
+            y -= 14;
         }
-        const hasLampiran = (content.lampiranText && content.lampiranText.trim()) || doc.fileUrl;
-        page.drawText(`Lampiran  : ${hasLampiran ? '1 Berkas' : '-'}`, { x: margin, y, size: 11, font: fontRegular });
-        y -= 16;
-        page.drawText(`Perihal   : ${doc.subject}`, {
-            x: margin, y, size: 11, font: fontBold,
-            maxWidth: width - margin * 2
-        });
+        page.drawText(`Lampiran : ${content.lampiranText ? '1 (Satu) Berkas' : '-'}`, { x: margin, y, size: 11, font: fontRegular });
+        y -= 14;
+        page.drawText(`Perihal    : ${doc.subject || '-'}`, { x: margin, y, size: 11, font: fontBold });
         y -= 30;
 
         // === RECIPIENT ===
         if (recipient) doc._currentRecipient = recipient;
         y = drawRecipientBlock(page, doc, recipientsData, margin, y, fontRegular, fontBold, margin, width);
 
-        // ISI SURAT
-        let bodyText = content.text || '';
-        // Fallback: if content wasn't JSON, use raw doc.content
-        if (!bodyText && doc.content && !doc.content.startsWith('{')) {
-            bodyText = doc.content;
-        }
-
-        if (bodyText) {
-            // Simplified content drawing for Surat Keluar
-            const plainText = bodyText
-                .replace(/<br\s*\/?>/gi, '\n')
-                .replace(/<\/p>/gi, '\n\n')
-                .replace(/<[^>]*>/g, '')
-                .replace(/&nbsp;/g, ' ')
-                .replace(/[\u2018\u2019]/g, "'")
-                .replace(/[\u201C\u201D]/g, '"')
-                .replace(/\u2013/g, '-')
-                .replace(/\u2014/g, '--')
-                .replace(/\u2026/g, '...')
-                .replace(/[^\x00-\xFF]/g, '')
-                .trim();
-
-            const lines = plainText.split('\n');
-            for (const line of lines) {
-                if (line.trim() === '') { y -= 8; continue; }
-
-                const safeLine = line.replace(/[^\x20-\x7E]/g, '') || '-';
-                const textWidth = fontRegular.widthOfTextAtSize(safeLine, 11);
-                const numLines = Math.ceil(textWidth / (width - margin * 2));
-                const neededSpace = numLines * 16;
-                
-                checkPage(neededSpace);
-
-                try {
-                    page.drawText(line, {
-                        x: margin, y, size: 11, font: fontRegular,
-                        maxWidth: width - margin * 2,
-                        lineHeight: 14
-                    });
-                } catch (drawErr) {
-                    page.drawText(safeLine, {
-                        x: margin, y, size: 11, font: fontRegular,
-                        maxWidth: width - margin * 2,
-                        lineHeight: 14
-                    });
-                }
-
-                y -= neededSpace;
-            }
-        }
+        // === ISI SURAT (BERSTRUKTUR DENGAN HANGING INDENT) ===
+        y = drawStructuredBodyText(page, content, y, width, margin, fontRegular, fontBold, checkPage, fontItalic);
 
         // === TANDA TANGAN ===
         checkPage(150);
