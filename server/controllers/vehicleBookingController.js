@@ -634,12 +634,18 @@ exports.endTrip = async (req, res) => {
             });
             maintenanceId = serviceLog.id;
 
-            // Notify Sarpras & Staff Kendaraan about incident
-            const incidentRecipients = await prisma.user.findMany({
+            // Ambil PIC Kendaraan dan Staff Sarpras terkait
+            const vehicleWithPics = await prisma.vehicle.findUnique({
+                where: { id: booking.vehicleId },
+                include: { pics: true }
+            });
+
+            const staffRecipients = await prisma.user.findMany({
                 where: {
                     OR: [
                         { position: { contains: 'Kepala Bidang Sarana' } },
-                        { position: { contains: 'Staff Kendaraan' } }
+                        { position: { contains: 'Staff Kendaraan' } },
+                        { role: 'ADMIN_ASET' }
                     ],
                     AND: [
                         { phone: { not: null } },
@@ -649,26 +655,44 @@ exports.endTrip = async (req, res) => {
                 }
             });
 
-            const incidentMsg = `🚨 *LAPORAN INSIDEN / KERUSAKAN KENDARAAN*\n\n` +
-                `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
-                `Pengemudi: ${booking.user.name}\n` +
-                `KM Akhir: ${endKm}\n` +
-                `Deskripsi Insiden:\n"${incidentNotes || '-'}"\n\n` +
-                `*Foto Bukti Kejadian:* ${formatMediaUrl(photoUrl)}\n\n` +
-                `_Tiket Pemeliharaan Insidental otomatis dibuat di sistem untuk ditindaklanjuti Tim Sarpras._`;
+            // Gabungkan PIC kendaraan dan Staff Sarpras secara unik
+            const allRecipientsMap = new Map();
+            if (vehicleWithPics?.pics) {
+                for (const pic of vehicleWithPics.pics) {
+                    if (pic.id) allRecipientsMap.set(pic.id, { ...pic, isPic: true });
+                }
+            }
+            for (const staff of staffRecipients) {
+                if (staff.id && !allRecipientsMap.has(staff.id)) {
+                    allRecipientsMap.set(staff.id, { ...staff, isPic: false });
+                }
+            }
+            const allRecipients = Array.from(allRecipientsMap.values());
 
-            for (const person of incidentRecipients) {
+            const incidentMsg = `🚨 *LAPORAN KERUSAKAN / INSIDEN KENDARAAN*\n\n` +
+                `Pemberitahuan kepada PIC Armada & Tim Sarpras:\n` +
+                `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                `Pengemudi / Peminjam: *${booking.user.name}*\n` +
+                `KM Pengembalian: *${endKm} km*\n` +
+                `Waktu: *${new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}*\n\n` +
+                `*Rincian Kerusakan/Insiden:*\n"${incidentNotes || '-'}"\n\n` +
+                (photoUrl ? `*Foto Bukti Kejadian:* ${formatMediaUrl(photoUrl)}\n\n` : '') +
+                `_Laporan ini telah tercatat di sistem pada Tab Laporan Kerusakan untuk segera ditindaklanjuti._`;
+
+            for (const person of allRecipients) {
                 try {
-                    if (person.phone) await sendMessage(person.phone, incidentMsg);
+                    if (person.phone && person.phone !== '08' && person.phone.length > 8) {
+                        await sendMessage(person.phone, incidentMsg);
+                    }
                     await createNotification(
                         person.id,
-                        `Insiden Kendaraan ${booking.vehicle.plateNumber}`,
-                        `Dilaporkan insiden pada ${booking.vehicle.name} oleh ${booking.user.name}. Tiket perbaikan telah dibuat.`,
+                        `Laporan Kerusakan Kendaraan ${booking.vehicle.plateNumber}`,
+                        `Dilaporkan kerusakan pada ${booking.vehicle.name} oleh ${booking.user.name}. Silakan cek tab Laporan Kerusakan.`,
                         'URGENT',
                         '/kendaraan/pemeliharaan'
                     );
                 } catch (err) {
-                    console.error('Failed to notify incident to staff:', err.message);
+                    console.error('Failed to notify incident to PIC/staff:', err.message);
                 }
             }
         }

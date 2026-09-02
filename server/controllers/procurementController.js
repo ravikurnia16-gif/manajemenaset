@@ -178,7 +178,9 @@ exports.getProcurementById = async (req, res) => {
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) },
             include: {
-                items: true,
+                items: {
+                    include: { category: true }
+                },
                 offers: true,
                 unit: true,
                 user: { select: { username: true, email: true } },

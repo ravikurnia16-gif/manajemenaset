@@ -97,8 +97,10 @@ model User {
   pushSubscriptions PushSubscription[]
 
   // E-Office Module
-  officeDocumentsAuthored OfficeDocument[] @relation("OfficeDocumentAuthor")
-  officeDocumentsSigned   OfficeDocument[] @relation("OfficeDocumentSigner")
+  officeDocumentsAuthored    OfficeDocument[]            @relation("OfficeDocumentAuthor")
+  officeDocumentsSigned      OfficeDocument[]            @relation("OfficeDocumentSigner")
+  dispositionsGiven          OfficeDocumentDisposition[] @relation("DispositionFromUser")
+  dispositionsReceived       OfficeDocumentDisposition[] @relation("DispositionToUser")
 
   // Procurement Progress
   procurementProgress ProcurementProgress[]
@@ -1391,9 +1393,32 @@ model OfficeDocument {
   fileUrl         String?                @db.LongText
 
   workshopOrder   WorkshopOrder?
+  dispositions    OfficeDocumentDisposition[]
 
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
+}
+
+model OfficeDocumentDisposition {
+  id          Int            @id @default(autoincrement())
+  documentId  Int
+  document    OfficeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  fromUserId  Int
+  fromUser    User           @relation("DispositionFromUser", fields: [fromUserId], references: [id])
+  toUserId    Int
+  toUser      User           @relation("DispositionToUser", fields: [toUserId], references: [id])
+  instruction String         // Tindak Lanjuti, Tanggapi Tertulis, Koordinasikan, Hadiri/Wakilkan, Pelajari, Arsipkan
+  notes       String?        @db.Text
+  deadline    DateTime?
+  status      String         @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  completedAt DateTime?
+  feedback    String?        @db.Text
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([documentId])
+  @@index([toUserId])
+  @@index([fromUserId])
 }
 
 model AuditSession {
@@ -1938,6 +1963,7 @@ model UniformSale {
 
   // Fulfillment
   status          String           @default("PENDING") // PENDING, PARTIAL_DELIVERED, COMPLETED, CANCELLED
+  completedAt     DateTime?
 
   // Jadwal
   scheduleId      Int?

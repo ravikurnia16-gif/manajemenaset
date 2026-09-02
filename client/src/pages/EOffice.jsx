@@ -1,10 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
+import * as XLSX from 'xlsx';
 import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save, MessageSquare, Phone, Users } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+const CATEGORY_CODES_PREVIEW = {
+    'Undangan': 'UN',
+    'Tugas': 'ST',
+    'Keputusan': 'SK',
+    'Keterangan': 'SKet',
+    'Pemberitahuan': 'PB',
+    'Permohonan': 'PM',
+    'Pengantar': 'SP',
+    'Perintah': 'SPr',
+    'Edaran': 'SE',
+    'Rekomendasi': 'RK',
+    'Pengumuman': 'PGM',
+    'BAST': 'BA',
+    'MOU': 'MoU',
+    'MoU': 'MoU',
+    'Pesanan': 'PO',
+    'Umum': 'UMM',
+    'Surat Teguran': 'STg',
+    'Surat Peringatan': 'SPt',
+    'SOP': 'SOP',
+    'SPK': 'SPK',
+    'Perjanjian Kerja': 'SPK',
+    'Berita Acara Kerusakan': 'BAK',
+    'Lainnya': 'UM',
+};
 const formatDate = (dateStr, type = 'short') => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
@@ -177,107 +204,173 @@ const ListView = ({
     startDateFilter,
     setStartDateFilter,
     endDateFilter,
-    setEndDateFilter
+    setEndDateFilter,
+    statusFilter = 'ALL',
+    setStatusFilter,
+    onOpenAgenda,
+    onOpenDisposition,
+    activeTab
 }) => {
     const slicedDocs = limitFilter === 'all' ? filteredDocs : filteredDocs.slice(0, Number(limitFilter));
 
     return (
         <div className="space-y-4">
             {/* Filter and Limit Controls */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 flex-wrap">
-                    {/* Search */}
-                    <div className="relative flex-1 min-w-[240px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Cari subjek, nomor..."
-                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-semibold text-slate-800"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+            <div className="flex flex-col gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 flex-wrap">
+                        {/* Search */}
+                        <div className="relative flex-1 min-w-[240px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Cari subjek, nomor, pengirim..."
+                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-semibold text-slate-800"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+
+                        {/* Category Filter */}
+                        {showCategoryFilter && (
+                            <div className="relative shrink-0 min-w-[160px]">
+                                <select
+                                    className="pl-3 pr-8 py-2 w-full rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all"
+                                    value={categoryFilter}
+                                    onChange={(e) => setCategoryFilter(e.target.value)}
+                                >
+                                    <option value="">📁 Semua Kategori</option>
+                                    <option value="Undangan">✉️ Undangan</option>
+                                    <option value="Tugas">📋 Tugas</option>
+                                    <option value="Keputusan">⚖️ Keputusan</option>
+                                    <option value="Keterangan">📝 Keterangan</option>
+                                    <option value="Pemberitahuan">📢 Pemberitahuan</option>
+                                    <option value="Rekomendasi">🏅 Rekomendasi</option>
+                                    <option value="SOP">📖 SOP</option>
+                                    <option value="Surat Teguran">⚠️ Surat Teguran</option>
+                                    <option value="Surat Peringatan">🚫 Surat Peringatan</option>
+                                    <option value="SPK">📜 SPK / Kontrak</option>
+                                    <option value="Berita Acara Kerusakan">🚨 Berita Acara Kerusakan</option>
+                                    <option value="BAST">📦 BAST</option>
+                                    <option value="MOU">🤝 MOU / MoU</option>
+                                    <option value="Pesanan">🛒 Pesanan</option>
+                                    <option value="Edaran">📄 Edaran</option>
+                                    <option value="Umum">🏢 Umum</option>
+                                    <option value="Berita Acara Kunjungan">🚗 Kunjungan</option>
+                                    <option value="Lainnya">📎 Lainnya</option>
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <Filter size={14} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Date Range Filter */}
+                        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
+                            <Calendar className="text-slate-400 ml-1.5 shrink-0" size={16} />
+                            <input
+                                type="date"
+                                className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer w-[115px]"
+                                value={startDateFilter}
+                                onChange={(e) => setStartDateFilter(e.target.value)}
+                                title="Tanggal Mulai"
+                            />
+                            <span className="text-slate-400 text-xs font-bold shrink-0">s/d</span>
+                            <input
+                                type="date"
+                                className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer w-[115px]"
+                                value={endDateFilter}
+                                onChange={(e) => setEndDateFilter(e.target.value)}
+                                title="Tanggal Akhir"
+                            />
+                            {(startDateFilter || endDateFilter) && (
+                                <button
+                                    onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }}
+                                    className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 shrink-0"
+                                    title="Hapus filter tanggal"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Category Filter */}
-                    {showCategoryFilter && (
-                        <div className="relative shrink-0 min-w-[160px]">
-                            <select
-                                className="pl-3 pr-8 py-2 w-full rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all"
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                            >
-                                <option value="">📁 Semua Kategori</option>
-                                <option value="Undangan">✉️ Undangan</option>
-                                <option value="Tugas">📋 Tugas</option>
-                                <option value="Keputusan">⚖️ Keputusan</option>
-                                <option value="Keterangan">📝 Keterangan</option>
-                                <option value="Pemberitahuan">📢 Pemberitahuan</option>
-                                <option value="Rekomendasi">🏅 Rekomendasi</option>
-                                <option value="SOP">📖 SOP</option>
-                                <option value="Surat Teguran">⚠️ Surat Teguran</option>
-                                <option value="Surat Peringatan">🚫 Surat Peringatan</option>
-                                <option value="BAST">📦 BAST</option>
-                                <option value="MOU">🤝 MOU / MoU</option>
-                                <option value="Pesanan">🛒 Pesanan</option>
-                                <option value="Edaran">📄 Edaran</option>
-                                <option value="Umum">🏢 Umum</option>
-                                <option value="Berita Acara Kunjungan">🚗 Kunjungan</option>
-                                <option value="Lainnya">📎 Lainnya</option>
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <Filter size={14} />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Date Range Filter */}
-                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
-                        <Calendar className="text-slate-400 ml-1.5 shrink-0" size={16} />
-                        <input
-                            type="date"
-                            className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer w-[115px]"
-                            value={startDateFilter}
-                            onChange={(e) => setStartDateFilter(e.target.value)}
-                            title="Tanggal Mulai"
-                        />
-                        <span className="text-slate-400 text-xs font-bold shrink-0">s/d</span>
-                        <input
-                            type="date"
-                            className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer w-[115px]"
-                            value={endDateFilter}
-                            onChange={(e) => setEndDateFilter(e.target.value)}
-                            title="Tanggal Akhir"
-                        />
-                        {(startDateFilter || endDateFilter) && (
+                    {/* Right Controls: Agenda Button & Limit */}
+                    <div className="flex items-center gap-2 shrink-0 lg:ml-auto">
+                        {onOpenAgenda && (
                             <button
-                                onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }}
-                                className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 shrink-0"
-                                title="Hapus filter tanggal"
+                                type="button"
+                                onClick={onOpenAgenda}
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                title="Buka Buku Register & Agenda Surat"
                             >
-                                <X size={12} />
+                                <ClipboardList size={15} />
+                                <span>Buku Agenda</span>
                             </button>
                         )}
-                    </div>
-                </div>
-
-                {/* Display Limit Dropdown */}
-                <div className="flex items-center gap-2 shrink-0 lg:ml-auto">
-                    <span className="text-xs font-bold text-slate-500">Tampilkan:</span>
-                    <div className="relative">
-                        <select
-                            className="pl-3 pr-8 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all min-w-[90px]"
-                            value={limitFilter}
-                            onChange={(e) => setLimitFilter(e.target.value)}
-                        >
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="all">Semua</option>
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <ChevronRight className="rotate-90" size={14} />
+                        <span className="text-xs font-bold text-slate-500 ml-1">Limit:</span>
+                        <div className="relative">
+                            <select
+                                className="pl-3 pr-8 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all min-w-[85px]"
+                                value={limitFilter}
+                                onChange={(e) => setLimitFilter(e.target.value)}
+                            >
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="all">Semua</option>
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <ChevronRight className="rotate-90" size={14} />
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {/* Status Filter Pills */}
+                {setStatusFilter && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-100" style={{ scrollbarWidth: 'none' }}>
+                        <span className="text-xs font-black text-slate-400 mr-1 flex items-center gap-1 shrink-0 uppercase tracking-wider">
+                            <Filter size={12} /> Status:
+                        </span>
+                        {activeTab === 'surat-masuk' ? (
+                            [
+                                { id: 'ALL', label: 'Semua Masuk' },
+                                { id: 'HAS_DISPOSITION', label: '📋 Ada Disposisi' },
+                                { id: 'NO_DISPOSITION', label: '⏳ Belum Disposisi' }
+                            ].map(p => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setStatusFilter(p.id)}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer shrink-0 ${
+                                        statusFilter === p.id ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))
+                        ) : (
+                            [
+                                { id: 'ALL', label: 'Semua Status' },
+                                { id: 'DRAFT', label: '📝 Draft' },
+                                { id: 'PENDING_APPROVAL', label: '⏳ Menunggu TTE' },
+                                { id: 'SIGNED', label: '✓ Ditandatangani' },
+                                { id: 'REJECTED', label: '✗ Ditolak' }
+                            ].map(p => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setStatusFilter(p.id)}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer shrink-0 ${
+                                        statusFilter === p.id ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Desktop Table */}
@@ -321,6 +414,19 @@ const ListView = ({
                                 <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
                                 <td className="px-6 py-4">
                                     <StatusBadge status={doc.status} />
+                                    {doc.type === 'SURAT_MASUK' && (
+                                        <div className="mt-1">
+                                            {doc.dispositions && doc.dispositions.length > 0 ? (
+                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[10px] font-bold">
+                                                    📋 {doc.dispositions.length} Disposisi
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[10px] font-semibold">
+                                                    ⏳ Belum Disposisi
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                     {doc.type === 'INVOICE' && (
                                         <div className="mt-1">
                                             {getPaymentStatus(doc) === 'PAID' ? (
@@ -349,6 +455,15 @@ const ListView = ({
                                 <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
                                         <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
+                                        {doc.type === 'SURAT_MASUK' && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onOpenDisposition && onOpenDisposition(doc); }}
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                title="Beri / Kelola Disposisi"
+                                            >
+                                                <ClipboardList size={18} />
+                                            </button>
+                                        )}
                                         {doc.type === 'SURAT_MASUK' ? (
                                             doc.fileUrl ? (
                                                 <button
@@ -422,6 +537,17 @@ const ListView = ({
                                 <div className="text-[10px] text-slate-500 mt-0.5">{doc.number || 'Draft'} • {formatDate(doc.date)}</div>
                                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                                     <StatusBadge status={doc.status} />
+                                    {doc.type === 'SURAT_MASUK' && (
+                                        doc.dispositions && doc.dispositions.length > 0 ? (
+                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[9px] font-bold">
+                                                📋 {doc.dispositions.length} Disposisi
+                                            </span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[9px]">
+                                                ⏳ Belum Disposisi
+                                            </span>
+                                        )
+                                    )}
                                     {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
                                     {doc.type === 'INVOICE' && (
                                         getPaymentStatus(doc) === 'PAID'
@@ -446,6 +572,18 @@ const ListView = ({
                                 </div>
                             </div>
                             <div className="flex flex-col gap-1 shrink-0">
+                                {doc.type === 'SURAT_MASUK' && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onOpenDisposition && onOpenDisposition(doc);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg"
+                                        title="Disposisi"
+                                    >
+                                        <ClipboardList size={14} />
+                                    </button>
+                                )}
                                 {doc.type === 'SURAT_MASUK' ? (
                                     doc.fileUrl && (
                                         <button
@@ -516,7 +654,7 @@ const InfoGroup = ({ label, value, icon, full }) => {
     );
 };
 
-const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus, setSendDocWATarget, handleSubmitForApproval, setSignatureRequest, isKabidSarpras }) => {
+const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus, setSendDocWATarget, handleSubmitForApproval, setSignatureRequest, isKabidSarpras, onOpenDisposition }) => {
     if (!viewingDoc) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -565,6 +703,100 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                         ))}
                                     </div>
                                 )}
+
+                                {/* Disposisi Section for Surat Masuk */}
+                                <div className="col-span-full border-t border-slate-100 pt-6 space-y-4">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <ClipboardList className="text-blue-600" size={20} />
+                                            <h4 className="font-black text-slate-900 text-sm">Disposisi & Arahan Pimpinan</h4>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    window.open(`/api/office-documents/${viewingDoc.id}/disposition-sheet?token=${localStorage.getItem('token')}`, '_blank');
+                                                }}
+                                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                                                title="Cetak Lembar Disposisi Resmi"
+                                            >
+                                                <Printer size={14} /> <span>Cetak Lembar Disposisi</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onOpenDisposition && onOpenDisposition(viewingDoc)}
+                                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                                            >
+                                                <Plus size={14} /> <span>+ Buat Disposisi</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {viewingDoc.dispositions && viewingDoc.dispositions.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {viewingDoc.dispositions.map((disp, idx) => (
+                                                <div key={disp.id || idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                                        <div className="font-bold text-slate-900 flex items-center gap-2">
+                                                            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">
+                                                                {idx + 1}
+                                                            </span>
+                                                            <span>Diteruskan ke: <b className="text-blue-700">{disp.toUser?.name || 'Staf'}</b> {disp.toUser?.position ? `(${disp.toUser.position})` : ''}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {disp.status === 'COMPLETED' ? (
+                                                                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[10px] flex items-center gap-1">
+                                                                    <CheckCircle2 size={12} /> Selesai
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 rounded-full font-bold text-[10px] flex items-center gap-1">
+                                                                    <Clock size={12} /> Menunggu / Proses
+                                                                </span>
+                                                            )}
+                                                            {disp.status !== 'COMPLETED' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            await api.patch(`/office-documents/dispositions/${disp.id}/status`, { status: 'COMPLETED' });
+                                                                            alert('Status disposisi ditandai selesai!');
+                                                                            disp.status = 'COMPLETED';
+                                                                            setViewingDoc({ ...viewingDoc });
+                                                                        } catch (err) {
+                                                                            alert('Gagal update status disposisi');
+                                                                        }
+                                                                    }}
+                                                                    className="text-[10px] font-bold text-emerald-600 hover:underline cursor-pointer"
+                                                                >
+                                                                    Tandai Selesai ✓
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pl-7 space-y-1">
+                                                        <div className="text-slate-800 font-bold">
+                                                            Instruksi: <span className="text-blue-900">"{disp.instruction}"</span>
+                                                        </div>
+                                                        {disp.notes && (
+                                                            <div className="text-slate-600 italic">
+                                                                Catatan: {disp.notes}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-slate-400 flex items-center gap-4 text-[11px] pt-1">
+                                                            <span>Diberikan oleh: {disp.fromUser?.name || 'Pimpinan'}</span>
+                                                            {disp.deadline && <span>• Target: {formatDate(disp.deadline)}</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-6 bg-slate-50 border border-slate-200 border-dashed rounded-2xl text-center text-slate-400 text-xs italic">
+                                            Belum ada instruksi disposisi dari pimpinan untuk surat masuk ini.
+                                        </div>
+                                    )}
+                                </div>
                             </>
                         )}
                     </div>
@@ -1575,6 +1807,9 @@ const EOffice = () => {
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
     const [sendingWA, setSendingWA] = useState(null);
     const [sendDocWATarget, setSendDocWATarget] = useState(null);
+    const [isAgendaModalOpen, setIsAgendaModalOpen] = useState(false);
+    const [dispositionTargetDoc, setDispositionTargetDoc] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('ALL');
 
     const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'KEPALA_BIDANG' || user?.role === 'SUPER_ADMIN';
@@ -1583,10 +1818,11 @@ const EOffice = () => {
     useEffect(() => {
         fetchStats();
         fetchDocuments();
-        setCategoryFilter(''); // Reset category filter on tab switch
+        setCategoryFilter('');
         setLimitFilter(10);
         setStartDateFilter('');
         setEndDateFilter('');
+        setStatusFilter('ALL');
 
         if (location.state?.autoCreate) {
             const s = location.state;
@@ -1595,7 +1831,6 @@ const EOffice = () => {
                 receivedDate: formatDate(new Date(), 'input'),
             });
             setIsFormOpen(true);
-            // Clear state so it doesn't reopen on refresh
             window.history.replaceState({}, document.title);
         }
     }, [tab, location.state]);
@@ -1612,23 +1847,22 @@ const EOffice = () => {
     const fetchDocuments = async () => {
         setLoading(true);
         try {
-            let endpoint = '/office-documents/outgoing';
-            let params = { limit: 100000 };
+            let endpoint = '/office-documents';
+            let params = {};
 
             if (tab === 'surat-masuk') {
-                endpoint = '/office-documents/incoming';
+                params.type = 'SURAT_MASUK';
             } else if (tab === 'invoice') {
                 params.type = 'INVOICE';
             } else if (tab === 'manajemen-dokumen') {
                 params.type = 'LAINNYA';
-                params.categories = 'SOP,Peraturan,Surat Edaran';
+                params.isManagement = true;
             } else if (tab === 'lainnya') {
                 params.type = 'LAINNYA';
+                params.isManagement = false;
             } else if (tab === 'surat-keluar') {
-                // Return only standard outgoing types, excluding invoice/lainnya
                 params.typeGroup = 'OUTGOING_STANDARD';
             } else {
-                // Dashboard: fetch everything for recent documents
                 params.limit = 10;
             }
 
@@ -1654,12 +1888,6 @@ const EOffice = () => {
         }
     };
 
-    // --- Helper Components ---
-
-
-
-
-
     const filteredDocs = (documents || []).filter(doc => {
         if (!doc) return false;
         const matchesSearch = (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1684,10 +1912,19 @@ const EOffice = () => {
             if (startDateFilter || endDateFilter) matchesDate = false;
         }
 
-        return matchesSearch && matchesCategory && matchesDate;
+        let matchesStatus = true;
+        if (statusFilter !== 'ALL') {
+            if (statusFilter === 'HAS_DISPOSITION') {
+                matchesStatus = doc.dispositions && doc.dispositions.length > 0;
+            } else if (statusFilter === 'NO_DISPOSITION') {
+                matchesStatus = !doc.dispositions || doc.dispositions.length === 0;
+            } else {
+                matchesStatus = doc.status === statusFilter;
+            }
+        }
+
+        return matchesSearch && matchesCategory && matchesDate && matchesStatus;
     });
-
-
 
     const handleDelete = async (id) => {
         if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini secara permanen?')) {
@@ -1760,8 +1997,6 @@ const EOffice = () => {
         }
     };
 
-    // --- Content Area Rendering ---
-
     const renderContent = () => {
         if (tab === 'dashboard') return (
             <DashboardView
@@ -1794,13 +2029,17 @@ const EOffice = () => {
                 setStartDateFilter={setStartDateFilter}
                 endDateFilter={endDateFilter}
                 setEndDateFilter={setEndDateFilter}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                onOpenAgenda={() => setIsAgendaModalOpen(true)}
+                onOpenDisposition={(d) => setDispositionTargetDoc(d)}
+                activeTab={tab}
             />
         );
     };
 
     return (
         <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-8 bg-slate-50 min-h-screen">
-            {/* Header Area */}
             <div className="flex items-center justify-between gap-3">
                 <div>
                     <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
@@ -1816,7 +2055,6 @@ const EOffice = () => {
                 </button>
             </div>
 
-            {/* Tab Navigation */}
             <div className="flex items-center gap-1 bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-x-auto max-w-full" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
                 {[
                     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
@@ -1839,10 +2077,8 @@ const EOffice = () => {
                 ))}
             </div>
 
-            {/* Content Area */}
             {renderContent()}
 
-            {/* Modals */}
             <ViewModal
                 viewingDoc={viewingDoc}
                 setViewingDoc={setViewingDoc}
@@ -1856,6 +2092,7 @@ const EOffice = () => {
                 handleSubmitForApproval={handleSubmitForApproval}
                 setSignatureRequest={setSignatureRequest}
                 isKabidSarpras={isKabidSarpras}
+                onOpenDisposition={(d) => setDispositionTargetDoc(d)}
             />
             <SendDocWAModal
                 doc={sendDocWATarget}
@@ -1881,15 +2118,36 @@ const EOffice = () => {
             <TypeSelectionModal
                 isOpen={isTypeModalOpen}
                 onClose={() => setIsTypeModalOpen(false)}
-                onSelect={(type) => {
+                onSelect={(type, category) => {
                     setIsTypeModalOpen(false);
                     if (type === 'MANAJEMEN_DOKUMEN') {
                         setEditingDoc({ type: 'LAINNYA', category: 'SOP', _isManagement: true });
+                    } else if (type === 'SPK_VENDOR') {
+                        setEditingDoc({ type: 'SURAT_KELUAR', category: 'SPK' });
+                    } else if (type === 'BA_KERUSAKAN') {
+                        setEditingDoc({ type: 'SURAT_KELUAR', category: 'Berita Acara Kerusakan' });
                     } else {
-                        setEditingDoc({ type });
+                        setEditingDoc({ type, category: category || undefined });
                     }
                     setIsFormOpen(true);
                 }}
+            />
+            <DispositionModal
+                doc={dispositionTargetDoc}
+                isOpen={!!dispositionTargetDoc}
+                onClose={() => setDispositionTargetDoc(null)}
+                onSuccess={() => {
+                    fetchDocuments();
+                    fetchStats();
+                    if (viewingDoc) {
+                        api.get(`/office-documents/${viewingDoc.id}`).then(res => setViewingDoc(res.data)).catch(() => {});
+                    }
+                }}
+            />
+            <AgendaRegisterModal
+                isOpen={isAgendaModalOpen}
+                onClose={() => setIsAgendaModalOpen(false)}
+                defaultType={tab === 'surat-masuk' ? 'SURAT_MASUK' : 'SURAT_KELUAR'}
             />
 
             {submitApprovalData && (
@@ -1902,7 +2160,7 @@ const EOffice = () => {
                         <p className="text-sm text-slate-500 mb-6">Untuk penomoran otomatis, silakan pilih kategori dokumen manual Anda:</p>
 
                         <div className="grid grid-cols-2 gap-3 mb-6">
-                            {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
+                            {['Undangan', 'Tugas', 'SPK', 'Perjanjian Kerja', 'Berita Acara Kerusakan', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                 <button
                                     key={c}
                                     onClick={() => executeSubmitApproval(submitApprovalData.id, c)}
@@ -2002,6 +2260,18 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         points: [''],
         penutup: ''
     });
+    const [spkData, setSpkData] = useState({
+        contractValue: '',
+        deadline: '',
+        body: ''
+    });
+    const [baKerusakanData, setBaKerusakanData] = useState({
+        chronology: '',
+        body: '',
+        assetName: '',
+        estimatedCost: ''
+    });
+    const [showLivePreview, setShowLivePreview] = useState(true);
 
     useEffect(() => {
         if (isOpen) {
@@ -2180,6 +2450,31 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse Lainnya content JSON', e);
                 }
             }
+            if ((doc.category === 'SPK' || doc.category === 'Perjanjian Kerja') && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    setSpkData({
+                        contractValue: parsed.contractValue || '',
+                        deadline: parsed.deadline || '',
+                        body: parsed.body || ''
+                    });
+                } catch (e) {
+                    console.error('Failed to parse SPK content JSON', e);
+                }
+            }
+            if (doc.category === 'Berita Acara Kerusakan' && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    setBaKerusakanData({
+                        chronology: parsed.chronology || '',
+                        body: parsed.body || '',
+                        assetName: parsed.assetName || '',
+                        estimatedCost: parsed.estimatedCost || ''
+                    });
+                } catch (e) {
+                    console.error('Failed to parse Berita Acara Kerusakan content JSON', e);
+                }
+            }
             if (doc.category === 'Berita Acara Kunjungan' && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
@@ -2220,6 +2515,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             setPurchasingItems([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
             setDeadline('');
             setOrderStatus('PENDING');
+            setSpkData({ contractValue: '', deadline: '', body: '' });
+            setBaKerusakanData({ chronology: '', body: '', assetName: '', estimatedCost: '' });
             setTaskData({
                 basisList: [''],
                 personnelList: [{ name: '', position: '', nip: '' }],
@@ -2264,6 +2561,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 contentObj = { ...keputusanData };
             } else if (formData.category === 'Pemberitahuan') {
                 contentObj = { ...pemberitahuanData };
+            } else if (formData.category === 'SPK' || formData.category === 'Perjanjian Kerja') {
+                contentObj = { ...spkData };
+            } else if (formData.category === 'Berita Acara Kerusakan') {
+                contentObj = { ...baKerusakanData };
             } else if (formData.category === 'Umum') {
                 contentObj = { ...umumData };
             } else if (formData.category === 'Lainnya') {
@@ -2325,21 +2626,40 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-4xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+            <div className={`bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full ${showLivePreview ? 'sm:max-w-6xl' : 'sm:max-w-4xl'} transition-all duration-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col`}>
                 <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-600 text-white rounded-lg">
                                 <Plus size={20} />
                             </div>
-                            <h3 className="font-black text-slate-900">{doc ? 'Edit' : 'Buat'} {formData.type?.replace('_', ' ')}</h3>
+                            <div>
+                                <h3 className="font-black text-slate-900 leading-tight">{doc ? 'Edit' : 'Buat'} {formData.type?.replace('_', ' ')}</h3>
+                                <p className="text-xs text-slate-500 font-medium">Kategori: {formData.category}</p>
+                            </div>
                         </div>
-                        <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600">
-                            <X size={24} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowLivePreview(!showLivePreview)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                                    showLivePreview
+                                        ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-xs'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                            >
+                                <Eye size={14} />
+                                <span>{showLivePreview ? 'Tutup Preview' : 'Live Preview'}</span>
+                            </button>
+                            <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600">
+                                <X size={24} />
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 overflow-y-auto flex-1">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-y-auto flex-1">
+                        {/* Form Inputs Container */}
+                        <div className={`${showLivePreview ? 'lg:col-span-7' : 'lg:col-span-12'} p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 overflow-y-auto`}>
                         {formData.type === 'SURAT_KELUAR' && (
                             <div className="col-span-full space-y-4 mb-2">
                                 <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100 flex items-center justify-between">
@@ -2366,12 +2686,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                        {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
+                                        {['Undangan', 'Tugas', 'SPK', 'Perjanjian Kerja', 'Berita Acara Kerusakan', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                             <button
                                                 key={c}
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, category: c })}
-                                                className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
+                                                className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
                                                     ? 'bg-blue-600 border-blue-600 text-white shadow-md'
                                                     : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
                                                     }`}
@@ -3063,6 +3383,117 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 ))}
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SPK Form Section */}
+                        {!formData.isManual && (formData.category === 'SPK' || formData.category === 'Perjanjian Kerja') && (
+                            <div className="col-span-full space-y-4 p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl animate-in zoom-in duration-200">
+                                <div className="flex items-center gap-2 text-indigo-900 font-black text-sm">
+                                    <FileSignature size={18} className="text-indigo-600" />
+                                    <span>Rincian Surat Perintah Kerja (SPK) / Kontrak Vendor</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Nama Pelaksana / Vendor</label>
+                                        <input
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-white"
+                                            placeholder="Nama PIC Vendor / Kontraktor..."
+                                            value={formData.party2Name}
+                                            onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Nama Perusahaan / Toko</label>
+                                        <input
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-white"
+                                            placeholder="CV / PT / Toko Rekanan..."
+                                            value={formData.party2Org}
+                                            onChange={(e) => setFormData({ ...formData, party2Org: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Total Nilai Kontrak (Rp)</label>
+                                        <input
+                                            type="number"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-white"
+                                            placeholder="Contoh: 15000000"
+                                            value={spkData.contractValue}
+                                            onChange={(e) => setSpkData({ ...spkData, contractValue: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Jangka Waktu / Target Selesai</label>
+                                        <input
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-white"
+                                            placeholder="Contoh: 14 (Empat Belas) Hari Kalender"
+                                            value={spkData.deadline}
+                                            onChange={(e) => setSpkData({ ...spkData, deadline: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-full">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Lingkup Pekerjaan & Ketentuan SPK</label>
+                                        <textarea
+                                            rows={4}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed bg-white"
+                                            placeholder="Rincian item pekerjaan, spesifikasi, dan pasal kesepakatan..."
+                                            value={spkData.body}
+                                            onChange={(e) => setSpkData({ ...spkData, body: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Berita Acara Kerusakan Form Section */}
+                        {!formData.isManual && formData.category === 'Berita Acara Kerusakan' && (
+                            <div className="col-span-full space-y-4 p-5 bg-rose-50/50 border border-rose-100 rounded-2xl animate-in zoom-in duration-200">
+                                <div className="flex items-center gap-2 text-rose-900 font-black text-sm">
+                                    <AlertTriangle size={18} className="text-rose-600" />
+                                    <span>Rincian Berita Acara Kerusakan / Kehilangan Aset</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Nama Pelapor / Saksi</label>
+                                        <input
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-white"
+                                            placeholder="Nama staf / penanggung jawab..."
+                                            value={formData.party2Name}
+                                            onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Unit / Bagian Pelapor</label>
+                                        <input
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-white"
+                                            placeholder="Contoh: Unit SD / Driver / IT..."
+                                            value={formData.party2Org}
+                                            onChange={(e) => setFormData({ ...formData, party2Org: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-full">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Deskripsi Kerusakan / Aset</label>
+                                        <textarea
+                                            rows={3}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed bg-white"
+                                            placeholder="Nama barang/sarana, nomor plat/kode aset, tingkat kerusakan..."
+                                            value={baKerusakanData.body}
+                                            onChange={(e) => setBaKerusakanData({ ...baKerusakanData, body: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-full">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Kronologi Kejadian</label>
+                                        <textarea
+                                            rows={3}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed bg-white"
+                                            placeholder="Kronologi waktu, penyebab, dan kejadian kerusakan..."
+                                            value={baKerusakanData.chronology}
+                                            onChange={(e) => setBaKerusakanData({ ...baKerusakanData, chronology: e.target.value })}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -3953,9 +4384,29 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                             </div>
                         )}
+                        </div>
+
+                        {/* Live Preview Panel Column */}
+                        {showLivePreview && (
+                            <div className="hidden lg:block lg:col-span-5 border-l border-slate-200 bg-slate-50/50 p-4 h-full overflow-hidden">
+                                <LivePreviewPanel
+                                    formData={formData}
+                                    taskData={taskData}
+                                    purchasingItems={purchasingItems}
+                                    bastItems={bastItems}
+                                    edaranData={edaranData}
+                                    keputusanData={keputusanData}
+                                    pemberitahuanData={pemberitahuanData}
+                                    umumData={umumData}
+                                    spkData={spkData}
+                                    baKerusakanData={baKerusakanData}
+                                    formatDate={formatDate}
+                                />
+                            </div>
+                        )}
                     </div>
 
-                    <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
                         <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-200 transition-all">
                             Batal
                         </button>
@@ -4070,6 +4521,545 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
     );
 };
 
+/**
+ * Live Preview Component for FormModal
+ */
+const LivePreviewPanel = ({ formData, taskData, purchasingItems, bastItems, edaranData, keputusanData, pemberitahuanData, umumData, spkData, baKerusakanData, formatDate }) => {
+    const isManual = formData.isManual;
+    const cat = formData.category || 'Surat';
+
+    return (
+        <div className="bg-slate-100 p-4 rounded-2xl border border-slate-200 flex flex-col h-full overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200 shrink-0">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <Eye size={16} className="text-blue-600" />
+                    <span>Live Preview Surat Resmi (Simulasi Kertas A4)</span>
+                </div>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[10px] font-extrabold uppercase tracking-wider">
+                    {cat}
+                </span>
+            </div>
+
+            {/* Simulated Sheet of Paper */}
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-md border border-slate-200 text-slate-800 text-xs space-y-4 min-h-[520px]">
+                {/* Letterhead */}
+                <div className="text-center border-b-2 border-orange-300 pb-3 space-y-0.5">
+                    <div className="font-black text-sm tracking-wide text-emerald-600">YAYASAN DAR EL-IMAN</div>
+                    <div className="font-extrabold text-xs text-orange-500">BIDANG SARANA</div>
+                    <div className="text-[10px] text-slate-500 italic">"Merawat dengan Ikhlas, Melayani dengan Sunnah."</div>
+                    <div className="text-[9px] text-slate-400">Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumbar</div>
+                    <div className="text-[9px] text-slate-400">WA: 0895-3202-42508 • Email: dar.el.imansarpras@gmail.com</div>
+                </div>
+
+                {/* Title & Document Number */}
+                <div className="text-center pt-2 space-y-1">
+                    <div className="font-black text-sm uppercase underline tracking-wider">
+                        {cat === 'Tugas' ? 'SURAT TUGAS' : 
+                         cat === 'SPK' || cat === 'Perjanjian Kerja' ? 'SURAT PERINTAH KERJA (SPK)' :
+                         cat === 'Berita Acara Kerusakan' ? 'BERITA ACARA KERUSAKAN / KEHILANGAN ASET' :
+                         cat === 'BAST' ? 'BERITA ACARA SERAH TERIMA' :
+                         cat === 'Keputusan' ? 'SURAT KEPUTUSAN' :
+                         cat === 'Edaran' ? 'SURAT EDARAN' :
+                         cat === 'Undangan' ? 'SURAT UNDANGAN' :
+                         cat === 'Rekomendasi' ? 'SURAT REKOMENDASI' :
+                         cat === 'Surat Teguran' || cat === 'Surat Peringatan' ? 'SURAT TEGURAN' :
+                         `SURAT ${cat.toUpperCase()}`}
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-500 font-bold">
+                        {formData.number || `001/${CATEGORY_CODES_PREVIEW[cat] || 'UM'}/SRN/IX/2026`}
+                    </div>
+                </div>
+
+                {/* Metadata row */}
+                <div className="flex justify-between items-start pt-2 text-[11px]">
+                    <div className="space-y-0.5">
+                        <div><b>Perihal :</b> {formData.subject || '<Perihal Dokumen>'}</div>
+                        <div><b>Lampiran :</b> -</div>
+                    </div>
+                    <div className="text-right text-slate-500">
+                        Padang, {formatDate(new Date(), 'full')}
+                    </div>
+                </div>
+
+                {/* Recipient */}
+                <div className="pt-2 text-[11px] border-t border-slate-100">
+                    <div>Kepada Yth,</div>
+                    <div className="font-bold text-slate-900">{formData.party2Name || '<Nama Penerima / Pihak Kedua>'}</div>
+                    <div className="text-slate-500">{formData.party2Org || formData.party2Address || 'di Tempat'}</div>
+                </div>
+
+                {/* Document Body */}
+                <div className="pt-2 text-[11px] leading-relaxed space-y-2.5">
+                    <div className="italic text-slate-600">Assalamu'alaikum Warahmatullahi Wabarakatuh,</div>
+
+                    {cat === 'Tugas' && taskData && (
+                        <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div className="font-bold text-slate-800">Menugaskan kepada:</div>
+                            {(taskData.personnelList || []).map((p, idx) => (
+                                <div key={idx} className="pl-3 text-slate-700">
+                                    {idx + 1}. <b>{p.name || 'Nama Personil'}</b> {p.position ? `— ${p.position}` : ''}
+                                </div>
+                            ))}
+                            <div className="pt-1 text-slate-700"><b>Untuk:</b> {taskData.purposeList?.[0] || formData.subject || '-'}</div>
+                            <div className="text-slate-700"><b>Lokasi:</b> {taskData.location || '-'} • <b>Waktu:</b> {taskData.timeRange || '-'}</div>
+                        </div>
+                    )}
+
+                    {(cat === 'SPK' || cat === 'Perjanjian Kerja') && (
+                        <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div className="font-bold text-slate-800">Pasal 1: Lingkup Pekerjaan & Nilai Kontrak</div>
+                            <div className="text-slate-700">{spkData?.body || formData.subject || 'Pekerjaan sesuai dengan spesifikasi dan kesepakatan.'}</div>
+                            {spkData?.contractValue && <div className="font-bold text-emerald-700">Nilai Kontrak: Rp {Number(spkData.contractValue).toLocaleString('id-ID')}</div>}
+                            {spkData?.deadline && <div className="text-slate-600">Jangka Waktu: {spkData.deadline}</div>}
+                        </div>
+                    )}
+
+                    {cat === 'Berita Acara Kerusakan' && (
+                        <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <div className="font-bold text-rose-800">Rincian Insiden / Kerusakan:</div>
+                            <div className="text-slate-700">{baKerusakanData?.body || formData.subject || '-'}</div>
+                            {baKerusakanData?.chronology && (
+                                <div className="text-slate-600"><b>Kronologi:</b> {baKerusakanData.chronology}</div>
+                            )}
+                        </div>
+                    )}
+
+                    {cat !== 'Tugas' && cat !== 'SPK' && cat !== 'Perjanjian Kerja' && cat !== 'Berita Acara Kerusakan' && (
+                        <div className="text-slate-700 whitespace-pre-wrap">
+                            {formData.content || formData.subject || '<Isi naskah surat resmi akan terformat secara otomatis di sini...>'}
+                        </div>
+                    )}
+
+                    <div className="italic text-slate-600 pt-2">Wassalamu'alaikum Warahmatullahi Wabarakatuh.</div>
+                </div>
+
+                {/* Signature Box */}
+                <div className="pt-8 flex justify-end">
+                    <div className="text-center w-52 space-y-1 text-[11px]">
+                        <div className="font-medium text-slate-600">Kepala Bidang Sarana,</div>
+                        <div className="h-14 flex items-center justify-center text-slate-300 italic text-[10px] border border-dashed border-slate-200 rounded-lg my-1">
+                            [ Tanda Tangan Digital TTE ]
+                        </div>
+                        <div className="font-bold underline text-slate-900">{formData.party1Name || 'Ravi Kurnia'}</div>
+                        <div className="text-[10px] text-slate-400">Yayasan Dar el-Iman</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Modal for creating and dispatching Disposisi Surat Masuk to staff
+ */
+const DispositionModal = ({ doc, isOpen, onClose, onSuccess }) => {
+    const [staffList, setStaffList] = useState([]);
+    const [toUserId, setToUserId] = useState('');
+    const [instruction, setInstruction] = useState('Tindak Lanjuti Segera');
+    const [notes, setNotes] = useState('');
+    const [deadline, setDeadline] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchInternalUsers();
+            setInstruction('Tindak Lanjuti Segera');
+            setNotes('');
+            setDeadline('');
+            setToUserId('');
+        }
+    }, [isOpen]);
+
+    const fetchInternalUsers = async () => {
+        try {
+            const res = await api.get('/office-documents/internal-users');
+            setStaffList(res.data || []);
+        } catch (err) {
+            console.error('Failed to load internal users:', err);
+        }
+    };
+
+    if (!isOpen || !doc) return null;
+
+    const quickInstructions = [
+        'Tindak Lanjuti Segera',
+        'Tanggapi Tertulis',
+        'Koordinasikan / Bahas Bersama',
+        'Hadiri / Wakilkan',
+        'Pelajari & Beri Pendapat',
+        'Arsipkan / Untuk Diketahui'
+    ];
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!toUserId) return alert('Silakan pilih staf penerima disposisi');
+        if (!instruction) return alert('Silakan masukkan instruksi disposisi');
+
+        try {
+            setLoading(true);
+            const res = await api.post(`/office-documents/${doc.id}/dispositions`, {
+                toUserId,
+                instruction,
+                notes,
+                deadline: deadline || null
+            });
+            alert(res.data.message || 'Disposisi berhasil diterbitkan!');
+            onSuccess();
+            onClose();
+        } catch (err) {
+            console.error('Error creating disposition:', err);
+            alert(err.response?.data?.error || 'Gagal membuat disposisi');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-blue-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs">
+                            <ClipboardList size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-900 text-base">Lembar Disposisi Pimpinan</h3>
+                            <p className="text-xs text-slate-500 font-medium">Tugaskan surat masuk ke staf terkait & kirim WA</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+                    {/* Ringkasan Surat */}
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1 text-xs">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Surat yang Didisposisikan</div>
+                        <div className="font-bold text-slate-800 text-sm">{doc.subject}</div>
+                        <div className="text-slate-500 flex items-center gap-2 text-[11px]">
+                            <span>Pengirim: <b>{doc.senderName || '-'}</b></span>
+                            <span>•</span>
+                            <span>No: {doc.referenceNumber || '-'}</span>
+                        </div>
+                    </div>
+
+                    {/* Pilih Staf */}
+                    <div>
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1.5">
+                            Diteruskan Kepada (Staf) <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                            value={toUserId}
+                            onChange={(e) => setToUserId(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700 bg-white"
+                            required
+                        >
+                            <option value="">-- Pilih Staf Penerima Tugas --</option>
+                            {staffList.map(u => (
+                                <option key={u.id} value={u.id}>
+                                    {u.name} {u.position ? `(${u.position})` : ''} {u.phone ? `• WA: ${u.phone}` : ''}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Pilihan Cepat Instruksi */}
+                    <div>
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1.5">
+                            Instruksi Disposisi <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            {quickInstructions.map((qi) => (
+                                <button
+                                    type="button"
+                                    key={qi}
+                                    onClick={() => setInstruction(qi)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-bold text-left border transition-all cursor-pointer ${
+                                        instruction === qi
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    {instruction === qi ? '✓ ' : ''}{qi}
+                                </button>
+                            ))}
+                        </div>
+                        <input
+                            type="text"
+                            value={instruction}
+                            onChange={(e) => setInstruction(e.target.value)}
+                            placeholder="Atau ketik instruksi kustom..."
+                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium text-slate-800"
+                            required
+                        />
+                    </div>
+
+                    {/* Catatan Tambahan */}
+                    <div>
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1.5">
+                            Catatan Khusus Pimpinan
+                        </label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Catatan tambahan, arahan khusus, atau poin yang harus diperhatikan..."
+                            rows={3}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium text-slate-800"
+                        />
+                    </div>
+
+                    {/* Batas Waktu */}
+                    <div>
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1.5">
+                            Batas Waktu / Target Selesai
+                        </label>
+                        <input
+                            type="date"
+                            value={deadline}
+                            onChange={(e) => setDeadline(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-bold text-slate-700"
+                        />
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                            {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                            <span>Terbitkan Disposisi & Kirim WA</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Modal for Viewing and Exporting Buku Agenda & Register Surat
+ */
+const AgendaRegisterModal = ({ isOpen, onClose, defaultType = 'SURAT_MASUK' }) => {
+    const [type, setType] = useState(defaultType);
+    const [year, setYear] = useState(new Date().getFullYear());
+    const [month, setMonth] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setType(defaultType);
+            fetchAgenda(defaultType, year, month, startDate, endDate);
+        }
+    }, [isOpen, defaultType]);
+
+    const fetchAgenda = async (selectedType = type, y = year, m = month, s = startDate, e = endDate) => {
+        try {
+            setLoading(true);
+            const params = { type: selectedType };
+            if (s && e) {
+                params.startDate = s;
+                params.endDate = e;
+            } else if (y) {
+                params.year = y;
+                if (m) params.month = m;
+            }
+            const res = await api.get('/office-documents/agenda-register', { params });
+            setData(res.data.documents || []);
+        } catch (err) {
+            console.error('Failed to load agenda register:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    const handleExportExcel = () => {
+        const rows = data.map((doc, idx) => {
+            const dispSummary = doc.dispositions && doc.dispositions.length > 0
+                ? doc.dispositions.map(d => `${d.toUser?.name} (${d.instruction || '-'})`).join('; ')
+                : '-';
+
+            if (type === 'SURAT_MASUK') {
+                return {
+                    'No. Urut': idx + 1,
+                    'No. Agenda': doc.number || `SM-${doc.id}`,
+                    'Tanggal Diterima': doc.receivedDate ? new Date(doc.receivedDate).toLocaleDateString('id-ID') : '-',
+                    'Nomor Surat Masuk': doc.referenceNumber || '-',
+                    'Tanggal Surat': doc.date ? new Date(doc.date).toLocaleDateString('id-ID') : '-',
+                    'Asal / Pengirim': `${doc.senderName || '-'} ${doc.senderOrg ? `(${doc.senderOrg})` : ''}`,
+                    'Perihal Surat': doc.subject || '-',
+                    'Disposisi Pimpinan': dispSummary,
+                    'Keterangan / Arsip': doc.fileUrl ? 'Ada Berkas PDF' : 'Tanpa File'
+                };
+            } else {
+                return {
+                    'No. Urut': idx + 1,
+                    'Nomor Surat Keluar': doc.number || `DRAFT-${doc.id}`,
+                    'Tanggal Surat': doc.date ? new Date(doc.date).toLocaleDateString('id-ID') : '-',
+                    'Kategori Surat': doc.category || doc.type,
+                    'Tujuan / Penerima': doc.party2Name ? `${doc.party2Name} (${doc.party2Org || doc.party2Address || '-'})` : '-',
+                    'Perihal / Subjek': doc.subject || '-',
+                    'Pembuat / Konseptor': doc.author?.name || '-',
+                    'Penandatangan': doc.signedBy?.name || '-',
+                    'Status Dokumen': doc.status
+                };
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        const sheetName = type === 'SURAT_MASUK' ? 'Buku_Agenda_Surat_Masuk' : 'Buku_Agenda_Surat_Keluar';
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, `${sheetName}_${year || 'All'}.xlsx`);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+                {/* Header */}
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
+                            <ClipboardList size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-900 text-base">Buku Register & Agenda Surat Resmi</h3>
+                            <p className="text-xs text-slate-500 font-medium">Buku agenda rekap surat masuk dan keluar standar tata usaha</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Filters */}
+                <div className="p-4 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { setType('SURAT_MASUK'); fetchAgenda('SURAT_MASUK', year, month, startDate, endDate); }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                type === 'SURAT_MASUK' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            📥 Surat Masuk
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setType('SURAT_KELUAR'); fetchAgenda('SURAT_KELUAR', year, month, startDate, endDate); }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                type === 'SURAT_KELUAR' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            📤 Surat Keluar
+                        </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <select
+                            value={year}
+                            onChange={(e) => { setYear(e.target.value); fetchAgenda(type, e.target.value, month, startDate, endDate); }}
+                            className="px-3 py-2 rounded-xl border border-slate-200 font-bold bg-white text-slate-700 outline-none"
+                        >
+                            {[2024, 2025, 2026, 2027].map(y => (
+                                <option key={y} value={y}>Tahun {y}</option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={month}
+                            onChange={(e) => { setMonth(e.target.value); fetchAgenda(type, year, e.target.value, startDate, endDate); }}
+                            className="px-3 py-2 rounded-xl border border-slate-200 font-bold bg-white text-slate-700 outline-none"
+                        >
+                            <option value="">-- Semua Bulan --</option>
+                            {BULAN_FULL.map((mName, idx) => (
+                                <option key={idx} value={idx + 1}>{mName}</option>
+                            ))}
+                        </select>
+
+                        <button
+                            type="button"
+                            onClick={handleExportExcel}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                            <Download size={14} /> <span>Ekspor Excel</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Table Data */}
+                <div className="p-4 overflow-auto flex-1">
+                    {loading ? (
+                        <div className="flex justify-center py-16">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        </div>
+                    ) : data.length > 0 ? (
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+                                    <th className="p-3">No</th>
+                                    <th className="p-3">{type === 'SURAT_MASUK' ? 'Tgl Terima' : 'Tgl Surat'}</th>
+                                    <th className="p-3">{type === 'SURAT_MASUK' ? 'No. Surat Masuk' : 'Nomor Surat'}</th>
+                                    <th className="p-3">{type === 'SURAT_MASUK' ? 'Pengirim' : 'Penerima / Tujuan'}</th>
+                                    <th className="p-3">Perihal</th>
+                                    <th className="p-3">{type === 'SURAT_MASUK' ? 'Disposisi' : 'Status TTE'}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {data.map((doc, idx) => (
+                                    <tr key={doc.id} className="hover:bg-slate-50 font-medium text-slate-700">
+                                        <td className="p-3">{idx + 1}</td>
+                                        <td className="p-3 whitespace-nowrap">
+                                            {formatDate(type === 'SURAT_MASUK' ? doc.receivedDate : doc.date)}
+                                        </td>
+                                        <td className="p-3 font-mono font-bold text-slate-900">
+                                            {type === 'SURAT_MASUK' ? (doc.referenceNumber || '-') : (doc.number || 'DRAFT')}
+                                        </td>
+                                        <td className="p-3 max-w-[180px] truncate">
+                                            {type === 'SURAT_MASUK' ? (doc.senderName || '-') : (doc.party2Name || '-')}
+                                        </td>
+                                        <td className="p-3 max-w-xs">{doc.subject}</td>
+                                        <td className="p-3">
+                                            {type === 'SURAT_MASUK' ? (
+                                                doc.dispositions && doc.dispositions.length > 0 ? (
+                                                    <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                                        {doc.dispositions.length} Disposisi
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 italic text-[11px]">Belum didisposisi</span>
+                                                )
+                                            ) : (
+                                                <StatusBadge status={doc.status} />
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="p-16 text-center text-slate-400 italic">
+                            Tidak ada data surat pada periode yang dipilih
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const TabButton = ({ active, label, icon, onClick }) => (
     <button
         onClick={onClick}
@@ -4086,11 +5076,19 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
     const types = [
         {
             id: 'SURAT_MASUK', label: 'Surat Masuk', icon: <Inbox size={24} />,
-            desc: 'Dokumen yang diterima dari luar instansi', color: 'blue'
+            desc: 'Dokumen yang diterima dari luar instansi beserta disposisi', color: 'blue'
         },
         {
-            id: 'SURAT_KELUAR', label: 'Surat Keluar', icon: <Send size={24} />,
-            desc: 'Surat Tugas, Edaran, Keputusan, BAST, dll', color: 'emerald'
+            id: 'SURAT_KELUAR', label: 'Surat Keluar Standard', icon: <Send size={24} />,
+            desc: 'Surat Tugas, Edaran, Keputusan, Undangan, dll', color: 'emerald'
+        },
+        {
+            id: 'SPK_VENDOR', label: 'SPK / Kontrak Vendor', icon: <FileSignature size={24} />,
+            desc: 'Surat Perintah Kerja & Perjanjian Kerjasama Vendor', color: 'indigo', category: 'SPK'
+        },
+        {
+            id: 'BA_KERUSAKAN', label: 'BA Kerusakan / Insiden', icon: <AlertTriangle size={24} />,
+            desc: 'Berita Acara Kerusakan atau Kehilangan Aset', color: 'rose', category: 'Berita Acara Kerusakan'
         },
         {
             id: 'INVOICE', label: 'Invoice / Tagihan', icon: <FileText size={24} />,
@@ -4110,21 +5108,21 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in duration-200">
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="font-black text-slate-900 leading-none text-xl">Pilih Tipe Dokumen</h3>
+                    <h3 className="font-black text-slate-900 leading-none text-xl">Pilih Tipe Dokumen E-Office</h3>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 transition-colors"><X size={24} /></button>
                 </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {types.map(t => (
                         <button
                             key={t.id}
-                            onClick={() => onSelect(t.id)}
-                            className="group text-left p-6 rounded-2xl border-2 border-slate-100 bg-slate-50/50 hover:border-blue-500 hover:bg-blue-50 transition-all flex flex-col items-start"
+                            onClick={() => onSelect(t.id, t.category)}
+                            className="group text-left p-5 rounded-2xl border-2 border-slate-100 bg-slate-50/50 hover:border-blue-500 hover:bg-blue-50 transition-all flex flex-col items-start cursor-pointer"
                         >
-                            <div className={`p-3 rounded-xl bg-${t.color}-50 text-${t.color}-600 mb-4 group-hover:scale-110 transition-transform`}>{t.icon}</div>
-                            <div className="font-black text-slate-900 text-lg leading-tight">{t.label}</div>
-                            <div className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{t.desc}</div>
+                            <div className="p-3 rounded-xl bg-blue-50 text-blue-600 mb-3 group-hover:scale-110 transition-transform">{t.icon}</div>
+                            <div className="font-black text-slate-900 text-base leading-tight">{t.label}</div>
+                            <div className="text-xs text-slate-500 font-medium mt-1.5 leading-relaxed">{t.desc}</div>
 
-                            <div className="mt-6 flex items-center gap-2 text-blue-600 text-xs font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="mt-4 flex items-center gap-1.5 text-blue-600 text-xs font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-all">
                                 Pilih Tipe Ini <ArrowRight size={14} />
                             </div>
                         </button>

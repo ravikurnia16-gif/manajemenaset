@@ -31,11 +31,20 @@ router.post('/incoming', handleBulkUpload('files', 5, 'e-office/surat-masuk'), c
 router.get('/outgoing', ctrl.getOutgoingDocuments);
 router.post('/outgoing', handleBulkUpload('files', 5, 'e-office/surat-keluar'), ctrl.createOutgoingDocument);
 
+// Agenda Register
+router.get('/agenda-register', ctrl.getAgendaRegister);
+
 // Single document operations
 router.get('/:id', ctrl.getDocumentById);
 router.put('/:id', handleBulkUpload('files', 5, 'e-office'), ctrl.updateDocument);
 router.put('/:id/final-file', handleBulkUpload('files', 1, 'e-office/final'), ctrl.uploadFinalFile);
 router.delete('/:id', authorizeRole(['SUPER_ADMIN']), ctrl.deleteDocument);
+
+// Disposisi Surat Masuk
+router.post('/:id/dispositions', ctrl.createDisposition);
+router.get('/:id/dispositions', ctrl.getDispositions);
+router.patch('/dispositions/:dispId/status', ctrl.updateDispositionStatus);
+router.get('/:id/disposition-sheet', ctrl.getDispositionPdf);
 
 // Workflow
 router.post('/:id/submit', ctrl.submitForApproval);

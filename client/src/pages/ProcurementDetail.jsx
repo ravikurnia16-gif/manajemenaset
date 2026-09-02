@@ -371,6 +371,7 @@ const ProcurementDetail = () => {
     const [handoverPhoto, setHandoverPhoto] = useState(null);
     const [handoverFile, setHandoverFile] = useState(null);
     const [rooms, setRooms] = useState([]);
+    const [allRooms, setAllRooms] = useState([]);
     const [categories, setCategories] = useState([]);
     const [assetDetails, setAssetDetails] = useState({}); // { itemId: { categoryId, roomId, picId, condition, isLendable } }
     const [settings, setSettings] = useState(null);
@@ -458,6 +459,7 @@ const ProcurementDetail = () => {
             };
             data.items = (data.items || []).map(item => ({
                 ...item,
+                newVendorName: '',
                 brand: item.brand || '',
                 usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
                 finalPrice: item.finalPrice || item.estPrice,
@@ -471,28 +473,45 @@ const ProcurementDetail = () => {
                 assignmentNote: item.assignmentNote || ''
             }));
             setReq(data);
-            setRooms(roomsRes.data.filter(r => r.unitId === data.unitId));
+            setAllRooms(roomsRes.data || []);
+            setRooms((roomsRes.data || []).filter(r => r.unitId === data.unitId));
             if (data.type === 'ASSET' && data.items.length > 0) {
                 const initDetails = {};
                 const savedDraftStr = localStorage.getItem(`bast_draft_${id}`);
                 const savedDraft = savedDraftStr ? JSON.parse(savedDraftStr) : {};
 
                 data.items.forEach(it => {
+                    const existingDraft = savedDraft[it.id] || {};
+                    const defaultCatId = existingDraft.categoryId || it.categoryId || '';
+                    const defaultTargetUnitId = existingDraft.targetUnitId || data.unitId;
+                    const defaultIsEntrusted = existingDraft.isEntrusted || (defaultTargetUnitId !== data.unitId);
+
                     const units = [];
                     for (let i = 0; i < it.qty; i++) {
-                        units.push({ roomId: '', picId: '', image: null });
+                        const uDraft = existingDraft.units?.[i] || {};
+                        const uTargetUnitId = uDraft.targetUnitId || data.unitId;
+                        units.push({
+                            targetUnitId: uTargetUnitId,
+                            isEntrusted: uDraft.isEntrusted || (uTargetUnitId !== data.unitId),
+                            roomId: uDraft.roomId || '',
+                            picId: uDraft.picId || '',
+                            image: uDraft.image || null
+                        });
                     }
-                    initDetails[it.id] = savedDraft[it.id] || {
-                        categoryId: '',
-                        roomId: '',
-                        picId: '',
-                        image: null,
-                        condition: 'BAIK',
-                        isLendable: false,
-                        needsRoutineMaintenance: false,
-                        maintenanceInterval: 3,
-                        intervalUnit: 'MONTHS',
-                        allocationType: 'SAME',
+
+                    initDetails[it.id] = {
+                        categoryId: defaultCatId,
+                        targetUnitId: defaultTargetUnitId,
+                        isEntrusted: defaultIsEntrusted,
+                        roomId: existingDraft.roomId || '',
+                        picId: existingDraft.picId || '',
+                        image: existingDraft.image || null,
+                        condition: existingDraft.condition || 'BAIK',
+                        isLendable: existingDraft.isLendable || false,
+                        needsRoutineMaintenance: existingDraft.needsRoutineMaintenance || false,
+                        maintenanceInterval: existingDraft.maintenanceInterval || 3,
+                        intervalUnit: existingDraft.intervalUnit || 'MONTHS',
+                        allocationType: existingDraft.allocationType || 'SAME',
                         units: units
                     };
                 });
@@ -528,7 +547,8 @@ const ProcurementDetail = () => {
                 needComparison: item.needComparison,
                 assignedTo: item.assignedTo, assignedToId: item.assignedToId,
                 assignmentNote: item.assignmentNote,
-                spec: item.spec
+                spec: item.spec,
+                categoryId: item.categoryId ? parseInt(item.categoryId) : null
             });
 
             if (!silent) {
@@ -588,13 +608,14 @@ const ProcurementDetail = () => {
                 // Skip BAST detail validation if using warehouse fulfillment
                 if (fulfillment?.enabled) continue;
 
-                const det = assetDetails[item.id];
-                if (!det?.categoryId) return alert(`Pilih Kategori untuk item: ${item.name}`);
+                const det = assetDetails[item.id] || {};
+                const finalCatId = det.categoryId || item.categoryId;
+                if (!finalCatId) return alert(`Pilih Kategori untuk item: ${item.name}`);
 
                 if (det.allocationType === 'SAME') {
-                    if (!det?.roomId) return alert(`Pilih Ruangan untuk item: ${item.name}`);
+                    if (!det.roomId) return alert(`Pilih Ruangan untuk item: ${item.name}`);
                 } else {
-                    const missing = det.units.some(u => !u.roomId);
+                    const missing = (det.units || []).some(u => !u.roomId);
                     if (missing) return alert(`Lengkapi Ruangan untuk setiap unit item: ${item.name}`);
                 }
             }
@@ -1790,18 +1811,57 @@ const ProcurementDetail = () => {
                                                     {!warehouseFulfillments[it.id]?.enabled && (
                                                         <>
                                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                                                {/* Kategori */}
                                                                 <div>
-                                                                    <Label>Kategori *</Label>
-                                                                    <Select disabled={itemDisabled} value={det.categoryId || ''} onChange={e => updateDet('categoryId', e.target.value)}>
-                                                                        <option value="">— Pilih Kategori —</option>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                                        <Label style={{ marginBottom: 0 }}>Kategori Aset *</Label>
+                                                                        {(() => {
+                                                                            const currentCatId = det.categoryId || it.categoryId;
+                                                                            const isChanged = det.categoryId && it.categoryId && parseInt(det.categoryId) !== parseInt(it.categoryId);
+                                                                            if (isChanged) {
+                                                                                return (
+                                                                                    <span style={{ fontSize: 10, color: T.warn, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                                                        <AlertCircle size={11} /> Kategori Diedit
+                                                                                    </span>
+                                                                                );
+                                                                            }
+                                                                            if (currentCatId) {
+                                                                                return (
+                                                                                    <span style={{ fontSize: 10, color: T.gold, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                                                        <CheckCircle size={11} /> {it.categoryId ? 'Dari Pengadaan' : 'Terpilih'}
+                                                                                    </span>
+                                                                                );
+                                                                            }
+                                                                            return null;
+                                                                        })()}
+                                                                    </div>
+                                                                    <Select 
+                                                                        disabled={itemDisabled} 
+                                                                        value={det.categoryId || it.categoryId || ''} 
+                                                                        onChange={e => {
+                                                                            const newCat = e.target.value;
+                                                                            updateDet('categoryId', newCat);
+                                                                            setReq(prev => ({
+                                                                                ...prev,
+                                                                                items: prev.items.map(itItem => itItem.id === it.id ? { ...itItem, categoryId: newCat ? parseInt(newCat) : null } : itItem)
+                                                                            }));
+                                                                        }}
+                                                                        style={{
+                                                                            borderColor: (det.categoryId || it.categoryId) ? '#bbf7d0' : T.border,
+                                                                            background: (det.categoryId || it.categoryId) ? '#f8fdf9' : '#fff'
+                                                                        }}
+                                                                    >
+                                                                        <option value="">— Pilih Kategori (Koreksi) —</option>
                                                                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                                     </Select>
-                                                                    {det.categoryId && (
+                                                                    {(det.categoryId || it.categoryId) && (
                                                                         <div style={{ marginTop: 4, fontSize: 10, color: T.gold, fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>
-                                                                            PREVIEW KODE: {getPreviewCode(det.categoryId)}
+                                                                            PREVIEW KODE: {getPreviewCode(det.categoryId || it.categoryId)}
                                                                         </div>
                                                                     )}
                                                                 </div>
+
+                                                                {/* Kondisi Awal */}
                                                                 <div>
                                                                     <Label>Kondisi Awal</Label>
                                                                     <Select disabled={itemDisabled} value={det.condition || 'BAIK'} onChange={e => updateDet('condition', e.target.value)}>
@@ -1811,12 +1871,14 @@ const ProcurementDetail = () => {
                                                                     </Select>
                                                                 </div>
 
+                                                                {/* Alokasi Ruangan Type Selector (if qty > 1) */}
                                                                 {it.qty > 1 && (
                                                                     <div style={{ gridColumn: 'span 2' }}>
-                                                                        <Label>Alokasi Ruangan</Label>
-                                                                        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                                                                            {[['SAME', 'Sama untuk Semua'], ['INDIVIDUAL', 'Berbeda per Unit']].map(([val, label]) => (
+                                                                        <Label>Metode Alokasi Ruangan</Label>
+                                                                        <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                                                                            {[['SAME', 'Sama untuk Semua Unit'], ['INDIVIDUAL', 'Berbeda per Unit']].map(([val, label]) => (
                                                                                 <button key={val}
+                                                                                    type="button"
                                                                                     disabled={itemDisabled}
                                                                                     onClick={() => updateDet('allocationType', val)}
                                                                                     style={{
@@ -1833,42 +1895,211 @@ const ProcurementDetail = () => {
                                                                     </div>
                                                                 )}
 
+                                                                {/* ── SAME ALLOCATION MODE ── */}
                                                                 {det.allocationType === 'SAME' ? (
-                                                                    <div>
-                                                                        <Label>Ruangan *</Label>
-                                                                        <Select disabled={itemDisabled} value={det.roomId || ''} onChange={e => updateDet('roomId', e.target.value)}>
-                                                                            <option value="">— Pilih Ruangan —</option>
-                                                                            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` (${r.building})` : ''}</option>)}
-                                                                        </Select>
+                                                                    <div style={{ gridColumn: it.qty > 1 ? 'span 2' : 'auto', background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                                                                            <Label style={{ marginBottom: 0, color: '#1e293b' }}>Lokasi Penempatan Ruangan *</Label>
+                                                                            
+                                                                            {/* Pill Switch: Unit Pemohon vs Titip di Unit Lain */}
+                                                                            <div style={{ display: 'inline-flex', background: '#e2e8f0', borderRadius: 8, padding: 2 }}>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    disabled={itemDisabled}
+                                                                                    onClick={() => {
+                                                                                        updateDet('isEntrusted', false);
+                                                                                        updateDet('targetUnitId', req.unitId);
+                                                                                        updateDet('roomId', '');
+                                                                                    }}
+                                                                                    style={{
+                                                                                        padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none',
+                                                                                        background: !det.isEntrusted ? '#fff' : 'transparent',
+                                                                                        color: !det.isEntrusted ? T.navy : T.slate,
+                                                                                        boxShadow: !det.isEntrusted ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                                                                        cursor: itemDisabled ? 'not-allowed' : 'pointer'
+                                                                                    }}
+                                                                                >
+                                                                                    🏢 Unit Pemohon ({req.unit?.name || 'Unit Ini'})
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    disabled={itemDisabled}
+                                                                                    onClick={() => {
+                                                                                        updateDet('isEntrusted', true);
+                                                                                        updateDet('roomId', '');
+                                                                                    }}
+                                                                                    style={{
+                                                                                        padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none',
+                                                                                        background: det.isEntrusted ? T.warn : 'transparent',
+                                                                                        color: det.isEntrusted ? '#fff' : T.slate,
+                                                                                        boxShadow: det.isEntrusted ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                                                                                        cursor: itemDisabled ? 'not-allowed' : 'pointer'
+                                                                                    }}
+                                                                                >
+                                                                                    🔄 Titip di Unit Lain
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Target Unit Dropdown (if entrusted) */}
+                                                                        {det.isEntrusted && (
+                                                                            <div style={{ marginBottom: 10 }}>
+                                                                                <Label>Pilih Unit Tujuan Penitipan *</Label>
+                                                                                <Select
+                                                                                    disabled={itemDisabled}
+                                                                                    value={det.targetUnitId || ''}
+                                                                                    onChange={e => {
+                                                                                        updateDet('targetUnitId', parseInt(e.target.value));
+                                                                                        updateDet('roomId', '');
+                                                                                    }}
+                                                                                    style={{ background: '#fff', border: `1.5px solid ${T.warn}` }}
+                                                                                >
+                                                                                    <option value="">— Pilih Unit Lain —</option>
+                                                                                    {units
+                                                                                        .filter(u => u.id !== req.unitId)
+                                                                                        .map(u => (
+                                                                                            <option key={u.id} value={u.id}>
+                                                                                                {u.name} ({u.code})
+                                                                                            </option>
+                                                                                        ))
+                                                                                    }
+                                                                                </Select>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Filtered Rooms Dropdown */}
+                                                                        {(() => {
+                                                                            const activeUnitId = det.targetUnitId || req.unitId;
+                                                                            const availableRooms = allRooms.filter(r => r.unitId === activeUnitId);
+                                                                            const activeUnitName = units.find(u => u.id === activeUnitId)?.name || (activeUnitId === req.unitId ? req.unit?.name : 'Unit Terpilih');
+
+                                                                            return (
+                                                                                <div>
+                                                                                    <Label>Pilih Ruangan di {activeUnitName} *</Label>
+                                                                                    <Select
+                                                                                        disabled={itemDisabled}
+                                                                                        value={det.roomId || ''}
+                                                                                        onChange={e => updateDet('roomId', e.target.value)}
+                                                                                        style={{ background: '#fff' }}
+                                                                                    >
+                                                                                        <option value="">— Pilih Ruangan —</option>
+                                                                                        {availableRooms.map(r => (
+                                                                                            <option key={r.id} value={r.id}>
+                                                                                                {r.name} {r.building ? `— ${r.building}` : ''} {r.floor ? `(Lt. ${r.floor})` : ''}
+                                                                                            </option>
+                                                                                        ))}
+                                                                                    </Select>
+                                                                                    {availableRooms.length === 0 && (
+                                                                                        <div style={{ marginTop: 6, fontSize: 11, color: T.warn, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                            <AlertCircle size={12} />
+                                                                                            Belum ada data ruangan terdaftar untuk <b>{activeUnitName}</b> di Master Data.
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
                                                                     </div>
                                                                 ) : (
-                                                                    <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, background: T.cream, padding: 12, borderRadius: 10 }}>
-                                                                        {det.units.map((u, uIdx) => (
-                                                                            <div key={uIdx} style={{ background: T.white, padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}>
-                                                                                <Label style={{ fontWeight: 800 }}>Unit {uIdx + 1}</Label>
-                                                                                <Select disabled={itemDisabled} value={u.roomId || ''} onChange={e => {
-                                                                                    const nextUnits = [...det.units];
-                                                                                    nextUnits[uIdx].roomId = e.target.value;
-                                                                                    updateDet('units', nextUnits);
-                                                                                }} style={{ fontSize: 11, padding: '6px 10px', marginBottom: 8 }}>
-                                                                                    <option value="">— Pilih Ruangan —</option>
-                                                                                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                                                                </Select>
-                                                                                <AssetImageUpload
-                                                                                    disabled={itemDisabled}
-                                                                                    value={u.image}
-                                                                                    onChange={val => {
-                                                                                        const nextUnits = [...det.units];
-                                                                                        nextUnits[uIdx].image = val;
-                                                                                        updateDet('units', nextUnits);
-                                                                                    }}
-                                                                                    label="Foto Unit"
-                                                                                />
-                                                                            </div>
-                                                                        ))}
+                                                                    /* ── INDIVIDUAL ALLOCATION MODE ── */
+                                                                    <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, background: T.cream, padding: 14, borderRadius: 10 }}>
+                                                                        {det.units.map((u, uIdx) => {
+                                                                            const updateUnit = (field, val) => {
+                                                                                if (itemDisabled) return;
+                                                                                const nextUnits = [...det.units];
+                                                                                nextUnits[uIdx] = { ...nextUnits[uIdx], [field]: val };
+                                                                                updateDet('units', nextUnits);
+                                                                            };
+                                                                            const activeUnitId = u.targetUnitId || req.unitId;
+                                                                            const availableRooms = allRooms.filter(r => r.unitId === activeUnitId);
+                                                                            const activeUnitName = units.find(u => u.id === activeUnitId)?.name || (activeUnitId === req.unitId ? req.unit?.name : 'Unit Terpilih');
+
+                                                                            return (
+                                                                                <div key={uIdx} style={{ background: T.white, padding: 12, borderRadius: 10, border: `1px solid ${T.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+                                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                                                        <Label style={{ fontWeight: 800, marginBottom: 0 }}>Unit #{uIdx + 1}</Label>
+                                                                                        <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: 6, padding: 1 }}>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                disabled={itemDisabled}
+                                                                                                onClick={() => {
+                                                                                                    updateUnit('isEntrusted', false);
+                                                                                                    updateUnit('targetUnitId', req.unitId);
+                                                                                                    updateUnit('roomId', '');
+                                                                                                }}
+                                                                                                style={{
+                                                                                                    padding: '2px 6px', fontSize: 9.5, fontWeight: 700, borderRadius: 5, border: 'none',
+                                                                                                    background: !u.isEntrusted ? '#fff' : 'transparent',
+                                                                                                    color: !u.isEntrusted ? T.navy : T.slate,
+                                                                                                    cursor: itemDisabled ? 'not-allowed' : 'pointer'
+                                                                                                }}
+                                                                                            >
+                                                                                                Unit Sendiri
+                                                                                            </button>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                disabled={itemDisabled}
+                                                                                                onClick={() => {
+                                                                                                    updateUnit('isEntrusted', true);
+                                                                                                    updateUnit('roomId', '');
+                                                                                                }}
+                                                                                                style={{
+                                                                                                    padding: '2px 6px', fontSize: 9.5, fontWeight: 700, borderRadius: 5, border: 'none',
+                                                                                                    background: u.isEntrusted ? T.warn : 'transparent',
+                                                                                                    color: u.isEntrusted ? '#fff' : T.slate,
+                                                                                                    cursor: itemDisabled ? 'not-allowed' : 'pointer'
+                                                                                                }}
+                                                                                            >
+                                                                                                Titip Unit Lain
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {u.isEntrusted && (
+                                                                                        <div style={{ marginBottom: 6 }}>
+                                                                                            <Select
+                                                                                                disabled={itemDisabled}
+                                                                                                value={u.targetUnitId || ''}
+                                                                                                onChange={e => {
+                                                                                                    updateUnit('targetUnitId', parseInt(e.target.value));
+                                                                                                    updateUnit('roomId', '');
+                                                                                                }}
+                                                                                                style={{ fontSize: 11, padding: '5px 8px', border: `1px solid ${T.warn}` }}
+                                                                                            >
+                                                                                                <option value="">— Pilih Unit Lain —</option>
+                                                                                                {units.filter(un => un.id !== req.unitId).map(un => (
+                                                                                                    <option key={un.id} value={un.id}>{un.name}</option>
+                                                                                                ))}
+                                                                                            </Select>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    <Select
+                                                                                        disabled={itemDisabled}
+                                                                                        value={u.roomId || ''}
+                                                                                        onChange={e => updateUnit('roomId', e.target.value)}
+                                                                                        style={{ fontSize: 11, padding: '6px 10px', marginBottom: 8 }}
+                                                                                    >
+                                                                                        <option value="">— Pilih Ruangan ({activeUnitName}) —</option>
+                                                                                        {availableRooms.map(r => (
+                                                                                            <option key={r.id} value={r.id}>
+                                                                                                {r.name} {r.building ? `— ${r.building}` : ''} {r.floor ? `(Lt. ${r.floor})` : ''}
+                                                                                            </option>
+                                                                                        ))}
+                                                                                    </Select>
+
+                                                                                    <AssetImageUpload
+                                                                                        disabled={itemDisabled}
+                                                                                        value={u.image}
+                                                                                        onChange={val => updateUnit('image', val)}
+                                                                                        label="Foto Unit"
+                                                                                    />
+                                                                                </div>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 )}
 
+                                                                {/* PIC */}
                                                                 <div>
                                                                     <Label>PIC (Opsional)</Label>
                                                                     <Select disabled={itemDisabled} value={det.picId || ''} onChange={e => updateDet('picId', e.target.value)}>
@@ -1876,6 +2107,8 @@ const ProcurementDetail = () => {
                                                                         {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                                     </Select>
                                                                 </div>
+
+                                                                {/* Foto Aset (SAME ALLOCATION) */}
                                                                 {det.allocationType === 'SAME' && (
                                                                     <div>
                                                                         <AssetImageUpload

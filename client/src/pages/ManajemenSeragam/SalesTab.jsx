@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, ShoppingCart, Trash2, CheckCircle, XCircle, ChevronDown, ChevronUp, 
-  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw, Download, AlertTriangle, Loader2
+  Sparkles, CheckCheck, Package, MapPin, AlertCircle, Save, X, ExternalLink, Clock, Filter, Globe, Copy, RefreshCw, Download, AlertTriangle, Loader2,
+  CreditCard, Coins, DollarSign, Receipt
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { Badge } from './UIComponents';
@@ -643,6 +644,237 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
   );
 };
 
+const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
+  if (!isOpen || !sale) return null;
+
+  let ndTotal = 0;
+  if (sale.note && sale.note.includes('[NAMADADA')) {
+    const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+    for (const m of matches) {
+      ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+    }
+  }
+
+  const activeSubtotal = (sale.type === 'SPMB' || sale.type === 'UNIT_ORDER')
+    ? (Number(sale.subtotal) || 0)
+    : ((sale.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + (Number(item.totalPrice) || 0), 0) || 0) + ndTotal);
+  const totalAmount = Math.max(0, activeSubtotal - (Number(sale.discount) || 0));
+  const currentPaid = Number(sale.paidAmount) || 0;
+  const currentRemaining = Math.max(0, totalAmount - currentPaid);
+
+  // Total harga item yang sudah siap (SEDIA) atau sudah diserahkan (DIAMBIL)
+  const items = Array.isArray(sale.items) ? sale.items : [];
+  const readyDeliveredItemTotal = items
+    .filter(i => (i.status === 'SEDIA' || i.status === 'DIAMBIL') && i.status !== 'BATAL')
+    .reduce((acc, i) => acc + (Number(i.totalPrice) || 0), 0);
+
+  const [inputPaid, setInputPaid] = useState(currentPaid);
+  const [paymentMethod, setPaymentMethod] = useState(sale.paymentMethod || 'TRANSFER');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const numInputPaid = Number(inputPaid) || 0;
+  const sisaBayar = Math.max(0, totalAmount - numInputPaid);
+
+  let previewStatus = 'UNPAID';
+  if (numInputPaid >= totalAmount && totalAmount > 0) {
+    previewStatus = 'PAID';
+  } else if (numInputPaid > 0) {
+    previewStatus = 'PARTIAL';
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await onSave(sale.id, {
+        paidAmount: Math.min(totalAmount, numInputPaid),
+        paymentMethod
+      });
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <CreditCard size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm sm:text-base">Kelola Pembayaran Tagihan</h3>
+              <p className="text-xs text-blue-100 font-mono">{sale.code} • {sale.customerName}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto custom-scrollbar">
+          {/* Tagihan Summary Card */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-500 font-medium">Total Tagihan:</span>
+              <strong className="text-slate-800 text-sm">Rp {totalAmount.toLocaleString('id-ID')}</strong>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-500 font-medium">Sudah Dibayar Saat Ini:</span>
+              <span className="font-bold text-emerald-600">Rp {currentPaid.toLocaleString('id-ID')}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+              <span className="text-slate-500 font-medium">Sisa Belum Dibayar:</span>
+              <strong className="text-rose-600 text-sm">Rp {currentRemaining.toLocaleString('id-ID')}</strong>
+            </div>
+
+            {/* Progress bar */}
+            <div className="space-y-1 pt-1">
+              <div className="flex justify-between text-[11px] font-bold">
+                <span className="text-slate-500">Persentase Terbayar</span>
+                <span className="text-blue-600">{totalAmount > 0 ? Math.min(100, Math.round((numInputPaid / totalAmount) * 100)) : 100}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 ${numInputPaid >= totalAmount ? 'bg-emerald-500' : numInputPaid > 0 ? 'bg-amber-500' : 'bg-slate-300'}`}
+                  style={{ width: `${totalAmount > 0 ? Math.min(100, Math.max(0, (numInputPaid / totalAmount) * 100)) : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Buttons */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">Pilihan Cepat Nominal:</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setInputPaid(totalAmount)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  numInputPaid === totalAmount
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                }`}
+              >
+                <CheckCircle size={13} /> Lunas Penuh (100%)
+              </button>
+
+              {readyDeliveredItemTotal > 0 && readyDeliveredItemTotal < totalAmount && (
+                <button
+                  type="button"
+                  onClick={() => setInputPaid(readyDeliveredItemTotal)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    numInputPaid === readyDeliveredItemTotal
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300'
+                  }`}
+                  title="Bayar seharga item seragam yang statusnya sudah SEDIA atau DIAMBIL"
+                >
+                  <Package size={13} /> Item Siap/Ambil
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setInputPaid(0)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  numInputPaid === 0
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                }`}
+              >
+                <XCircle size={13} /> Belum Bayar (Rp 0)
+              </button>
+            </div>
+          </div>
+
+          {/* Input Nominal Pembayaran */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 flex justify-between items-center">
+              <span>Total Uang yang Diterima (Rp):</span>
+              <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
+                previewStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' :
+                previewStatus === 'PARTIAL' ? 'bg-amber-100 text-amber-800' :
+                'bg-rose-100 text-rose-800'
+              }`}>
+                Status: {previewStatus === 'PAID' ? 'LUNAS' : previewStatus === 'PARTIAL' ? 'PARSIAL (SEBAGIAN)' : 'BELUM BAYAR'}
+              </span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">Rp</span>
+              <input
+                type="number"
+                min="0"
+                max={totalAmount}
+                value={inputPaid}
+                onChange={(e) => setInputPaid(Math.min(totalAmount, Math.max(0, parseFloat(e.target.value) || 0)))}
+                placeholder="0"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-xl font-mono font-bold text-base text-slate-800 outline-none"
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-500 pt-0.5">
+              <span>Sisa Tagihan Setelah Ini:</span>
+              <strong className={sisaBayar > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold'}>
+                Rp {sisaBayar.toLocaleString('id-ID')}
+              </strong>
+            </div>
+          </div>
+
+          {/* Metode Pembayaran */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">Metode Pembayaran:</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: 'TRANSFER', label: 'Transfer Bank' },
+                { key: 'CASH', label: 'Tunai (Cash)' },
+                { key: 'QRIS', label: 'QRIS' }
+              ].map(m => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setPaymentMethod(m.key)}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                    paymentMethod === m.key
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition text-center cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-500/20 disabled:opacity-50 text-center cursor-pointer"
+            >
+              <Save size={14} />
+              {isSubmitting ? 'Menyimpan...' : 'Simpan Pembayaran'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 export const SalesTab = ({ 
   sales = [], 
   type = 'ALL',
@@ -661,6 +893,7 @@ export const SalesTab = ({
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [paymentModal, setPaymentModal] = useState({ open: false, sale: null });
 
   const handleCopyPublicLink = () => {
     const url = `${window.location.origin}/pesan-seragam`;
@@ -766,6 +999,7 @@ export const SalesTab = ({
   }, [sales]);
 
   // Urutkan data: PENDING paling atas, INDENT berikutnya, PROSES, dan SELESAI paling bawah
+  // Khusus status SELESAI diurutkan berdasarkan waktu selesai (completedAt) terbaru
   const sortedAndFilteredSales = useMemo(() => {
     let list = Array.isArray(sales) ? [...sales] : [];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -792,9 +1026,24 @@ export const SalesTab = ({
 
     // Urutkan berdasarkan prioritas status lalu tanggal terbaru
     return list.sort((a, b) => {
+      // Jika tab filter COMPLETED aktif, urutkan berdasarkan completedAt terbaru
+      if (statusFilter === 'COMPLETED') {
+        const timeA = new Date(a?.completedAt || a?.updatedAt || a?.createdAt || 0).getTime();
+        const timeB = new Date(b?.completedAt || b?.updatedAt || b?.createdAt || 0).getTime();
+        return timeB - timeA;
+      }
+
       const pA = getStatusPriority(a);
       const pB = getStatusPriority(b);
       if (pA !== pB) return pA - pB;
+
+      // Jika keduanya berstatus SELESAI / COMPLETED, urutkan berdasarkan waktu status berubah menjadi selesai
+      if (pA === 4) {
+        const timeA = new Date(a?.completedAt || a?.updatedAt || a?.createdAt || 0).getTime();
+        const timeB = new Date(b?.completedAt || b?.updatedAt || b?.createdAt || 0).getTime();
+        return timeB - timeA;
+      }
+
       return new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0);
     });
   }, [sales, statusFilter]);
@@ -1095,22 +1344,47 @@ export const SalesTab = ({
 
                     {/* Status Bayar */}
                     <td className="p-3 text-center">
-                      <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
-                        {s.paymentStatus}
-                      </Badge>
-                      {onUpdatePayment && (
-                        <button 
-                          onClick={() => onUpdatePayment(s.id, s.paymentStatus === 'PAID' ? 'UNPAID' : 'PAID')}
-                          className={`mt-1.5 mx-auto flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg transition-colors ${
-                            s.paymentStatus === 'PAID' 
-                              ? 'bg-red-50 text-red-600 hover:bg-red-100' 
-                              : 'bg-green-50 text-green-600 hover:bg-green-100'
-                          }`}
-                        >
-                          {s.paymentStatus === 'PAID' ? <XCircle size={11} /> : <CheckCircle size={11} />}
-                          {s.paymentStatus === 'PAID' ? 'Batal Lunas' : 'Tandai Lunas'}
-                        </button>
-                      )}
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
+                          {s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'PARTIAL' ? 'PARSIAL' : 'BELUM BAYAR'}
+                        </Badge>
+
+                        {s.paymentStatus === 'PARTIAL' && (
+                          <div className="w-full max-w-[125px] space-y-0.5 mt-0.5">
+                            <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                              <span>Terbayar:</span>
+                              <span className="text-emerald-700">Rp {(Number(s.paidAmount) || 0).toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="bg-amber-500 h-full rounded-full transition-all duration-300"
+                                style={{ width: `${Math.min(100, Math.max(0, ((Number(s.paidAmount) || 0) / (activeTotalAmount || 1)) * 100))}%` }}
+                              />
+                            </div>
+                            <div className="text-[10px] text-rose-600 font-bold text-right">
+                              Sisa: Rp {Math.max(0, activeTotalAmount - (Number(s.paidAmount) || 0)).toLocaleString('id-ID')}
+                            </div>
+                          </div>
+                        )}
+
+                        {s.paymentStatus === 'PAID' && (
+                          <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                            Rp {(Number(s.paidAmount) || activeTotalAmount).toLocaleString('id-ID')}
+                          </div>
+                        )}
+
+                        {onUpdatePayment && (
+                          <button 
+                            type="button"
+                            onClick={() => setPaymentModal({ open: true, sale: s })}
+                            className="mt-1 flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shadow-xs"
+                            title="Kelola Pembayaran (Lunas, Parsial / DP, Cicil)"
+                          >
+                            <CreditCard size={11} />
+                            <span>Kelola Bayar</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
 
                     {/* Status & Kelola Item Toggle */}
@@ -1121,8 +1395,19 @@ export const SalesTab = ({
                           s.status === 'PROSES' || s.status === 'SEDIA' ? 'blue' : 
                           s.status === 'PENDING' ? 'yellow' : 'slate'
                         }>
-                          {s.status === 'COMPLETED' ? 'SELESAI' : s.status}
+                          {isCompleted ? 'SELESAI' : s.status}
                         </Badge>
+
+                        {/* Completed At Timestamp */}
+                        {isCompleted && (s.completedAt || s.updatedAt) && (
+                          <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5" title="Waktu pesanan berstatus selesai">
+                            <CheckCheck size={11} className="text-emerald-600" />
+                            <span>
+                              {new Date(s.completedAt || s.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}{' '}
+                              {new Date(s.completedAt || s.updatedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Indent Indicator Badge if any items are INDENT */}
                         {indentItems.length > 0 && !isCompleted && (
@@ -1140,12 +1425,19 @@ export const SalesTab = ({
                             ✓ {sediaItems.length} Sedia
                           </span>
                         )}
+
+                        {/* Diambil count badge */}
+                        {!isCompleted && sAllItems.filter(i => i.status === 'DIAMBIL').length > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                            📦 {sAllItems.filter(i => i.status === 'DIAMBIL').length} Diambil
+                          </span>
+                        )}
                       </div>
 
                       {canFulfill && s.status !== 'CANCELLED' && (
                         <button 
                           onClick={() => toggleExpand(s.id)} 
-                          className={`mt-1.5 text-xs font-bold px-2.5 py-1 rounded-xl transition-all flex items-center justify-center gap-1 mx-auto whitespace-nowrap ${
+                          className={`mt-1.5 text-xs font-bold px-2.5 py-1 rounded-xl transition-all flex items-center justify-center gap-1 mx-auto whitespace-nowrap cursor-pointer ${
                             isExpanded 
                               ? 'bg-indigo-600 text-white shadow-sm' 
                               : indentItems.length > 0 && !isCompleted
@@ -1261,6 +1553,14 @@ export const SalesTab = ({
           </tbody>
         </table>
       </div>
+
+      {/* Modal Kelola Pembayaran Tagihan (Parsial / Lunas) */}
+      <PaymentManagementModal 
+        sale={paymentModal.sale} 
+        isOpen={paymentModal.open} 
+        onClose={() => setPaymentModal({ open: false, sale: null })} 
+        onSave={onUpdatePayment} 
+      />
     </div>
   );
 };

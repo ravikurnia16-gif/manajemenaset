@@ -2479,3 +2479,375 @@ async function generateSuratUmumPDF(doc, setting) {
 
     return await pdfDoc.save();
 }
+
+/**
+ * GENERATE LEMBAR DISPOSISI SURAT MASUK
+ */
+async function generateDispositionSheetPDF(doc, dispositions = [], setting) {
+    const { pdfDoc, fontBold, fontRegular, fontItalic, width, height, margin } = await createBasePDF(setting);
+    let page = pdfDoc.getPages()[0];
+    const contentWidth = width - (2 * margin);
+    let y = height - 135;
+
+    await drawKopSurat(page, fontBold, fontRegular);
+
+    // Title
+    const title = "LEMBAR DISPOSISI SURAT MASUK";
+    const titleW = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleW) / 2, y, size: 14, font: fontBold });
+    y -= 4;
+    page.drawLine({ start: { x: (width - titleW) / 2, y }, end: { x: (width + titleW) / 2, y }, thickness: 1.5 });
+    y -= 20;
+
+    // Outer Box for metadata
+    const boxTop = y;
+    const boxHeight = 110;
+    page.drawRectangle({
+        x: margin,
+        y: boxTop - boxHeight,
+        width: contentWidth,
+        height: boxHeight,
+        borderColor: rgb(0.8, 0.8, 0.8),
+        borderWidth: 1,
+    });
+
+    // Content inside metadata box
+    let rowY = boxTop - 18;
+    const col1 = margin + 10;
+    const col2 = margin + 140;
+    const col3 = margin + (contentWidth / 2) + 10;
+    const col4 = col3 + 120;
+
+    page.drawText("Nomor Agenda / Index:", { x: col1, y: rowY, size: 9, font: fontBold });
+    page.drawText(doc.number || `SM-${doc.id}`, { x: col2, y: rowY, size: 9, font: fontRegular });
+    
+    page.drawText("Tingkat Urgensi:", { x: col3, y: rowY, size: 9, font: fontBold });
+    page.drawText(doc.priority || 'BIASA', { x: col4, y: rowY, size: 9, font: fontBold, color: doc.priority === 'SANGAT_SEGERA' ? rgb(0.8, 0.1, 0.1) : rgb(0.2, 0.2, 0.2) });
+    rowY -= 16;
+
+    page.drawText("Nomor Surat Masuk:", { x: col1, y: rowY, size: 9, font: fontBold });
+    page.drawText(doc.referenceNumber || '-', { x: col2, y: rowY, size: 9, font: fontRegular });
+
+    page.drawText("Tanggal Diterima:", { x: col3, y: rowY, size: 9, font: fontBold });
+    page.drawText(doc.receivedDate ? new Date(doc.receivedDate).toLocaleDateString('id-ID') : '-', { x: col4, y: rowY, size: 9, font: fontRegular });
+    rowY -= 16;
+
+    page.drawText("Asal / Pengirim:", { x: col1, y: rowY, size: 9, font: fontBold });
+    page.drawText(`${doc.senderName || '-'} ${doc.senderOrg ? `(${doc.senderOrg})` : ''}`, { x: col2, y: rowY, size: 9, font: fontRegular });
+
+    page.drawText("Tanggal Surat:", { x: col3, y: rowY, size: 9, font: fontBold });
+    page.drawText(doc.date ? new Date(doc.date).toLocaleDateString('id-ID') : '-', { x: col4, y: rowY, size: 9, font: fontRegular });
+    rowY -= 16;
+
+    page.drawText("Perihal Surat:", { x: col1, y: rowY, size: 9, font: fontBold });
+    const subjLines = wrapText(doc.subject || '-', contentWidth - 150, fontRegular, 9);
+    subjLines.slice(0, 2).forEach(line => {
+        page.drawText(line, { x: col2, y: rowY, size: 9, font: fontRegular });
+        rowY -= 12;
+    });
+
+    y = boxTop - boxHeight - 20;
+
+    // Section: Instruksi Disposisi Pimpinan
+    page.drawText("INSTRUKSI / DISPOSISI PIMPINAN:", { x: margin, y, size: 10, font: fontBold });
+    y -= 15;
+
+    const instructionsList = [
+        "Tindak Lanjuti Segera",
+        "Tanggapi Tertulis",
+        "Koordinasikan / Bahas Bersama",
+        "Hadiri / Wakilkan",
+        "Pelajari & Beri Pendapat",
+        "Arsipkan / Untuk Diketahui"
+    ];
+
+    const halfW = contentWidth / 2;
+    const latestDisp = (dispositions && dispositions.length > 0) ? dispositions[0] : null;
+    const selectedInst = latestDisp?.instruction || '';
+
+    instructionsList.forEach((inst, idx) => {
+        const isLeft = idx % 2 === 0;
+        const curX = isLeft ? margin + 10 : margin + halfW + 10;
+        const curY = y - (Math.floor(idx / 2) * 16);
+        
+        const isChecked = selectedInst.toLowerCase().includes(inst.toLowerCase());
+        page.drawRectangle({
+            x: curX,
+            y: curY,
+            width: 10,
+            height: 10,
+            borderColor: rgb(0.3, 0.3, 0.3),
+            borderWidth: 1,
+            color: isChecked ? rgb(0.2, 0.6, 0.9) : rgb(1, 1, 1)
+        });
+        if (isChecked) {
+            page.drawText("v", { x: curX + 2, y: curY + 1, size: 8, font: fontBold, color: rgb(1, 1, 1) });
+        }
+        page.drawText(inst, { x: curX + 16, y: curY + 1, size: 9, font: isChecked ? fontBold : fontRegular });
+    });
+
+    y -= (Math.ceil(instructionsList.length / 2) * 16) + 15;
+
+    // Disposisi Details Table
+    page.drawText("Daftar Disposisi & Penerima Tugas:", { x: margin, y, size: 10, font: fontBold });
+    y -= 15;
+
+    const tableTop = y;
+    page.drawRectangle({
+        x: margin,
+        y: tableTop - 18,
+        width: contentWidth,
+        height: 18,
+        color: rgb(0.93, 0.95, 0.98),
+        borderColor: rgb(0.8, 0.85, 0.9),
+        borderWidth: 1
+    });
+
+    page.drawText("No", { x: margin + 5, y: tableTop - 13, size: 8, font: fontBold });
+    page.drawText("Diteruskan Kepada", { x: margin + 25, y: tableTop - 13, size: 8, font: fontBold });
+    page.drawText("Instruksi & Catatan Pimpinan", { x: margin + 150, y: tableTop - 13, size: 8, font: fontBold });
+    page.drawText("Batas Waktu", { x: margin + 340, y: tableTop - 13, size: 8, font: fontBold });
+    page.drawText("Status / Paraf", { x: margin + 420, y: tableTop - 13, size: 8, font: fontBold });
+    y = tableTop - 18;
+
+    if (dispositions && dispositions.length > 0) {
+        dispositions.forEach((d, idx) => {
+            const rowH = 36;
+            page.drawRectangle({
+                x: margin,
+                y: y - rowH,
+                width: contentWidth,
+                height: rowH,
+                borderColor: rgb(0.85, 0.85, 0.85),
+                borderWidth: 0.8
+            });
+
+            page.drawText(String(idx + 1), { x: margin + 5, y: y - 14, size: 8, font: fontRegular });
+            page.drawText(d.toUser?.name || 'Staf', { x: margin + 25, y: y - 14, size: 8, font: fontBold });
+            if (d.toUser?.position) {
+                page.drawText(d.toUser.position, { x: margin + 25, y: y - 24, size: 7, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+            }
+
+            page.drawText(`[${d.instruction}]`, { x: margin + 150, y: y - 14, size: 8, font: fontBold });
+            const notesLines = wrapText(d.notes || '-', 180, fontRegular, 8);
+            if (notesLines[0]) page.drawText(notesLines[0], { x: margin + 150, y: y - 24, size: 8, font: fontRegular });
+
+            page.drawText(d.deadline ? new Date(d.deadline).toLocaleDateString('id-ID') : '-', { x: margin + 340, y: y - 14, size: 8, font: fontRegular });
+            
+            const isDone = d.status === 'COMPLETED';
+            page.drawText(isDone ? '✓ SELESAI' : '⏳ PROSES', { 
+                x: margin + 420, 
+                y: y - 14, 
+                size: 8, 
+                font: fontBold, 
+                color: isDone ? rgb(0.1, 0.6, 0.2) : rgb(0.8, 0.5, 0.1) 
+            });
+
+            y -= rowH;
+        });
+    } else {
+        const rowH = 40;
+        page.drawRectangle({
+            x: margin,
+            y: y - rowH,
+            width: contentWidth,
+            height: rowH,
+            borderColor: rgb(0.85, 0.85, 0.85),
+            borderWidth: 0.8
+        });
+        page.drawText("Belum ada disposisi yang diterbitkan untuk surat ini.", { x: margin + 20, y: y - 24, size: 9, font: fontItalic, color: rgb(0.5, 0.5, 0.5) });
+        y -= rowH;
+    }
+
+    y -= 30;
+
+    // Tanda Tangan Pimpinan
+    const sigX = width - 200;
+    page.drawText("Padang, " + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), { x: sigX, y, size: 9, font: fontRegular });
+    y -= 14;
+    page.drawText("Kepala Bidang Sarana,", { x: sigX, y, size: 9, font: fontBold });
+    y -= 50;
+
+    page.drawText("Ravi Kurnia", { x: sigX, y, size: 9, font: fontBold });
+    y -= 12;
+    page.drawText("Yayasan Dar el-Iman", { x: sigX, y, size: 8, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+
+    return await pdfDoc.save();
+}
+
+/**
+ * GENERATE SURAT PERINTAH KERJA (SPK / VENDOR CONTRACT)
+ */
+async function generateSPKPDF(doc, setting) {
+    const { pdfDoc, fontBold, fontRegular, fontItalic, width, height, margin } = await createBasePDF(setting);
+    let page = pdfDoc.getPages()[0];
+    const contentWidth = width - (2 * margin);
+    let cursor = { y: height - 145 };
+
+    await drawKopSurat(page, fontBold, fontRegular);
+
+    const title = "SURAT PERINTAH KERJA (SPK)";
+    const titleW = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleW) / 2, y: cursor.y, size: 14, font: fontBold });
+    cursor.y -= 2;
+    page.drawLine({ start: { x: (width - titleW) / 2, y: cursor.y }, end: { x: (width + titleW) / 2, y: cursor.y }, thickness: 1.5 });
+    cursor.y -= 15;
+
+    if (doc.number) {
+        const numberText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+        page.drawText(numberText, { x: (width - numWidth) / 2, y: cursor.y, size: 11, font: fontRegular });
+        cursor.y -= 25;
+    }
+
+    const content = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+
+    // Parties
+    page.drawText("Yang bertanda tangan di bawah ini:", { x: margin, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 16;
+
+    // PIHAK PERTAMA
+    page.drawText("1. PIHAK PERTAMA (Pemberi Tugas):", { x: margin, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
+    page.drawText(`Nama        : ${doc.party1Name || 'Ravi Kurnia'}`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 14;
+    page.drawText(`Jabatan     : ${doc.party1Title || 'Kepala Bidang Sarana'}`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 14;
+    page.drawText(`Instansi    : ${doc.party1Org || 'Yayasan Dar el-Iman'}`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 18;
+
+    // PIHAK KEDUA
+    page.drawText("2. PIHAK KEDUA (Pelaksana / Vendor):", { x: margin, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
+    page.drawText(`Nama        : ${doc.party2Name || '....................'}`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 14;
+    page.drawText(`Perusahaan  : ${doc.party2Org || '....................'}`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 14;
+    page.drawText(`Alamat/Kontak : ${doc.party2Address || '....................'}`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 22;
+
+    // Lingkup Pekerjaan & Detail SPK
+    page.drawText("Pasal 1: Lingkup Pekerjaan & Nilai Kontrak", { x: margin, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
+    const bodyLines = wrapText(content.body || doc.subject || 'Pekerjaan sesuai dengan spesifikasi dan kesepakatan.', contentWidth, fontRegular, 10);
+    bodyLines.forEach(l => {
+        page.drawText(l, { x: margin, y: cursor.y, size: 10, font: fontRegular });
+        cursor.y -= 14;
+    });
+
+    if (content.contractValue) {
+        cursor.y -= 6;
+        page.drawText(`Total Nilai Kontrak: Rp ${Number(content.contractValue).toLocaleString('id-ID')}`, { x: margin, y: cursor.y, size: 10, font: fontBold });
+        cursor.y -= 14;
+    }
+
+    if (content.deadline) {
+        page.drawText(`Jangka Waktu Penyelesaian: ${content.deadline}`, { x: margin, y: cursor.y, size: 10, font: fontRegular });
+        cursor.y -= 14;
+    }
+
+    cursor.y -= 20;
+
+    // Dual Signatures
+    const halfWidth = contentWidth / 2;
+    page.drawText("PIHAK KEDUA,", { x: margin + 20, y: cursor.y, size: 10, font: fontBold });
+    page.drawText("PIHAK PERTAMA,", { x: margin + halfWidth + 20, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 65;
+
+    page.drawText(doc.party2Name || '....................', { x: margin + 20, y: cursor.y, size: 10, font: fontBold });
+    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: margin + halfWidth + 20, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
+    page.drawText(doc.party2Org || 'Pelaksana', { x: margin + 20, y: cursor.y, size: 9, font: fontRegular });
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana', { x: margin + halfWidth + 20, y: cursor.y, size: 9, font: fontRegular });
+
+    return await pdfDoc.save();
+}
+
+/**
+ * GENERATE BERITA ACARA KERUSAKAN / KEHILANGAN ASET
+ */
+async function generateBAKerusakanPDF(doc, setting) {
+    const { pdfDoc, fontBold, fontRegular, fontItalic, width, height, margin } = await createBasePDF(setting);
+    let page = pdfDoc.getPages()[0];
+    const contentWidth = width - (2 * margin);
+    let cursor = { y: height - 145 };
+
+    await drawKopSurat(page, fontBold, fontRegular);
+
+    const title = "BERITA ACARA KERUSAKAN / KEHILANGAN ASET";
+    const titleW = fontBold.widthOfTextAtSize(title, 13);
+    page.drawText(title, { x: (width - titleW) / 2, y: cursor.y, size: 13, font: fontBold });
+    cursor.y -= 2;
+    page.drawLine({ start: { x: (width - titleW) / 2, y: cursor.y }, end: { x: (width + titleW) / 2, y: cursor.y }, thickness: 1.5 });
+    cursor.y -= 15;
+
+    if (doc.number) {
+        const numberText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+        page.drawText(numberText, { x: (width - numWidth) / 2, y: cursor.y, size: 11, font: fontRegular });
+        cursor.y -= 25;
+    }
+
+    const content = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+
+    page.drawText(`Pada hari ini, ${new Date(doc.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, kami yang bertanda tangan di bawah ini:`, { x: margin, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 16;
+
+    page.drawText(`1. Nama Pelapor : ${doc.party2Name || '-' }`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 14;
+    page.drawText(`   Unit / Bagian : ${doc.party2Org || '-' }`, { x: margin + 15, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 18;
+
+    page.drawText("Menerangkan bahwa telah terjadi kerusakan/insiden pada sarana/aset sebagai berikut:", { x: margin, y: cursor.y, size: 10, font: fontRegular });
+    cursor.y -= 16;
+
+    const descLines = wrapText(content.body || doc.subject || '-', contentWidth, fontRegular, 10);
+    descLines.forEach(l => {
+        page.drawText(l, { x: margin, y: cursor.y, size: 10, font: fontRegular });
+        cursor.y -= 14;
+    });
+
+    if (content.chronology) {
+        cursor.y -= 8;
+        page.drawText("Kronologi Kejadian:", { x: margin, y: cursor.y, size: 10, font: fontBold });
+        cursor.y -= 14;
+        const chronoLines = wrapText(content.chronology, contentWidth, fontRegular, 10);
+        chronoLines.forEach(l => {
+            page.drawText(l, { x: margin, y: cursor.y, size: 10, font: fontRegular });
+            cursor.y -= 14;
+        });
+    }
+
+    cursor.y -= 20;
+
+    const halfWidth = contentWidth / 2;
+    page.drawText("Pelapor,", { x: margin + 20, y: cursor.y, size: 10, font: fontBold });
+    page.drawText("Mengetahui / Menyetujui,", { x: margin + halfWidth + 20, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 65;
+
+    page.drawText(doc.party2Name || '....................', { x: margin + 20, y: cursor.y, size: 10, font: fontBold });
+    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: margin + halfWidth + 20, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
+    page.drawText(doc.party2Org || 'Pelapor Unit', { x: margin + 20, y: cursor.y, size: 9, font: fontRegular });
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana', { x: margin + halfWidth + 20, y: cursor.y, size: 9, font: fontRegular });
+
+    return await pdfDoc.save();
+}
+
+module.exports = {
+    generateVerificationQR,
+    generateSuratPDF,
+    generateBASTMouPDF,
+    generateSuratTugasPDF,
+    generateSuratPesananPDF,
+    generateInvoicePDF,
+    generateSuratEdaranPDF,
+    generateKeputusanPDF,
+    generatePemberitahuanPDF,
+    generateSuratUmumPDF,
+    generateSuratLainnyaPDF,
+    generateBeritaAcaraKunjunganPDF,
+    generateDispositionSheetPDF,
+    generateSPKPDF,
+    generateBAKerusakanPDF
+};

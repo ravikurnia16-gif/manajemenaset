@@ -1,11 +1,28 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
-const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF, generateSuratUmumPDF, generateBeritaAcaraKunjunganPDF, generateSuratLainnyaPDF } = require('../services/officePdfService');
+const { 
+    generateVerificationQR, 
+    generateSuratPDF, 
+    generateBASTMouPDF, 
+    generateSuratTugasPDF, 
+    generateSuratPesananPDF, 
+    generateInvoicePDF, 
+    generateSuratEdaranPDF, 
+    generateKeputusanPDF, 
+    generatePemberitahuanPDF, 
+    generateSuratUmumPDF, 
+    generateBeritaAcaraKunjunganPDF, 
+    generateSuratLainnyaPDF,
+    generateDispositionSheetPDF,
+    generateSPKPDF,
+    generateBAKerusakanPDF
+} = require('../services/officePdfService');
 const mammoth = require('mammoth');
 const crypto = require('crypto');
 const axios = require('axios');
 const whatsappService = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
@@ -33,7 +50,16 @@ exports.getIncomingMail = async (req, res) => {
         const [documents, total] = await Promise.all([
             prisma.officeDocument.findMany({
                 where,
-                include: { author: { select: { id: true, name: true, username: true } } },
+                include: { 
+                    author: { select: { id: true, name: true, username: true } },
+                    dispositions: {
+                        include: {
+                            fromUser: { select: { id: true, name: true, position: true } },
+                            toUser: { select: { id: true, name: true, position: true, phone: true } }
+                        },
+                        orderBy: { createdAt: 'desc' }
+                    }
+                },
                 orderBy: { receivedDate: 'desc' },
                 skip,
                 take: parseInt(limit),
@@ -220,6 +246,13 @@ exports.getDocumentById = async (req, res) => {
             include: {
                 author: { select: { id: true, name: true, username: true, nip: true, position: true } },
                 signedBy: { select: { id: true, name: true, nip: true, position: true } },
+                dispositions: {
+                    include: {
+                        fromUser: { select: { id: true, name: true, position: true } },
+                        toUser: { select: { id: true, name: true, position: true, phone: true } }
+                    },
+                    orderBy: { createdAt: 'desc' }
+                }
             },
         });
 
@@ -623,8 +656,12 @@ exports.generatePDF = async (req, res) => {
             pdfBytes = await generateSuratEdaranPDF(doc, setting);
         } else if (doc.category === 'Keputusan') {
             pdfBytes = await generateKeputusanPDF(doc, setting);
-        } else if (doc.category === 'Pemberitahuan') {
+        } else if (doc.category === 'Pemberitahuan' || doc.category === 'Rekomendasi' || doc.category === 'Surat Teguran' || doc.category === 'Surat Peringatan') {
             pdfBytes = await generatePemberitahuanPDF(doc, setting);
+        } else if (doc.category === 'SPK' || doc.category === 'Perjanjian Kerja') {
+            pdfBytes = await generateSPKPDF(doc, setting);
+        } else if (doc.category === 'Berita Acara Kerusakan') {
+            pdfBytes = await generateBAKerusakanPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else if (doc.category === 'Umum') {
@@ -1297,5 +1334,263 @@ exports.getInternalUsers = async (req, res) => {
     } catch (error) {
         console.error('getInternalUsers error:', error);
         res.status(500).json({ error: 'Gagal memuat daftar pengguna internal' });
+    }
+};
+
+// ==================== DISPOSISI SURAT MASUK ====================
+
+/**
+ * POST /api/office-documents/:id/dispositions
+ * Create a new disposition instruction for incoming mail
+ */
+exports.createDisposition = async (req, res) => {
+    try {
+        const documentId = parseInt(req.params.id);
+        const { toUserId, instruction, notes, deadline } = req.body;
+
+        if (!toUserId || !instruction) {
+            return res.status(400).json({ error: 'Penerima disposisi dan instruksi wajib diisi' });
+        }
+
+        const doc = await prisma.officeDocument.findUnique({
+            where: { id: documentId },
+            include: { author: { select: { name: true } } }
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Surat masuk tidak ditemukan' });
+
+        const toUser = await prisma.user.findUnique({
+            where: { id: parseInt(toUserId) },
+            select: { id: true, name: true, phone: true, position: true }
+        });
+
+        if (!toUser) return res.status(404).json({ error: 'Staf penerima disposisi tidak ditemukan' });
+
+        const disposition = await prisma.officeDocumentDisposition.create({
+            data: {
+                documentId,
+                fromUserId: req.user.id,
+                toUserId: parseInt(toUserId),
+                instruction,
+                notes: notes || null,
+                deadline: deadline ? new Date(deadline) : null,
+                status: 'PENDING'
+            },
+            include: {
+                fromUser: { select: { id: true, name: true, position: true } },
+                toUser: { select: { id: true, name: true, position: true, phone: true } }
+            }
+        });
+
+        // In-app notification
+        await createNotification(
+            toUser.id,
+            'Disposisi Surat Masuk',
+            `Anda menerima disposisi dari ${req.user.name || 'Pimpinan'}: "${instruction}" untuk surat perihal "${doc.subject}".`,
+            'URGENT',
+            '/e-office/surat-masuk'
+        );
+
+        // WhatsApp notification
+        if (toUser.phone && toUser.phone.length > 8) {
+            const formattedDeadline = deadline ? new Date(deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+            const waMsg = `📋 *DISPOSISI SURAT MASUK*\n\n` +
+                `Kepada Yth. *${toUser.name}* (${toUser.position || 'Staf'})\n\n` +
+                `Anda menerima instruksi disposisi dari *${req.user.name || 'Pimpinan Sarpras'}*:\n\n` +
+                `📩 *Surat Masuk:*\n` +
+                `• Pengirim: *${doc.senderName || '-'}* ${doc.senderOrg ? `(${doc.senderOrg})` : ''}\n` +
+                `• No. Surat: *${doc.referenceNumber || '-'}*\n` +
+                `• Perihal: *${doc.subject}*\n\n` +
+                `📌 *Instruksi Disposisi:*\n*${instruction}*\n` +
+                (notes ? `Catatan: "${notes}"\n` : '') +
+                `⏳ Target Selesai: *${formattedDeadline}*\n\n` +
+                `_Silakan buka sistem E-Office untuk menindaklanjuti dan mengunduh berkas surat._`;
+
+            try {
+                await whatsappService.sendMessage(toUser.phone, waMsg);
+            } catch (waErr) {
+                console.error('Failed to send disposition WA:', waErr.message);
+            }
+        }
+
+        res.status(201).json({
+            message: `Disposisi berhasil diterbitkan untuk ${toUser.name}`,
+            disposition
+        });
+    } catch (error) {
+        console.error('createDisposition error:', error);
+        res.status(500).json({ error: 'Gagal membuat disposisi: ' + error.message });
+    }
+};
+
+/**
+ * GET /api/office-documents/:id/dispositions
+ * Get list of dispositions for a document
+ */
+exports.getDispositions = async (req, res) => {
+    try {
+        const documentId = parseInt(req.params.id);
+        const dispositions = await prisma.officeDocumentDisposition.findMany({
+            where: { documentId },
+            include: {
+                fromUser: { select: { id: true, name: true, position: true } },
+                toUser: { select: { id: true, name: true, position: true, phone: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(dispositions);
+    } catch (error) {
+        console.error('getDispositions error:', error);
+        res.status(500).json({ error: 'Gagal memuat disposisi' });
+    }
+};
+
+/**
+ * PATCH /api/office-documents/dispositions/:dispId/status
+ * Update status & feedback of a disposition
+ */
+exports.updateDispositionStatus = async (req, res) => {
+    try {
+        const dispId = parseInt(req.params.dispId);
+        const { status, feedback } = req.body;
+
+        const existing = await prisma.officeDocumentDisposition.findUnique({
+            where: { id: dispId },
+            include: { document: true, fromUser: true }
+        });
+
+        if (!existing) return res.status(404).json({ error: 'Disposisi tidak ditemukan' });
+
+        const updateData = {};
+        if (status) {
+            updateData.status = status;
+            if (status === 'COMPLETED') {
+                updateData.completedAt = new Date();
+            } else if (status === 'PENDING') {
+                updateData.completedAt = null;
+            }
+        }
+        if (feedback !== undefined) updateData.feedback = feedback;
+
+        const updated = await prisma.officeDocumentDisposition.update({
+            where: { id: dispId },
+            data: updateData,
+            include: {
+                fromUser: { select: { id: true, name: true, position: true } },
+                toUser: { select: { id: true, name: true, position: true } }
+            }
+        });
+
+        if (status === 'COMPLETED' && existing.fromUserId) {
+            await createNotification(
+                existing.fromUserId,
+                'Disposisi Selesai Dikerjakan',
+                `Staf ${req.user.name} telah menyelesaikan disposisi surat perihal "${existing.document?.subject}".`,
+                'INFO',
+                '/e-office/surat-masuk'
+            );
+        }
+
+        res.json({ message: 'Status disposisi diperbarui', disposition: updated });
+    } catch (error) {
+        console.error('updateDispositionStatus error:', error);
+        res.status(500).json({ error: 'Gagal memperbarui status disposisi: ' + error.message });
+    }
+};
+
+/**
+ * GET /api/office-documents/:id/disposition-sheet
+ * Generate PDF Lembar Disposisi Surat Masuk
+ */
+exports.getDispositionPdf = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const doc = await prisma.officeDocument.findUnique({
+            where: { id },
+            include: {
+                author: { select: { id: true, name: true } },
+                dispositions: {
+                    include: {
+                        fromUser: { select: { id: true, name: true, position: true } },
+                        toUser: { select: { id: true, name: true, position: true } }
+                    },
+                    orderBy: { createdAt: 'asc' }
+                }
+            }
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Surat masuk tidak ditemukan' });
+
+        const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+        const pdfBytes = await generateDispositionSheetPDF(doc, doc.dispositions, setting);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="Lembar_Disposisi_${doc.referenceNumber || doc.id}.pdf"`);
+        res.send(Buffer.from(pdfBytes));
+    } catch (error) {
+        console.error('getDispositionPdf error:', error);
+        res.status(500).json({ error: 'Gagal membuat lembar disposisi PDF: ' + error.message });
+    }
+};
+
+/**
+ * GET /api/office-documents/agenda-register
+ * Get standard Buku Agenda Surat Masuk / Surat Keluar
+ */
+exports.getAgendaRegister = async (req, res) => {
+    try {
+        const { type = 'SURAT_MASUK', year, month, startDate, endDate } = req.query;
+
+        let where = {};
+        if (type === 'SURAT_MASUK') {
+            where.type = 'SURAT_MASUK';
+        } else {
+            where.type = { not: 'SURAT_MASUK' };
+        }
+
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            where.date = { gte: start, lte: end };
+        } else if (year) {
+            const y = parseInt(year);
+            if (month) {
+                const m = parseInt(month) - 1;
+                where.date = {
+                    gte: new Date(y, m, 1),
+                    lt: new Date(y, m + 1, 1)
+                };
+            } else {
+                where.date = {
+                    gte: new Date(y, 0, 1),
+                    lt: new Date(y + 1, 0, 1)
+                };
+            }
+        }
+
+        const documents = await prisma.officeDocument.findMany({
+            where,
+            include: {
+                author: { select: { id: true, name: true, position: true } },
+                signedBy: { select: { id: true, name: true, position: true } },
+                dispositions: {
+                    include: {
+                        toUser: { select: { name: true, position: true } }
+                    }
+                }
+            },
+            orderBy: { date: 'asc' }
+        });
+
+        res.json({
+            type,
+            total: documents.length,
+            documents
+        });
+    } catch (error) {
+        console.error('getAgendaRegister error:', error);
+        res.status(500).json({ error: 'Gagal memuat buku agenda surat' });
     }
 };

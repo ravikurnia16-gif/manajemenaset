@@ -128,12 +128,16 @@ export default function SalesPage() {
         }
     };
 
-    const handleUpdatePayment = async (id, status) => {
+    const handleUpdatePayment = async (id, paymentDataOrStatus) => {
         try {
-            await api.put(`/uniforms/sales/${id}/payment`, { paymentStatus: status });
+            const payload = typeof paymentDataOrStatus === 'string'
+                ? { paymentStatus: paymentDataOrStatus }
+                : (paymentDataOrStatus || {});
+            await api.put(`/uniforms/sales/${id}/payment`, payload);
             fetchData();
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal mengubah status pembayaran');
+            throw err;
         }
     };
 

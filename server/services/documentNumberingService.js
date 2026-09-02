@@ -29,6 +29,9 @@ const CATEGORY_CODES = {
     'SOP': 'SOP',
     'Lainnya': 'UM',
     'Berita Acara Kunjungan': 'BA',
+    'SPK': 'SPK',
+    'Perjanjian Kerja': 'SPK',
+    'Berita Acara Kerusakan': 'BAK',
 };
 
 const ROMAN_MONTHS = {

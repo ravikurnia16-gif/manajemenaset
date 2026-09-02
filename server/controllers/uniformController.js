@@ -2331,6 +2331,11 @@ exports.getSales = async (req, res) => {
             ];
         }
 
+        let orderBy = [{ createdAt: 'desc' }];
+        if (status === 'COMPLETED' || status === 'SELESAI') {
+            orderBy = [{ completedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }];
+        }
+
         const data = await prisma.uniformSale.findMany({
             where,
             include: {
@@ -2340,7 +2345,7 @@ exports.getSales = async (req, res) => {
                 items: { include: { variant: { include: { item: true, stocks: true } } } },
                 schedule: { select: { id: true, title: true, date: true } }
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy,
             take: 200
         });
         res.json(data);
@@ -2983,68 +2988,6 @@ exports.createSale = async (req, res) => {
     }
 };
 
-// Update payment
-exports.updateSalePayment = async (req, res) => {
-    const { paidAmount, paymentMethod } = req.body;
-    try {
-        const sale = await prisma.uniformSale.findUnique({ where: { id: parseInt(req.params.id) } });
-        if (!sale) return res.status(404).json({ error: 'Penjualan tidak ditemukan' });
-
-        const newPaid = parseFloat(paidAmount || 0);
-        const newPaymentStatus = newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
-
-        const data = await prisma.uniformSale.update({
-            where: { id: parseInt(req.params.id) },
-            data: {
-                paidAmount: newPaid,
-                paymentMethod,
-                paymentStatus: newPaymentStatus
-            }
-        });
-
-        // Kirim notifikasi WA ke pelanggan jika status berubah menjadi LUNAS
-        if (sale.paymentStatus !== 'PAID' && newPaymentStatus === 'PAID' && sale.customerPhone) {
-            const message = `Halo ${sale.customerName || sale.studentName || 'Bapak/Ibu'},\n\nTerima kasih, pembayaran pesanan seragam Anda dengan kode *${sale.code}* telah kami terima dan berstatus *LUNAS*.\n\nSilakan cek invoice terbaru Anda melalui link berikut:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${sale.id}\n\nJazakumullahu Khairan,\nManajemen Aset & Logistik`;
-            try {
-                sendMessage(sale.customerPhone, message);
-            } catch (e) {
-                console.error('Gagal kirim WA lunas ke customer:', e);
-            }
-        }
-
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-exports.deleteSale = async (req, res) => {
-    try {
-        const saleId = parseInt(req.params.id);
-
-        const sale = await prisma.uniformSale.findUnique({
-            where: { id: saleId },
-            include: { items: true }
-        });
-
-        if (!sale) {
-            return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
-        }
-
-        if (sale.status !== 'PENDING') {
-            return res.status(400).json({ error: 'Pesanan yang sudah diproses (sebagian/seluruhnya) tidak dapat dihapus. Harap kembalikan stok secara manual jika ingin membatalkan.' });
-        }
-
-        await prisma.uniformSale.delete({
-            where: { id: saleId }
-        });
-
-        res.json({ message: 'Pesanan berhasil dihapus' });
-    } catch (error) {
-        console.error('Delete Sale Error:', error);
-        res.status(500).json({ error: error.message });
-    }
-};
 
 // Fulfill Pending Sale
 exports.manageSaleItems = async (req, res) => {
@@ -3437,30 +3380,46 @@ exports.manageSaleItems = async (req, res) => {
                 item.status = newStatus;
             }
 
-            // Update Sale Status and Totals
-            let newStatus = sale.status;
-            let allFinal = true;
-            let anyPending = false;
-            let anySedia = false;
+            // Update Sale Status and Totals based on ALL items of the sale in DB + Nama Dada
+            const allDbItems = await tx.uniformSaleItem.findMany({
+                where: { saleId }
+            });
 
-            for (const update of itemUpdates) {
-                if (update.status !== 'DIAMBIL' && update.status !== 'BATAL') {
-                    allFinal = false;
-                }
-                if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(update.status)) {
-                    anyPending = true;
-                }
-                if (update.status === 'SEDIA') {
-                    anySedia = true;
+            const allStatuses = allDbItems.map(i => i.status);
+            if (sale.note && sale.note.includes('[NAMADADA')) {
+                const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+                for (const match of matches) {
+                    const ndStatus = match[4] || 'PENDING';
+                    allStatuses.push(ndStatus);
                 }
             }
 
-            if (allFinal && itemUpdates.length > 0) {
+            const nonBatalItems = allStatuses.filter(s => s !== 'BATAL');
+            const allFinal = nonBatalItems.length > 0 && nonBatalItems.every(s => s === 'DIAMBIL');
+            const allCancelled = allStatuses.length > 0 && allStatuses.every(s => s === 'BATAL');
+            const anyDiambil = allStatuses.some(s => s === 'DIAMBIL');
+            const anySedia = allStatuses.some(s => s === 'SEDIA');
+            const anyIndent = allStatuses.some(s => s === 'INDENT' || s === 'TIDAK_TERSEDIA' || s === 'BACKORDER');
+
+            let newStatus = 'PENDING';
+            if (allCancelled) {
+                newStatus = 'CANCELLED';
+            } else if (allFinal) {
                 newStatus = 'SELESAI';
-            } else if (anySedia || itemUpdates.some(i => i.status === 'DIAMBIL')) {
+            } else if (anyDiambil || anySedia || anyIndent) {
                 newStatus = 'PROSES';
             } else {
                 newStatus = 'PENDING';
+            }
+
+            // Record or clear completedAt timestamp
+            let completedAt = sale.completedAt;
+            if (newStatus === 'SELESAI') {
+                if (!completedAt || sale.status !== 'SELESAI') {
+                    completedAt = new Date();
+                }
+            } else {
+                completedAt = null;
             }
 
             // Adjust invoice
@@ -3485,6 +3444,7 @@ exports.manageSaleItems = async (req, res) => {
                 where: { id: saleId },
                 data: {
                     status: newStatus,
+                    completedAt,
                     subtotal: newSubtotal,
                     totalAmount: newTotalAmount,
                     paidAmount: updatedPaidAmount,
@@ -3676,26 +3636,47 @@ exports.manageSaleItems = async (req, res) => {
 };
 
 exports.updateSalePayment = async (req, res) => {
-    const { paidAmount, paymentMethod } = req.body;
+    const { paidAmount, additionalPayment, paymentMethod, paymentStatus: explicitStatus } = req.body;
     try {
-        const sale = await prisma.uniformSale.findUnique({ where: { id: parseInt(req.params.id) } });
+        const saleId = parseInt(req.params.id);
+        const sale = await prisma.uniformSale.findUnique({ where: { id: saleId } });
         if (!sale) return res.status(404).json({ error: 'Penjualan tidak ditemukan' });
 
-        const newPaid = parseFloat(paidAmount || 0);
-        const newPaymentStatus = newPaid >= sale.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
+        let newPaid = sale.paidAmount || 0;
+        if (paidAmount !== undefined && paidAmount !== null && paidAmount !== '') {
+            newPaid = Math.max(0, parseFloat(paidAmount));
+        } else if (additionalPayment !== undefined && additionalPayment !== null && additionalPayment !== '') {
+            newPaid = Math.max(0, (sale.paidAmount || 0) + parseFloat(additionalPayment));
+        } else if (explicitStatus === 'PAID') {
+            newPaid = sale.totalAmount;
+        } else if (explicitStatus === 'UNPAID') {
+            newPaid = 0;
+        }
+
+        // Cap at totalAmount
+        newPaid = Math.min(newPaid, sale.totalAmount);
+
+        let newPaymentStatus = 'UNPAID';
+        if (newPaid >= sale.totalAmount && sale.totalAmount > 0) {
+            newPaymentStatus = 'PAID';
+        } else if (newPaid > 0) {
+            newPaymentStatus = 'PARTIAL';
+        } else {
+            newPaymentStatus = 'UNPAID';
+        }
 
         const data = await prisma.uniformSale.update({
-            where: { id: parseInt(req.params.id) },
+            where: { id: saleId },
             data: {
                 paidAmount: newPaid,
-                paymentMethod,
+                paymentMethod: paymentMethod || sale.paymentMethod,
                 paymentStatus: newPaymentStatus
             }
         });
 
-        // Kirim Notifikasi WA jika status berubah menjadi PAID (Lunas)
+        // Kirim Notifikasi WA jika status berubah menjadi PAID (Lunas) atau PARTIAL
         if (newPaymentStatus === 'PAID' && sale.paymentStatus !== 'PAID' && data.customerPhone) {
-            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${data.customerName || data.studentName || ''},\n\nAlhamdulillah, pembayaran untuk pesanan seragam Abu/Ummu (Kode: *${data.code}*) telah kami terima dan *LUNAS*.\n\n`;
+            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${data.customerName || data.studentName || ''},\n\nAlhamdulillah, pembayaran untuk pesanan seragam Abu/Ummu (Kode: *${data.code}*) telah kami terima dan berstatus *LUNAS* (Rp ${newPaid.toLocaleString('id-ID')}).\n\n`;
             msg += `Berikut adalah link invoice pesanan Abu/Ummu:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${data.id}\n\n`;
             msg += `Syukron, Jazakumullah khairan.`;
 
@@ -3703,6 +3684,17 @@ exports.updateSalePayment = async (req, res) => {
                 sendMessage(data.customerPhone, msg);
             } catch (e) {
                 console.error('Gagal kirim WA lunas:', e);
+            }
+        } else if (newPaymentStatus === 'PARTIAL' && newPaid > (sale.paidAmount || 0) && data.customerPhone) {
+            const sisa = Math.max(0, sale.totalAmount - newPaid);
+            let msg = `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n\nHalo Abu/Ummu ${data.customerName || data.studentName || ''},\n\nAlhamdulillah, pembayaran parsial pesanan seragam Abu/Ummu (Kode: *${data.code}*) sebesar *Rp ${newPaid.toLocaleString('id-ID')}* telah tercatat.\nSisa tagihan yang belum dibayar: *Rp ${sisa.toLocaleString('id-ID')}*.\n\n`;
+            msg += `Berikut adalah link invoice pesanan Abu/Ummu:\nhttps://sarpras.dareliman.or.id/public/invoice-seragam/${data.id}\n\n`;
+            msg += `Syukron, Jazakumullah khairan.`;
+
+            try {
+                sendMessage(data.customerPhone, msg);
+            } catch (e) {
+                console.error('Gagal kirim WA parsial:', e);
             }
         }
 
