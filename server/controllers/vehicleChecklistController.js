@@ -350,10 +350,8 @@ exports.getMissingChecklistsSummary = async (req, res) => {
  */
 exports.triggerChecklistAudit = async (req, res) => {
     try {
-        await exports.auditDailyChecklists();
-        await exports.auditWeeklyChecklists();
-        await exports.auditMonthlyChecklists();
-        res.json({ message: 'Audit ceklis kendaraan berhasil dijalankan manual. Cek console log & notifikasi.' });
+        await auditAllChecklistsUnified();
+        res.json({ message: 'Audit ceklis kendaraan berhasil dijalankan. 1 Pesan rangkuman notifikasi telah dikirim.' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

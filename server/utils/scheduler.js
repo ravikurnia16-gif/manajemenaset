@@ -186,7 +186,7 @@ const initScheduler = () => {
         // ----------------------------------------------------
         // 5. VEHICLE CHECKLIST SCHEDULER
         // ----------------------------------------------------
-        // A. Daily Checklist Audit (Mon-Fri 18:00)
+        // A. Unified Checklist Audit (Mon-Fri 18:00) - Audits Daily, Weekly & Monthly in one consolidated summary
         if ([1,2,3,4,5].includes(day) && hour === 18 && minute === 0) {
             checklistController.auditDailyChecklists();
         }
@@ -194,16 +194,6 @@ const initScheduler = () => {
         // B. Weekly Checklist Reminder (Mon 07:15)
         if (day === 1 && hour === 7 && minute === 15) {
             checklistController.sendWeeklyChecklistReminder();
-        }
-
-        // C. Weekly Checklist Audit (Fri 18:05)
-        if (day === 5 && hour === 18 && minute === 5) {
-            checklistController.auditWeeklyChecklists();
-        }
-
-        // D. Monthly Checklist Audit (28th of every month at 18:10)
-        if (now.getDate() === 28 && hour === 18 && minute === 10) {
-            checklistController.auditMonthlyChecklists();
         }
 
         // ----------------------------------------------------
