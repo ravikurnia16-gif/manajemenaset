@@ -419,8 +419,22 @@ const processQueue = async () => {
             if (connectionStatus === 'CONNECTED' && waClient) {
                 try {
                     // wa-web.js format uses @c.us for numbers, but group uses @g.us
-                    const waWebJsPhone = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@c.us`;
+                    let waWebJsPhone = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@c.us`;
                     
+                    // Jika pesan ke nomor pribadi (bukan grup), validasi dan ambil ID WhatsApp resmi (LID / JID)
+                    if (!waWebJsPhone.includes('@g.us')) {
+                        try {
+                            const numberId = await waClient.getNumberId(formattedPhone);
+                            if (numberId && numberId._serialized) {
+                                waWebJsPhone = numberId._serialized;
+                            } else {
+                                console.warn(`[WhatsApp Local] Nomor ${formattedPhone} tidak ditemukan di database WhatsApp.`);
+                            }
+                        } catch (nidErr) {
+                            console.warn(`[WhatsApp Local] Gagal getNumberId untuk ${formattedPhone}:`, nidErr.message);
+                        }
+                    }
+
                     // JIKA pesan kosong dari AI, ganti dengan fallback
                     const finalMessage = (!message || message.trim() === '') 
                         ? "Maaf, tidak ada data spesifik yang bisa dirangkum atau AI mengembalikan respon kosong."

@@ -647,10 +647,15 @@ export const BatchInvoiceTab = ({
                                         type="text"
                                         value={waPhone}
                                         onChange={e => setWaPhone(e.target.value)}
-                                        placeholder="Contoh: 08123456789"
+                                        placeholder="Contoh: 081234567890"
                                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                                         required
                                     />
+                                    {waPhone && waPhone.replace(/\D/g, '').length > 0 && waPhone.replace(/\D/g, '').length < 10 && (
+                                        <p className="text-[10px] text-amber-600 font-medium mt-1">
+                                            ⚠️ Nomor HP terlalu pendek ({waPhone.replace(/\D/g, '').length} digit). Pastikan nomor HP lengkap (biasanya 11-13 digit).
+                                        </p>
+                                    )}
                                     <p className="text-[10px] text-slate-400 mt-1">
                                         Nomor ini akan otomatis disimpan ke data pesanan di sistem.
                                     </p>
