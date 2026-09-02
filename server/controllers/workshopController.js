@@ -247,9 +247,6 @@ exports.createOrder = async (req, res) => {
             }
         });
 
-        // Auto-generate E-Office Document
-        await generateSuratPesanan(newOrder, user);
-
         // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
         const recipients = await prisma.user.findMany({
             where: {
@@ -499,9 +496,6 @@ exports.createFromProcurement = async (req, res) => {
                 requestedBy: true
             }
         });
-
-        // Auto-generate Surat Pesanan
-        await generateSuratPesanan(newOrder, user);
 
         // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
         const recipients = await prisma.user.findMany({

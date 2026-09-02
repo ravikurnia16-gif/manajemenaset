@@ -139,6 +139,29 @@ export default function UniformTrackOrderPublic() {
                                     </div>
                                 ))
                             )}
+                            {orderData.note && orderData.note.includes('[NAMADADA') && (() => {
+                                const matches = [...orderData.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+                                return matches.map((match, idx) => {
+                                    const type = match[1];
+                                    const qty = parseInt(match[2]);
+                                    const status = match[4] || 'PENDING';
+                                    let name = 'Nama Dada (Bordir)';
+                                    if (type === 'NAMADADA_PUTIH') name += ' - Putih';
+                                    if (type === 'NAMADADA_COKLAT') name += ' - Coklat';
+
+                                    return (
+                                        <div key={`nd-${idx}`} className="flex justify-between items-center p-3 bg-blue-50/40 rounded-lg border border-blue-100 shadow-sm">
+                                            <div>
+                                                <div className="font-bold text-slate-800 text-sm">{name}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5">Tambahan Atribut &bull; Qty: {qty} pcs</div>
+                                            </div>
+                                            <div>
+                                                {getStatusBadge(status)}
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
                     </div>
 

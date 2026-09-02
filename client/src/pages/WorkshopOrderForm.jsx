@@ -97,7 +97,7 @@ const WorkshopOrderForm = () => {
         const confirm = await Swal.fire({
             title: 'Kirim Pesanan Workshop?',
             html: `<p>Total Item: <strong>${items.length}</strong></p>
-                   <p class="text-sm text-gray-500 mt-2">Pesanan akan dievaluasi oleh Unit Workshop. Surat Pesanan akan otomatis di-generate ke modul E-Office.</p>`,
+                   <p class="text-sm text-gray-500 mt-2">Pesanan akan dievaluasi dan diproses langsung oleh Unit Workshop.</p>`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#059669',
@@ -114,7 +114,7 @@ const WorkshopOrderForm = () => {
                 maintenanceId: fromMaintenance?.id,
                 items
             });
-            Swal.fire('Berhasil!', 'Pesanan workshop berhasil dibuat dan Surat Pesanan telah dikirim ke E-Office.', 'success');
+            Swal.fire('Berhasil!', 'Pesanan workshop berhasil dibuat dan dikirim ke Unit Workshop.', 'success');
             navigate('/workshop/orders');
         } catch (error) {
             console.error('Error creating workshop order:', error);

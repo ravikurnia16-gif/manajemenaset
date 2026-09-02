@@ -185,25 +185,40 @@ const UniformInvoicePublic = () => {
                                         const qty = parseInt(match[2]);
                                         const price = parseInt(match[3]);
                                         const status = match[4] || 'PENDING';
+                                        const isBatal = status === 'BATAL';
                                         
                                         let itemName = 'Nama Dada (Bordir)';
                                         if (type === 'NAMADADA_PUTIH') itemName += ' - Putih';
                                         if (type === 'NAMADADA_COKLAT') itemName += ' - Coklat';
 
                                         return (
-                                            <tr key={`nd-${idx}`} className="bg-blue-50/30 border-b border-slate-100 last:border-0 print:border-slate-200">
+                                            <tr key={`nd-${idx}`} className={`border-b border-slate-100 last:border-0 print:border-slate-200 ${isBatal ? 'bg-slate-50/50 opacity-60' : 'bg-blue-50/30'}`}>
                                                 <td className="py-3 px-4 print:py-2 print:px-3">
-                                                    <div className="font-bold text-slate-800 text-sm print:text-xs mb-0.5">{itemName}</div>
+                                                    <div className={`font-bold text-slate-800 text-sm print:text-xs mb-0.5 ${isBatal ? 'line-through text-slate-400' : ''}`}>
+                                                        {itemName} {isBatal && <span className="text-red-500 text-xs ml-2 font-normal">(Dibatalkan)</span>}
+                                                    </div>
                                                     <div className="text-[10px] print:text-[8px] font-bold tracking-widest text-blue-500 uppercase font-mono">Tambahan Atribut</div>
                                                 </td>
                                                 <td className="py-3 px-4 print:py-2 print:px-3 text-center font-black text-slate-700 border-l border-slate-100 print:border-slate-200 bg-slate-50/50 print:text-xs">
                                                     {qty} pcs
-                                                    <div className={`text-[9px] mt-0.5 ${status === 'DELIVERED' || status === 'DIAMBIL' ? 'text-green-600' : status === 'BACKORDER' || status === 'INDENT' ? 'text-orange-600' : 'text-blue-600'}`}>
-                                                        {status === 'DELIVERED' || status === 'DIAMBIL' ? 'Diambil' : status === 'BACKORDER' || status === 'INDENT' ? 'Indent' : 'Sedia'}
+                                                    <div className={`text-[9px] mt-0.5 font-bold ${
+                                                        isBatal 
+                                                            ? 'text-red-600' 
+                                                            : status === 'DELIVERED' || status === 'DIAMBIL' 
+                                                            ? 'text-green-600' 
+                                                            : status === 'BACKORDER' || status === 'INDENT' 
+                                                            ? 'text-orange-600' 
+                                                            : 'text-blue-600'
+                                                    }`}>
+                                                        {isBatal ? 'Batal' : status === 'DELIVERED' || status === 'DIAMBIL' ? 'Diambil' : status === 'BACKORDER' || status === 'INDENT' ? 'Indent' : 'Sedia'}
                                                     </div>
                                                 </td>
-                                                <td className="py-3 px-4 print:py-2 print:px-3 text-right text-slate-600 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">Rp {price.toLocaleString('id-ID')}</td>
-                                                <td className="py-3 px-4 print:py-2 print:px-3 text-right font-black text-slate-800 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">Rp {(qty * price).toLocaleString('id-ID')}</td>
+                                                <td className="py-3 px-4 print:py-2 print:px-3 text-right text-slate-600 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">
+                                                    {isBatal ? '-' : `Rp ${price.toLocaleString('id-ID')}`}
+                                                </td>
+                                                <td className="py-3 px-4 print:py-2 print:px-3 text-right font-black text-slate-800 text-sm print:text-xs border-l border-slate-100 print:border-slate-200">
+                                                    {isBatal ? '-' : `Rp ${(qty * price).toLocaleString('id-ID')}`}
+                                                </td>
                                             </tr>
                                         );
                                     });
@@ -219,7 +234,9 @@ const UniformInvoicePublic = () => {
                                 if (invoice.note && invoice.note.includes('[NAMADADA')) {
                                     const matches = [...invoice.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
                                     for (const m of matches) {
-                                        namaDadaTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                                        if (m[4] !== 'BATAL') {
+                                            namaDadaTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                                        }
                                     }
                                 }
 

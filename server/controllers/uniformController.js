@@ -3017,16 +3017,26 @@ exports.manageSaleItems = async (req, res) => {
                         const regex = new RegExp(`\\[(${update.saleItemId}):(\\d+):(\\d+)(?::([A-Z_]+))?\\]`);
                         const match = sale.note.match(regex);
                         if (match) {
-                            const ndQty = parseInt(match[2]);
+                            const ndQty = parseInt(match[2]) || 0;
+                            const ndPrice = parseInt(match[3]) || 0;
+                            const ndTotalPrice = ndQty * ndPrice;
                             const ndStatus = match[4] || 'PENDING';
                             const newStatus = update.status;
 
                             if (ndStatus !== newStatus) {
+                                if (ndStatus !== 'BATAL' && newStatus === 'BATAL') {
+                                    subtotalAdjustment -= ndTotalPrice;
+                                } else if (ndStatus === 'BATAL' && newStatus !== 'BATAL') {
+                                    subtotalAdjustment += ndTotalPrice;
+                                }
+
                                 let locText = '';
                                 if (newStatus === 'SEDIA') {
                                     const transitWhId = parseInt(update.transitWarehouseId);
-                                    const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
-                                    locText = transitWh?.name || 'Gudang';
+                                    if (transitWhId) {
+                                        const transitWh = await tx.uniformWarehouse.findUnique({ where: { id: transitWhId } });
+                                        locText = transitWh?.name || 'Gudang';
+                                    }
                                 }
 
                                 let itemName = 'Nama Dada (Bordir)';
@@ -3386,11 +3396,22 @@ exports.manageSaleItems = async (req, res) => {
             });
 
             const allStatuses = allDbItems.map(i => i.status);
+            let activeDbItemsTotal = 0;
+            allDbItems.forEach(i => {
+                if (i.status !== 'BATAL') {
+                    activeDbItemsTotal += i.totalPrice;
+                }
+            });
+
+            let activeNdTotal = 0;
             if (sale.note && sale.note.includes('[NAMADADA')) {
                 const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
                 for (const match of matches) {
                     const ndStatus = match[4] || 'PENDING';
                     allStatuses.push(ndStatus);
+                    if (ndStatus !== 'BATAL') {
+                        activeNdTotal += (parseInt(match[2]) || 0) * (parseInt(match[3]) || 0);
+                    }
                 }
             }
 
@@ -3422,8 +3443,13 @@ exports.manageSaleItems = async (req, res) => {
                 completedAt = null;
             }
 
-            // Adjust invoice
-            const newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
+            // Adjust subtotal dynamically
+            let newSubtotal;
+            if (sale.type === 'SPMB' || sale.type === 'UNIT_ORDER') {
+                newSubtotal = Math.max(0, sale.subtotal + subtotalAdjustment);
+            } else {
+                newSubtotal = Math.max(0, activeDbItemsTotal + activeNdTotal);
+            }
             const newTotalAmount = Math.max(0, newSubtotal - sale.discount);
             let paymentStatus = sale.paymentStatus;
 

@@ -651,7 +651,9 @@ const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
   if (sale.note && sale.note.includes('[NAMADADA')) {
     const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
     for (const m of matches) {
-      ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+      if (m[4] !== 'BATAL') {
+        ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+      }
     }
   }
 
@@ -1268,7 +1270,9 @@ export const SalesTab = ({
               if (s.note && s.note.includes('[NAMADADA')) {
                 const matches = [...s.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
                 for (const m of matches) {
-                  ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                  if (m[4] !== 'BATAL') {
+                    ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                  }
                 }
               }
 
