@@ -18,7 +18,7 @@ const { sendUniformOrderSummary } = require('./uniformSummaryNotification');
 const { checkAssetMaintenanceReminders, checkUnrespondedReports } = require('../controllers/maintenanceController');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
-const { sendReportReminders } = require('../controllers/laporanController');
+const { sendReportReminders, notifyKabidInactiveStaff } = require('../controllers/laporanController');
 const checklistController = require('../controllers/vehicleChecklistController');
 
 let schedulerInterval = null;
@@ -33,13 +33,15 @@ const initScheduler = () => {
     schedulerInterval = setInterval(async () => {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        const day = now.getDay(); // 0 = Sunday, 1 = Monday
+        const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
         const hour = now.getHours();
         const minute = now.getMinutes();
 
         // ----------------------------------------------------
-        // 0. ROUTINE TASK GENERATION (Daily at 00:01 AM)
+        // 0. ROUTINE TASK GENERATION (DISABLED)
+        // Routine tasks are now handled directly via 1-Click Templates in Laporan Staff
         // ----------------------------------------------------
+        /*
         if (hour === 0 && minute === 1) {
             console.log('[Scheduler] Executing Daily Routine Task Generation...');
             try {
@@ -48,6 +50,7 @@ const initScheduler = () => {
                 console.error('[Scheduler] Error in Routine Task Generation:', err);
             }
         }
+        */
 
         // ----------------------------------------------------
         // 0.5 REPORT REMINDERS (Daily at 13:30 and 16:16)
@@ -58,6 +61,19 @@ const initScheduler = () => {
                 await sendReportReminders();
             } catch (err) {
                 console.error('[Scheduler] Error in Report Reminders:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 0.6 KABID INACTIVITY ALERT (Monday - Friday at 16:30)
+        // Check who missed reports for 2 consecutive working days
+        // ----------------------------------------------------
+        if (day >= 1 && day <= 5 && hour === 16 && minute === 30) {
+            console.log('[Scheduler] Executing 2-Day Inactivity Alert to Kabid at 16:30...');
+            try {
+                await notifyKabidInactiveStaff();
+            } catch (err) {
+                console.error('[Scheduler] Error in Kabid Inactivity Alert:', err);
             }
         }
 

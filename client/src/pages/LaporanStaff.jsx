@@ -139,6 +139,7 @@ const LaporanStaff = () => {
     const [staffList, setStaffList] = useState([]);
     const [showAssignmentForm, setShowAssignmentForm] = useState(false);
     const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', assigneeId: '', dueDate: '', category: 'UMUM' });
+    const [routinePurged, setRoutinePurged] = useState(() => localStorage.getItem('routine_tasks_purged') === 'true');
 
     // Lightbox modal for photos
     const [lightboxPhoto, setLightboxPhoto] = useState(null);
@@ -567,6 +568,22 @@ const LaporanStaff = () => {
         }
     };
 
+    const handlePurgeRoutine = async () => {
+        if (!window.confirm('Bersihkan semua tugas rutin otomatis yang menumpuk di database? Tombol ini hanya bisa digunakan satu kali.')) return;
+        try {
+            setSaving(true);
+            const res = await api.delete('/personnel/assignments/purge-routine');
+            alert(res.data.message || 'Tugas rutin otomatis berhasil dibersihkan!');
+            setRoutinePurged(true);
+            localStorage.setItem('routine_tasks_purged', 'true');
+            fetchAssignments();
+        } catch (err) {
+            alert('Gagal membersihkan tugas rutin.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     // Category chart data
     const categoryPieData = useMemo(() => {
         if (!dashboardData?.categoryCounts) return [];
@@ -847,6 +864,57 @@ const LaporanStaff = () => {
                                                         ))}
                                                     </div>
                                                 )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 2-WORKING-DAYS INACTIVITY ALERT (MONDAY - FRIDAY) */}
+                            {dashboardData.consecutiveMissingStaff && dashboardData.consecutiveMissingStaff.length > 0 && (
+                                <div className="bg-amber-50 border border-amber-300 p-6 rounded-3xl space-y-4 shadow-sm">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center font-bold shrink-0">
+                                                <AlertCircle size={22} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-black text-amber-950 uppercase tracking-wider">
+                                                    Peringatan Kedisiplinan: {dashboardData.consecutiveMissingStaff.length} Staf Tidak Lapor 2 Hari Kerja Berturut-turut
+                                                </h3>
+                                                <p className="text-xs text-amber-800 font-medium">
+                                                    Staf berikut tidak mengisi laporan kegiatan pada 2 hari kerja (Senin - Jumat) terakhir.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const res = await api.post('/laporan/notify-inactive');
+                                                    alert(res.data.message || 'Peringatan berhasil dikirim ke WhatsApp Kabid!');
+                                                } catch (e) {
+                                                    alert('Gagal mengirim peringatan.');
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0 self-start sm:self-auto"
+                                        >
+                                            <Send size={14} /> Kirim Peringatan WhatsApp
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                                        {dashboardData.consecutiveMissingStaff.map((st, sIdx) => (
+                                            <div key={sIdx} className="bg-white p-4 rounded-2xl border border-amber-200 space-y-1.5 shadow-2xs">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-xs font-bold text-slate-800">{st.name}</h4>
+                                                    <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                                                        2 Hari Kosong
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-medium">{st.position}</p>
+                                                <div className="text-[11px] text-rose-600 font-bold bg-rose-50 p-2 rounded-xl border border-rose-100">
+                                                    ⚠️ {st.missedDays?.join(' & ')}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -1707,7 +1775,7 @@ const LaporanStaff = () => {
                                 {/* KOP SURAT YAYASAN */}
                                 <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
                                     <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">YAYASAN DAR EL-IMAN PADANG</h2>
-                                    <h3 className="text-base font-black text-indigo-950 uppercase tracking-widest">BIDANG SARANA DAN PRASARANA</h3>
+                                    <h3 className="text-base font-black text-indigo-950 uppercase tracking-widest">BIDANG SARANA</h3>
                                     <p className="text-[11px] text-slate-600">Jl. Gunuang Juaro, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat</p>
                                 </div>
 
@@ -1790,11 +1858,11 @@ const LaporanStaff = () => {
                                     <div className="text-center space-y-16">
                                         <div>
                                             <p className="text-xs font-medium">Padang, {dayjs().format('DD MMMM YYYY')}</p>
-                                            <p className="text-xs font-bold uppercase mt-1">Kepala Bidang Sarana & Prasarana</p>
+                                            <p className="text-xs font-bold uppercase mt-1">Kepala Bidang Sarana</p>
                                         </div>
                                         <div className="space-y-0.5">
-                                            <p className="text-xs font-bold underline">Ravi Kurnia, S.Kom</p>
-                                            <p className="text-[10px] text-slate-500 font-mono">NIY. 202108001</p>
+                                            <p className="text-xs font-bold underline">Ravi Kurnia</p>
+                                            <p className="text-[10px] text-slate-500 font-mono">NIY. </p>
                                         </div>
                                     </div>
                                 </div>
@@ -1809,17 +1877,28 @@ const LaporanStaff = () => {
                         <div className="space-y-6 animate-in fade-in duration-300">
                             {isKabid && (
                                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                         <div>
                                             <h3 className="text-base font-black text-slate-800">Manajemen Delegasi Penugasan</h3>
                                             <p className="text-xs text-slate-400 font-medium">Berikan penugasan berbatas waktu kepada staf bidang sarana.</p>
                                         </div>
-                                        <button
-                                            onClick={() => setShowAssignmentForm(!showAssignmentForm)}
-                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                                        >
-                                            {showAssignmentForm ? 'Tutup Form' : '+ Buat Penugasan Baru'}
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            {!routinePurged && (
+                                                <button
+                                                    onClick={handlePurgeRoutine}
+                                                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                                    title="Hapus semua tugas rutin otomatis yang menumpuk di database (hanya 1 kali pakai)"
+                                                >
+                                                    <Trash2 size={14} /> Bersihkan Tugas Rutin Otomatis
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setShowAssignmentForm(!showAssignmentForm)}
+                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                            >
+                                                {showAssignmentForm ? 'Tutup Form' : '+ Buat Penugasan Baru'}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {showAssignmentForm && (

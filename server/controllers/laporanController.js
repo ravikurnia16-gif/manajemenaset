@@ -6,6 +6,7 @@ const timezone = require('dayjs/plugin/timezone');
 const whatsappService = require('../services/whatsappService');
 const { uploadFile } = require('../services/minioService');
 const aiService = require('../services/aiService');
+const { createNotification } = require('./notificationController');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -28,6 +29,37 @@ const isKabid = (user) => {
     const role = user.role || '';
     const pos = (user.position || '').toLowerCase();
     return role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+};
+
+/**
+ * Helper to get the last N working days (Monday - Friday) starting from fromDate.
+ * Excludes Saturday (6) and Sunday (0).
+ */
+const getLastWorkingDays = (count = 2, fromDate = dayjs().tz('Asia/Jakarta')) => {
+    const workingDays = [];
+    let curr = fromDate.clone();
+    
+    while (workingDays.length < count) {
+        const dayOfWeek = curr.day(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            workingDays.push(curr.clone());
+        }
+        curr = curr.subtract(1, 'day');
+    }
+    return workingDays;
+};
+
+/**
+ * Helper to check if a report has submitted manual points (morning or afternoon)
+ */
+const isReportSubmitted = (rep) => {
+    if (!rep || !rep.metadata || !rep.metadata.manualPoints) return false;
+    const pts = rep.metadata.manualPoints;
+    const m = pts.morning || pts.morningPoints || [];
+    const a = pts.afternoon || pts.afternoonPoints || [];
+    const hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+    const hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+    return hasM || hasA;
 };
 
 /**
@@ -66,7 +98,7 @@ exports.getReports = async (req, res) => {
             where: whereClause,
             include: {
                 user: {
-                    select: { id: true, name: true, username: true, position: true, role: true }
+                    select: { id: true, name: true, username: true, position: true, role: true, phone: true }
                 }
             },
             orderBy: {
@@ -318,7 +350,7 @@ exports.getDashboardAnalytics = async (req, res) => {
                     { position: { contains: 'Kepala Bidang' } }
                 ]
             },
-            select: { id: true, name: true, position: true, role: true }
+            select: { id: true, name: true, position: true, role: true, phone: true }
         });
 
         // 2. Fetch today's reports
@@ -336,7 +368,6 @@ exports.getDashboardAnalytics = async (req, res) => {
         let lengkapCount = 0;
         let parsialCount = 0;
         let belumCount = 0;
-        let onTimeSubmissions = 0;
         let totalActivitiesToday = 0;
         let totalPhotosToday = 0;
         const activeObstacles = [];
@@ -387,7 +418,7 @@ exports.getDashboardAnalytics = async (req, res) => {
                         categoryTag: item.categoryTag || 'UMUM',
                         obstacleNote: item.obstacleNote || 'Terkendala di lapangan',
                         photos: item.photos || [],
-                        time: item.updatedAt || rep.updatedAt
+                        time: item.updatedAt || rep?.updatedAt
                     });
                 }
             });
@@ -403,7 +434,41 @@ exports.getDashboardAnalytics = async (req, res) => {
             };
         });
 
-        // 3. Trend last 7 days
+        // 3. Check 2-working-days inactivity (Monday to Friday only)
+        const last2WorkDays = getLastWorkingDays(2, targetDate);
+        const startOf2WorkDays = last2WorkDays[last2WorkDays.length - 1].startOf('day').toDate();
+        const endOf2WorkDays = last2WorkDays[0].endOf('day').toDate();
+
+        const reportsIn2Days = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: { gte: startOf2WorkDays, lte: endOf2WorkDays }
+            }
+        });
+
+        const consecutiveMissingStaff = [];
+        staffUsers.forEach(st => {
+            let missedDays = [];
+            last2WorkDays.forEach(day => {
+                const dStr = day.format('YYYY-MM-DD');
+                const rep = reportsIn2Days.find(r => r.userId === st.id && dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dStr);
+                if (!isReportSubmitted(rep)) {
+                    missedDays.push(day.format('dddd, DD/MM/YYYY'));
+                }
+            });
+
+            if (missedDays.length >= 2) {
+                consecutiveMissingStaff.push({
+                    id: st.id,
+                    name: st.name,
+                    position: st.position,
+                    phone: st.phone || null,
+                    missedDays
+                });
+            }
+        });
+
+        // 4. Trend last 7 days
         const trend7Days = [];
         for (let i = 6; i >= 0; i--) {
             const d = targetDate.subtract(i, 'day');
@@ -439,7 +504,7 @@ exports.getDashboardAnalytics = async (req, res) => {
             });
         }
 
-        // 4. Leaderboard 30 days
+        // 5. Leaderboard 30 days
         const monthStart = targetDate.subtract(30, 'day').startOf('day').toDate();
         const monthReports = await prisma.personnelReport.findMany({
             where: { type: 'DAILY', date: { gte: monthStart, lte: endOfDay } }
@@ -488,6 +553,7 @@ exports.getDashboardAnalytics = async (req, res) => {
             staffStatusList,
             categoryCounts,
             activeObstacles,
+            consecutiveMissingStaff,
             trend7Days,
             leaderboard
         });
@@ -509,7 +575,7 @@ exports.getWeeklySummary = async (req, res) => {
         }
 
         let startDate = req.query.startDate ? dayjs(req.query.startDate).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta').startOf('week').add(1, 'day'); // Monday
-        let endDate = req.query.endDate ? dayjs(req.query.endDate).tz('Asia/Jakarta') : startDate.add(5, 'day'); // Saturday
+        let endDate = req.query.endDate ? dayjs(req.query.endDate).tz('Asia/Jakarta') : startDate.add(4, 'day'); // Friday
 
         const dStart = startDate.startOf('day').toDate();
         const dEnd = endDate.endOf('day').toDate();
@@ -535,7 +601,7 @@ exports.getWeeklySummary = async (req, res) => {
 
         while (curr.isBefore(endDate.endOf('day'))) {
             const dateStr = curr.format('YYYY-MM-DD');
-            const dayReports = reports.filter(r => dayjs(r.date).format('YYYY-MM-DD') === dateStr);
+            const dayReports = reports.filter(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
 
             const activities = [];
             dayReports.forEach(r => {
@@ -626,7 +692,7 @@ exports.verifyReport = async (req, res) => {
 
         const existingMetadata = typeof report.metadata === 'object' && report.metadata !== null ? report.metadata : {};
         const verificationData = {
-            verifiedBy: req.user.name || 'Kepala Bidang Sarana',
+            verifiedBy: 'Ravi Kurnia',
             status: status || 'VERIFIED',
             feedbackNote: feedbackNote || '',
             verifiedAt: new Date().toISOString()
@@ -914,7 +980,124 @@ exports.sendReportReminders = async () => {
 };
 
 /**
- * Monthly Kabid Matrix (Backwards compatibility & monthly export)
+ * Notify Kepala Bidang Sarana about staff who haven't reported for 2 working days (Monday - Friday).
+ * Runs Monday to Friday at 16:30 WIB.
+ */
+exports.notifyKabidInactiveStaff = async (req, res) => {
+    try {
+        const now = dayjs().tz('Asia/Jakarta');
+        const dayOfWeek = now.day();
+
+        // Hari kerja: Senin (1) sampai Jumat (5)
+        if (dayOfWeek < 1 || dayOfWeek > 5) {
+            console.log('[Scheduler] Weekend detected, skipping Kabid inactivity alert.');
+            if (res) return res.json({ message: 'Hari ini akhir pekan (Sabtu/Ahad), pengecekan dilewati.' });
+            return;
+        }
+
+        const kabidUsers = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'KABID_SARPRAS' },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Kabid Sarpras' } }
+                ]
+            },
+            select: { id: true, name: true, phone: true }
+        });
+
+        if (!kabidUsers.length) {
+            if (res) return res.status(404).json({ error: 'Kepala Bidang Sarana tidak ditemukan.' });
+            return;
+        }
+
+        const staffUsers = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'ADMIN_ASET' },
+                    ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
+                ],
+                NOT: [
+                    { role: 'KABID_SARPRAS' },
+                    { position: { contains: 'Kepala Bidang' } }
+                ]
+            },
+            select: { id: true, name: true, position: true, phone: true }
+        });
+
+        const last2WorkDays = getLastWorkingDays(2, now);
+        const startOf2WorkDays = last2WorkDays[last2WorkDays.length - 1].startOf('day').toDate();
+        const endOf2WorkDays = last2WorkDays[0].endOf('day').toDate();
+
+        const reportsIn2Days = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: { gte: startOf2WorkDays, lte: endOf2WorkDays }
+            }
+        });
+
+        const inactiveStaff = [];
+        staffUsers.forEach(st => {
+            let missedDays = [];
+            last2WorkDays.forEach(day => {
+                const dStr = day.format('YYYY-MM-DD');
+                const rep = reportsIn2Days.find(r => r.userId === st.id && dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dStr);
+                if (!isReportSubmitted(rep)) {
+                    missedDays.push(day.format('dddd, DD/MM/YYYY'));
+                }
+            });
+
+            if (missedDays.length >= 2) {
+                inactiveStaff.push({
+                    id: st.id,
+                    name: st.name,
+                    position: st.position,
+                    missedDays
+                });
+            }
+        });
+
+        if (inactiveStaff.length === 0) {
+            console.log('[Scheduler] Semua staf aktif melapor dalam 2 hari kerja terakhir.');
+            if (res) return res.json({ success: true, message: 'Semua staf tertib melapor dalam 2 hari kerja terakhir.', inactiveStaff: [] });
+            return;
+        }
+
+        const msgLines = inactiveStaff.map((s, idx) => 
+            `${idx + 1}. *${s.name}* (${s.position || 'Staf Sarana'})\n   - Tidak melapor pada: ${s.missedDays.join(' & ')}`
+        ).join('\n\n');
+
+        for (const kabid of kabidUsers) {
+            const message = `📢 *PERINGATAN KEDISIPLINAN STAF - BIDANG SARANA*\n\n` +
+                `Bismillah Ustadz Ravi Kurnia (Kepala Bidang Sarana),\n\n` +
+                `Berikut adalah daftar staf yang *tidak mengisi laporan kegiatan selama 2 hari kerja berturut-turut* (Senin - Jumat):\n\n` +
+                `${msgLines}\n\n` +
+                `Mohon untuk dapat ditindaklanjuti. Laporan lengkap dapat diakses melalui menu "Laporan & Kinerja Staf".\n\n` +
+                `Syukron,\n*Sistem Manajemen Aset - Bidang Sarana*`;
+
+            if (kabid.phone) {
+                await whatsappService.sendMessage(kabid.phone, message);
+            }
+
+            await createNotification(
+                kabid.id,
+                'Peringatan Kedisiplinan Staf (2 Hari)',
+                `Terdapat ${inactiveStaff.length} staf tidak mengisi laporan selama 2 hari kerja berturut-turut.`,
+                'WARNING',
+                '/laporan'
+            );
+        }
+
+        console.log(`[Scheduler] Berhasil mengirim peringatan 2 hari tidak lapor ke ${kabidUsers.length} Kabid untuk ${inactiveStaff.length} staf.`);
+        if (res) return res.json({ success: true, message: `Peringatan berhasil dikirim ke Kepala Bidang Sarana untuk ${inactiveStaff.length} staf.`, inactiveStaff });
+    } catch (error) {
+        console.error('Error in notifyKabidInactiveStaff:', error);
+        if (res) return res.status(500).json({ error: 'Gagal mengirim notifikasi ke Kepala Bidang Sarana.' });
+    }
+};
+
+/**
+ * Monthly Kabid Matrix
  */
 exports.getKabidSummary = async (req, res) => {
     try {

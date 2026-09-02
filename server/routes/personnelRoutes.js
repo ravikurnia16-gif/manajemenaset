@@ -15,6 +15,7 @@ router.post('/reports/:id/review', personnelController.reviewReport);
 // Assignments
 router.post('/assignments', personnelController.createAssignment);
 router.get('/assignments', personnelController.getAssignments);
+router.delete('/assignments/purge-routine', personnelController.purgeRoutineAssignments);
 router.put('/assignments/:id/status', personnelController.updateAssignmentStatus);
 router.post('/assignments/:id/request-extension', personnelController.requestExtension);
 router.post('/assignments/:id/handle-extension', personnelController.handleExtension);

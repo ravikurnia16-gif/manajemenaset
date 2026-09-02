@@ -498,6 +498,12 @@ exports.getAssignments = async (req, res) => {
             where.assigneeId = parseInt(targetUserId);
         }
 
+        // Exclude legacy auto-generated routine tasks
+        where.NOT = [
+            { title: { startsWith: '[RUTIN]' } },
+            { routineId: { not: null } }
+        ];
+
         const queryOptions = {
             where,
             include: {
@@ -527,6 +533,27 @@ exports.getAssignments = async (req, res) => {
             totalPages: limit === 'all' ? 1 : Math.ceil(total / (parseInt(limit) || 1))
         });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.purgeRoutineAssignments = async (req, res) => {
+    try {
+        const deleted = await prisma.personnelAssignment.deleteMany({
+            where: {
+                OR: [
+                    { routineId: { not: null } },
+                    { title: { startsWith: '[RUTIN]' } }
+                ]
+            }
+        });
+        res.json({ 
+            success: true, 
+            count: deleted.count, 
+            message: `Berhasil membersihkan ${deleted.count} tugas rutin otomatis dari database.` 
+        });
+    } catch (error) {
+        console.error('Error purging routine assignments:', error);
         res.status(500).json({ error: error.message });
     }
 };

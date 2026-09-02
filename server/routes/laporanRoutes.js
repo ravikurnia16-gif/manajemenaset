@@ -26,4 +26,7 @@ router.put('/:id/verify', laporanController.verifyReport);
 router.get('/my-stats', laporanController.getMyStats);
 router.post('/upload-photo', upload.single('photo'), laporanController.uploadReportPhoto);
 
+// Inactivity Alert for Kabid (2 working days)
+router.post('/notify-inactive', laporanController.notifyKabidInactiveStaff);
+
 module.exports = router;
