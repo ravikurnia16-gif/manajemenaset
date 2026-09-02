@@ -4111,10 +4111,6 @@ exports.updateSalePayment = async (req, res) => {
             updateData.paymentMethod = paymentMethod;
         }
 
-        if (finalStatus === 'PAID') {
-            updateData.paidAt = new Date();
-        }
-
         const updatedSale = await prisma.uniformSale.update({
             where: { id: saleId },
             data: updateData
