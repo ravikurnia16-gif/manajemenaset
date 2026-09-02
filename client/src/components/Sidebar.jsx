@@ -272,24 +272,7 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 3b. Manajemen Pergudangan Lama */}
-                {renderCollapsible('warehouse', <Warehouse size={18} />, 'Logistik (Lama)', (
-                    <>
-                        <Link to="/gudang/dashboard" className={subNavItemClass('/gudang/dashboard')}>
-                            <LayoutDashboard size={16} /> Dashboard
-                        </Link>
-                        {isWarehouseAdmin && (
-                            <>
-                                <Link to="/gudang/stok" className={subNavItemClass('/gudang/stok')}>
-                                    <Box size={16} /> Stok Barang
-                                </Link>
-                                <Link to="/gudang/transaksi" className={subNavItemClass('/gudang/transaksi')}>
-                                    <ArrowLeftRight size={16} /> Transaksi
-                                </Link>
-                            </>
-                        )}
-                    </>
-                ))}
+
 
                 {/* 4. Manajemen Seragam */}
                 {renderCollapsible('seragam', <Shirt size={18} />, 'Manajemen Seragam', (
