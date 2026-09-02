@@ -2535,6 +2535,208 @@ exports.exportSalesToExcel = async (req, res) => {
     }
 };
 
+exports.getBatchInvoices = async (req, res) => {
+    try {
+        const { ids } = req.query;
+        if (!ids) return res.status(400).json({ error: 'Parameter ids wajib diisi' });
+        const idList = ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        if (idList.length === 0) return res.status(400).json({ error: 'Daftar ID tidak valid' });
+
+        const sales = await prisma.uniformSale.findMany({
+            where: { id: { in: idList } },
+            include: {
+                warehouse: true,
+                package: { include: { items: { include: { item: true } } } },
+                salePackages: { include: { package: { include: { items: { include: { item: true } } } } } },
+                items: {
+                    include: {
+                        variant: { include: { item: true } }
+                    },
+                    orderBy: { id: 'asc' }
+                },
+                schedule: true
+            },
+            orderBy: { id: 'asc' }
+        });
+
+        res.json(sales);
+    } catch (error) {
+        console.error('getBatchInvoices Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.sendSpmbBillingWhatsApp = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { deadline, customNote } = req.body || {};
+
+        const sale = await prisma.uniformSale.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                package: true,
+                salePackages: { include: { package: true } },
+                items: { include: { variant: { include: { item: true } } } }
+            }
+        });
+
+        if (!sale) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+        if (!sale.customerPhone) return res.status(400).json({ error: 'Nomor WhatsApp pemesan tidak tersedia' });
+
+        const clientUrl = process.env.CLIENT_URL || 'https://aset.dareliman.sch.id';
+        const invoiceLink = `${clientUrl}/public/invoice-seragam/${sale.id}`;
+
+        // 1. Salam & Identitas Unit
+        const studentName = sale.customerName || sale.studentName || 'Siswa';
+        const unitName = sale.targetUnit || 'Sekolah Dar el-Iman';
+
+        // 2. Rincian Pesanan
+        let packageNames = [];
+        if (sale.salePackages && sale.salePackages.length > 0) {
+            packageNames = sale.salePackages.map(sp => sp.package?.name).filter(Boolean);
+        } else if (sale.package?.name) {
+            packageNames = [sale.package.name];
+        }
+
+        let itemLines = (sale.items || []).map(i => `  • ${i.itemName} (Ukuran: ${i.size}) - ${i.qty} pcs`).join('\n');
+
+        if (sale.note && sale.note.includes('[NAMADADA')) {
+            const matches = [...sale.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):/g)];
+            matches.forEach(m => {
+                const ndType = m[1].includes('PUTIH') ? 'Nama Dada Putih' : 'Nama Dada Coklat';
+                itemLines += `\n  • ${ndType} (Bordir) - ${m[2]} pcs`;
+            });
+        }
+
+        // 3. Rincian Pembayaran
+        const totalTagihan = (sale.totalAmount || 0).toLocaleString('id-ID');
+        const sudahBayar = (sale.paidAmount || 0).toLocaleString('id-ID');
+        const sisaTagihan = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0)).toLocaleString('id-ID');
+        const statusBayar = sale.paymentStatus === 'PAID' ? 'LUNAS' : (sale.paymentStatus === 'PARTIAL' ? 'SEBAGIAN (PARSIAL)' : 'BELUM LUNAS');
+
+        // 4. Batas Pembayaran (Diatur oleh Admin)
+        let deadlineText = deadline || 'Sesuai Ketentuan SPMB / Sebelum Pengambilan Seragam';
+        if (!deadline && sale.note && sale.note.includes('[DEADLINE:')) {
+            const match = sale.note.match(/\[DEADLINE:(.*?)\]/);
+            if (match && match[1]) deadlineText = match[1];
+        }
+
+        const message = `*TAGIHAN PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
+            `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+            `Yth. *Admin Unit ${unitName}*\n` +
+            `Yayasan Dar El-Iman Padang\n\n` +
+            `Berikut kami sampaikan rincian tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}*:\n` +
+            `• Kode Invoice: *${sale.code}*\n\n` +
+            `💰 *RINCIAN PEMBAYARAN:*\n` +
+            `• Total Tagihan: *Rp ${totalTagihan}*\n` +
+            `• Sudah Dibayar: Rp ${sudahBayar}\n` +
+            `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
+            `• Status: *${statusBayar}*\n\n` +
+            `⏳ *BATAS PEMBAYARAN:*\n` +
+            `• Batas Waktu: *${deadlineText}*\n\n` +
+            `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
+            `${invoiceLink}\n\n` +
+            (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
+            `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
+            `Jazakumullahu Khairan Katsiran.\n\n` +
+            `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+
+        await sendMessage(sale.customerPhone, message);
+
+        res.json({ message: 'Tagihan WhatsApp berhasil dikirim ke Admin Unit', phone: sale.customerPhone });
+    } catch (error) {
+        console.error('sendSpmbBillingWhatsApp Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.batchSendSpmbBillingWhatsApp = async (req, res) => {
+    try {
+        const { ids, deadline, customNote } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Daftar ID pesanan wajib disertakan' });
+        }
+
+        const sales = await prisma.uniformSale.findMany({
+            where: { id: { in: ids.map(id => parseInt(id)) } },
+            include: {
+                package: true,
+                salePackages: { include: { package: true } },
+                items: { include: { variant: { include: { item: true } } } }
+            }
+        });
+
+        const clientUrl = process.env.CLIENT_URL || 'https://aset.dareliman.sch.id';
+        let successCount = 0;
+        let failedCount = 0;
+        const failedRecipients = [];
+
+        for (const sale of sales) {
+            if (!sale.customerPhone) {
+                failedCount++;
+                failedRecipients.push({ code: sale.code, name: sale.customerName, reason: 'Nomor HP kosong' });
+                continue;
+            }
+
+            try {
+                const invoiceLink = `${clientUrl}/public/invoice-seragam/${sale.id}`;
+                const unitName = sale.targetUnit || 'Sekolah Dar el-Iman';
+
+                const totalTagihan = (sale.totalAmount || 0).toLocaleString('id-ID');
+                const sudahBayar = (sale.paidAmount || 0).toLocaleString('id-ID');
+                const sisaTagihan = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0)).toLocaleString('id-ID');
+                const statusBayar = sale.paymentStatus === 'PAID' ? 'LUNAS' : (sale.paymentStatus === 'PARTIAL' ? 'SEBAGIAN (PARSIAL)' : 'BELUM LUNAS');
+
+                let deadlineText = deadline || 'Sesuai Ketentuan SPMB / Sebelum Pengambilan Seragam';
+                if (!deadline && sale.note && sale.note.includes('[DEADLINE:')) {
+                    const match = sale.note.match(/\[DEADLINE:(.*?)\]/);
+                    if (match && match[1]) deadlineText = match[1];
+                }
+
+                const message = `*TAGIHAN PEMESANAN SERAGAM SPMB*\n*YAYASAN DAR EL-IMAN PADANG*\n\n` +
+                    `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                    `Yth. *Admin Unit ${unitName}*\n` +
+                    `Yayasan Dar El-Iman Padang\n\n` +
+                    `Berikut kami sampaikan rincian tagihan pemesanan seragam sekolah (SPMB) untuk unit *${unitName}*:\n` +
+                    `• Kode Invoice: *${sale.code}*\n\n` +
+                    `💰 *RINCIAN PEMBAYARAN:*\n` +
+                    `• Total Tagihan: *Rp ${totalTagihan}*\n` +
+                    `• Sudah Dibayar: Rp ${sudahBayar}\n` +
+                    `• Sisa Pembayaran: *Rp ${sisaTagihan}*\n` +
+                    `• Status: *${statusBayar}*\n\n` +
+                    `⏳ *BATAS PEMBAYARAN:*\n` +
+                    `• Batas Waktu: *${deadlineText}*\n\n` +
+                    `📄 *INVOICE DIGITAL & DETAIL PESANAN:*\n` +
+                    `${invoiceLink}\n\n` +
+                    (customNote ? `📌 *Catatan:* ${customNote}\n\n` : '') +
+                    `Mohon konfirmasi jika telah melakukan pembayaran.\n` +
+                    `Jazakumullahu Khairan Katsiran.\n\n` +
+                    `*Admin Bidang Sarana Yayasan Dar El-Iman*`;
+
+                await sendMessage(sale.customerPhone, message);
+                successCount++;
+
+                // Jeda 500ms agar pengiriman aman
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (err) {
+                console.error(`Gagal kirim WA ke ${sale.customerPhone}:`, err.message);
+                failedCount++;
+                failedRecipients.push({ code: sale.code, name: sale.customerName, reason: err.message });
+            }
+        }
+
+        res.json({
+            message: `Proses kirim tagihan selesai. Berhasil: ${successCount}, Gagal: ${failedCount}`,
+            successCount,
+            failedCount,
+            failedRecipients
+        });
+    } catch (error) {
+        console.error('batchSendSpmbBillingWhatsApp Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.getSaleById = async (req, res) => {
     try {
         const data = await prisma.uniformSale.findUnique({
@@ -3870,32 +4072,57 @@ exports.fulfillSale = async (req, res) => {
 exports.updateSalePayment = async (req, res) => {
     try {
         const saleId = parseInt(req.params.id);
-        const { paymentStatus } = req.body;
-
-        if (!['PAID', 'UNPAID', 'PARTIAL'].includes(paymentStatus)) {
-            return res.status(400).json({ error: 'Status pembayaran tidak valid' });
-        }
+        const { paymentStatus, paidAmount, paymentMethod } = req.body;
 
         const sale = await prisma.uniformSale.findUnique({ where: { id: saleId } });
         if (!sale) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
 
-        let newPaidAmount = sale.paidAmount;
-        if (paymentStatus === 'PAID') {
-            newPaidAmount = sale.totalAmount;
-        } else if (paymentStatus === 'UNPAID') {
-            newPaidAmount = 0;
+        let finalStatus = paymentStatus;
+        let finalPaidAmount = sale.paidAmount;
+
+        if (paidAmount !== undefined && paidAmount !== null) {
+            finalPaidAmount = Math.max(0, parseFloat(paidAmount) || 0);
+            if (finalPaidAmount >= (sale.totalAmount || 0) && (sale.totalAmount || 0) > 0) {
+                finalStatus = 'PAID';
+            } else if (finalPaidAmount > 0) {
+                finalStatus = 'PARTIAL';
+            } else {
+                finalStatus = 'UNPAID';
+            }
+        } else if (paymentStatus) {
+            if (!['PAID', 'UNPAID', 'PARTIAL'].includes(paymentStatus)) {
+                return res.status(400).json({ error: 'Status pembayaran tidak valid' });
+            }
+            if (paymentStatus === 'PAID') {
+                finalPaidAmount = sale.totalAmount;
+            } else if (paymentStatus === 'UNPAID') {
+                finalPaidAmount = 0;
+            }
+        } else {
+            return res.status(400).json({ error: 'Data pembayaran tidak lengkap' });
+        }
+
+        const updateData = {
+            paymentStatus: finalStatus,
+            paidAmount: finalPaidAmount
+        };
+
+        if (paymentMethod) {
+            updateData.paymentMethod = paymentMethod;
+        }
+
+        if (finalStatus === 'PAID') {
+            updateData.paidAt = new Date();
         }
 
         const updatedSale = await prisma.uniformSale.update({
             where: { id: saleId },
-            data: {
-                paymentStatus,
-                paidAmount: newPaidAmount
-            }
+            data: updateData
         });
 
         res.json(updatedSale);
     } catch (error) {
+        console.error('updateSalePayment error:', error);
         res.status(500).json({ error: error.message });
     }
 };

@@ -40,6 +40,7 @@ import BusBooking from './pages/BusBooking';
 import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import UniformInvoicePublic from './pages/UniformInvoicePublic';
+import UniformInvoiceBatchPrint from './pages/UniformInvoiceBatchPrint';
 import UniformOrderPublic from './pages/UniformOrderPublic';
 import UniformTrackOrderPublic from './pages/UniformTrackOrderPublic';
 import UniformConfirmIndentPublic from './pages/UniformConfirmIndentPublic';
@@ -193,6 +194,8 @@ function App() {
         <Route path="/public/booking-bus" element={<BusBookingPublic />} />
         <Route path="/public/invoice-bus/batch" element={<BusInvoiceBatchPrint />} />
         <Route path="/public/invoice-bus/:id" element={<BusInvoicePublic />} />
+        <Route path="/public/invoice-seragam/batch" element={<UniformInvoiceBatchPrint />} />
+        <Route path="/gudang/seragam/invoice/batch" element={<UniformInvoiceBatchPrint />} />
         <Route path="/public/invoice-seragam/:id" element={<UniformInvoicePublic />} />
         <Route path="/public/invoice-gudang/:id" element={<InventoryInvoicePublic />} />
         <Route path="/verify/invoice-gudang/:id" element={<InventoryInvoicePublic />} />

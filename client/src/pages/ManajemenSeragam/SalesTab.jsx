@@ -690,6 +690,7 @@ const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
     try {
       await onSave(sale.id, {
         paidAmount: Math.min(totalAmount, numInputPaid),
+        paymentStatus: previewStatus,
         paymentMethod
       });
       onClose();
@@ -1477,6 +1478,29 @@ export const SalesTab = ({
                         >
                           Invoice <ExternalLink size={10} />
                         </a>
+                        {s.type === 'SPMB' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!s.customerPhone) {
+                                alert('Nomor WhatsApp pemesan tidak tersedia');
+                                return;
+                              }
+                              const deadline = prompt('Masukkan Batas Waktu Pembayaran (Deadline):', 'Sebelum Pengambilan Seragam');
+                              if (deadline === null) return;
+                              try {
+                                const res = await api.post(`/uniforms/sales/${s.id}/send-billing-wa`, { deadline });
+                                alert(res.data.message || 'Tagihan WhatsApp berhasil dikirim ke pemesan!');
+                              } catch (err) {
+                                alert(err.response?.data?.error || 'Gagal mengirimkan tagihan WhatsApp');
+                              }
+                            }}
+                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg inline-flex items-center gap-1"
+                            title="Kirimkan Tagihan Resmi ke WhatsApp Pemesan"
+                          >
+                            <Send size={10} /> WA Tagihan
+                          </button>
+                        )}
                         {openModal && (
                           <button 
                             type="button"

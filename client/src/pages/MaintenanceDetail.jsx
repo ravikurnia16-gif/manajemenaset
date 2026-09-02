@@ -1,6 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, Edit2, FileText as FileIcon, Clock, Calendar, User, Send, MessageSquare } from 'lucide-react';
+import { 
+    ArrowLeft, 
+    CheckCircle, 
+    XCircle, 
+    UserPlus, 
+    PlayCircle, 
+    Wrench, 
+    Sparkles, 
+    AlertTriangle, 
+    Info, 
+    Plus, 
+    Loader2, 
+    ClipboardList, 
+    UserCheck, 
+    HardHat, 
+    Cog, 
+    CheckCircle2, 
+    Trash2, 
+    Edit2, 
+    FileText as FileIcon, 
+    Clock, 
+    Calendar, 
+    User, 
+    Send, 
+    MessageSquare,
+    Printer,
+    Search,
+    ChevronLeft,
+    ChevronRight,
+    Download,
+    ExternalLink,
+    Maximize2,
+    X,
+    Building,
+    PhoneCall
+} from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -39,14 +74,21 @@ const MaintenanceDetail = () => {
     // Modal state for actions
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });
     const [historyModal, setHistoryModal] = useState({ show: false, asset: null, timeline: [], loading: false });
+    const [showSPKModal, setShowSPKModal] = useState(false);
+    
+    // Lightbox State
+    const [lightbox, setLightbox] = useState({ show: false, items: [], index: 0 });
+
+    // Action Form States
     const [actionNote, setActionNote] = useState('');
     const [assignUnitId, setAssignUnitId] = useState('');
     const [technicianName, setTechnicianName] = useState('');
     const [technicianPhone, setTechnicianPhone] = useState('');
-    const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
+    const [technicianType, setTechnicianType] = useState('internal'); // 'internal' or 'external'
+    const [userSearchQuery, setUserSearchQuery] = useState('');
     const [createWorkshopOrder, setCreateWorkshopOrder] = useState(false);
     const [progressNote, setProgressNote] = useState('');
-    const [costItems, setCostItems] = useState([]); // [{ id: string, label: string, price: number, assetId: number|null }]
+    const [costItems, setCostItems] = useState([]);
     const [bulkPrice, setBulkPrice] = useState('');
     const [receiptFile, setReceiptFile] = useState(null);
     const [completionPhoto, setCompletionPhoto] = useState(null);
@@ -93,7 +135,7 @@ const MaintenanceDetail = () => {
         try {
             await api.put(`/maintenance/${id}/complete-asset/${assetId}`);
             showToast('Aset berhasil ditandai selesai');
-            fetchReport(); // Refresh data
+            fetchReport();
         } catch (error) {
             showToast(error.response?.data?.error || 'Gagal menandai aset', 'error');
         }
@@ -138,9 +180,40 @@ const MaintenanceDetail = () => {
         }
     }, [id]);
 
+    // Keyboard support for Lightbox
     useEffect(() => {
-        // No longer pre-filling progressNote
-    }, [report]);
+        const handleKeyDown = (e) => {
+            if (!lightbox.show) return;
+            if (e.key === 'Escape') setLightbox(prev => ({ ...prev, show: false }));
+            if (e.key === 'ArrowRight') handleLightboxNext();
+            if (e.key === 'ArrowLeft') handleLightboxPrev();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [lightbox]);
+
+    const openLightbox = (items, startIndex = 0) => {
+        if (!items || items.length === 0) return;
+        setLightbox({
+            show: true,
+            items: items.map(item => typeof item === 'string' ? { url: item, type: 'IMAGE', title: 'Media' } : item),
+            index: startIndex
+        });
+    };
+
+    const handleLightboxNext = () => {
+        setLightbox(prev => ({
+            ...prev,
+            index: (prev.index + 1) % prev.items.length
+        }));
+    };
+
+    const handleLightboxPrev = () => {
+        setLightbox(prev => ({
+            ...prev,
+            index: (prev.index - 1 + prev.items.length) % prev.items.length
+        }));
+    };
 
     const handleStatusUpdate = async () => {
         try {
@@ -151,11 +224,10 @@ const MaintenanceDetail = () => {
             if (actionModal.nextStatus === 'REJECTED') payload.rejectionReason = actionNote;
             if (actionModal.nextStatus === 'ASSIGNED') {
                 payload.technician = technicianName;
-                payload.technicianPhone = technicianType === 'external' ? technicianPhone : undefined;
+                payload.technicianPhone = technicianPhone || undefined;
                 payload.approvalNote = actionNote;
             }
 
-            // Handle updates where actionTaken is provided (including partial updates)
             if (actionModal.type === 'completion' || actionModal.type === 'progress') {
                 if (progressNote.trim()) {
                     const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
@@ -165,14 +237,12 @@ const MaintenanceDetail = () => {
                     payload.actionTaken = report.actionTaken || undefined;
                 }
                 if (actionModal.type === 'completion') {
-                    // Calculate total cost from items
                     const totalCost = costItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
                     payload.cost = totalCost;
                     payload.costDetails = costItems.length > 0 ? costItems : undefined;
                 }
             }
 
-            // Upload receipt first if available and completing
             if (actionModal.type === 'completion') {
                 if (receiptFile) {
                     const formData = new FormData();
@@ -216,6 +286,7 @@ const MaintenanceDetail = () => {
             setAssignUnitId('');
             setTechnicianName('');
             setTechnicianPhone('');
+            setUserSearchQuery('');
             setProgressNote('');
             setCostItems([]);
             setBulkPrice('');
@@ -234,7 +305,7 @@ const MaintenanceDetail = () => {
             setSendingChat(true);
             await api.post(`/maintenance/${id}/progress`, { message: chatMessage.trim() });
             setChatMessage('');
-            fetchReport(); // Refresh data to get new chat
+            fetchReport();
         } catch (err) {
             showToast(err.response?.data?.error || 'Gagal mengirim pesan', 'error');
         } finally {
@@ -336,14 +407,11 @@ const MaintenanceDetail = () => {
 
     const currentStepIndex = statusSteps.findIndex(s => s.key === report.status);
     const isRejected = report.status === 'REJECTED';
-
-    // What's the next possible action?
     const isAssignedTechnician = report.technician && (report.technician === user.name || report.technician === user.username);
 
     const getNextAction = () => {
         if (isRejected) return null;
 
-        // Assigned technician actions
         if (!isAdmin && isAssignedTechnician) {
             if (report.status === 'ASSIGNED') {
                 return { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' };
@@ -370,83 +438,118 @@ const MaintenanceDetail = () => {
             }
         };
         const action = transitions[report.status];
-        if (Array.isArray(action)) return action[0]; // Simplified for now, or pick the primary
+        if (Array.isArray(action)) return action[0];
         return action || null;
     };
 
     const nextAction = getNextAction();
+
+    // Prepare media items for lightboxes
+    const generalMedia = report.media ? report.media.filter(m => !m.isReceipt && !m.isCompletion) : (report.photo ? [{ url: report.photo, type: 'IMAGE', title: 'Foto Kerusakan' }] : []);
+    const receiptMedia = report.media ? report.media.filter(m => m.isReceipt) : [];
+    const completionMedia = report.media ? report.media.filter(m => m.isCompletion) : [];
+
+    // Filtered users for assignment (All Users across system with search)
+    const filteredAssignableUsers = users.filter(u => {
+        if (assignUnitId && u.unitId !== parseInt(assignUnitId)) return false;
+        if (userSearchQuery.trim()) {
+            const q = userSearchQuery.toLowerCase();
+            const name = (u.name || '').toLowerCase();
+            const username = (u.username || '').toLowerCase();
+            const position = (u.position || '').toLowerCase();
+            const unitName = (units.find(un => un.id === u.unitId)?.name || '').toLowerCase();
+            return name.includes(q) || username.includes(q) || position.includes(q) || unitName.includes(q);
+        }
+        return true;
+    });
 
     return (
         <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 relative">
             {/* Global Toast Notification */}
             {toast.show && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in-down">
-                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl shadow-black/5 text-sm font-semibold border ${toast.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
-                        }`}>
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl shadow-black/5 text-sm font-semibold border ${
+                        toast.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+                    }`}>
                         {toast.type === 'error' ? '❌' : '✅'}
                         {toast.message}
                     </div>
                 </div>
             )}
-            {/* Header */}
-            <div className="flex items-center gap-3">
-                <button onClick={() => navigate('/pemeliharaan')} className="p-2 hover:bg-slate-100 rounded-lg">
-                    <ArrowLeft size={20} />
-                </button>
-                <div>
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-xl font-bold text-slate-800">Detail Laporan</h1>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm ${report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-500' : 'bg-blue-500'}`}>
-                            {report.targetDept === 'PEMBANGUNAN' ? 'PEMBANGUNAN' : 'SARPRAS'}
-                        </span>
+
+            {/* Header with Back & SPK Print Button */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                    <button onClick={() => navigate('/pemeliharaan')} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold text-slate-800">Detail Laporan Pemeliharaan</h1>
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-extrabold text-white shadow-xs ${
+                                report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-500' : 'bg-blue-600'
+                            }`}>
+                                {report.targetDept === 'PEMBANGUNAN' ? 'PEMBANGUNAN' : 'SARPRAS'}
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{report.code}</p>
                     </div>
-                    <p className="text-sm text-slate-500 font-mono">{report.code}</p>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {/* SPK Print Button */}
+                    <button
+                        onClick={() => setShowSPKModal(true)}
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                        title="Cetak Surat Perintah Kerja (SPK) / Berita Acara"
+                    >
+                        <Printer size={15} /> Cetak SPK
+                    </button>
                 </div>
             </div>
 
             {/* Progress Bar */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h3 className="text-sm font-semibold text-slate-600 mb-4">Progress</h3>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Tahapan Pengerjaan</h3>
                 <div className="flex items-center justify-between gap-1 overflow-x-auto pb-2">
                     {statusSteps.map((step, i) => {
                         const isActive = i <= currentStepIndex && !isRejected;
                         const isCurrent = step.key === report.status;
                         return (
-                            <div key={step.key} className="flex flex-col items-center flex-1 min-w-[70px]">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all ${isActive ? 'border-green-500 bg-green-50' : isCurrent && isRejected ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <div key={step.key} className="flex flex-col items-center flex-1 min-w-[75px]">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all ${
+                                    isActive ? 'border-green-500 bg-green-50 shadow-2xs' : isCurrent && isRejected ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'
+                                }`}>
                                     {isRejected && isCurrent ? <XCircle size={20} className="text-red-500" /> : <step.icon size={20} className={isActive ? step.color : 'text-slate-400'} />}
                                 </div>
-                                <span className={`mt-1 text-[10px] font-semibold text-center ${isActive ? 'text-green-600' : 'text-slate-400'}`}>{step.label}</span>
-                                {i < statusSteps.length - 1 && (
-                                    <div className={`hidden md:block absolute w-full h-0.5 ${isActive ? 'bg-green-400' : 'bg-slate-200'}`} />
-                                )}
+                                <span className={`mt-1.5 text-[10px] font-bold text-center ${isActive ? 'text-green-700' : 'text-slate-400'}`}>{step.label}</span>
                             </div>
                         );
                     })}
                 </div>
                 {isRejected && (
-                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                        <strong>Ditolak:</strong> {report.rejectionReason || '-'}
+                    <div className="mt-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                        <strong>Alasan Penolakan:</strong> {report.rejectionReason || '-'}
                     </div>
                 )}
             </div>
 
-            {/* Info Card */}
+            {/* Info Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-600 border-b pb-2">Informasi Laporan</h3>
-                    <div className="space-y-2 text-sm">
-                        <div className="flex justify-between"><span className="text-slate-500">Judul</span><span className="font-medium text-right">{report.title}</span></div>
-                        <div className="flex justify-between text-xs items-center">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Informasi Laporan</h3>
+                    <div className="space-y-2.5 text-xs">
+                        <div className="flex justify-between"><span className="text-slate-500">Judul</span><span className="font-bold text-slate-800 text-right">{report.title}</span></div>
+                        <div className="flex justify-between items-center">
                             <span className="text-slate-500">Bidang Tujuan</span>
-                            <span className={`px-2 py-0.5 rounded font-bold ${report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
                                 {report.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarana & Prasarana'}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-slate-500">Urgensi</span>
                             {report.urgency && report.urgency !== 'NORMAL' ? (
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${urgencyColors[report.urgency]}`}>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${urgencyColors[report.urgency]}`}>
                                     {urgencyLabels[report.urgency]}
                                 </span>
                             ) : (
@@ -456,29 +559,29 @@ const MaintenanceDetail = () => {
                         <div className="flex justify-between"><span className="text-slate-500">Tipe</span><span className={`font-semibold ${report.type === 'ASSET' ? 'text-purple-600' : 'text-gray-600'}`}>{report.type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset'}</span></div>
 
                         {report.assets && report.assets.length > 0 && (
-                            <div className="space-y-1">
-                                <span className="text-slate-500">Aset Terkait:</span>
-                                <div className="space-y-1 mt-1">
+                            <div className="space-y-1.5 pt-1">
+                                <span className="text-slate-500 font-semibold">Aset Terkait:</span>
+                                <div className="space-y-1.5 mt-1">
                                     {report.assets.map(a => {
                                         const isAssetCompleted = report.aiDiagnosis?.completedAssets?.includes(a.id);
                                         const canComplete = report.status === 'IN_PROGRESS' || report.status === 'ASSIGNED';
                                         
                                         return (
-                                            <div key={a.id} className="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-100 font-mono text-xs">
+                                            <div key={a.id} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100 font-mono text-xs">
                                                 <div>
                                                     <span className="font-bold text-blue-600">{a.code}</span>
-                                                    <span className="text-slate-600 ml-2">{a.name}</span>
+                                                    <span className="text-slate-700 ml-2 font-sans font-medium">{a.name}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-1.5">
                                                     {isAssetCompleted ? (
-                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
+                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-200">
                                                             <CheckCircle2 size={12} /> Selesai
                                                         </span>
                                                     ) : (
                                                         canComplete && (
                                                             <button 
                                                                 onClick={() => markAssetAsCompleted(a.id)}
-                                                                className="flex items-center gap-1 px-2 py-1 bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 transition-colors"
+                                                                className="flex items-center gap-1 px-2.5 py-1 bg-white border border-green-200 rounded-lg text-green-700 font-semibold hover:bg-green-50 transition-colors"
                                                                 title="Tandai Selesai & Update Jadwal Rutin"
                                                             >
                                                                 <CheckCircle2 size={12} />
@@ -488,7 +591,7 @@ const MaintenanceDetail = () => {
                                                     )}
                                                     <button 
                                                         onClick={() => fetchAssetHistory(a)}
-                                                        className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                                                        className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded-lg text-blue-600 font-semibold hover:bg-blue-50 transition-colors"
                                                         title="Lihat Riwayat Perbaikan"
                                                     >
                                                         <Clock size={12} />
@@ -502,37 +605,66 @@ const MaintenanceDetail = () => {
                             </div>
                         )}
 
-                        {report.location && <div className="flex justify-between"><span className="text-slate-500">Lokasi</span><span>{report.location}</span></div>}
-                        <div className="flex justify-between"><span className="text-slate-500">Tanggal</span><span>{new Date(report.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+                        {report.location && <div className="flex justify-between"><span className="text-slate-500">Lokasi</span><span className="font-medium text-slate-700">{report.location}</span></div>}
+                        <div className="flex justify-between"><span className="text-slate-500">Tanggal Pengajuan</span><span className="font-medium text-slate-700">{new Date(report.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
                     </div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-600 border-b pb-2">Pelapor & Penanganan</h3>
-                    <div className="space-y-2 text-sm">
-                        <div className="flex justify-between"><span className="text-slate-500">Pelapor</span><span className="font-medium">{report.user?.name || report.user?.username}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Unit</span><span>{report.unit?.name}</span></div>
-                        {report.technician && <div className="flex justify-between"><span className="text-slate-500">Teknisi</span><span className="font-medium text-orange-600">{report.technician}</span></div>}
-                        {report.cost > 0 && <div className="flex justify-between"><span className="text-slate-500">Biaya</span><span className="font-semibold">Rp {report.cost.toLocaleString('id-ID')}</span></div>}
-                        {report.completionDate && <div className="flex justify-between"><span className="text-slate-500">Selesai</span><span>{new Date(report.completionDate).toLocaleDateString('id-ID')}</span></div>}
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">Pelapor & Penanganan</h3>
+                    <div className="space-y-2.5 text-xs">
+                        <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Pelapor</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-800">{report.user?.name || report.user?.username}</span>
+                                {report.user?.phone && (
+                                    <a
+                                        href={`https://wa.me/${report.user.phone.replace(/^0/, '62')}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 p-1 rounded-md transition-colors"
+                                        title={`Chat WhatsApp (${report.user.phone})`}
+                                    >
+                                        <PhoneCall size={12} />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex justify-between"><span className="text-slate-500">Unit Pemohon</span><span className="font-semibold text-slate-700">{report.unit?.name}</span></div>
+                        
+                        <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Teknisi / Pelaksana</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-bold ${report.technician ? 'text-orange-600' : 'text-slate-400 italic'}`}>
+                                    {report.technician || 'Belum Ditugaskan'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {report.cost > 0 && (
+                            <div className="flex justify-between items-center bg-emerald-50/60 p-2 rounded-xl border border-emerald-100">
+                                <span className="text-emerald-800 font-bold">Total Biaya Realisasi</span>
+                                <span className="font-extrabold text-emerald-700 text-sm">Rp {report.cost.toLocaleString('id-ID')}</span>
+                            </div>
+                        )}
+                        {report.completionDate && <div className="flex justify-between"><span className="text-slate-500">Selesai Dikerjakan</span><span className="font-medium text-slate-700">{new Date(report.completionDate).toLocaleDateString('id-ID', { dateStyle: 'full' })}</span></div>}
                     </div>
                 </div>
             </div>
 
-            {/* AI Diagnosis removed for stability */}
-
             {/* Description & Media Gallery */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs">
                 <div>
-                    <h3 className="text-sm font-semibold text-slate-600 mb-2">Deskripsi Masalah</h3>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{report.description}</p>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Deskripsi Masalah / Keluhan</h3>
+                    <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">{report.description}</p>
                 </div>
 
-                {/* Media Gallery */}
+                {/* Media Gallery with In-App Lightbox */}
                 <div className="pt-4 border-t border-slate-100">
                     <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Media Bukti & Dokumentasi</h3>
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Media Bukti & Dokumentasi Kerusakan</h3>
                         {(isAdmin || report.userId === user?.id) && (
-                            <label className={`cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${uploadingMedia ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            <label className={`cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${uploadingMedia ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                 {uploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                                 {uploadingMedia ? 'Mengunggah...' : 'Upload Tambahan'}
                                 <input
@@ -546,47 +678,38 @@ const MaintenanceDetail = () => {
                             </label>
                         )}
                     </div>
-                    {report.media || report.photo ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
-                            {report.media ? (
-                                report.media.map((item, idx) => (
-                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
-                                        {item.type === 'IMAGE' ? (
-                                            <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                                                <img
-                                                    src={getMediaUrl(item.url)}
-                                                    alt={`Evidence ${idx + 1}`}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                                />
-                                            </a>
-                                        ) : (
-                                            <video
-                                                src={getMediaUrl(item.url)}
-                                                controls
-                                                className="w-full h-full object-cover"
-                                                poster={getMediaUrl(report.photo)}
-                                            />
-                                        )}
-                                        <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/50 text-white text-[8px] rounded font-bold backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {item.type}
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                // Fallback for single photo
-                                <div className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
-                                    <a href={getMediaUrl(report.photo)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                    {generalMedia.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-3">
+                            {generalMedia.map((item, idx) => (
+                                <div 
+                                    key={idx} 
+                                    onClick={() => openLightbox(generalMedia, idx)}
+                                    className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 group cursor-pointer shadow-2xs hover:shadow-md transition-all"
+                                >
+                                    {item.type === 'IMAGE' || !item.type ? (
                                         <img
-                                            src={getMediaUrl(report.photo)}
-                                            alt="Evidence"
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            src={getMediaUrl(item.url || item)}
+                                            alt={`Evidence ${idx + 1}`}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
-                                    </a>
+                                    ) : (
+                                        <video
+                                            src={getMediaUrl(item.url)}
+                                            className="w-full h-full object-cover"
+                                            poster={getMediaUrl(report.photo)}
+                                        />
+                                    )}
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <Maximize2 size={20} />
+                                    </div>
+                                    <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 text-white text-[9px] rounded-md font-bold backdrop-blur-xs">
+                                        {item.type || 'IMAGE'}
+                                    </div>
                                 </div>
-                            )}
+                            ))}
                         </div>
                     ) : (
-                        <div className="text-sm text-slate-400 italic text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <div className="text-xs text-slate-400 italic text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                             Belum ada dokumentasi media / foto
                         </div>
                     )}
@@ -595,23 +718,23 @@ const MaintenanceDetail = () => {
 
             {/* Workshop Orders Section */}
             {report.workshopOrders && report.workshopOrders.length > 0 && (
-                <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                        <Wrench size={18} /> Pesanan Workshop Terkait
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                        <Wrench size={16} className="text-blue-600" /> Pesanan Workshop Terkait
                     </h3>
                     <div className="space-y-2">
                         {report.workshopOrders.map(wo => (
-                            <div key={wo.id} className="flex justify-between items-center bg-white p-3 border border-slate-200 rounded-lg">
+                            <div key={wo.id} className="flex justify-between items-center bg-white p-3.5 border border-slate-200 rounded-xl shadow-2xs">
                                 <div>
-                                    <div className="font-semibold text-slate-700">{wo.title}</div>
+                                    <div className="font-bold text-slate-800 text-xs">{wo.title}</div>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs text-slate-500 font-mono">{wo.code}</span>
-                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded font-bold">{wo.status}</span>
+                                        <span className="text-[10px] text-slate-500 font-mono">{wo.code}</span>
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] rounded font-bold">{wo.status}</span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => navigate(`/workshop/orders/${wo.id}`)}
-                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded"
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
                                 >
                                     Lihat Detail
                                 </button>
@@ -622,23 +745,28 @@ const MaintenanceDetail = () => {
             )}
 
             {/* Nota / Bukti Pembayaran Section */}
-            {report.media?.some(m => m.isReceipt) && (
-                <div className="bg-amber-50 rounded-xl border border-amber-200 p-5 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <h3 className="text-sm font-semibold text-amber-800 flex items-center gap-2">
-                        <FileIcon size={18} /> Nota / Bukti Pembayaran
+            {receiptMedia.length > 0 && (
+                <div className="bg-amber-50/70 rounded-2xl border border-amber-200 p-5 space-y-3">
+                    <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                        <FileIcon size={16} className="text-amber-600" /> Nota / Bukti Pembayaran
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {report.media.filter(m => m.isReceipt).map((item, idx) => (
-                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-amber-100 bg-white group shadow-sm">
-                                <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                                    <img
-                                        src={getMediaUrl(item.url)}
-                                        alt={`Receipt ${idx + 1}`}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                    />
-                                </a>
-                                <div className="absolute top-2 right-2 p-1 bg-amber-500 text-white rounded-full shadow-lg">
-                                    <CheckCircle size={10} />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                        {receiptMedia.map((item, idx) => (
+                            <div 
+                                key={idx} 
+                                onClick={() => openLightbox(receiptMedia, idx)}
+                                className="relative aspect-square rounded-2xl overflow-hidden border border-amber-200 bg-white group cursor-pointer shadow-2xs hover:shadow-md transition-all"
+                            >
+                                <img
+                                    src={getMediaUrl(item.url)}
+                                    alt={`Receipt ${idx + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <Maximize2 size={20} />
+                                </div>
+                                <div className="absolute top-2 right-2 p-1 bg-amber-500 text-white rounded-full shadow-md">
+                                    <CheckCircle size={12} />
                                 </div>
                             </div>
                         ))}
@@ -647,23 +775,28 @@ const MaintenanceDetail = () => {
             )}
 
             {/* Foto Penyelesaian Section */}
-            {report.media?.some(m => m.isCompletion) && (
-                <div className="bg-green-50 rounded-xl border border-green-200 p-5 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <h3 className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                        <CheckCircle2 size={18} /> Foto Penyelesaian Pekerjaan
+            {completionMedia.length > 0 && (
+                <div className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-5 space-y-3">
+                    <h3 className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-2">
+                        <CheckCircle2 size={16} className="text-emerald-600" /> Foto Penyelesaian Pekerjaan
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {report.media.filter(m => m.isCompletion).map((item, idx) => (
-                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-green-100 bg-white group shadow-sm">
-                                <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                                    <img
-                                        src={getMediaUrl(item.url)}
-                                        alt={`Selesai ${idx + 1}`}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                    />
-                                </a>
-                                <div className="absolute top-2 right-2 p-1 bg-green-500 text-white rounded-full shadow-lg">
-                                    <CheckCircle size={10} />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                        {completionMedia.map((item, idx) => (
+                            <div 
+                                key={idx} 
+                                onClick={() => openLightbox(completionMedia, idx)}
+                                className="relative aspect-square rounded-2xl overflow-hidden border border-emerald-200 bg-white group cursor-pointer shadow-2xs hover:shadow-md transition-all"
+                            >
+                                <img
+                                    src={getMediaUrl(item.url)}
+                                    alt={`Selesai ${idx + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <Maximize2 size={20} />
+                                </div>
+                                <div className="absolute top-2 right-2 p-1 bg-emerald-600 text-white rounded-full shadow-md">
+                                    <CheckCircle size={12} />
                                 </div>
                             </div>
                         ))}
@@ -674,78 +807,78 @@ const MaintenanceDetail = () => {
             {/* Action Taken & Costs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {report.actionTaken && (
-                    <div className="bg-green-50 rounded-xl border border-green-200 p-5">
-                        <h3 className="text-sm font-semibold text-green-700 mb-2">Riwayat & Tindakan Perbaikan</h3>
-                        <div className="text-sm text-green-800 whitespace-pre-wrap font-mono relative">
+                    <div className="bg-emerald-50/60 rounded-2xl border border-emerald-200 p-5 space-y-2">
+                        <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Riwayat & Tindakan Perbaikan</h3>
+                        <div className="text-xs text-emerald-900 whitespace-pre-wrap font-mono leading-relaxed bg-white/80 p-3 rounded-xl border border-emerald-100 max-h-48 overflow-y-auto">
                             {report.actionTaken}
                         </div>
                     </div>
                 )}
 
                 {(report.cost > 0 || report.status === 'COMPLETED') && (
-                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-sm font-semibold text-slate-700">Rincian Biaya</h3>
-                            <span className="font-bold text-slate-800 text-lg">Rp {report.cost.toLocaleString('id-ID')}</span>
+                    <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 space-y-3">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Rincian Biaya</h3>
+                            <span className="font-extrabold text-slate-800 text-base">Rp {report.cost.toLocaleString('id-ID')}</span>
                         </div>
                         {report.costDetails && report.costDetails.length > 0 ? (
-                            <div className="space-y-2 mt-3 bg-white p-3 rounded-lg border border-slate-100 max-h-48 overflow-y-auto">
+                            <div className="space-y-2 bg-white p-3 rounded-xl border border-slate-100 max-h-48 overflow-y-auto">
                                 {report.costDetails.map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center text-xs pb-2 border-b border-slate-50 last:border-0 last:pb-0">
                                         <div>
-                                            <span className="font-medium text-slate-700">{item.label}</span>
+                                            <span className="font-semibold text-slate-700">{item.label}</span>
                                             {item.assetId && (
-                                                <div className="text-[9px] text-blue-600 font-mono mt-0.5">
+                                                <div className="text-[10px] text-blue-600 font-mono mt-0.5">
                                                     Target: {report.assets?.find(a => a.id === item.assetId)?.code || 'Aset Terpilih'}
                                                 </div>
                                             )}
                                         </div>
-                                        <span className="font-semibold text-slate-600">Rp {item.price?.toLocaleString('id-ID')}</span>
+                                        <span className="font-bold text-slate-700">Rp {item.price?.toLocaleString('id-ID')}</span>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-xs text-slate-500 italic text-center py-2">
-                                {report.status === 'COMPLETED' ? 'Belum ada rincian biaya yang dimasukkan.' : 'Detail biaya tidak tersedia untuk laporan lama.'}
+                            <div className="text-xs text-slate-400 italic text-center py-2">
+                                {report.status === 'COMPLETED' ? 'Belum ada rincian biaya yang dimasukkan.' : 'Detail biaya tidak tersedia.'}
                             </div>
                         )}
                     </div>
                 )}
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Workflow Buttons */}
             {nextAction && (
                 <div className="flex flex-col md:flex-row gap-3">
                     <button
                         onClick={() => setActionModal({ show: true, type: nextAction.type, nextStatus: nextAction.nextStatus })}
-                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs shadow-md transition-all"
                     >
-                        <CheckCircle size={18} /> {nextAction.label}
+                        <CheckCircle size={16} /> {nextAction.label}
                     </button>
 
                     {nextAction.secondaryLabel && (
                         <button
                             onClick={() => setActionModal({ show: true, type: nextAction.secondaryType, nextStatus: report.status })}
-                            className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-orange-500 text-orange-600 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
+                            className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-orange-500 text-orange-600 py-3 rounded-xl font-bold text-xs hover:bg-orange-50 transition-all"
                         >
-                            <Sparkles size={18} /> {nextAction.secondaryLabel}
+                            <Sparkles size={16} /> {nextAction.secondaryLabel}
                         </button>
                     )}
 
                     {nextAction.rejectLabel && (
                         <button
                             onClick={() => setActionModal({ show: true, type: 'rejection', nextStatus: 'REJECTED' })}
-                            className="flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-red-600 transition-all"
+                            className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-xs shadow-md transition-all"
                         >
-                            <XCircle size={18} /> {nextAction.rejectLabel}
+                            <XCircle size={16} /> {nextAction.rejectLabel}
                         </button>
                     )}
                     {nextAction.cancelLabel && isAdmin && (
                         <button
                             onClick={() => setActionModal({ show: true, type: 'rejection', nextStatus: 'REJECTED' })}
-                            className="flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-red-600 transition-all"
+                            className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-xs shadow-md transition-all"
                         >
-                            <XCircle size={18} /> {nextAction.cancelLabel}
+                            <XCircle size={16} /> {nextAction.cancelLabel}
                         </button>
                     )}
                 </div>
@@ -760,20 +893,20 @@ const MaintenanceDetail = () => {
                         setActionNote(report.completionNote || '');
                         setActionModal({ show: true, type: 'completion', nextStatus: 'COMPLETED' });
                     }}
-                    className="w-full flex items-center justify-center gap-2 bg-slate-800 text-white py-4 rounded-xl font-black shadow-xl shadow-slate-200 hover:bg-slate-900 transition-all uppercase tracking-widest text-xs"
+                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white py-3.5 rounded-xl font-bold text-xs shadow-md transition-all uppercase tracking-wider"
                 >
-                    <Edit2 size={16} /> Edit Biaya & Nota Pembayaran
+                    <Edit2 size={15} /> Edit Rincian Biaya & Nota Pembayaran
                 </button>
             )}
 
-            {/* Diskusi / Chat */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 flex flex-col mt-6 shadow-sm">
-                <div className="flex items-center gap-2 border-b pb-3">
+            {/* Diskusi / Chat Log */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 flex flex-col shadow-xs">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                     <MessageSquare size={18} className="text-blue-600" />
-                    <h3 className="text-sm font-semibold text-slate-700">Diskusi Laporan</h3>
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Diskusi & Riwayat Komunikasi</h3>
                 </div>
                 
-                <div className="flex-1 space-y-4 overflow-y-auto max-h-80 pr-2">
+                <div className="flex-1 space-y-3.5 overflow-y-auto max-h-80 pr-1">
                     {report.progress && report.progress.length > 0 ? (
                         report.progress.map((msg, idx) => {
                             const isMine = msg.userId === user?.id;
@@ -781,18 +914,18 @@ const MaintenanceDetail = () => {
                             
                             return (
                                 <div key={idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isTechnician ? 'text-orange-600' : 'text-slate-500')}`}>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isTechnician ? 'text-orange-600' : 'text-slate-600')}`}>
                                             {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isTechnician && !isMine && '(Admin/Teknisi)'}
                                         </span>
                                         <span className="text-[9px] text-slate-400">
                                             {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
                                         </span>
                                     </div>
-                                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
+                                    <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-xs shadow-2xs ${
                                         isMine 
-                                            ? 'bg-blue-600 text-white rounded-tr-sm' 
-                                            : (isTechnician ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
+                                            ? 'bg-blue-600 text-white rounded-tr-xs' 
+                                            : (isTechnician ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-xs' : 'bg-slate-100 text-slate-800 border border-slate-200 rounded-tl-xs')
                                     }`}>
                                         <p className="whitespace-pre-wrap">{renderChatMessage(msg.message)}</p>
                                     </div>
@@ -800,23 +933,23 @@ const MaintenanceDetail = () => {
                             );
                         })
                     ) : (
-                        <div className="text-center py-6 text-sm text-slate-400 italic">
+                        <div className="text-center py-6 text-xs text-slate-400 italic">
                             Belum ada pesan diskusi.
                         </div>
                     )}
                 </div>
 
-                <div className="flex items-end gap-2 pt-3 border-t relative">
+                <div className="flex items-end gap-2 pt-3 border-t border-slate-100 relative">
                     {showMentionList && (
-                        <div className="absolute bottom-full left-0 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
+                        <div className="absolute bottom-full left-0 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-2xl overflow-hidden z-50 flex flex-col max-h-48">
                             {users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
-                                <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
+                                <div className="p-3 text-xs text-slate-500 italic text-center">User tidak ditemukan</div>
                             ) : (
                                 users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
                                     <button
                                         key={u.id}
                                         onClick={() => handleSelectMention(u.mentionName)}
-                                        className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
+                                        className={`px-4 py-2 text-left text-xs hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
                                     >
                                         <div className="font-bold text-slate-800">{u.name}</div>
                                         <div className="text-[10px] text-slate-500">{u.username}</div>
@@ -832,319 +965,281 @@ const MaintenanceDetail = () => {
                         onKeyDown={handleChatKeyDown}
                         placeholder="Ketik pesan... (@username untuk mention)"
                         rows={1}
-                        className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-slate-700"
                     />
                     <button
                         onClick={handleSendChat}
                         disabled={sendingChat || !chatMessage.trim()}
                         className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
                     >
-                        {sendingChat ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                        {sendingChat ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                     </button>
                 </div>
             </div>
 
-            {/* Action Modal */}
+            {/* Action Modal (Assignment, Completion, etc.) */}
             {actionModal.show && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
-                        <h3 className="text-lg font-bold text-slate-800">
-                            {actionModal.type === 'approval' && 'Persetujuan'}
-                            {actionModal.type === 'validation' && 'Validasi'}
-                            {actionModal.type === 'assignment' && 'Penugasan Teknisi'}
-                            {actionModal.type === 'start' && 'Mulai Pengerjaan'}
-                            {actionModal.type === 'progress' && 'Update Progres Pekerjaan'}
-                            {actionModal.type === 'completion' && 'Selesaikan Pekerjaan'}
-                            {actionModal.type === 'rejection' && 'Tolak Laporan'}
-                        </h3>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                            <h3 className="text-base font-bold text-slate-800">
+                                {actionModal.type === 'approval' && 'Persetujuan Laporan'}
+                                {actionModal.type === 'validation' && 'Validasi Laporan'}
+                                {actionModal.type === 'assignment' && 'Penugasan Teknisi / Pelaksana'}
+                                {actionModal.type === 'start' && 'Mulai Pengerjaan'}
+                                {actionModal.type === 'progress' && 'Update Progres Pekerjaan'}
+                                {actionModal.type === 'completion' && 'Selesaikan Pekerjaan'}
+                                {actionModal.type === 'rejection' && 'Tolak Laporan'}
+                            </h3>
+                            <button onClick={() => setActionModal({ show: false, type: '', nextStatus: '' })} className="text-slate-400 hover:text-slate-600">
+                                <X size={20} />
+                            </button>
+                        </div>
 
+                        {/* Assignment Mode with Universal All-Users Search */}
                         {actionModal.type === 'assignment' && (
                             <div className="space-y-4">
-                                <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <div className="flex bg-slate-100 p-1 rounded-xl">
                                     <button
                                         type="button"
-                                        onClick={() => { setTechnicianType('external'); setTechnicianName(''); setTechnicianPhone(''); }}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'external' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); setTechnicianPhone(''); }}
+                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${technicianType === 'internal' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Pegawai Internal (Semua User)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setTechnicianType('external'); setTechnicianName(''); setTechnicianPhone(''); setAssignUnitId(''); }}
+                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${technicianType === 'external' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         {report?.targetDept === 'PEMBANGUNAN' ? 'Database Tukang' : 'Eksternal / Vendor'}
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); setTechnicianPhone(''); setAssignUnitId(''); }}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'internal' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        Pegawai (Internal)
-                                    </button>
                                 </div>
 
-                                <div>
-                                    {technicianType === 'internal' ? (
-                                        <div className="space-y-3">
-                                            <div>
-                                                <label className="block text-[11px] font-bold text-slate-700 mb-1">Pilih Unit Pegawai *</label>
-                                                <select
-                                                    value={assignUnitId}
-                                                    onChange={e => {
-                                                        setAssignUnitId(e.target.value);
-                                                        setTechnicianName('');
-                                                    }}
-                                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
-                                                >
-                                                    <option value="">-- Pilih Unit --</option>
-                                                    {units.map(u => (
-                                                        <option key={u.id} value={u.id}>{u.name}</option>
-                                                    ))}
-                                                </select>
+                                {technicianType === 'internal' ? (
+                                    <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Filter Unit (Opsional)</label>
+                                            <select
+                                                value={assignUnitId}
+                                                onChange={e => setAssignUnitId(e.target.value)}
+                                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="">-- Semua Unit (Seluruh Pegawai) --</option>
+                                                {units.map(u => (
+                                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Cari & Pilih Pegawai (Teknisi) *</label>
+                                            <div className="relative mb-2">
+                                                <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                                                <input
+                                                    type="text"
+                                                    value={userSearchQuery}
+                                                    onChange={e => setUserSearchQuery(e.target.value)}
+                                                    placeholder="Cari nama, username, atau posisi..."
+                                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
                                             </div>
-                                            {assignUnitId && (
-                                                <div className="animate-in slide-in-from-top-2 duration-300">
-                                                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Pilih Pegawai (Teknisi) *</label>
-                                                    <select
-                                                        value={technicianName}
-                                                        onChange={e => setTechnicianName(e.target.value)}
-                                                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
-                                                    >
-                                                        <option value="">-- Pilih Pegawai --</option>
-                                                        {users
-                                                            .filter(u =>
-                                                                u.unitId === parseInt(assignUnitId) &&
-                                                                (
-                                                                    u.role === 'ADMIN_ASET' ||
-                                                                    (u.position && u.position.toLowerCase().includes('sarpras unit'))
-                                                                )
-                                                            )
-                                                            .map(u => (
-                                                                <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
-                                                            ))
-                                                        }
-                                                    </select>
+
+                                            <select
+                                                value={technicianName}
+                                                onChange={e => {
+                                                    const selectedName = e.target.value;
+                                                    setTechnicianName(selectedName);
+                                                    const u = users.find(usr => (usr.name || usr.username) === selectedName);
+                                                    if (u && u.phone) {
+                                                        setTechnicianPhone(u.phone);
+                                                    } else {
+                                                        setTechnicianPhone('');
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 max-h-40"
+                                                size={5}
+                                                required
+                                            >
+                                                {filteredAssignableUsers.length === 0 ? (
+                                                    <option value="" disabled>Tidak ada user sesuai pencarian</option>
+                                                ) : (
+                                                    filteredAssignableUsers.map(u => {
+                                                        const uUnit = units.find(un => un.id === u.unitId);
+                                                        return (
+                                                            <option key={u.id} value={u.name || u.username} className="py-1">
+                                                                {u.name || u.username} {u.position ? `— ${u.position}` : ''} {uUnit ? `(${uUnit.name})` : ''}
+                                                            </option>
+                                                        );
+                                                    })
+                                                )}
+                                            </select>
+                                        </div>
+
+                                        {technicianName && (
+                                            <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-900 flex justify-between items-center">
+                                                <div>
+                                                    <span className="font-bold block">Teknisi Terpilih: {technicianName}</span>
+                                                    <span className="text-[11px] text-blue-700">{technicianPhone ? `No WA: ${technicianPhone}` : 'Nomor WA belum diisi di profil'}</span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                                Nama Teknisi / Vendor *
+                                                {technicianPhone && (
+                                                    <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px]">
+                                                        WhatsApp Ready
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                                            Nama Teknisi / Vendor Eksternal *
+                                        </label>
+                                        {report?.targetDept === 'PEMBANGUNAN' ? (
+                                            <select
+                                                value={technicianName}
+                                                onChange={e => {
+                                                    const selectedName = e.target.value;
+                                                    setTechnicianName(selectedName);
+                                                    const c = contractors.find(ct => ct.name === selectedName);
+                                                    if (c && c.phone) {
+                                                        setTechnicianPhone(c.phone);
+                                                    } else {
+                                                        setTechnicianPhone('');
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="">-- Pilih Tukang dari Database --</option>
+                                                {contractors.map(c => (
+                                                    <option key={c.id} value={c.name}>{c.name} {c.specialty ? `(${c.specialty})` : ''}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                value={technicianName}
+                                                onChange={e => setTechnicianName(e.target.value)}
+                                                placeholder="Misal: Pak Ahmad / CV Mitra Mandiri"
+                                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                required
+                                            />
+                                        )}
+
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                                                Nomor WA {report?.targetDept === 'PEMBANGUNAN' ? 'Tukang' : 'Vendor / Teknisi'}
                                             </label>
-                                            {report?.targetDept === 'PEMBANGUNAN' ? (
-                                                <select
-                                                    value={technicianName}
-                                                    onChange={e => {
-                                                        const selectedName = e.target.value;
-                                                        setTechnicianName(selectedName);
-                                                        const c = contractors.find(ct => ct.name === selectedName);
-                                                        if (c && c.phone) {
-                                                            setTechnicianPhone(c.phone);
-                                                        } else {
-                                                            setTechnicianPhone('');
-                                                        }
-                                                    }}
-                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                >
-                                                    <option value="">-- Pilih Tukang dari Database --</option>
-                                                    {contractors.map(c => (
-                                                        <option key={c.id} value={c.name}>{c.name} {c.specialty ? `(${c.specialty})` : ''}</option>
-                                                    ))}
-                                                </select>
-                                            ) : (
-                                                <input
-                                                    type="text"
-                                                    value={technicianName}
-                                                    onChange={e => setTechnicianName(e.target.value)}
-                                                    placeholder="Misal: Pak Ahmad / CV Maju Jaya"
-                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                />
-                                            )}
-
-                                            <div>
-                                                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                                                    Nomor WA {report?.targetDept === 'PEMBANGUNAN' ? 'Tukang' : 'Vendor / Teknisi'}
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={technicianPhone}
-                                                    onChange={e => setTechnicianPhone(e.target.value)}
-                                                    placeholder="Misal: 08123456789 (Opsional)"
-                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                />
-                                            </div>
-
-                                            <div className="flex items-center gap-2 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                                                <input
-                                                    type="checkbox"
-                                                    id="createWorkshopOrder"
-                                                    checked={createWorkshopOrder}
-                                                    onChange={e => setCreateWorkshopOrder(e.target.checked)}
-                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                                />
-                                                <label htmlFor="createWorkshopOrder" className="text-sm font-semibold text-blue-800 cursor-pointer">
-                                                    Buat Pesanan ke Workshop Terkait
-                                                </label>
-                                            </div>
+                                            <input
+                                                type="text"
+                                                value={technicianPhone}
+                                                onChange={e => setTechnicianPhone(e.target.value)}
+                                                placeholder="Misal: 08123456789 (Opsional)"
+                                                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
 
-                        {(actionModal.type === 'completion' || actionModal.type === 'progress') && (
-                            <>
-                                {report.actionTaken && (
-                                    <div className="mb-4">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Riwayat Progres Sebelumnya</label>
-                                        <div className="bg-slate-100 p-3 rounded-lg text-xs text-slate-600 whitespace-pre-wrap font-mono max-h-32 overflow-y-auto border border-slate-200">
-                                            {report.actionTaken}
+                                        <div className="flex items-center gap-2 mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                                            <input
+                                                type="checkbox"
+                                                id="createWorkshopOrder"
+                                                checked={createWorkshopOrder}
+                                                onChange={e => setCreateWorkshopOrder(e.target.checked)}
+                                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                                            />
+                                            <label htmlFor="createWorkshopOrder" className="text-xs font-bold text-blue-900 cursor-pointer">
+                                                Buat Pesanan Otomatis ke Workshop Terkait
+                                            </label>
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Completion / Progress Input */}
+                        {(actionModal.type === 'completion' || actionModal.type === 'progress') && (
+                            <>
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                        {actionModal.type === 'completion' ? 'Tindakan Penyelesaian (Final) *' : 'Update Progres Baru *'}
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                        {actionModal.type === 'completion' ? 'Tindakan Penyelesaian (Final) *' : 'Update Progres Pekerjaan *'}
                                     </label>
                                     <textarea
                                         value={progressNote}
                                         onChange={e => setProgressNote(e.target.value)}
-                                        placeholder="Ketik apa yang telah dikerjakan saat ini..."
+                                        placeholder="Ketik apa yang telah dikerjakan atau diselesaikan..."
                                         rows={3}
-                                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs resize-none focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                        required
                                     />
                                 </div>
+
                                 {actionModal.type === 'completion' && (
-                                    <div className="border-t border-slate-200 pt-4 mt-4">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-sm font-semibold text-slate-700">Rincian Biaya (Rp)</label>
-                                            <span className="text-sm font-bold text-slate-800">
+                                    <div className="border-t border-slate-100 pt-3 space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Rincian Biaya (Rp)</label>
+                                            <span className="text-xs font-extrabold text-slate-800">
                                                 Total: Rp {costItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0).toLocaleString('id-ID')}
                                             </span>
                                         </div>
 
-                                        {/* Adaptive UI Logic */}
-                                        {report.assets && report.assets.length > 1 ? (
-                                            <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                                <div className="flex items-end gap-2">
-                                                    <div className="flex-1">
-                                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya per Unit (Apply Semua)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={bulkPrice}
-                                                            onChange={e => setBulkPrice(e.target.value)}
-                                                            placeholder="Contoh: 75000"
-                                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                                                        />
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!bulkPrice) return;
-                                                            const newItems = report.assets.map(asset => ({
-                                                                id: Math.random().toString(),
-                                                                label: 'Service Rutin',
-                                                                price: parseFloat(bulkPrice),
-                                                                assetId: asset.id
-                                                            }));
+                                        <div className="space-y-2">
+                                            {costItems.map((item, idx) => (
+                                                <div key={item.id} className="flex gap-2 items-center">
+                                                    <input
+                                                        type="text"
+                                                        value={item.label}
+                                                        onChange={e => {
+                                                            const newItems = [...costItems];
+                                                            newItems[idx].label = e.target.value;
                                                             setCostItems(newItems);
                                                         }}
-                                                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700"
-                                                    >
-                                                        Terapkan
+                                                        placeholder="Nama Komponen (misal: Busi / Pipa)"
+                                                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={item.price}
+                                                        onChange={e => {
+                                                            const newItems = [...costItems];
+                                                            newItems[idx].price = parseFloat(e.target.value) || 0;
+                                                            setCostItems(newItems);
+                                                        }}
+                                                        placeholder="Harga"
+                                                        className="w-28 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
+                                                    />
+                                                    <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== item.id))} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg">
+                                                        <Trash2 size={15} />
                                                     </button>
                                                 </div>
+                                            ))}
+                                            <button
+                                                type="button"
+                                                onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: '', price: 0, assetId: report.assets?.[0]?.id || null }])}
+                                                className="w-full py-2 border border-dashed border-slate-300 hover:border-blue-500 text-slate-600 rounded-xl text-xs font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                                            >
+                                                <Plus size={14} /> Tambah Rincian Biaya
+                                            </button>
+                                        </div>
 
-                                                {/* Asset Checklist / Cost List */}
-                                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                                    {report.assets.map(asset => {
-                                                        const assetCosts = costItems.filter(ci => ci.assetId === asset.id);
-                                                        const totalAssetCost = assetCosts.reduce((s, ci) => s + (parseFloat(ci.price) || 0), 0);
-                                                        return (
-                                                            <div key={asset.id} className="bg-white p-2 border border-slate-200 rounded-lg text-xs">
-                                                                <div className="flex justify-between items-center font-semibold text-slate-700">
-                                                                    <span>{asset.code}</span>
-                                                                    <span className={totalAssetCost > 0 ? 'text-green-600' : 'text-slate-400'}>
-                                                                        Rp {totalAssetCost.toLocaleString('id-ID')}
-                                                                    </span>
-                                                                </div>
-                                                                {assetCosts.map(ci => (
-                                                                    <div key={ci.id} className="flex justify-between items-center mt-1 pl-2 border-l-2 border-slate-100 text-[10px] text-slate-500">
-                                                                        <span>{ci.label}</span>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span>Rp {ci.price.toLocaleString('id-ID')}</span>
-                                                                            <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== ci.id))} className="text-red-500 hover:text-red-700"><Trash2 size={12} /></button>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                                <button
-                                                                    onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: 'Biaya Ekstra', price: 0, assetId: asset.id }])}
-                                                                    className="mt-2 text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
-                                                                >
-                                                                    <Plus size={10} /> Tambah Item Khusus
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {costItems.map((item, idx) => (
-                                                    <div key={item.id} className="flex gap-2 items-center">
-                                                        <input
-                                                            type="text"
-                                                            value={item.label}
-                                                            onChange={e => {
-                                                                const newItems = [...costItems];
-                                                                newItems[idx].label = e.target.value;
-                                                                setCostItems(newItems);
-                                                            }}
-                                                            placeholder="Nama Item (misal: Busi)"
-                                                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                                                        />
-                                                        <input
-                                                            type="number"
-                                                            value={item.price}
-                                                            onChange={e => {
-                                                                const newItems = [...costItems];
-                                                                newItems[idx].price = parseFloat(e.target.value) || 0;
-                                                                setCostItems(newItems);
-                                                            }}
-                                                            placeholder="Harga"
-                                                            className="w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                                                        />
-                                                        <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== item.id))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
-                                                    </div>
-                                                ))}
-                                                <button
-                                                    onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: '', price: 0, assetId: report.assets?.[0]?.id || null }])}
-                                                    className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1"
-                                                >
-                                                    <Plus size={14} /> Tambah Rincian Biaya
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {/* Nota & Foto Penyelesaian Upload */}
-                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Nota & Completion Photos */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                                             <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-1">Upload Nota (Opsional)</label>
-                                                <div className="flex items-center gap-3">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={e => setReceiptFile(e.target.files[0])}
-                                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                                    />
-                                                    {receiptFile && <CheckCircle size={20} className="text-green-500 flex-shrink-0" />}
-                                                </div>
+                                                <label className="block text-[11px] font-bold text-slate-600 mb-1">Upload Nota Pembayaran</label>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={e => setReceiptFile(e.target.files[0])}
+                                                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                                />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-1">Foto Bukti Selesai (Opsional)</label>
-                                                <div className="flex items-center gap-3">
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*,video/*"
-                                                        onChange={e => setCompletionPhoto(e.target.files[0])}
-                                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-                                                    />
-                                                    {completionPhoto && <CheckCircle size={20} className="text-green-500 flex-shrink-0" />}
-                                                </div>
+                                                <label className="block text-[11px] font-bold text-slate-600 mb-1">Foto Bukti Selesai</label>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*,video/*"
+                                                    onChange={e => setCompletionPhoto(e.target.files[0])}
+                                                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -1153,34 +1248,38 @@ const MaintenanceDetail = () => {
                         )}
 
                         {actionModal.type === 'start' && (
-                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
-                                <Info size={18} className="text-blue-600 mt-0.5" />
-                                <p className="text-xs text-blue-700 leading-relaxed">
-                                    Status akan berubah menjadi <strong>Sedang Dikerjakan</strong>. Pelapor akan mendapatkan notifikasi bahwa Anda telah memulai perbaikan.
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 flex items-start gap-3">
+                                <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
+                                <p className="text-xs text-blue-800 leading-relaxed">
+                                    Status laporan akan berubah menjadi <strong>Sedang Dikerjakan</strong>. Pelapor dan tim akan menerima notifikasi bahwa perbaikan telah dimulai.
                                 </p>
                             </div>
                         )}
 
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                {actionModal.type === 'rejection' ? 'Alasan Penolakan *' : 'Catatan (Opsional)'}
-                            </label>
-                            <textarea
-                                value={actionNote}
-                                onChange={e => setActionNote(e.target.value)}
-                                placeholder={actionModal.type === 'rejection' ? 'Alasan penolakan...' : 'Catatan tambahan...'}
-                                rows={3}
-                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none"
-                            />
-                        </div>
+                        {actionModal.type !== 'start' && (
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                    {actionModal.type === 'rejection' ? 'Alasan Penolakan *' : 'Catatan Tambahan (Opsional)'}
+                                </label>
+                                <textarea
+                                    value={actionNote}
+                                    onChange={e => setActionNote(e.target.value)}
+                                    placeholder={actionModal.type === 'rejection' ? 'Alasan penolakan laporan...' : 'Catatan persetujuan / verifikasi...'}
+                                    rows={2}
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs resize-none text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        )}
 
-                        <div className="flex gap-3 pt-2">
-                            <button onClick={() => setActionModal({ show: false, type: '', nextStatus: '' })} className="flex-1 py-2.5 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                        <div className="flex gap-3 pt-3 border-t border-slate-100">
+                            <button onClick={() => setActionModal({ show: false, type: '', nextStatus: '' })} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors">
                                 Batal
                             </button>
                             <button
                                 onClick={handleStatusUpdate}
-                                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold text-white ${actionModal.type === 'rejection' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold text-white transition-colors shadow-sm ${
+                                    actionModal.type === 'rejection' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                                }`}
                             >
                                 Konfirmasi
                             </button>
@@ -1189,74 +1288,250 @@ const MaintenanceDetail = () => {
                 </div>
             )}
 
-            {/* History Modal */}
+            {/* In-App Media Lightbox Modal */}
+            {lightbox.show && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setLightbox(prev => ({ ...prev, show: false }))}>
+                    <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
+                        {/* Lightbox Controls */}
+                        <div className="absolute -top-12 right-0 flex items-center gap-3 text-white">
+                            <span className="text-xs font-mono font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-xs">
+                                {lightbox.index + 1} / {lightbox.items.length}
+                            </span>
+                            <a 
+                                href={getMediaUrl(lightbox.items[lightbox.index]?.url || lightbox.items[lightbox.index])} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                                title="Buka Tab Baru"
+                            >
+                                <ExternalLink size={18} />
+                            </a>
+                            <button onClick={() => setLightbox(prev => ({ ...prev, show: false }))} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                                <X size={22} />
+                            </button>
+                        </div>
+
+                        {/* Media Display */}
+                        <div className="flex items-center justify-center max-h-[75vh] max-w-[85vw] overflow-hidden rounded-2xl bg-black/40 shadow-2xl">
+                            {lightbox.items[lightbox.index]?.type === 'VIDEO' ? (
+                                <video
+                                    src={getMediaUrl(lightbox.items[lightbox.index]?.url || lightbox.items[lightbox.index])}
+                                    controls
+                                    autoPlay
+                                    className="max-h-[75vh] max-w-[85vw] rounded-2xl"
+                                />
+                            ) : (
+                                <img
+                                    src={getMediaUrl(lightbox.items[lightbox.index]?.url || lightbox.items[lightbox.index])}
+                                    alt="Lightbox Media"
+                                    className="max-h-[75vh] max-w-[85vw] object-contain rounded-2xl select-none"
+                                />
+                            )}
+                        </div>
+
+                        {/* Prev / Next Arrows */}
+                        {lightbox.items.length > 1 && (
+                            <>
+                                <button
+                                    onClick={handleLightboxPrev}
+                                    className="absolute -left-12 top-1/2 -translate-y-1/2 p-3 text-white bg-white/10 hover:bg-white/25 rounded-full transition-all backdrop-blur-xs shadow-lg"
+                                    title="Sebelumnya (←)"
+                                >
+                                    <ChevronLeft size={24} />
+                                </button>
+                                <button
+                                    onClick={handleLightboxNext}
+                                    className="absolute -right-12 top-1/2 -translate-y-1/2 p-3 text-white bg-white/10 hover:bg-white/25 rounded-full transition-all backdrop-blur-xs shadow-lg"
+                                    title="Selanjutnya (→)"
+                                >
+                                    <ChevronRight size={24} />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Asset History Modal */}
             {historyModal.show && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[80vh] flex flex-col">
-                        <div className="flex justify-between items-center border-b pb-3">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-800">Riwayat Perbaikan Aset</h3>
-                                <p className="text-sm text-slate-500 font-mono">{historyModal.asset?.code} - <span className="font-sans">{historyModal.asset?.name}</span></p>
+                                <h3 className="text-base font-bold text-slate-800">Riwayat Perbaikan Aset</h3>
+                                <p className="text-xs text-slate-500 font-mono mt-0.5">{historyModal.asset?.code} - <span className="font-sans font-semibold">{historyModal.asset?.name}</span></p>
                             </div>
                             <button onClick={() => setHistoryModal({ show: false, asset: null, timeline: [], loading: false })} className="text-slate-400 hover:text-slate-600">
-                                <XCircle size={24} />
+                                <X size={20} />
                             </button>
                         </div>
                         
-                        <div className="overflow-y-auto flex-1 pr-2 space-y-4">
+                        <div className="overflow-y-auto flex-1 pr-1 space-y-3">
                             {historyModal.loading ? (
                                 <div className="flex justify-center items-center py-10 text-slate-400">
-                                    <Loader2 size={24} className="animate-spin" />
+                                    <Loader2 size={24} className="animate-spin text-blue-600" />
                                 </div>
                             ) : historyModal.timeline.length > 0 ? (
-                                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                                    {historyModal.timeline.map((item, idx) => (
-                                        <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                            <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                                                <Wrench size={16} />
-                                            </div>
-                                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                                <div className="flex items-center justify-between space-x-2 mb-1">
-                                                    <div className="font-bold text-slate-800 text-sm">{item.description}</div>
-                                                    {item.id && item.type === 'MAINTENANCE' && (
-                                                        <button 
-                                                            onClick={() => {
-                                                                setHistoryModal({ show: false, asset: null, timeline: [], loading: false });
-                                                                navigate(`/pemeliharaan/${item.id}`);
-                                                            }}
-                                                            className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
-                                                        >
-                                                            Lihat Detail
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                <div className="text-xs text-slate-500 space-y-1 mt-2">
-                                                    <div className="flex items-center gap-1"><Calendar size={12}/> {new Date(item.date).toLocaleDateString('id-ID')}</div>
-                                                    {item.subTitle && <div className="flex items-center gap-1"><User size={12}/> {item.subTitle}</div>}
-                                                    <div className="font-semibold text-blue-600 mt-1">Status: {item.status}</div>
-                                                    
-                                                    {item.issue && (
-                                                        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
-                                                            <span className="font-semibold block mb-0.5">Masalah/Keluhan:</span>
-                                                            <div className="whitespace-pre-wrap">{item.issue}</div>
-                                                        </div>
-                                                    )}
-                                                    {item.note && (
-                                                        <div className="mt-2 text-xs text-slate-600 bg-blue-50 p-2 rounded border border-blue-100">
-                                                            <span className="font-semibold block mb-0.5">Catatan/Tindakan:</span>
-                                                            <div className="whitespace-pre-wrap">{item.note}</div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                historyModal.timeline.map((item, idx) => (
+                                    <div key={idx} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-slate-800">{item.description}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono">{new Date(item.date).toLocaleDateString('id-ID')}</span>
                                         </div>
-                                    ))}
-                                </div>
+                                        {item.note && <p className="text-slate-600 text-[11px]">{item.note}</p>}
+                                    </div>
+                                ))
                             ) : (
-                                <div className="text-center py-10 text-sm text-slate-500 italic">
-                                    Belum ada riwayat perbaikan untuk aset ini.
+                                <div className="text-center py-8 text-xs text-slate-400 italic">
+                                    Belum ada riwayat perbaikan sebelumnya untuk aset ini.
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── SPK PRINT MODAL & DOCUMENT ── */}
+            {showSPKModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Modal Action Bar */}
+                        <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center no-print">
+                            <div className="flex items-center gap-2">
+                                <Printer size={18} className="text-blue-600" />
+                                <h3 className="font-bold text-slate-800 text-sm">Pratinjau Surat Perintah Kerja (SPK)</h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors"
+                                >
+                                    <Printer size={14} /> Cetak / PDF
+                                </button>
+                                <button
+                                    onClick={() => setShowSPKModal(false)}
+                                    className="p-2 hover:bg-slate-200 rounded-xl text-slate-500 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Printable SPK Document Content */}
+                        <div className="p-8 overflow-y-auto print:p-0 print:overflow-visible text-slate-800 text-xs font-sans leading-relaxed space-y-5" id="printable-spk">
+                            {/* Kop Surat Yayasan */}
+                            <div className="text-center border-b-2 border-slate-800 pb-3">
+                                <h2 className="text-base font-black uppercase tracking-wider text-slate-900">YAYASAN DAR EL-IMAN PADANG</h2>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-700">
+                                    {report.targetDept === 'PEMBANGUNAN' ? 'BIDANG PEMBANGUNAN & PENGEMBANGAN' : 'BIDANG SARANA & PRASARANA'}
+                                </h3>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                    Jl. Gunung Juaro RT.02 RW.04, Kel. Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat
+                                </p>
+                            </div>
+
+                            {/* Judul Dokumen */}
+                            <div className="text-center space-y-1">
+                                <h1 className="text-sm font-black uppercase tracking-wider underline">SURAT PERINTAH KERJA (SPK) PEMELIHARAAN</h1>
+                                <p className="font-mono text-xs font-bold text-slate-700">Nomor: {report.code}</p>
+                            </div>
+
+                            {/* Detail Metadata Tabel */}
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 text-xs">
+                                <div className="space-y-1.5">
+                                    <div className="flex"><span className="w-28 text-slate-500">Tanggal Terbit</span><span className="font-semibold">: {new Date(report.createdAt).toLocaleDateString('id-ID', { dateStyle: 'long' })}</span></div>
+                                    <div className="flex"><span className="w-28 text-slate-500">Unit Pemohon</span><span className="font-semibold">: {report.unit?.name || '-'}</span></div>
+                                    <div className="flex"><span className="w-28 text-slate-500">Nama Pelapor</span><span className="font-semibold">: {report.user?.name || report.user?.username || '-'}</span></div>
+                                    <div className="flex"><span className="w-28 text-slate-500">Kontak Pelapor</span><span className="font-semibold">: {report.user?.phone || '-'}</span></div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <div className="flex"><span className="w-28 text-slate-500">Teknisi Pelaksana</span><span className="font-bold text-blue-700">: {report.technician || 'Belum Ditugaskan'}</span></div>
+                                    <div className="flex"><span className="w-28 text-slate-500">Tingkat Urgensi</span><span className="font-bold">: {urgencyLabels[report.urgency] || 'Biasa'}</span></div>
+                                    <div className="flex"><span className="w-28 text-slate-500">Kategori</span><span className="font-semibold">: {report.category === 'ROUTINE' ? 'Pemeliharaan Rutin' : 'Pemeliharaan Insidentil'}</span></div>
+                                    <div className="flex"><span className="w-28 text-slate-500">Lokasi Pekerjaan</span><span className="font-semibold">: {report.location || '-'}</span></div>
+                                </div>
+                            </div>
+
+                            {/* Uraian Keluhan & Masalah */}
+                            <div className="space-y-1.5">
+                                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-1">1. Uraian Keluhan / Masalah Pekerjaan</h4>
+                                <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1">
+                                    <div className="font-bold text-slate-900">{report.title}</div>
+                                    <div className="text-slate-700 whitespace-pre-wrap">{report.description}</div>
+                                </div>
+                            </div>
+
+                            {/* Tabel Aset Terkait (Jika Ada) */}
+                            {report.assets && report.assets.length > 0 && (
+                                <div className="space-y-1.5">
+                                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-1">2. Daftar Aset Terkait</h4>
+                                    <table className="w-full border-collapse border border-slate-200 text-xs text-left">
+                                        <thead>
+                                            <tr className="bg-slate-100 text-slate-700 font-bold">
+                                                <th className="border border-slate-200 p-2 text-center w-8">No</th>
+                                                <th className="border border-slate-200 p-2">Kode Aset</th>
+                                                <th className="border border-slate-200 p-2">Nama Aset</th>
+                                                <th className="border border-slate-200 p-2">Kondisi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {report.assets.map((a, i) => (
+                                                <tr key={a.id}>
+                                                    <td className="border border-slate-200 p-2 text-center">{i + 1}</td>
+                                                    <td className="border border-slate-200 p-2 font-mono font-bold text-blue-600">{a.code}</td>
+                                                    <td className="border border-slate-200 p-2">{a.name}</td>
+                                                    <td className="border border-slate-200 p-2">{a.condition || 'BAIK'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Lembar Catatan Lapangan & Material Teknisi */}
+                            <div className="space-y-1.5">
+                                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-1">
+                                    3. Lembar Tindakan Perbaikan & Penggunaan Bahan / Material (Diisi Teknisi)
+                                </h4>
+                                <div className="p-3 border border-slate-200 rounded-xl min-h-[90px] bg-slate-50/50 space-y-2">
+                                    {report.actionTaken ? (
+                                        <div className="font-mono text-[11px] text-slate-800 whitespace-pre-wrap">{report.actionTaken}</div>
+                                    ) : (
+                                        <div className="text-[10px] text-slate-400 italic">
+                                            Catatan tindakan perbaikan di lapangan & rincian material yang digunakan:
+                                            <div className="border-b border-dashed border-slate-300 mt-4 h-4"></div>
+                                            <div className="border-b border-dashed border-slate-300 mt-4 h-4"></div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Rincian Biaya (Jika Tersedia) */}
+                            {report.cost > 0 && (
+                                <div className="space-y-1.5">
+                                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-1">4. Realisasi Biaya</h4>
+                                    <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                                        <span className="font-semibold text-slate-700">Total Pengeluaran / Biaya Perbaikan</span>
+                                        <span className="font-bold text-slate-900 text-sm">Rp {report.cost.toLocaleString('id-ID')}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Lembar Tanda Tangan 3 Pihak */}
+                            <div className="pt-6 grid grid-cols-3 text-center text-xs gap-4">
+                                <div className="space-y-14">
+                                    <p className="font-semibold text-slate-600">Pemohon / Pelapor Unit,</p>
+                                    <p className="font-bold underline text-slate-900">({report.user?.name || report.user?.username || '...................................'})</p>
+                                </div>
+                                <div className="space-y-14">
+                                    <p className="font-semibold text-slate-600">Teknisi Pelaksana,</p>
+                                    <p className="font-bold underline text-slate-900">({report.technician || '...................................'})</p>
+                                </div>
+                                <div className="space-y-14">
+                                    <p className="font-semibold text-slate-600">Mengetahui, Kabid Sarpras</p>
+                                    <p className="font-bold underline text-slate-900">(...................................)</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

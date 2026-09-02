@@ -113,11 +113,14 @@ router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);
 // Sales (POS / SPMB / Unit Order)
 router.get('/export-sales', c.exportSalesToExcel);
 router.get('/sales', c.getSales);
+router.get('/sales/batch-invoice', c.getBatchInvoices);
 router.post('/sales', c.createSale);
 router.delete('/sales/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.deleteSale);
 // Hanya Super Admin & Admin Aset yang boleh memproses/mengeluarkan barang dari gudang
 router.post('/sales/:id/fulfill', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.manageSaleItems);
 router.put('/sales/:id/payment', c.updateSalePayment);
+router.post('/sales/:id/send-billing-wa', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), c.sendSpmbBillingWhatsApp);
+router.post('/sales/batch-send-billing-wa', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), c.batchSendSpmbBillingWhatsApp);
 
 // Exchange (Tukar Ukuran)
 router.get('/exchanges', c.getExchanges);

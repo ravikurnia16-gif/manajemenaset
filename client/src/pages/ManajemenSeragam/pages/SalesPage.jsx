@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShoppingCart, Package, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Package, RefreshCw, Printer } from 'lucide-react';
 import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
 import { PackageForm } from '../Forms';
@@ -9,6 +9,7 @@ import { SalesTab } from '../SalesTab';
 import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
 import { ExchangeForm } from '../ExchangeForm';
+import { BatchInvoiceTab } from '../BatchInvoiceTab';
 
 export default function SalesPage() {
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -18,6 +19,7 @@ export default function SalesPage() {
     const tabs = isSuperOrAdminAset ? [
         { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> },
         { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> },
+        { key: 'sales_invoices', label: 'Cetak Invoice Massal', icon: <Printer size={16} /> },
         { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
         { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
     ] : [
@@ -60,7 +62,7 @@ export default function SalesPage() {
             setWarehouses(commonRes[3].data);
             setAllPackages(commonRes[4].data);
 
-            if (activeTab === 'sales_spmb' || activeTab === 'sales_retail') {
+            if (activeTab === 'sales_spmb' || activeTab === 'sales_retail' || activeTab === 'sales_invoices') {
                 const r = await api.get('/uniforms/sales', { params: { search } });
                 setSales(r.data);
             } else if (activeTab === 'packages') {
@@ -208,6 +210,15 @@ export default function SalesPage() {
                             variants={variants}
                             onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
+                            onUpdatePayment={handleUpdatePayment}
+                        />
+                    )}
+                    {activeTab === 'sales_invoices' && (
+                        <BatchInvoiceTab 
+                            sales={sales}
+                            units={units}
+                            loading={loading}
+                            onRefresh={fetchData}
                             onUpdatePayment={handleUpdatePayment}
                         />
                     )}

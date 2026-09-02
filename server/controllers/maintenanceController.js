@@ -34,31 +34,41 @@ const calculateBusinessHoursDiff = (createdAt, respondedAt) => {
 // Get Dashboard Stats
 exports.getDashboardStats = async (req, res) => {
     try {
-        const { targetDept, month, year } = req.query; // SARPRAS or PEMBANGUNAN
+        const { targetDept, month, year, startDate, endDate } = req.query; // SARPRAS or PEMBANGUNAN
 
         const whereClause = {};
         if (targetDept) {
             whereClause.targetDept = targetDept;
         }
 
-        // Calculate Start and End of specific Month
-        let startOfPeriod = new Date();
-        if (month && year) {
-            startOfPeriod = new Date(parseInt(year), parseInt(month) - 1, 1);
-        } else {
-            startOfPeriod.setDate(1);
-        }
-        startOfPeriod.setHours(0, 0, 0, 0);
+        // Calculate Start and End of specific Month or Custom Date Range
+        let startOfPeriod;
+        let endOfPeriod;
 
-        const endOfPeriod = new Date(startOfPeriod);
-        endOfPeriod.setMonth(endOfPeriod.getMonth() + 1);
+        if (startDate && endDate) {
+            startOfPeriod = new Date(startDate);
+            startOfPeriod.setHours(0, 0, 0, 0);
+            endOfPeriod = new Date(endDate);
+            endOfPeriod.setHours(23, 59, 59, 999);
+        } else if (month && year) {
+            startOfPeriod = new Date(parseInt(year), parseInt(month) - 1, 1);
+            startOfPeriod.setHours(0, 0, 0, 0);
+            endOfPeriod = new Date(startOfPeriod);
+            endOfPeriod.setMonth(endOfPeriod.getMonth() + 1);
+        } else {
+            startOfPeriod = new Date();
+            startOfPeriod.setDate(1);
+            startOfPeriod.setHours(0, 0, 0, 0);
+            endOfPeriod = new Date(startOfPeriod);
+            endOfPeriod.setMonth(endOfPeriod.getMonth() + 1);
+        }
 
         // 1. Total Cost for Selected Period
         const thisMonthReports = await prisma.maintenance.findMany({
             where: {
                 ...whereClause,
                 status: 'COMPLETED',
-                completionDate: { gte: startOfPeriod, lt: endOfPeriod }
+                completionDate: { gte: startOfPeriod, lte: endOfPeriod }
             },
             select: { cost: true }
         });
@@ -131,7 +141,7 @@ exports.getDashboardStats = async (req, res) => {
             where: {
                 targetDept: 'SARPRAS',
                 status: 'COMPLETED',
-                completionDate: { gte: startOfPeriod, lt: endOfPeriod }
+                completionDate: { gte: startOfPeriod, lte: endOfPeriod }
             },
             select: {
                 createdAt: true,
@@ -181,7 +191,7 @@ exports.getDashboardStats = async (req, res) => {
             where: {
                 targetDept: 'SARPRAS',
                 firstRespondedAt: { not: null },
-                createdAt: { gte: startOfPeriod, lt: endOfPeriod }
+                createdAt: { gte: startOfPeriod, lte: endOfPeriod }
             },
             select: {
                 createdAt: true,
@@ -225,6 +235,11 @@ exports.getDashboardStats = async (req, res) => {
         initialResponseStats.totalResponded = validRespondedCount;
 
         res.json({
+            periodInfo: {
+                startDate: startOfPeriod.toISOString(),
+                endDate: endOfPeriod.toISOString(),
+                formattedRange: `${startOfPeriod.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} s/d ${endOfPeriod.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
+            },
             totalCostThisMonth,
             activeReportsCount,
             overdueAssetsCount,
@@ -479,9 +494,13 @@ exports.createReport = async (req, res) => {
                 const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
 
-                const inAppRoles = [
+                const inAppRoles = targetDept === 'PEMBANGUNAN' ? [
+                    { position: { contains: 'Kepala Bidang Pembangunan' } },
+                    { position: { contains: 'Staff Pembangunan' } }
+                ] : [
                     { position: { contains: 'Kepala Bidang Sarana' } },
-                    { position: { contains: 'Staff Manajemen Aset' } }
+                    { position: { contains: 'Staff Manajemen Aset' } },
+                    { position: { contains: 'Staff Teknisi Aset' } }
                 ];
 
                 const notifRecipients = await prisma.user.findMany({
@@ -493,7 +512,7 @@ exports.createReport = async (req, res) => {
                 for (const admin of notifRecipients) {
                     await createNotification(
                         admin.id,
-                        targetDept === 'PEMBANGUNAN' ? 'Laporan Pembangunan Baru' : 'Laporan Pemeliharaan Baru',
+                        targetDept === 'PEMBANGUNAN' ? 'Laporan Pembangunan Baru' : 'Laporan Pemeliharaan Baru (Sarpras)',
                         `${submitterName} melaporkan masalah: "${title}".`,
                         'URGENT',
                         `/pemeliharaan/${report.id}`
@@ -516,19 +535,23 @@ exports.createReport = async (req, res) => {
                 if (submitter?.phone) {
                     const msgSubmitter = `Bismillah.\n*Info Laporan Pemeliharaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*, laporan pemeliharaan Anda telah kami terima.\n\n` +
-                        `\u{1F4CB} *Judul* : ${isDirect ? `[INSTRUKSI KABID] ${title}` : title}\n` +
-                        `\u{1F4C4} *Kode* : ${code}\n` +
-                        `\u{1F527} *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n` +
-                        `${isDirect ? `*Status* : Langsung Ditugaskan (Pimpinan) \u2705\n\n` : `\n`}` +
+                        `📋 *Judul* : ${isDirect ? `[INSTRUKSI KABID] ${title}` : title}\n` +
+                        `📄 *Kode* : ${code}\n` +
+                        `🔧 *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n` +
+                        `${isDirect ? `*Status* : Langsung Ditugaskan (Pimpinan) ✅\n\n` : `\n`}` +
                         `Mohon menunggu proses pengerjaan.`;
 
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. WhatsApp Notification
-                const waRoles = [
+                // 2. WhatsApp Notification to Admins and Staff Teknisi Aset
+                const waRoles = targetDept === 'PEMBANGUNAN' ? [
+                    { position: { contains: 'Kepala Bidang Pembangunan' } },
+                    { position: { contains: 'Staff Pembangunan' } }
+                ] : [
                     { position: { contains: 'Kepala Bidang Sarana' } },
-                    { position: { contains: 'Staff Manajemen Aset' } }
+                    { position: { contains: 'Staff Manajemen Aset' } },
+                    { position: { contains: 'Staff Teknisi Aset' } }
                 ];
 
                 const waRecipients = await prisma.user.findMany({
@@ -549,8 +572,9 @@ exports.createReport = async (req, res) => {
                         'EMERGENCY': '🔴 DARURAT'
                     };
 
-                    const msgAdmin = `Bismillah.\n${targetDept === 'PEMBANGUNAN' ? '🏗️ *LAPORAN PEMBANGUNAN BARU*' : (isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU*`)}\n\n` +
+                    const msgAdmin = `Bismillah.\n${targetDept === 'PEMBANGUNAN' ? '🏗️ *LAPORAN PEMBANGUNAN BARU*' : (isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU (SARPRAS)*`)}\n\n` +
                         `👤 *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
+                        `🏢 *Unit* : ${submitter?.unit?.name || report.unit?.name || '-'}\n` +
                         `📞 *Kontak* : wa.me/${submitter?.phone?.replace(/^0/, '62') || '-'}\n` +
                         `⚡ *Urgensi* : ${isDirect ? 'PENGERJAAN PRIORITAS' : (urgencyLabels[report.urgency] || report.urgency)}\n` +
                         `📂 *Bidang* : ${targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarana & Prasarana'}\n` +
@@ -558,8 +582,9 @@ exports.createReport = async (req, res) => {
                         `📜 *Kode* : ${code}\n` +
                         `📋 *Judul* : ${title}\n` +
                         `📝 *Masalah* : ${description}\n\n` +
+                        (report.location ? `📍 *Lokasi* : ${report.location}\n` : '') +
                         (targetDept !== 'PEMBANGUNAN' ? `📦 *Aset Terkait* :\n${assetListStr}\n\n` : '') +
-                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : `Mohon segera ditindaklanjuti.`}\n\n` +
+                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : (targetDept === 'PEMBANGUNAN' ? `Mohon segera ditindaklanjuti.` : `*Kepada Tim Sarpras & Staff Teknisi Aset*, mohon bantu untuk segera ditindaklanjuti.`)}\n\n` +
                         `Syukron jazakumullahu khairan.`;
 
                     // Send to all found recipients with delay
