@@ -189,3 +189,237 @@ exports.getDashboardStats = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+/**
+ * Controller: Laporan Mingguan & Operasional Manajemen Aset
+ */
+exports.getWeeklyAssetReport = async (req, res) => {
+    try {
+        const { role, unitId: userUnitId, id: userId } = req.user;
+        const { startDate, endDate, unitId } = req.query;
+
+        // 1. Tentukan Rentang Tanggal
+        let start, end;
+        if (startDate && endDate) {
+            start = new Date(`${startDate}T00:00:00.000Z`);
+            end = new Date(`${endDate}T23:59:59.999Z`);
+        } else {
+            const today = new Date();
+            const day = today.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+            const diffToMonday = today.getDate() - (day === 0 ? 6 : day - 1);
+            start = new Date(today.getFullYear(), today.getMonth(), diffToMonday, 0, 0, 0, 0);
+            end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 4, 23, 59, 59, 999);
+        }
+
+        // 2. Tentukan Filter Unit
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana';
+        let targetUnitId = null;
+
+        if (unitId && unitId !== 'all') {
+            targetUnitId = parseInt(unitId);
+        } else if (!isGlobalAdmin && userUnitId) {
+            targetUnitId = userUnitId;
+        }
+
+        // 3. Query Aset Baru Masuk
+        const newAssetWhere = {
+            createdAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) newAssetWhere.unitId = targetUnitId;
+
+        const newAssets = await prisma.asset.findMany({
+            where: newAssetWhere,
+            include: {
+                unit: { select: { id: true, name: true } },
+                room: { select: { id: true, name: true } },
+                category: { select: { id: true, name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const totalNewAssetsValue = newAssets.reduce((sum, a) => sum + (a.price || 0), 0);
+
+        // 4. Query Mutasi Aset (Movements)
+        const movementWhere = {
+            date: { gte: start, lte: end }
+        };
+        if (targetUnitId) {
+            movementWhere.OR = [
+                { asset: { unitId: targetUnitId } },
+                { toUnitId: targetUnitId }
+            ];
+        }
+
+        const movements = await prisma.movement.findMany({
+            where: movementWhere,
+            include: {
+                asset: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                        unit: { select: { name: true } },
+                        room: { select: { name: true } }
+                    }
+                },
+                requester: { select: { name: true } },
+                approver: { select: { name: true } }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // 5. Query Pemeliharaan & Perbaikan
+        const maintenanceWhere = {
+            createdAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) maintenanceWhere.unitId = targetUnitId;
+
+        const maintenances = await prisma.maintenance.findMany({
+            where: maintenanceWhere,
+            include: {
+                unit: { select: { name: true } },
+                user: { select: { name: true } },
+                assets: { select: { id: true, name: true, code: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const totalMaintenanceCost = maintenances.reduce((sum, m) => sum + (m.cost || 0), 0);
+
+        // 6. Query Audit & Verifikasi Fisik
+        const auditWhere = {
+            verifiedAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) {
+            auditWhere.asset = { unitId: targetUnitId };
+        }
+
+        const auditItems = await prisma.auditItem.findMany({
+            where: auditWhere,
+            include: {
+                asset: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                        unit: { select: { name: true } },
+                        room: { select: { name: true } }
+                    }
+                },
+                auditor: { select: { name: true } },
+                session: { select: { title: true } }
+            },
+            orderBy: { verifiedAt: 'desc' }
+        });
+
+        // 7. Query Peminjaman Aset (Loans)
+        const loanWhere = {
+            createdAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) loanWhere.unitId = targetUnitId;
+
+        const loans = await prisma.assetLoan.findMany({
+            where: loanWhere,
+            include: {
+                asset: { select: { id: true, name: true, code: true } },
+                borrower: { select: { name: true } },
+                unit: { select: { name: true } },
+                targetUnit: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // 8. Query Usulan Penghapusan (Disposals)
+        const disposalWhere = {
+            createdAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) disposalWhere.asset = { unitId: targetUnitId };
+
+        const disposals = await prisma.assetDisposal.findMany({
+            where: disposalWhere,
+            include: {
+                asset: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                        price: true,
+                        unit: { select: { name: true } },
+                        room: { select: { name: true } }
+                    }
+                },
+                proposedBy: { select: { name: true } },
+                reviewedBy: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // 9. Query Info Penandatangan
+        const [kabidUser, currentUser, allUnits] = await Promise.all([
+            prisma.user.findFirst({
+                where: {
+                    OR: [
+                        { position: { contains: 'Kepala Bidang Sarana' } },
+                        { position: { contains: 'Kabid Sarpras' } },
+                        { role: 'KABID_SARPRAS' }
+                    ]
+                },
+                select: { id: true, name: true, nip: true, username: true, position: true }
+            }),
+            prisma.user.findUnique({
+                where: { id: userId },
+                select: { id: true, name: true, nip: true, username: true, position: true }
+            }),
+            prisma.unit.findMany({
+                select: { id: true, name: true, code: true }
+            })
+        ]);
+
+        const selectedUnitName = targetUnitId
+            ? (allUnits.find(u => u.id === targetUnitId)?.name || 'Unit Terpilih')
+            : 'Seluruh Unit Lingkungan Yayasan';
+
+        res.json({
+            period: {
+                startDate: start.toISOString().split('T')[0],
+                endDate: end.toISOString().split('T')[0],
+                formattedPeriod: `${start.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} s/d ${end.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+                formattedStart: start.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                formattedEnd: end.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+            },
+            unit: selectedUnitName,
+            units: isGlobalAdmin ? allUnits : [],
+            summary: {
+                newAssetsCount: newAssets.length,
+                newAssetsValue: totalNewAssetsValue,
+                movementsCount: movements.length,
+                maintenanceCount: maintenances.length,
+                maintenanceCost: totalMaintenanceCost,
+                auditCount: auditItems.length,
+                loansCount: loans.length,
+                disposalsCount: disposals.length
+            },
+            details: {
+                newAssets,
+                movements,
+                maintenances,
+                auditItems,
+                loans,
+                disposals
+            },
+            signers: {
+                staff: {
+                    name: currentUser?.name || 'Staff Manajemen Aset',
+                    position: currentUser?.position || 'Staff Manajemen Aset',
+                    niy: currentUser?.nip || currentUser?.username || '-'
+                },
+                kabid: {
+                    name: kabidUser?.name || 'Ravi Kurnia',
+                    position: kabidUser?.position || 'Kepala Bidang Sarana',
+                    niy: kabidUser?.nip || kabidUser?.username || '-'
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Weekly Asset Report Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};

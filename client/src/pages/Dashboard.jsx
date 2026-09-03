@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2, Download } from 'lucide-react';
+import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2, Download, CalendarRange } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/axios';
+import { cn } from '../lib/utils';
+import WeeklyAssetReport from '../components/WeeklyAssetReport';
 
 /* ── jsPDF + autoTable CDN loader ── */
 function loadJsPDF() {
@@ -33,6 +35,7 @@ const StatCard = ({ title, value, icon: Icon, color, desc }) => (
 );
 
 const Dashboard = () => {
+    const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'weekly'
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [filterUnit, setFilterUnit] = useState('all');
@@ -226,57 +229,99 @@ const Dashboard = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+            {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Dashboard Manajemen Aset</h1>
                     <p className="text-slate-500 text-sm italic">
-                        {filterUnit !== 'all'
-                            ? `Menampilkan data untuk: ${data?.units?.find(u => u.id === parseInt(filterUnit))?.name || 'Unit Spesifik'}`
-                            : 'Ringkasan statistik aset seluruh perusahaan'}
+                        {activeTab === 'weekly'
+                            ? 'Laporan pergerakan, pengadaan, mutasi, pemeliharaan, dan verifikasi aset berkala'
+                            : (filterUnit !== 'all'
+                                ? `Menampilkan data untuk: ${data?.units?.find(u => u.id === parseInt(filterUnit))?.name || 'Unit Spesifik'}`
+                                : 'Ringkasan statistik aset seluruh perusahaan')}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    {canFilterUnit && (
-                        <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
-                            <span className="text-xs font-bold text-slate-400 ml-2 uppercase">Filter Unit:</span>
-                            <select
-                                value={filterUnit}
-                                onChange={(e) => setFilterUnit(e.target.value)}
-                                className="text-sm border-none bg-transparent focus:ring-0 text-slate-700 font-semibold cursor-pointer"
+
+                {activeTab === 'overview' && (
+                    <div className="flex flex-wrap items-center gap-3">
+                        {canFilterUnit && (
+                            <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                                <span className="text-xs font-bold text-slate-400 ml-2 uppercase">Filter Unit:</span>
+                                <select
+                                    value={filterUnit}
+                                    onChange={(e) => setFilterUnit(e.target.value)}
+                                    className="text-sm border-none bg-transparent focus:ring-0 text-slate-700 font-semibold cursor-pointer"
+                                >
+                                    <option value="all">Semua Unit</option>
+                                    {data?.units?.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        {isSarana && (
+                            <button
+                                onClick={handleScanNFC}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all"
                             >
-                                <option value="all">Semua Unit</option>
-                                {data?.units?.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-                    {isSarana && (
+                                Scan NFC Aset
+                            </button>
+                        )}
                         <button
-                            onClick={handleScanNFC}
-                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all"
+                            onClick={handleExportPDF}
+                            disabled={exporting}
+                            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-slate-200 transition-all disabled:opacity-50"
                         >
-                            Scan NFC Aset
+                            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                            {exporting ? 'Mengekspor...' : 'Export PDF'}
                         </button>
+                    </div>
+                )}
+            </div>
+
+            {/* TAB SWITCHER */}
+            <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-inner print:hidden">
+                <button
+                    onClick={() => setActiveTab('overview')}
+                    className={cn(
+                        "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all",
+                        activeTab === 'overview'
+                            ? "bg-white text-slate-800 shadow-sm"
+                            : "text-slate-500 hover:text-slate-800"
                     )}
-                    <button
-                        onClick={handleExportPDF}
-                        disabled={exporting}
-                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-slate-200 transition-all disabled:opacity-50"
-                    >
-                        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                        {exporting ? 'Mengekspor...' : 'Export PDF'}
-                    </button>
-                </div>
+                >
+                    <Box size={16} className={activeTab === 'overview' ? "text-blue-600" : ""} />
+                    Ikhtisar Kumulatif
+                </button>
+                <button
+                    onClick={() => setActiveTab('weekly')}
+                    className={cn(
+                        "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all relative",
+                        activeTab === 'weekly'
+                            ? "bg-white text-slate-800 shadow-sm"
+                            : "text-slate-500 hover:text-slate-800"
+                    )}
+                >
+                    <CalendarRange size={16} className={activeTab === 'weekly' ? "text-indigo-600" : ""} />
+                    Laporan Mingguan & Operasional
+                    <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 rounded-full">
+                        Laporan
+                    </span>
+                </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((s, i) => <StatCard key={i} {...s} />)}
-            </div>
+            {/* TAB CONTENT */}
+            {activeTab === 'weekly' ? (
+                <WeeklyAssetReport currentUser={currentUser} />
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {stats.map((s, i) => <StatCard key={i} {...s} />)}
+                    </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 1. Pengadaan & Spending */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* 1. Pengadaan & Spending */}
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-slate-800">Analisa Pengadaan Aset</h3>
                         <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -479,7 +524,9 @@ const Dashboard = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </>
+    )}
+</div>
     );
 };
 
