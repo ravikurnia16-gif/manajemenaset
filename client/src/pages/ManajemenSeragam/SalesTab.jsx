@@ -1260,7 +1260,7 @@ export const SalesTab = ({
             Belum ada transaksi pesanan yang sesuai filter.
           </div>
         ) : (
-          sortedAndFilteredSales.map(s => {
+          sortedAndFilteredSales.map((s, idx) => {
             const hasPackages = s.salePackages && s.salePackages.length > 0;
             let ndTotal = 0;
             if (s.note && s.note.includes('[NAMADADA')) {
@@ -1286,25 +1286,35 @@ export const SalesTab = ({
             const orderDateObj = new Date(s.updatedAt || s.createdAt || 0);
             const diffDays = Math.floor((Date.now() - orderDateObj) / (1000 * 60 * 60 * 24));
             const isOverdue30 = (s.status === 'PROSES' || s.status === 'SEDIA' || sediaItems.length > 0) && !isCompleted && s.status !== 'BATAL' && s.status !== 'CANCELLED' && diffDays >= 30;
+            const isEven = idx % 2 === 0;
 
             return (
               <div 
                 key={s.id}
-                className={`p-3.5 rounded-2xl border transition-all space-y-3 ${
+                className={`p-3.5 rounded-2xl border transition-all space-y-3 shadow-xs ${
                   isOverdue30
-                    ? 'bg-rose-50/40 border-rose-300 ring-1 ring-rose-400/20'
+                    ? 'bg-rose-50/60 border-rose-300 ring-1 ring-rose-400/30 border-l-4 border-l-rose-600'
                     : isExpanded 
-                    ? 'bg-blue-50/40 border-blue-300' 
+                    ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-400/30 border-l-4 border-l-blue-600' 
                     : indentItems.length > 0 && !isCompleted 
-                    ? 'bg-amber-50/20 border-amber-200' 
+                    ? 'bg-amber-50/40 border-amber-300 border-l-4 border-l-amber-500' 
                     : isCompleted 
-                    ? 'bg-white border-slate-200/60 opacity-90' 
-                    : 'bg-white border-slate-200/80 shadow-xs'
+                    ? (isEven 
+                        ? 'bg-white border-slate-200 border-l-4 border-l-emerald-500 opacity-90' 
+                        : 'bg-slate-50/90 border-slate-300 border-l-4 border-l-emerald-600 opacity-90')
+                    : (isEven
+                        ? 'bg-white border-blue-200/90 border-l-4 border-l-blue-600'
+                        : 'bg-indigo-50/25 border-indigo-200/90 border-l-4 border-l-indigo-600')
                 }`}
               >
                 {/* Header: Invoice, Type, Status */}
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
                   <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider shrink-0 shadow-2xs ${
+                      isEven ? 'bg-blue-600 text-white' : 'bg-indigo-700 text-white'
+                    }`}>
+                      #{idx + 1}
+                    </span>
                     <span className="font-mono text-xs font-black text-slate-800 tracking-tight truncate">
                       {s.code}
                     </span>
@@ -1370,7 +1380,9 @@ export const SalesTab = ({
                 )}
 
                 {/* Tagihan & Pembayaran Box */}
-                <div className="bg-slate-50/90 p-3 rounded-xl border border-slate-200/70 space-y-2">
+                <div className={`p-3 rounded-xl border space-y-2 ${
+                  isEven ? 'bg-slate-50/90 border-slate-200/80' : 'bg-white border-indigo-100 shadow-2xs'
+                }`}>
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Tagihan</span>
@@ -1661,7 +1673,7 @@ export const SalesTab = ({
               <tr><td colSpan="7" className="p-8 text-center text-slate-400">Memuat data pesanan...</td></tr>
             ) : sortedAndFilteredSales.length === 0 ? (
               <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi pesanan yang sesuai filter.</td></tr>
-            ) : sortedAndFilteredSales.map(s => {
+            ) : sortedAndFilteredSales.map((s, idx) => {
               const hasPackages = s.salePackages && s.salePackages.length > 0;
               let ndTotal = 0;
               if (s.note && s.note.includes('[NAMADADA')) {
@@ -1691,21 +1703,28 @@ export const SalesTab = ({
 
               return (
                 <React.Fragment key={s.id}>
-                  <tr className={`hover:bg-slate-50/80 transition-colors ${
+                  <tr className={`hover:bg-blue-50/60 transition-colors border-b border-slate-200/70 ${
                     isOverdue30
-                      ? 'bg-rose-50/40 border-l-4 border-l-rose-500'
+                      ? 'bg-rose-50/50 border-l-4 border-l-rose-500'
                       : isExpanded 
-                      ? 'bg-blue-50/40' 
+                      ? 'bg-blue-50/60 border-l-4 border-l-blue-600' 
                       : indentItems.length > 0 && !isCompleted 
-                      ? 'bg-amber-50/20' 
+                      ? 'bg-amber-50/30 border-l-4 border-l-amber-500' 
                       : isCompleted 
-                      ? 'bg-slate-50/30 opacity-80 hover:opacity-100' 
-                      : ''
+                      ? (idx % 2 === 0 ? 'bg-slate-50/40 opacity-85 hover:opacity-100' : 'bg-white opacity-85 hover:opacity-100') 
+                      : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/80')
                   }`}>
                     
                     {/* Invoice */}
                     <td className="p-3">
-                      <div className="font-mono text-xs font-bold text-slate-700">{s.code}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-black font-mono shrink-0 ${
+                          idx % 2 === 0 ? 'bg-blue-100 text-blue-800' : 'bg-indigo-100 text-indigo-800'
+                        }`}>
+                          #{idx + 1}
+                        </span>
+                        <div className="font-mono text-xs font-bold text-slate-700">{s.code}</div>
+                      </div>
                       {isOverdue30 && (
                         <div className="text-[10px] font-black text-rose-700 bg-rose-100/90 border border-rose-200 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-1">
                           🚨 Siap {diffDays} Hari
