@@ -127,6 +127,7 @@ const LaporanStaff = () => {
     const [showTemplateAccordion, setShowTemplateAccordion] = useState(false);
     const [showMissedDates, setShowMissedDates] = useState(false);
     const [mobileSessionTab, setMobileSessionTab] = useState('ALL'); // 'ALL' | 'MORNING' | 'AFTERNOON'
+    const [cameraModalConfig, setCameraModalConfig] = useState({ isOpen: false, index: null, period: 'morning' });
 
     // Kabid Dashboard & Monitoring States
     const [dashboardData, setDashboardData] = useState(null);
@@ -333,11 +334,19 @@ const LaporanStaff = () => {
         }
     };
 
-    const handlePhotoUpload = async (index, file, period = 'morning') => {
-        if (!file) return;
+    const handlePhotoUpload = async (index, fileOrDataUrl, period = 'morning') => {
+        if (!fileOrDataUrl) return;
         try {
             setUploadingPhotoIndex(`${period}-${index}`);
-            const compressedBase64 = await compressImage(file);
+            
+            let compressedBase64;
+            if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
+                const res = await fetch(fileOrDataUrl);
+                const blob = await res.blob();
+                compressedBase64 = await compressImage(blob);
+            } else {
+                compressedBase64 = await compressImage(fileOrDataUrl);
+            }
 
             // Upload directly to MinIO via backend
             const res = await api.post('/laporan/upload-photo', { base64: compressedBase64 });
@@ -1899,12 +1908,18 @@ const LaporanStaff = () => {
                                                         </div>
                                                     )}
 
-                                                    {/* Mobile-Friendly Photo Upload Zone */}
+                                                    {/* Mobile-Friendly Photo Upload Zone (Opsional) */}
                                                     <div className="space-y-2 pt-1 border-t border-slate-200/60">
                                                         <div className="flex items-center justify-between">
-                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                                                <Camera size={13} className="text-blue-600" /> Foto Bukti Lapangan
-                                                            </label>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Camera size={13} className="text-blue-600" />
+                                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                                                                    Foto Bukti Lapangan
+                                                                </span>
+                                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                                                    (Opsional)
+                                                                </span>
+                                                            </div>
                                                             <span className="text-[10px] font-medium text-slate-400">
                                                                 {(point.photos || []).length}/5 Foto
                                                             </span>
@@ -1912,26 +1927,19 @@ const LaporanStaff = () => {
 
                                                         {/* Dual Upload Options: Direct Camera vs Gallery */}
                                                         <div className="flex items-center gap-2">
-                                                            <label className="flex-1 cursor-pointer py-2 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs">
+                                                            <button
+                                                                type="button"
+                                                                disabled={uploadingPhotoIndex !== null}
+                                                                onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'morning' })}
+                                                                className="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-50"
+                                                            >
                                                                 {uploadingPhotoIndex === `morning-${index}` ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                                                                <span>{uploadingPhotoIndex === `morning-${index}` ? 'Mengunggah...' : 'Ambil Foto (Kamera)'}</span>
-                                                                <input 
-                                                                    type="file" 
-                                                                    accept="image/*" 
-                                                                    capture="environment" 
-                                                                    className="hidden" 
-                                                                    disabled={uploadingPhotoIndex !== null}
-                                                                    onChange={(e) => {
-                                                                        if (e.target.files[0]) {
-                                                                            handlePhotoUpload(index, e.target.files[0], 'morning');
-                                                                            e.target.value = '';
-                                                                        }
-                                                                    }} 
-                                                                />
-                                                            </label>
+                                                                <span>{uploadingPhotoIndex === `morning-${index}` ? 'Mengunggah...' : 'Buka Kamera'}</span>
+                                                            </button>
+
                                                             <label className="cursor-pointer py-2 px-3 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs">
                                                                 <Plus size={14} />
-                                                                <span>Galeri</span>
+                                                                <span>Pilih Galeri</span>
                                                                 <input 
                                                                     type="file" 
                                                                     accept="image/*" 
@@ -1946,6 +1954,10 @@ const LaporanStaff = () => {
                                                                 />
                                                             </label>
                                                         </div>
+
+                                                        <p className="text-[10px] text-slate-400 italic">
+                                                            * Upload foto bukti lapangan bersifat opsional (tidak wajib).
+                                                        </p>
 
                                                         {/* Photo Thumbnails with Touch Delete Badge */}
                                                         {point.photos && point.photos.length > 0 && (
@@ -2125,12 +2137,18 @@ const LaporanStaff = () => {
                                                         </div>
                                                     )}
 
-                                                    {/* Mobile-Friendly Photo Upload Zone */}
+                                                    {/* Mobile-Friendly Photo Upload Zone (Opsional) */}
                                                     <div className="space-y-2 pt-1 border-t border-slate-200/60">
                                                         <div className="flex items-center justify-between">
-                                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                                                <Camera size={13} className="text-indigo-600" /> Foto Bukti Lapangan
-                                                            </label>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Camera size={13} className="text-indigo-600" />
+                                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                                                                    Foto Bukti Lapangan
+                                                                </span>
+                                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                                                    (Opsional)
+                                                                </span>
+                                                            </div>
                                                             <span className="text-[10px] font-medium text-slate-400">
                                                                 {(point.photos || []).length}/5 Foto
                                                             </span>
@@ -2138,23 +2156,16 @@ const LaporanStaff = () => {
 
                                                         {/* Dual Upload Options: Direct Camera vs Gallery */}
                                                         <div className="flex items-center gap-2">
-                                                            <label className="flex-1 cursor-pointer py-2 px-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs">
+                                                            <button
+                                                                type="button"
+                                                                disabled={uploadingPhotoIndex !== null}
+                                                                onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'afternoon' })}
+                                                                className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-50"
+                                                            >
                                                                 {uploadingPhotoIndex === `afternoon-${index}` ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                                                                <span>{uploadingPhotoIndex === `afternoon-${index}` ? 'Mengunggah...' : 'Ambil Foto (Kamera)'}</span>
-                                                                <input 
-                                                                    type="file" 
-                                                                    accept="image/*" 
-                                                                    capture="environment" 
-                                                                    className="hidden" 
-                                                                    disabled={uploadingPhotoIndex !== null}
-                                                                    onChange={(e) => {
-                                                                        if (e.target.files[0]) {
-                                                                            handlePhotoUpload(index, e.target.files[0], 'afternoon');
-                                                                            e.target.value = '';
-                                                                        }
-                                                                    }} 
-                                                                />
-                                                            </label>
+                                                                <span>{uploadingPhotoIndex === `afternoon-${index}` ? 'Mengunggah...' : 'Buka Kamera'}</span>
+                                                            </button>
+
                                                             <label className="cursor-pointer py-2 px-3 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs">
                                                                 <Plus size={14} />
                                                                 <span>Galeri</span>
@@ -2172,6 +2183,10 @@ const LaporanStaff = () => {
                                                                 />
                                                             </label>
                                                         </div>
+
+                                                        <p className="text-[10px] text-slate-400 italic">
+                                                            * Upload foto bukti lapangan bersifat opsional (tidak wajib).
+                                                        </p>
 
                                                         {/* Photo Thumbnails with Touch Delete Badge */}
                                                         {point.photos && point.photos.length > 0 && (
@@ -2830,6 +2845,304 @@ const LaporanStaff = () => {
                     </div>
                 </div>
             )}
+
+            {/* LIVE IN-APP CAMERA MODAL */}
+            {cameraModalConfig.isOpen && (
+                <LiveCameraModal
+                    isOpen={cameraModalConfig.isOpen}
+                    pointIndex={cameraModalConfig.index}
+                    period={cameraModalConfig.period}
+                    onClose={() => setCameraModalConfig({ isOpen: false, index: null, period: 'morning' })}
+                    onCapture={(capturedDataUrl, pIdx, pPeriod) => {
+                        handlePhotoUpload(pIdx, capturedDataUrl, pPeriod);
+                    }}
+                />
+            )}
+        </div>
+    );
+};
+
+/**
+ * Interactive Live Camera Viewfinder Modal for Real-Time Field Photo Documentation
+ */
+const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => {
+    const videoRef = useRef(null);
+    const [stream, setStream] = useState(null);
+    const [capturedImage, setCapturedImage] = useState(null);
+    const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' | 'user'
+    const [cameraError, setCameraError] = useState(null);
+    const [isStarting, setIsStarting] = useState(true);
+
+    // Start video stream
+    useEffect(() => {
+        if (!isOpen) return;
+
+        let activeStream = null;
+        const startCamera = async () => {
+            setIsStarting(true);
+            setCameraError(null);
+            try {
+                if (stream) {
+                    stream.getTracks().forEach(t => t.stop());
+                }
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Webcam/Kamera langsung tidak didukung di browser ini.');
+                }
+
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: cameraFacing },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                };
+
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                activeStream = newStream;
+                setStream(newStream);
+                if (videoRef.current) {
+                    videoRef.current.srcObject = newStream;
+                    videoRef.current.play().catch(e => console.error('Play error:', e));
+                }
+            } catch (err) {
+                console.error('Camera access error:', err);
+                setCameraError(
+                    'Tidak dapat membuka kamera langsung. Pastikan izin kamera telah disetujui atau gunakan tombol kamera bawaan HP di bawah.'
+                );
+            } finally {
+                setIsStarting(false);
+            }
+        };
+
+        startCamera();
+
+        return () => {
+            if (activeStream) {
+                activeStream.getTracks().forEach(t => t.stop());
+            }
+        };
+    }, [isOpen, cameraFacing]);
+
+    const stopStream = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+        }
+    };
+
+    const takeSnapshot = () => {
+        if (!videoRef.current) return;
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setCapturedImage(dataUrl);
+    };
+
+    const retake = () => {
+        setCapturedImage(null);
+    };
+
+    const confirmUsePhoto = () => {
+        if (capturedImage) {
+            onCapture(capturedImage, pointIndex, period);
+            stopStream();
+            onClose();
+        }
+    };
+
+    const handleClose = () => {
+        stopStream();
+        setCapturedImage(null);
+        onClose();
+    };
+
+    const switchCamera = () => {
+        setCameraFacing(prev => prev === 'environment' ? 'user' : 'environment');
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in">
+            <div className="relative w-full max-w-lg bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col max-h-[95vh]">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 bg-slate-900/90 text-white z-10 border-b border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                            <Camera size={18} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black tracking-tight">Kamera Langsung</h3>
+                            <p className="text-[10px] text-slate-400">Bukti kegiatan {period === 'morning' ? 'Sesi Pagi' : 'Sesi Siang'}</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleClose}
+                        className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Viewfinder / Preview */}
+                <div className="relative flex-1 bg-black flex items-center justify-center min-h-[300px] sm:min-h-[400px] overflow-hidden">
+                    {cameraError ? (
+                        <div className="p-6 text-center text-slate-300 space-y-4 max-w-sm">
+                            <AlertCircle size={40} className="mx-auto text-rose-500" />
+                            <div className="space-y-1">
+                                <h4 className="text-xs font-black text-white">Kamera Langsung Terkendala</h4>
+                                <p className="text-[11px] text-slate-400">{cameraError}</p>
+                            </div>
+                            <div className="pt-2 flex flex-col gap-2">
+                                <label className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                    <Camera size={16} />
+                                    <span>Gunakan Kamera Bawaan HP</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                onCapture(e.target.files[0], pointIndex, period);
+                                                handleClose();
+                                            }
+                                        }}
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={switchCamera}
+                                    className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+                                >
+                                    Coba Alihkan Kamera
+                                </button>
+                            </div>
+                        </div>
+                    ) : capturedImage ? (
+                        <div className="relative w-full h-full flex items-center justify-center bg-black">
+                            <img 
+                                src={capturedImage} 
+                                alt="Hasil Tangkapan Kamera" 
+                                className="w-full h-full object-contain max-h-[60vh]"
+                            />
+                            <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-xl text-[10px] font-bold">
+                                Pratinjau Foto
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-contain max-h-[60vh]"
+                            />
+                            {isStarting && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 text-white">
+                                    <Loader2 className="animate-spin text-blue-500" size={32} />
+                                    <span className="text-xs font-bold">Menghubungkan ke kamera...</span>
+                                </div>
+                            )}
+                            {/* Visual Grid Lines */}
+                            <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-20 border border-white/20">
+                                <div className="border-r border-b border-white"></div>
+                                <div className="border-r border-b border-white"></div>
+                                <div className="border-b border-white"></div>
+                                <div className="border-r border-b border-white"></div>
+                                <div className="border-r border-b border-white"></div>
+                                <div className="border-b border-white"></div>
+                                <div className="border-r border-white"></div>
+                                <div className="border-r border-white"></div>
+                                <div></div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="p-4 bg-slate-900 text-white flex items-center justify-around border-t border-slate-800">
+                    {capturedImage ? (
+                        <div className="flex items-center gap-3 w-full">
+                            <button
+                                type="button"
+                                onClick={retake}
+                                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                                <RefreshCw size={15} /> Foto Ulang
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmUsePhoto}
+                                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/30 cursor-pointer active:scale-95"
+                            >
+                                <Check size={16} strokeWidth={3} /> Gunakan Foto Ini
+                            </button>
+                        </div>
+                    ) : !cameraError ? (
+                        <div className="flex items-center justify-between w-full px-6">
+                            {/* Switch Camera Front/Back */}
+                            <button
+                                type="button"
+                                onClick={switchCamera}
+                                className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all cursor-pointer active:scale-90"
+                                title="Balik Kamera (Depan / Belakang)"
+                            >
+                                <RefreshCw size={18} />
+                            </button>
+
+                            {/* Big Circular Shutter Button */}
+                            <button
+                                type="button"
+                                onClick={takeSnapshot}
+                                disabled={isStarting}
+                                className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white p-1 flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer disabled:opacity-50"
+                                title="Jepret Foto"
+                            >
+                                <div className="w-full h-full rounded-full bg-blue-600 hover:bg-blue-700 border-4 border-white transition-all flex items-center justify-center text-white">
+                                    <Camera size={24} />
+                                </div>
+                            </button>
+
+                            {/* Alternative: Native Camera Upload */}
+                            <label 
+                                className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all cursor-pointer active:scale-90"
+                                title="Gunakan Aplikasi Kamera Bawaan HP"
+                            >
+                                <Plus size={18} />
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            onCapture(e.target.files[0], pointIndex, period);
+                                            handleClose();
+                                        }
+                                    }}
+                                />
+                            </label>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+                        >
+                            Tutup Kamera
+                        </button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
