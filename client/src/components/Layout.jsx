@@ -45,9 +45,9 @@ const Layout = () => {
             const pos = (user?.position || '').toLowerCase();
             const role = user?.role || '';
             const isKabid = role === 'KABID_SARPRAS' || pos.includes('kepala bidang');
-            const isAdminAset = role === 'ADMIN_ASET' || pos.includes('admin aset') || pos.includes('teknisi') || pos.includes('gudang') || pos.includes('kendaraan') || pos.includes('aset');
+            const isAdminAset = role === 'ADMIN_ASET';
             
-            // Kepala Bidang Sarana TIDAK ADA kewajiban melapor, hanya Admin Aset
+            // Hanya Role ADMIN_ASET yang memiliki kewajiban mengisi laporan harian
             if (isKabid || !isAdminAset) {
                 setHasReported(true);
                 return;

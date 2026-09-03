@@ -23,6 +23,15 @@ const SARPRAS_KEYWORDS = [
     'sarana dan prasarana'
 ];
 
+// Strict filter for staff users: ONLY role ADMIN_ASET (Exclude Kabid, Admin Unit, and non-asset roles)
+const STAFF_USER_WHERE = {
+    role: 'ADMIN_ASET',
+    NOT: [
+        { role: 'KABID_SARPRAS' },
+        { position: { contains: 'Kepala Bidang' } }
+    ]
+};
+
 /**
  * Helper to check if a user is Kepala Bidang Sarana (Reviewer / Full Access)
  */
@@ -88,6 +97,9 @@ exports.getReports = async (req, res) => {
             date: {
                 gte: startOfDay,
                 lte: endOfDay
+            },
+            user: {
+                role: 'ADMIN_ASET'
             }
         };
 
@@ -138,7 +150,13 @@ exports.getReports = async (req, res) => {
             }
         }
 
-        let reports = Object.values(userReportsMap);
+        // Strictly keep reports belonging to Role ADMIN_ASET, and omit background auto logs with no manual points
+        let reports = Object.values(userReportsMap).filter(r => {
+            if (r.user?.role !== 'ADMIN_ASET') return false;
+            const hasManual = isReportSubmitted(r);
+            const hasRealManualContent = r.content && !r.content.includes('(Otomatis)');
+            return hasManual || hasRealManualContent;
+        });
 
         // Optional filtering by category tag, search keyword, or status for Kabid
         if (category && category !== 'ALL') {
@@ -340,31 +358,21 @@ exports.getDashboardAnalytics = async (req, res) => {
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        // 1. Get all staff users (exclude Kabid)
+        // 1. Get all staff users (strictly Role ADMIN_ASET, exclude Kabid)
         const staffUsers = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { role: 'ADMIN_ASET' },
-                    ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
-                ],
-                NOT: [
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } },
-                    { position: { equals: 'Staff Keuangan' } },
-                    { position: { equals: 'Staff Keuangan / Sopir' } }
-                ]
-            },
+            where: STAFF_USER_WHERE,
             select: { id: true, name: true, position: true, role: true, phone: true }
         });
 
-        // 2. Fetch today's reports
+        // 2. Fetch today's reports for Role ADMIN_ASET
         const todayReports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOfDay, lte: endOfDay }
+                date: { gte: startOfDay, lte: endOfDay },
+                user: { role: 'ADMIN_ASET' }
             },
             include: {
-                user: { select: { id: true, name: true, position: true } }
+                user: { select: { id: true, name: true, position: true, role: true } }
             }
         });
 
@@ -446,7 +454,8 @@ exports.getDashboardAnalytics = async (req, res) => {
         const reportsIn2Days = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOf2WorkDays, lte: endOf2WorkDays }
+                date: { gte: startOf2WorkDays, lte: endOf2WorkDays },
+                user: { role: 'ADMIN_ASET' }
             }
         });
 
@@ -480,7 +489,11 @@ exports.getDashboardAnalytics = async (req, res) => {
             const dEnd = d.endOf('day').toDate();
 
             const dReports = await prisma.personnelReport.findMany({
-                where: { type: 'DAILY', date: { gte: dStart, lte: dEnd } }
+                where: { 
+                    type: 'DAILY', 
+                    date: { gte: dStart, lte: dEnd },
+                    user: { role: 'ADMIN_ASET' }
+                }
             });
 
             let dLengkap = 0;
@@ -511,7 +524,11 @@ exports.getDashboardAnalytics = async (req, res) => {
         // 5. Leaderboard 30 days
         const monthStart = targetDate.subtract(30, 'day').startOf('day').toDate();
         const monthReports = await prisma.personnelReport.findMany({
-            where: { type: 'DAILY', date: { gte: monthStart, lte: endOfDay } }
+            where: { 
+                type: 'DAILY', 
+                date: { gte: monthStart, lte: endOfDay },
+                user: { role: 'ADMIN_ASET' }
+            }
         });
 
         const leaderboard = staffUsers.map(st => {
@@ -587,7 +604,8 @@ exports.getWeeklySummary = async (req, res) => {
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: dStart, lte: dEnd }
+                date: { gte: dStart, lte: dEnd },
+                user: { role: 'ADMIN_ASET' }
             },
             include: {
                 user: { select: { id: true, name: true, position: true } }
@@ -1067,23 +1085,16 @@ exports.sendReportReminders = async () => {
 
         // Target ONLY Admin Aset staff (Exclude Kepala Bidang Sarana)
         const staffUsers = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { role: 'ADMIN_ASET' },
-                    ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
-                ],
-                NOT: [
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } },
-                    { position: { equals: 'Staff Keuangan' } },
-                    { position: { equals: 'Staff Keuangan / Sopir' } }
-                ]
-            },
+            where: STAFF_USER_WHERE,
             select: { id: true, name: true, phone: true }
         });
 
         const reports = await prisma.personnelReport.findMany({
-            where: { type: 'DAILY', date: { gte: startOfDay, lte: endOfDay } }
+            where: { 
+                type: 'DAILY', 
+                date: { gte: startOfDay, lte: endOfDay },
+                user: { role: 'ADMIN_ASET' }
+            }
         });
 
         for (const user of staffUsers) {
@@ -1150,18 +1161,7 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
         }
 
         const staffUsers = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { role: 'ADMIN_ASET' },
-                    ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
-                ],
-                NOT: [
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } },
-                    { position: { equals: 'Staff Keuangan' } },
-                    { position: { equals: 'Staff Keuangan / Sopir' } }
-                ]
-            },
+            where: STAFF_USER_WHERE,
             select: { id: true, name: true, position: true, phone: true }
         });
 
@@ -1172,7 +1172,8 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
         const reportsIn2Days = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOf2WorkDays, lte: endOf2WorkDays }
+                date: { gte: startOf2WorkDays, lte: endOf2WorkDays },
+                user: { role: 'ADMIN_ASET' }
             }
         });
 
@@ -1248,25 +1249,15 @@ exports.getKabidSummary = async (req, res) => {
         const endOfDay = targetEndDate.endOf('day').toDate();
 
         const staffUsers = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { role: 'ADMIN_ASET' },
-                    ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
-                ],
-                NOT: [
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } },
-                    { position: { equals: 'Staff Keuangan' } },
-                    { position: { equals: 'Staff Keuangan / Sopir' } }
-                ]
-            },
+            where: STAFF_USER_WHERE,
             select: { id: true, name: true, position: true }
         });
 
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOfDay, lte: endOfDay }
+                date: { gte: startOfDay, lte: endOfDay },
+                user: { role: 'ADMIN_ASET' }
             }
         });
 

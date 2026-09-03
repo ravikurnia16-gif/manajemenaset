@@ -6,7 +6,7 @@ import {
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
     Warehouse, Box, Wrench, Truck, FileSignature, ArrowRight, Share2, Layers,
-    Copy, Check, Trash2
+    Copy, Check, Trash2, Edit2, RotateCcw
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -129,6 +129,29 @@ const LaporanStaff = () => {
     const [mobileSessionTab, setMobileSessionTab] = useState('ALL'); // 'ALL' | 'MORNING' | 'AFTERNOON'
     const [cameraModalConfig, setCameraModalConfig] = useState({ isOpen: false, index: null, period: 'morning' });
 
+    // Staff Custom Templates (disusun sendiri oleh masing-masing staf)
+    const customTemplatesKey = `staff_custom_templates_${user?.id || 'default'}`;
+    const [staffCustomTemplates, setStaffCustomTemplates] = useState(() => {
+        try {
+            const saved = localStorage.getItem(customTemplatesKey);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.error('Error loading custom templates:', e);
+        }
+        const initialList = ROUTINE_TEMPLATES[userDivision] || ROUTINE_TEMPLATES.ASET || [];
+        return initialList.map((text, idx) => ({
+            id: 'tpl_' + idx + '_' + Math.random().toString(36).substr(2, 6),
+            text,
+            categoryTag: userDivision || 'ASET'
+        }));
+    });
+
+    const [newTemplateText, setNewTemplateText] = useState('');
+    const [newTemplateCategory, setNewTemplateCategory] = useState(userDivision || 'ASET');
+    const [isAddingTemplate, setIsAddingTemplate] = useState(false);
+    const [editingTemplateId, setEditingTemplateId] = useState(null);
+    const [editingTemplateText, setEditingTemplateText] = useState('');
+
     // Kabid Dashboard & Monitoring States
     const [dashboardData, setDashboardData] = useState(null);
     const [reportsFeed, setReportsFeed] = useState([]);
@@ -204,32 +227,71 @@ const LaporanStaff = () => {
     // -------------------------------------------------------------
     // CLIENT-SIDE PHOTO COMPRESSION (HTML5 Canvas)
     // -------------------------------------------------------------
-    const compressImage = (file, maxWidth = 1200, quality = 0.8) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image();
-                img.src = event.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
+    const isCanvasDarkOrBlank = (canvas) => {
+        try {
+            const ctx = canvas.getContext('2d');
+            const sampleW = Math.min(canvas.width, 40);
+            const sampleH = Math.min(canvas.height, 40);
+            const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+            let total = 0;
+            for (let i = 0; i < imgData.length; i += 4) {
+                total += imgData[i] + imgData[i + 1] + imgData[i + 2];
+            }
+            const avg = total / (sampleW * sampleH * 3);
+            return avg < 2; // threshold for completely pitch black frame
+        } catch {
+            return false;
+        }
+    };
 
-                    if (width > maxWidth) {
-                        height = Math.round((height * maxWidth) / width);
-                        width = maxWidth;
+    const compressImage = (fileOrBlobOrDataUrl, maxWidth = 1200, quality = 0.82) => {
+        return new Promise((resolve, reject) => {
+            let objectUrl = null;
+            const img = new Image();
+
+            img.onload = () => {
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                try {
+                    let width = img.naturalWidth || img.width;
+                    let height = img.naturalHeight || img.height;
+
+                    if (!width || !height) {
+                        return reject(new Error('Dimensi foto tidak valid atau gagal dibaca.'));
                     }
 
+                    // Respect both max width & max height for portrait / landscape
+                    const maxHeight = 1600;
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
                     canvas.width = width;
                     canvas.height = height;
 
                     const ctx = canvas.getContext('2d');
+                    // Fill canvas with white base so transparent PNG/WebP doesn't turn black in JPEG conversion
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+
                     ctx.drawImage(img, 0, 0, width, height);
+
+                    // Prevent black photo uploads
+                    if (isCanvasDarkOrBlank(canvas)) {
+                        return reject(new Error('Foto terdeteksi hitam kosong. Pastikan kamera tidak tertutup dan pencahayaan cukup.'));
+                    }
 
                     // Add subtle timestamp watermark
                     const timestampStr = `${dayjs().format('DD/MM/YYYY HH:mm')} WIB - Bidang Sarana`;
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
                     ctx.fillRect(10, height - 35, ctx.measureText(timestampStr).width + 30, 25);
                     ctx.font = 'bold 12px sans-serif';
                     ctx.fillStyle = '#ffffff';
@@ -237,10 +299,24 @@ const LaporanStaff = () => {
 
                     const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
                     resolve(compressedDataUrl);
-                };
-                img.onerror = (err) => reject(err);
+                } catch (err) {
+                    reject(err);
+                }
             };
-            reader.onerror = (err) => reject(err);
+
+            img.onerror = () => {
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                reject(new Error('Gagal memproses file foto. Pastikan format file adalah gambar valid (JPG/PNG).'));
+            };
+
+            if (typeof fileOrBlobOrDataUrl === 'string') {
+                img.src = fileOrBlobOrDataUrl;
+            } else if (fileOrBlobOrDataUrl instanceof Blob || fileOrBlobOrDataUrl instanceof File) {
+                objectUrl = URL.createObjectURL(fileOrBlobOrDataUrl);
+                img.src = objectUrl;
+            } else {
+                reject(new Error('Tipe data foto tidak dikenali.'));
+            }
         });
     };
 
@@ -339,14 +415,7 @@ const LaporanStaff = () => {
         try {
             setUploadingPhotoIndex(`${period}-${index}`);
             
-            let compressedBase64;
-            if (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:')) {
-                const res = await fetch(fileOrDataUrl);
-                const blob = await res.blob();
-                compressedBase64 = await compressImage(blob);
-            } else {
-                compressedBase64 = await compressImage(fileOrDataUrl);
-            }
+            const compressedBase64 = await compressImage(fileOrDataUrl);
 
             // Upload directly to MinIO via backend
             const res = await api.post('/laporan/upload-photo', { base64: compressedBase64 });
@@ -370,7 +439,7 @@ const LaporanStaff = () => {
             }
         } catch (err) {
             console.error('Photo upload error:', err);
-            alert('Gagal mengunggah foto.');
+            alert(err.message || 'Gagal mengunggah foto.');
         } finally {
             setUploadingPhotoIndex(null);
         }
@@ -418,6 +487,54 @@ const LaporanStaff = () => {
         } else {
             setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
         }
+    };
+
+    // Helper functions for staff custom template management
+    const saveStaffTemplates = (templates) => {
+        setStaffCustomTemplates(templates);
+        try {
+            localStorage.setItem(customTemplatesKey, JSON.stringify(templates));
+        } catch (e) {
+            console.error('Error saving templates to localStorage:', e);
+        }
+    };
+
+    const handleAddCustomTemplate = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (!newTemplateText.trim()) return;
+        const newTpl = {
+            id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            text: newTemplateText.trim(),
+            categoryTag: newTemplateCategory || userDivision || 'ASET'
+        };
+        const updated = [newTpl, ...staffCustomTemplates];
+        saveStaffTemplates(updated);
+        setNewTemplateText('');
+        setIsAddingTemplate(false);
+    };
+
+    const handleDeleteCustomTemplate = (id) => {
+        const updated = staffCustomTemplates.filter(t => t.id !== id);
+        saveStaffTemplates(updated);
+    };
+
+    const handleSaveEditTemplate = (id) => {
+        if (!editingTemplateText.trim()) return;
+        const updated = staffCustomTemplates.map(t => t.id === id ? { ...t, text: editingTemplateText.trim() } : t);
+        saveStaffTemplates(updated);
+        setEditingTemplateId(null);
+        setEditingTemplateText('');
+    };
+
+    const handleResetToDefaultTemplates = () => {
+        if (!window.confirm('Kembalikan template ke saran awal divisi Anda? Perubahan template Anda saat ini akan direset.')) return;
+        const initialList = ROUTINE_TEMPLATES[userDivision] || ROUTINE_TEMPLATES.ASET || [];
+        const reset = initialList.map((text, idx) => ({
+            id: 'tpl_' + idx + '_' + Math.random().toString(36).substr(2, 6),
+            text,
+            categoryTag: userDivision || 'ASET'
+        }));
+        saveStaffTemplates(reset);
     };
 
     // -------------------------------------------------------------
@@ -1469,6 +1586,8 @@ const LaporanStaff = () => {
                                     })}
                         </div>
                     )}
+                        </div>
+                    )}
 
                     {/* ============================================================== */}
                     {/* TAB: LAPORAN HARIAN SAYA (STAFF ADMIN ASET) */}
@@ -1641,59 +1760,220 @@ const LaporanStaff = () => {
 
                                 {showTemplateAccordion && (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-slate-100 animate-in fade-in duration-200">
-                                        {/* Daily Routine Checklist */}
-                                        <div className="space-y-2.5">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">Daftar Rutinitas Posisi Anda</h4>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { e.stopPropagation(); setShowAllTemplates(!showAllTemplates); }}
-                                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-                                                >
-                                                    {showAllTemplates ? 'Hanya Posisi Saya' : 'Lihat Semua Divisi'}
-                                                </button>
+                                        {/* Daily Routine Checklist - Personalized per staff */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                                <div>
+                                                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                        <span>Template Rutinitas Mandiri</span>
+                                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                                            {staffCustomTemplates.length} Kegiatan
+                                                        </span>
+                                                    </h4>
+                                                    <p className="text-[10px] text-slate-400">Disusun oleh Anda sendiri sesuai tugas riil di lapangan</p>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsAddingTemplate(!isAddingTemplate)}
+                                                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                                            isAddingTemplate 
+                                                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' 
+                                                                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs'
+                                                        }`}
+                                                    >
+                                                        {isAddingTemplate ? <X size={12} /> : <Plus size={12} />}
+                                                        {isAddingTemplate ? 'Batal' : '+ Susun Template'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleResetToDefaultTemplates}
+                                                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-lg transition-all cursor-pointer"
+                                                        title="Kembalikan ke saran awal divisi"
+                                                    >
+                                                        <RotateCcw size={12} />
+                                                    </button>
+                                                </div>
                                             </div>
 
-                                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                                                {(showAllTemplates 
-                                                    ? Object.entries(ROUTINE_TEMPLATES)
-                                                    : Object.entries(ROUTINE_TEMPLATES).filter(([k]) => k === userDivision)
-                                                ).map(([catKey, routines]) => (
-                                                    <div key={catKey} className="space-y-1.5 bg-slate-50/70 p-2.5 rounded-2xl border border-slate-100">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                                                                {DIVISION_TAGS.find(d => d.key === catKey)?.label || catKey}
-                                                            </span>
-                                                        </div>
-                                                        {routines.map((rText, rIdx) => (
+                                            {/* Inline Add Template Form */}
+                                            {isAddingTemplate && (
+                                                <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-2.5 animate-in fade-in duration-200">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Tambah Butir Kegiatan Rutin Baru</span>
+                                                        <span className="text-[9px] text-emerald-600">Akan tersimpan di akun Anda</span>
+                                                    </div>
+                                                    <textarea
+                                                        value={newTemplateText}
+                                                        onChange={(e) => setNewTemplateText(e.target.value)}
+                                                        placeholder="Tuliskan kegiatan rutin harian Anda di sini..."
+                                                        rows={2}
+                                                        className="w-full text-xs p-2.5 bg-white border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 resize-none"
+                                                        autoFocus
+                                                    />
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <select
+                                                            value={newTemplateCategory}
+                                                            onChange={(e) => setNewTemplateCategory(e.target.value)}
+                                                            className="text-xs py-1 px-2.5 bg-white border border-emerald-200 rounded-lg text-slate-700 font-semibold focus:outline-none"
+                                                        >
+                                                            <option value="ASET">Divisi Manajemen Aset</option>
+                                                            <option value="GUDANG">Divisi Gudang & Logistik</option>
+                                                            <option value="TEKNISI">Divisi Teknisi & Perbaikan</option>
+                                                            <option value="KENDARAAN">Divisi Kendaraan</option>
+                                                            <option value="KEUANGAN">Divisi Keuangan & Admin</option>
+                                                            <option value="UMUM">Operasional Umum</option>
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAddCustomTemplate}
+                                                            disabled={!newTemplateText.trim()}
+                                                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-2xs"
+                                                        >
+                                                            Simpan Template
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Custom Template Items List */}
+                                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                                                {staffCustomTemplates.length === 0 ? (
+                                                    <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                                        Belum ada template kegiatan mandiri. Klik <strong>"+ Susun Template"</strong> untuk menambahkan rutinitas kerja Anda.
+                                                    </div>
+                                                ) : (
+                                                    staffCustomTemplates.map((tpl, rIdx) => {
+                                                        const isEditing = editingTemplateId === tpl.id;
+                                                        return (
                                                             <div 
-                                                                key={rIdx}
-                                                                className="p-2.5 bg-white border border-slate-200/70 rounded-xl text-xs font-medium text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
+                                                                key={tpl.id || rIdx}
+                                                                className="p-2.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl text-xs font-medium text-slate-700 space-y-2 shadow-2xs transition-all"
                                                             >
-                                                                <span className="flex-1 text-slate-700 text-xs leading-relaxed">{rText}</span>
-                                                                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => applyRoutine(rText, catKey, 'morning')}
-                                                                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer active:scale-95"
-                                                                        title="Tambahkan ke Sesi Pagi"
-                                                                    >
-                                                                        + Pagi
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => applyRoutine(rText, catKey, 'afternoon')}
-                                                                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer active:scale-95"
-                                                                        title="Tambahkan ke Sesi Siang"
-                                                                    >
-                                                                        + Siang
-                                                                    </button>
-                                                                </div>
+                                                                {isEditing ? (
+                                                                    <div className="space-y-2">
+                                                                        <textarea
+                                                                            value={editingTemplateText}
+                                                                            onChange={(e) => setEditingTemplateText(e.target.value)}
+                                                                            rows={2}
+                                                                            className="w-full text-xs p-2 bg-slate-50 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 resize-none"
+                                                                            autoFocus
+                                                                        />
+                                                                        <div className="flex items-center justify-end gap-1.5">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setEditingTemplateId(null)}
+                                                                                className="px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100 rounded-md transition-all cursor-pointer"
+                                                                            >
+                                                                                Batal
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleSaveEditTemplate(tpl.id)}
+                                                                                className="px-2.5 py-1 text-[11px] font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-all cursor-pointer"
+                                                                            >
+                                                                                Simpan
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                                        <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                                                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
+                                                                                tpl.categoryTag === 'GUDANG' ? 'bg-amber-100 text-amber-800' :
+                                                                                tpl.categoryTag === 'TEKNISI' ? 'bg-emerald-100 text-emerald-800' :
+                                                                                tpl.categoryTag === 'KENDARAAN' ? 'bg-indigo-100 text-indigo-800' :
+                                                                                tpl.categoryTag === 'KEUANGAN' ? 'bg-violet-100 text-violet-800' :
+                                                                                tpl.categoryTag === 'ASET' ? 'bg-blue-100 text-blue-800' :
+                                                                                'bg-slate-100 text-slate-700'
+                                                                            }`}>
+                                                                                {tpl.categoryTag || 'UMUM'}
+                                                                            </span>
+                                                                            <span className="text-slate-700 text-xs leading-relaxed break-words">{tpl.text}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => applyRoutine(tpl.text, tpl.categoryTag || 'UMUM', 'morning')}
+                                                                                className="px-2 py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95"
+                                                                                title="Tambahkan ke Sesi Pagi"
+                                                                            >
+                                                                                + Pagi
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => applyRoutine(tpl.text, tpl.categoryTag || 'UMUM', 'afternoon')}
+                                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95"
+                                                                                title="Tambahkan ke Sesi Siang"
+                                                                            >
+                                                                                + Siang
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => { setEditingTemplateId(tpl.id); setEditingTemplateText(tpl.text); }}
+                                                                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all cursor-pointer"
+                                                                                title="Edit butir template"
+                                                                            >
+                                                                                <Edit2 size={13} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleDeleteCustomTemplate(tpl.id)}
+                                                                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all cursor-pointer"
+                                                                                title="Hapus template"
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+
+                                            {/* Optional Reference Accordion from other divisions */}
+                                            <div className="pt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAllTemplates(!showAllTemplates)}
+                                                    className="text-[10px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
+                                                >
+                                                    <ChevronDown size={13} className={`transition-transform duration-200 ${showAllTemplates ? 'rotate-180' : ''}`} />
+                                                    {showAllTemplates ? 'Sembunyikan Referensi Divisi Lain' : '💡 Butuh Ide? Lihat Referensi Template Divisi Lain'}
+                                                </button>
+                                                {showAllTemplates && (
+                                                    <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar p-2 bg-slate-50 rounded-xl border border-slate-200/60 animate-in fade-in duration-200">
+                                                        {Object.entries(ROUTINE_TEMPLATES).map(([catKey, routines]) => (
+                                                            <div key={catKey} className="space-y-1">
+                                                                <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                                                                    {DIVISION_TAGS.find(d => d.key === catKey)?.label || catKey}
+                                                                </span>
+                                                                {routines.map((rText, rIdx) => (
+                                                                    <div key={rIdx} className="p-1.5 bg-white rounded-lg border border-slate-200/60 text-[11px] flex items-center justify-between gap-1.5">
+                                                                        <span className="flex-1 text-slate-600 truncate">{rText}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newTpl = {
+                                                                                    id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                                                                    text: rText,
+                                                                                    categoryTag: catKey
+                                                                                };
+                                                                                saveStaffTemplates([...staffCustomTemplates, newTpl]);
+                                                                            }}
+                                                                            className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded cursor-pointer whitespace-nowrap"
+                                                                            title="Salin butir ini ke Template Saya"
+                                                                        >
+                                                                            + Salin
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         ))}
                                                     </div>
-                                                ))}
+                                                )}
                                             </div>
                                         </div>
 
@@ -2247,7 +2527,6 @@ const LaporanStaff = () => {
                                 </button>
                             </div>
                         </div>
-                    )}                        </div>
                     )}
 
                     {/* ============================================================== */}
@@ -2872,22 +3151,29 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
     const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' | 'user'
     const [cameraError, setCameraError] = useState(null);
     const [isStarting, setIsStarting] = useState(true);
+    const [isVideoReady, setIsVideoReady] = useState(false);
+    const [captureFeedback, setCaptureFeedback] = useState(null);
 
     // Start video stream
     useEffect(() => {
         if (!isOpen) return;
 
         let activeStream = null;
+        let isCancelled = false;
+
         const startCamera = async () => {
             setIsStarting(true);
+            setIsVideoReady(false);
             setCameraError(null);
+            setCaptureFeedback(null);
+
             try {
                 if (stream) {
                     stream.getTracks().forEach(t => t.stop());
                 }
 
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    throw new Error('Webcam/Kamera langsung tidak didukung di browser ini.');
+                    throw new Error('Kamera langsung (WebRTC) tidak didukung pada browser ini atau membutuhkan koneksi aman (HTTPS).');
                 }
 
                 const constraints = {
@@ -2900,18 +3186,33 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                 };
 
                 const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (isCancelled) {
+                    newStream.getTracks().forEach(t => t.stop());
+                    return;
+                }
+
                 activeStream = newStream;
                 setStream(newStream);
+
                 if (videoRef.current) {
-                    videoRef.current.srcObject = newStream;
-                    videoRef.current.play().catch(e => console.error('Play error:', e));
+                    const video = videoRef.current;
+                    video.srcObject = newStream;
+                    video.muted = true;
+                    video.defaultMuted = true;
+                    video.playsInline = true;
+                    video.setAttribute('playsinline', '');
+                    video.setAttribute('webkit-playsinline', '');
+                    try {
+                        await video.play();
+                    } catch (e) {
+                        console.warn('Video auto-play warning:', e);
+                    }
                 }
             } catch (err) {
                 console.error('Camera access error:', err);
                 setCameraError(
-                    'Tidak dapat membuka kamera langsung. Pastikan izin kamera telah disetujui atau gunakan tombol kamera bawaan HP di bawah.'
+                    'Tidak dapat mengakses kamera langsung. Pastikan izin kamera aktif atau gunakan tombol Kamera Bawaan HP di bawah.'
                 );
-            } finally {
                 setIsStarting(false);
             }
         };
@@ -2919,6 +3220,7 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
         startCamera();
 
         return () => {
+            isCancelled = true;
             if (activeStream) {
                 activeStream.getTracks().forEach(t => t.stop());
             }
@@ -2932,20 +3234,78 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
         }
     };
 
-    const takeSnapshot = () => {
+    const takeSnapshot = async () => {
+        setCaptureFeedback(null);
+
+        // 1. Try modern W3C ImageCapture API first (Chrome Android & Desktop)
+        // Captures directly from the camera sensor at native resolution, completely avoiding canvas black frame bugs!
+        const track = stream?.getVideoTracks?.()?.[0];
+        if (typeof window !== 'undefined' && 'ImageCapture' in window && track && track.readyState === 'live') {
+            try {
+                const imageCapture = new window.ImageCapture(track);
+                const blob = await imageCapture.takePhoto();
+                if (blob && blob.size > 1000) {
+                    const dataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    if (dataUrl) {
+                        setCapturedImage(dataUrl);
+                        return;
+                    }
+                }
+            } catch (icErr) {
+                console.warn('ImageCapture fallback to canvas drawImage:', icErr);
+            }
+        }
+
+        // 2. Fallback: Draw frame from <video> element to HTML5 Canvas
         if (!videoRef.current) return;
         const video = videoRef.current;
+
+        if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+            setCaptureFeedback('Lensa kamera sedang memuat frame. Mohon tunggu 1 detik lalu jepret lagi.');
+            return;
+        }
+
+        const width = video.videoWidth || 1280;
+        const height = video.videoHeight || 720;
         const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
+        canvas.width = width;
+        canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(video, 0, 0, width, height);
+
+        // Verify canvas is not pure pitch black (0,0,0)
+        try {
+            const sampleW = Math.min(width, 30);
+            const sampleH = Math.min(height, 30);
+            const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+            let sum = 0;
+            for (let i = 0; i < imgData.length; i += 4) {
+                sum += imgData[i] + imgData[i + 1] + imgData[i + 2];
+            }
+            const avg = sum / (sampleW * sampleH * 3);
+            if (avg < 2) {
+                setCaptureFeedback('Frame terdeteksi gelap kosong. Tunggu 1 detik atau gunakan Kamera Bawaan HP.');
+                return;
+            }
+        } catch (e) {
+            console.warn('Black frame check warning:', e);
+        }
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
         setCapturedImage(dataUrl);
     };
 
     const retake = () => {
         setCapturedImage(null);
+        setCaptureFeedback(null);
     };
 
     const confirmUsePhoto = () => {
@@ -2959,10 +3319,13 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
     const handleClose = () => {
         stopStream();
         setCapturedImage(null);
+        setCaptureFeedback(null);
         onClose();
     };
 
     const switchCamera = () => {
+        setIsVideoReady(false);
+        setIsStarting(true);
         setCameraFacing(prev => prev === 'environment' ? 'user' : 'environment');
     };
 
@@ -2992,7 +3355,7 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                 </div>
 
                 {/* Viewfinder / Preview */}
-                <div className="relative flex-1 bg-black flex items-center justify-center min-h-[300px] sm:min-h-[400px] overflow-hidden">
+                <div className="relative flex-1 bg-black flex items-center justify-center min-h-[320px] sm:min-h-[420px] overflow-hidden">
                     {cameraError ? (
                         <div className="p-6 text-center text-slate-300 space-y-4 max-w-sm">
                             <AlertCircle size={40} className="mx-auto text-rose-500" />
@@ -3001,7 +3364,7 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                                 <p className="text-[11px] text-slate-400">{cameraError}</p>
                             </div>
                             <div className="pt-2 flex flex-col gap-2">
-                                <label className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                <label className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-500/20 active:scale-95">
                                     <Camera size={16} />
                                     <span>Gunakan Kamera Bawaan HP</span>
                                     <input
@@ -3033,8 +3396,9 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                                 alt="Hasil Tangkapan Kamera" 
                                 className="w-full h-full object-contain max-h-[60vh]"
                             />
-                            <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-xl text-[10px] font-bold">
-                                Pratinjau Foto
+                            <div className="absolute top-3 left-3 bg-emerald-500/90 backdrop-blur-sm text-white px-2.5 py-1 rounded-xl text-[10px] font-bold shadow-md flex items-center gap-1.5">
+                                <Check size={12} strokeWidth={3} />
+                                <span>Foto Siap Digunakan</span>
                             </div>
                         </div>
                     ) : (
@@ -3044,14 +3408,45 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                                 autoPlay
                                 playsInline
                                 muted
+                                onLoadedMetadata={() => {
+                                    if (videoRef.current) {
+                                        videoRef.current.play().catch(e => console.warn(e));
+                                    }
+                                }}
+                                onCanPlay={() => {
+                                    setIsVideoReady(true);
+                                    setIsStarting(false);
+                                }}
+                                onPlaying={() => {
+                                    setIsVideoReady(true);
+                                    setIsStarting(false);
+                                }}
                                 className="w-full h-full object-contain max-h-[60vh]"
                             />
-                            {isStarting && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 text-white">
-                                    <Loader2 className="animate-spin text-blue-500" size={32} />
-                                    <span className="text-xs font-bold">Menghubungkan ke kamera...</span>
+
+                            {/* Camera Readiness Badge */}
+                            {isVideoReady && !isStarting && (
+                                <div className="absolute top-3 right-3 bg-emerald-600/90 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-md">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                                    <span>Lensa Aktif</span>
                                 </div>
                             )}
+
+                            {isStarting && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/75 text-white">
+                                    <Loader2 className="animate-spin text-blue-500" size={32} />
+                                    <span className="text-xs font-bold">Menghubungkan ke lensa kamera...</span>
+                                    <span className="text-[10px] text-slate-400">Pastikan izin kamera disetujui</span>
+                                </div>
+                            )}
+
+                            {/* Alert Feedback Banner */}
+                            {captureFeedback && (
+                                <div className="absolute bottom-4 inset-x-4 bg-amber-500/90 text-slate-950 px-3 py-2 rounded-xl text-xs font-bold text-center shadow-lg animate-in slide-in-from-bottom-2">
+                                    {captureFeedback}
+                                </div>
+                            )}
+
                             {/* Visual Grid Lines */}
                             <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-20 border border-white/20">
                                 <div className="border-r border-b border-white"></div>
@@ -3088,12 +3483,12 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                             </button>
                         </div>
                     ) : !cameraError ? (
-                        <div className="flex items-center justify-between w-full px-6">
+                        <div className="flex items-center justify-between w-full px-4 sm:px-6">
                             {/* Switch Camera Front/Back */}
                             <button
                                 type="button"
                                 onClick={switchCamera}
-                                className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all cursor-pointer active:scale-90"
+                                className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl transition-all cursor-pointer active:scale-90"
                                 title="Balik Kamera (Depan / Belakang)"
                             >
                                 <RefreshCw size={18} />
@@ -3103,8 +3498,8 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                             <button
                                 type="button"
                                 onClick={takeSnapshot}
-                                disabled={isStarting}
-                                className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white p-1 flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer disabled:opacity-50"
+                                disabled={isStarting || !isVideoReady}
+                                className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white p-1 flex items-center justify-center shadow-xl active:scale-90 transition-transform cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                 title="Jepret Foto"
                             >
                                 <div className="w-full h-full rounded-full bg-blue-600 hover:bg-blue-700 border-4 border-white transition-all flex items-center justify-center text-white">
@@ -3112,12 +3507,13 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                                 </div>
                             </button>
 
-                            {/* Alternative: Native Camera Upload */}
+                            {/* Alternative: Native Camera Upload (Clear & Prominent) */}
                             <label 
-                                className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all cursor-pointer active:scale-90"
-                                title="Gunakan Aplikasi Kamera Bawaan HP"
+                                className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-2xl transition-all cursor-pointer active:scale-90 flex items-center gap-1.5 border border-slate-700 shadow-sm"
+                                title="Gunakan Aplikasi Kamera Bawaan HP Langsung"
                             >
-                                <Plus size={18} />
+                                <Camera size={16} className="text-amber-400" />
+                                <span className="text-[11px] font-bold">Kamera HP</span>
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -3136,7 +3532,7 @@ const LiveCameraModal = ({ isOpen, onClose, onCapture, pointIndex, period }) => 
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+                            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold cursor-pointer"
                         >
                             Tutup Kamera
                         </button>

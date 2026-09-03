@@ -44,18 +44,8 @@ const logDailyActivity = async (userId, category, activity) => {
                     content: report.content + '\n' + newLogEntry
                 }
             });
-        } else {
-            // Create new daily report
-            await prisma.personnelReport.create({
-                data: {
-                    userId,
-                    type: 'DAILY',
-                    category,
-                    content: newLogEntry,
-                    date: new Date()
-                }
-            });
         }
+        // If no report exists, do not auto-create daily reports. Staff compose their own daily reports.
     } catch (error) {
         console.error('Error in logDailyActivity:', error);
     }

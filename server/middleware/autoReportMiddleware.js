@@ -4,8 +4,8 @@ const autoReportMiddleware = (req, res, next) => {
     // Save original send to intercept the response if needed, 
     // but just listening to 'finish' is usually enough to know if it succeeded.
     res.on('finish', () => {
-        // Only log if user is authenticated, method is modifying, and request was successful
-        if (req.user && ['POST', 'PUT', 'DELETE'].includes(req.method) && res.statusCode >= 200 && res.statusCode < 300) {
+        // Only log if user is authenticated, strictly has role ADMIN_ASET, method is modifying, and request was successful
+        if (req.user && req.user.role === 'ADMIN_ASET' && ['POST', 'PUT', 'DELETE'].includes(req.method) && res.statusCode >= 200 && res.statusCode < 300) {
             
             // Skip the laporan API itself to avoid loops or redundant logs
             if (req.originalUrl.includes('/api/laporan')) return;
