@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Box, ArrowLeftRight, Wrench, ClipboardCheck, Handshake, Trash2,
     Calendar, CalendarRange, Printer, RefreshCw, Eye, Download,
@@ -16,6 +16,7 @@ export default function WeeklyAssetReport({ currentUser }) {
     const [selectedUnit, setSelectedUnit] = useState('all');
     const [activeTab, setActiveTab] = useState('new_assets'); // 'new_assets' | 'movements' | 'maintenance' | 'audit' | 'loans' | 'disposals'
     const [showPrintPreview, setShowPrintPreview] = useState(false);
+    const [showIndividualAssetList, setShowIndividualAssetList] = useState(false);
 
     // Hitung tanggal berdasarkan preset
     const calculatePresetDates = (selectedPreset) => {
@@ -113,6 +114,33 @@ export default function WeeklyAssetReport({ currentUser }) {
         loans: [],
         disposals: []
     };
+
+    // Rekapitulasi kuantitas pengadaan barang baru (Grouping nama barang & kategori)
+    const groupedNewAssets = useMemo(() => {
+        const map = new Map();
+        (details.newAssets || []).forEach(item => {
+            const rawName = (item.name || 'Aset Tanpa Nama').trim();
+            const categoryName = item.category?.name || '-';
+            const unitName = item.unit?.name || '-';
+            const key = `${rawName.toLowerCase()}___${categoryName.toLowerCase()}`;
+            if (!map.has(key)) {
+                map.set(key, {
+                    name: rawName,
+                    category: categoryName,
+                    unit: unitName,
+                    qty: 0,
+                    totalPrice: 0,
+                });
+            }
+            const g = map.get(key);
+            g.qty += 1;
+            g.totalPrice += (Number(item.price) || 0);
+            if (unitName !== '-' && g.unit !== unitName && !g.unit.includes(unitName)) {
+                g.unit = `${g.unit}, ${unitName}`;
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+    }, [details.newAssets]);
 
     return (
         <div className="space-y-6">
@@ -462,59 +490,119 @@ export default function WeeklyAssetReport({ currentUser }) {
 
                 {/* TAB CONTENT: NEW ASSETS */}
                 {activeTab === 'new_assets' && (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 uppercase tracking-wider">
-                                <tr>
-                                    <th className="px-5 py-3.5">Kode & Nama Aset</th>
-                                    <th className="px-5 py-3.5">Kategori</th>
-                                    <th className="px-5 py-3.5">Unit & Ruangan</th>
-                                    <th className="px-5 py-3.5">Kondisi</th>
-                                    <th className="px-5 py-3.5 text-right">Harga Perolehan</th>
-                                    <th className="px-5 py-3.5">Tgl Terdaftar</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {details.newAssets.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-5 py-8 text-center text-slate-400 font-semibold">
-                                            Tidak ada data aset baru masuk pada periode ini.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    details.newAssets.map(item => (
-                                        <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                                            <td className="px-5 py-3.5">
-                                                <div className="font-bold text-slate-800">{item.name}</div>
-                                                <div className="text-[10px] text-indigo-600 font-mono font-semibold">{item.code}</div>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-slate-600 font-medium">
-                                                {item.category?.name || '-'}
-                                            </td>
-                                            <td className="px-5 py-3.5">
-                                                <div className="font-semibold text-slate-700">{item.unit?.name || '-'}</div>
-                                                <div className="text-[11px] text-slate-400">{item.room?.name || '-'}</div>
-                                            </td>
-                                            <td className="px-5 py-3.5">
-                                                <span className={cn(
-                                                    "px-2 py-0.5 rounded-full text-[10px] font-black uppercase",
-                                                    item.condition === 'BAIK' ? "bg-emerald-50 text-emerald-700" :
-                                                    item.condition === 'RUSAK_RINGAN' ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
-                                                )}>
-                                                    {item.condition}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-right font-bold text-slate-800">
-                                                Rp {(item.price || 0).toLocaleString('id-ID')}
-                                            </td>
-                                            <td className="px-5 py-3.5 text-slate-500">
-                                                {new Date(item.createdAt).toLocaleDateString('id-ID')}
-                                            </td>
+                    <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50/60 border-b border-slate-100">
+                            <div>
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+                                    Rekapitulasi Kuantitas Pengadaan Aset ({groupedNewAssets.length} Jenis Barang)
+                                </span>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Total fisik terdata: <span className="font-bold text-indigo-600">{summary.newAssetsCount} unit aset</span> (Rp {summary.newAssetsValue.toLocaleString('id-ID')})
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowIndividualAssetList(!showIndividualAssetList)}
+                                className="text-xs font-bold px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition-all self-start sm:self-auto shadow-sm"
+                            >
+                                {showIndividualAssetList ? 'Tampilkan Rekap Kuantitas Saja' : 'Lihat Rincian Kode Aset'}
+                            </button>
+                        </div>
+
+                        {!showIndividualAssetList ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 uppercase tracking-wider">
+                                        <tr>
+                                            <th className="px-5 py-3.5 text-center w-12">No</th>
+                                            <th className="px-5 py-3.5">Nama Barang / Aset</th>
+                                            <th className="px-5 py-3.5">Kategori</th>
+                                            <th className="px-5 py-3.5">Unit Penerima</th>
+                                            <th className="px-5 py-3.5 text-center">Jumlah (Qty)</th>
+                                            <th className="px-5 py-3.5 text-right">Total Estimasi Nilai</th>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {groupedNewAssets.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="px-5 py-8 text-center text-slate-400 font-semibold">
+                                                    Tidak ada data aset baru masuk pada periode ini.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            groupedNewAssets.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                                                    <td className="px-5 py-3.5 text-center text-slate-400 font-semibold">{idx + 1}</td>
+                                                    <td className="px-5 py-3.5 font-bold text-slate-800 text-sm">
+                                                        {item.name}
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-slate-600 font-medium">
+                                                        {item.category}
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-slate-600">
+                                                        {item.unit}
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-center">
+                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                            {item.qty} unit
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-right font-black text-slate-800 text-sm">
+                                                        Rp {(item.totalPrice || 0).toLocaleString('id-ID')}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 uppercase tracking-wider">
+                                        <tr>
+                                            <th className="px-5 py-3.5">Kode & Nama Aset</th>
+                                            <th className="px-5 py-3.5">Kategori</th>
+                                            <th className="px-5 py-3.5">Unit & Ruangan</th>
+                                            <th className="px-5 py-3.5">Kondisi</th>
+                                            <th className="px-5 py-3.5 text-right">Harga Perolehan</th>
+                                            <th className="px-5 py-3.5">Tgl Terdaftar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {details.newAssets.map(item => (
+                                            <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                                                <td className="px-5 py-3.5">
+                                                    <div className="font-bold text-slate-800">{item.name}</div>
+                                                    <div className="text-[10px] text-indigo-600 font-mono font-semibold">{item.code}</div>
+                                                </td>
+                                                <td className="px-5 py-3.5 text-slate-600 font-medium">
+                                                    {item.category?.name || '-'}
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <div className="font-semibold text-slate-700">{item.unit?.name || '-'}</div>
+                                                    <div className="text-[11px] text-slate-400">{item.room?.name || '-'}</div>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-[10px] font-black uppercase",
+                                                        item.condition === 'BAIK' ? "bg-emerald-50 text-emerald-700" :
+                                                        item.condition === 'RUSAK_RINGAN' ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"
+                                                    )}>
+                                                        {item.condition}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-3.5 text-right font-bold text-slate-800">
+                                                    Rp {(item.price || 0).toLocaleString('id-ID')}
+                                                </td>
+                                                <td className="px-5 py-3.5 text-slate-500">
+                                                    {new Date(item.createdAt).toLocaleDateString('id-ID')}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -807,7 +895,7 @@ export default function WeeklyAssetReport({ currentUser }) {
 
             {/* 4. OFFICIAL PRINTABLE REPORT CONTAINER (VISIBLE IN PRINT OR PREVIEW MODE) */}
             <div className={cn(
-                "bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto text-slate-800 print:border-none print:shadow-none print:p-0 print:block",
+                "bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto text-slate-800 print:border-none print:shadow-none print:p-0 print:block print:max-w-none print:w-full print:m-0",
                 showPrintPreview ? "block" : "hidden print:block"
             )}>
                 {/* KOP SURAT RESMI */}
@@ -883,41 +971,54 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </table>
                 </div>
 
-                {/* II. DETAIL ASET BARU */}
-                {details.newAssets.length > 0 && (
+                {/* II. REKAPITULASI KUANTITAS ASET BARU */}
+                {groupedNewAssets.length > 0 && (
                     <div className="space-y-2">
                         <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                            II. Daftar Aset Baru Masuk
+                            II. Rekapitulasi Kuantitas Aset Baru Masuk (Pengadaan)
                         </h5>
                         <table className="w-full text-[11px] border border-slate-300 mt-2">
                             <thead className="bg-slate-100 font-bold text-slate-700">
                                 <tr>
-                                    <th className="border border-slate-300 px-2 py-1 text-center w-8">No</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-left">Kode & Nama Aset</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-left">Unit / Ruangan</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-center w-20">Kondisi</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-right w-28">Harga</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-8">No</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-left">Nama Barang / Aset</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-left w-36">Kategori</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-left w-40">Unit Penerima</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-24">Jumlah (Qty)</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-right w-36">Total Nilai Perolehan</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {details.newAssets.map((item, idx) => (
-                                    <tr key={item.id}>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{idx + 1}</td>
-                                        <td className="border border-slate-300 px-2 py-1">
-                                            <div className="font-bold">{item.name}</div>
-                                            <div className="text-[10px] text-slate-500">{item.code}</div>
+                                {groupedNewAssets.map((item, idx) => (
+                                    <tr key={idx}>
+                                        <td className="border border-slate-300 px-2 py-1.5 text-center">{idx + 1}</td>
+                                        <td className="border border-slate-300 px-3 py-1.5 font-bold text-slate-900">
+                                            {item.name}
                                         </td>
-                                        <td className="border border-slate-300 px-2 py-1">
-                                            <div>{item.unit?.name || '-'}</div>
-                                            <div className="text-[10px] text-slate-400">{item.room?.name || '-'}</div>
+                                        <td className="border border-slate-300 px-3 py-1.5 text-slate-600">{item.category}</td>
+                                        <td className="border border-slate-300 px-3 py-1.5 text-slate-600">{item.unit}</td>
+                                        <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-slate-900">
+                                            {item.qty} unit
                                         </td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center font-semibold">{item.condition}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-right font-bold">
-                                            Rp {(item.price || 0).toLocaleString('id-ID')}
+                                        <td className="border border-slate-300 px-3 py-1.5 text-right font-bold text-slate-800">
+                                            Rp {(item.totalPrice || 0).toLocaleString('id-ID')}
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
+                            <tfoot className="bg-slate-50 font-bold text-slate-800">
+                                <tr>
+                                    <td colSpan={4} className="border border-slate-300 px-3 py-1.5 text-right uppercase text-[10px]">
+                                        Total Pengadaan ({groupedNewAssets.length} Jenis Barang)
+                                    </td>
+                                    <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-indigo-900">
+                                        {summary.newAssetsCount} unit
+                                    </td>
+                                    <td className="border border-slate-300 px-3 py-1.5 text-right font-black text-indigo-900">
+                                        Rp {summary.newAssetsValue.toLocaleString('id-ID')}
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 )}

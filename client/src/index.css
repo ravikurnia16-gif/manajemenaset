@@ -44,3 +44,36 @@ input[type="number"] {
     -moz-appearance: textfield;
     appearance: textfield;
 }
+
+/* Print Styles */
+@media print {
+    aside,
+    header,
+    nav,
+    footer,
+    .no-print {
+        display: none !important;
+    }
+
+    html, body, #root {
+        background: white !important;
+        height: auto !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    main, .flex-1 {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        display: block !important;
+    }
+
+    @page {
+        margin: 1.5cm 1cm 1.5cm 1cm;
+        size: A4 portrait;
+    }
+}

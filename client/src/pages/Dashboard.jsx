@@ -230,7 +230,7 @@ const Dashboard = () => {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
             {/* HEADER */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Dashboard Manajemen Aset</h1>
                     <p className="text-slate-500 text-sm italic">
