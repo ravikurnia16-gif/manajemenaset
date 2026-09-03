@@ -2832,6 +2832,32 @@ exports.batchSendSpmbBillingWhatsApp = async (req, res) => {
     }
 };
 
+exports.updateSaleDeadline = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { deadline } = req.body || {};
+        if (isNaN(id)) return res.status(400).json({ error: 'ID pesanan tidak valid' });
+
+        const sale = await prisma.uniformSale.findUnique({ where: { id } });
+        if (!sale) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+
+        let cleanNote = (sale.note || '').replace(/\[DEADLINE:[^\]]*\]/g, '').trim();
+        if (deadline) {
+            cleanNote = (cleanNote ? cleanNote + '\n' : '') + `[DEADLINE:${deadline.trim()}]`;
+        }
+
+        const updated = await prisma.uniformSale.update({
+            where: { id },
+            data: { note: cleanNote }
+        });
+
+        res.json({ message: 'Batas tanggal pembayaran berhasil diperbarui', sale: updated });
+    } catch (error) {
+        console.error('updateSaleDeadline Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.getSaleById = async (req, res) => {
     try {
         const id = parseInt(req.params.id);

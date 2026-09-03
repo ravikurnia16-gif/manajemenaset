@@ -120,6 +120,7 @@ router.delete('/sales/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.dele
 // Hanya Super Admin & Admin Aset yang boleh memproses/mengeluarkan barang dari gudang
 router.post('/sales/:id/fulfill', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.manageSaleItems);
 router.put('/sales/:id/payment', c.updateSalePayment);
+router.put('/sales/:id/deadline', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), c.updateSaleDeadline);
 router.post('/sales/:id/send-billing-wa', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), c.sendSpmbBillingWhatsApp);
 router.post('/sales/batch-send-billing-wa', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), c.batchSendSpmbBillingWhatsApp);
 

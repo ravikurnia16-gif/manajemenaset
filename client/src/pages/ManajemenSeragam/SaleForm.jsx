@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, Plus, Save, ShoppingBag, Info, User, Phone, School, Sparkles } from 'lucide-react';
+import { 
+    X, Search, Plus, Save, ShoppingBag, Info, User, Phone, School, Sparkles, 
+    Calendar, RotateCcw, PackageCheck, AlertCircle, Building2, CheckCircle2 
+} from 'lucide-react';
 import api from '../../lib/axios';
 
 const InputField = ({ label, ...props }) => (
@@ -20,16 +23,22 @@ const SelectField = ({ label, children, ...props }) => (
 
 export const SaleForm = ({ warehouses = [], packages = [], variants = [], units = [], onSave, initialData }) => {
     const currentUser = JSON.parse(localStorage.getItem('user')) || {};
+    const isAssetAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(currentUser.role);
     const defaultWarehouseId = warehouses[0]?.id || '';
 
+    // Auto-detect default values from data pemesan (currentUser)
+    const defaultCustomerName = currentUser?.name || (currentUser?.unit?.name ? `Admin Unit ${currentUser.unit.name}` : '');
+    const defaultCustomerPhone = currentUser?.phone || currentUser?.noHp || currentUser?.phoneNumber || '';
+    const defaultTargetUnit = currentUser?.unit?.name || '';
+
     const [form, setForm] = useState(initialData || {
-        type: 'RETAIL',
+        type: currentUser.role === 'ADMIN_UNIT' ? 'SPMB' : 'RETAIL',
         warehouseId: defaultWarehouseId,
-        customerName: '',
-        customerPhone: '',
+        customerName: defaultCustomerName,
+        customerPhone: defaultCustomerPhone,
         studentName: '',
         studentClass: '',
-        targetUnit: '',
+        targetUnit: defaultTargetUnit,
         gender: '',
         packageId: '',
         subtotal: 0,
@@ -41,7 +50,8 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         status: 'PENDING',
         items: [],
         packages: [],
-        note: ''
+        note: '',
+        paymentDeadline: ''
     });
 
     const [retailInput, setRetailInput] = useState({
@@ -243,6 +253,26 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             }
         }
 
+        if (form.type === 'SPMB') {
+            if (form.packages.length === 0) {
+                alert('Silakan pilih dan tambahkan setidaknya satu paket seragam.');
+                return;
+            }
+            if (!form.targetUnit) {
+                alert('Jenjang / Unit Sekolah wajib dipilih.');
+                return;
+            }
+            if (!form.customerName) {
+                alert('Nama Pemesan / PIC Unit wajib diisi.');
+                return;
+            }
+            if (!form.customerPhone) {
+                alert('Nomor WhatsApp Pemesan wajib diisi untuk notifikasi invoice.');
+                return;
+            }
+            // Batas tanggal pembayaran opsional (tidak wajib), diinput nanti oleh Admin Aset jika kosong
+        }
+
         const dataToSave = {
             ...form,
             warehouseId: form.warehouseId || defaultWarehouseId,
@@ -254,8 +284,8 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 ...p, items: p.items.filter(i => i.qty > 0)
             })).filter(p => p.items.length > 0);
             
-            if (!dataToSave.customerName) dataToSave.customerName = `Admin Unit ${form.targetUnit || ''}`;
-            dataToSave.customerPhone = form.customerPhone || '';
+            if (!dataToSave.customerName) dataToSave.customerName = defaultCustomerName || `Admin Unit ${form.targetUnit || ''}`;
+            dataToSave.customerPhone = form.customerPhone || defaultCustomerPhone;
             dataToSave.paidAmount = 0; 
             dataToSave.discount = 0;
             dataToSave.paymentMethod = 'TRANSFER';
@@ -282,77 +312,192 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         <form onSubmit={handleFormSubmit} className="space-y-4 animate-in fade-in duration-200">
             
             {/* Tipe Pesanan Switcher */}
-            <div>
-                <SelectField 
-                    label="Tipe Pesanan" 
-                    value={form.type} 
-                    onChange={e => setForm({ 
-                        ...form, 
-                        type: e.target.value, 
-                        items: [], 
-                        packages: [], 
-                        customerName: e.target.value === 'SPMB' && form.targetUnit ? `Admin Unit ${form.targetUnit}` : form.customerName,
-                        status: 'PENDING' 
-                    })}
-                >
-                    <option value="RETAIL">🛍️ Eceran (Satuan / Wali Murid)</option>
-                    <option value="SPMB">📦 Pesanan Unit / SPMB (Paket Massal)</option>
-                </SelectField>
-            </div>
-
-            {/* Identitas Pemesan */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <User size={14} className="text-blue-600" />
-                    Data Siswa & Pemesan
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <InputField 
-                        label={form.type === 'SPMB' ? "Nama Pemesan / Admin Unit *" : "Nama Siswa / Pemesan *"} 
-                        value={form.customerName} 
-                        onChange={e => setForm({ ...form, customerName: e.target.value, studentName: form.type === 'SPMB' ? '' : e.target.value })} 
-                        required 
-                        placeholder={form.type === 'SPMB' ? "Contoh: Admin SDIT 1 / Ustadz Ahmad" : "Contoh: Ahmad Fauzan"} 
-                    />
-                    <InputField 
-                        label={form.type === 'SPMB' ? "No. WhatsApp Pemesan *" : "No. WhatsApp / HP"} 
-                        value={form.customerPhone} 
-                        onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
-                        required={form.type === 'SPMB'}
-                        placeholder="Contoh: 08123456789" 
-                    />
-                    <SelectField 
-                        label="Jenjang / Unit *" 
-                        value={form.targetUnit} 
-                        onChange={e => {
-                            const newUnit = e.target.value;
+            <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Tipe Pesanan</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                        type="button"
+                        onClick={() => {
                             setForm(f => ({
                                 ...f,
-                                targetUnit: newUnit,
-                                customerName: (f.type === 'SPMB' && (!f.customerName || f.customerName.startsWith('Admin Unit')))
-                                    ? (newUnit ? `Admin Unit ${newUnit}` : '')
-                                    : f.customerName,
-                                items: []
+                                type: 'SPMB',
+                                items: [],
+                                packages: [],
+                                customerName: defaultCustomerName || (f.targetUnit ? `Admin Unit ${f.targetUnit}` : ''),
+                                customerPhone: f.customerPhone || defaultCustomerPhone,
+                                targetUnit: f.targetUnit || defaultTargetUnit,
+                                status: 'PENDING'
                             }));
-                        }} 
-                        required
+                        }}
+                        className={`p-3 rounded-2xl border flex items-center gap-3 transition-all cursor-pointer text-left ${
+                            form.type === 'SPMB'
+                                ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
+                                : 'bg-white border-slate-200 hover:bg-slate-50 opacity-75'
+                        }`}
                     >
-                        <option value="">-- Pilih Unit --</option>
-                        {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                    </SelectField>
+                        <span className="text-2xl">📦</span>
+                        <div>
+                            <span className="font-bold text-sm text-slate-800 block">Pesanan Unit / SPMB</span>
+                            <span className="text-xs text-slate-500">Paket seragam massal untuk siswa baru per unit</span>
+                        </div>
+                    </button>
 
-                    {form.type === 'SPMB' && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setForm(f => ({
+                                ...f,
+                                type: 'RETAIL',
+                                items: [],
+                                packages: [],
+                                customerName: f.customerName || defaultCustomerName,
+                                customerPhone: f.customerPhone || defaultCustomerPhone,
+                                targetUnit: f.targetUnit || defaultTargetUnit,
+                                status: 'PENDING'
+                            }));
+                        }}
+                        className={`p-3 rounded-2xl border flex items-center gap-3 transition-all cursor-pointer text-left ${
+                            form.type === 'RETAIL'
+                                ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
+                                : 'bg-white border-slate-200 hover:bg-slate-50 opacity-75'
+                        }`}
+                    >
+                        <span className="text-2xl">🛍️</span>
+                        <div>
+                            <span className="font-bold text-sm text-slate-800 block">Eceran / Satuan</span>
+                            <span className="text-xs text-slate-500">Pembelian satuan untuk siswa atau wali murid</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            {/* Identitas Pemesan Card */}
+            <div className="bg-slate-50/90 p-4 sm:p-5 rounded-2xl border border-slate-200/90 space-y-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                        <User size={15} className="text-blue-600" />
+                        <span>{form.type === 'SPMB' ? 'Data Pemesan & Unit Sekolah' : 'Data Siswa & Pemesan'}</span>
+                    </h4>
+                    <span className="text-[11px] font-bold text-blue-700 bg-blue-100/70 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                        {form.type === 'SPMB' ? 'Pesanan SPMB Massal' : 'Pesanan Eceran'}
+                    </span>
+                </div>
+
+                {form.type === 'SPMB' ? (
+                    <div className="space-y-3">
+                        {/* Banner Data Pemesan Otomatis */}
+                        {(currentUser?.name || currentUser?.phone) && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 px-3.5 py-2.5 rounded-xl text-xs text-blue-900 shadow-2xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
+                                    <span>
+                                        Data pemesan otomatis terisi dari profil login: <b>{currentUser.name}</b> {currentUser.phone ? `(${currentUser.phone})` : ''}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setForm(f => ({
+                                        ...f,
+                                        customerName: defaultCustomerName,
+                                        customerPhone: defaultCustomerPhone,
+                                        targetUnit: defaultTargetUnit || f.targetUnit
+                                    }))}
+                                    className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Kembalikan nama & no hp ke profil akun login"
+                                >
+                                    <RotateCcw size={11} /> Reset Profil
+                                </button>
+                            </div>
+                        )}
+
+                        {/* 2-Column Responsive Layout */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            <SelectField 
+                                label="Jenjang / Unit Sekolah *" 
+                                value={form.targetUnit} 
+                                onChange={e => {
+                                    const newUnit = e.target.value;
+                                    setForm(f => ({
+                                        ...f,
+                                        targetUnit: newUnit,
+                                        customerName: (!f.customerName || f.customerName.startsWith('Admin Unit'))
+                                            ? (newUnit ? `Admin Unit ${newUnit}` : defaultCustomerName)
+                                            : f.customerName,
+                                        packages: []
+                                    }));
+                                }} 
+                                required
+                            >
+                                <option value="">-- Pilih Jenjang / Unit Sekolah --</option>
+                                {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                            </SelectField>
+
+                            <InputField 
+                                label="Nama Pemesan / PIC Unit *" 
+                                value={form.customerName} 
+                                onChange={e => setForm({ ...form, customerName: e.target.value, studentName: '' })} 
+                                required 
+                                placeholder="Contoh: Admin SDIT 1 / Ustadz Ahmad" 
+                            />
+
+                            <InputField 
+                                label="No. WhatsApp Pemesan *" 
+                                value={form.customerPhone} 
+                                onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
+                                required
+                                placeholder="Contoh: 08123456789" 
+                            />
+
+                            {/* Batas Tanggal Pembayaran */}
+                            {isAssetAdmin ? (
+                                <div className="space-y-1">
+                                    <InputField 
+                                        type="date"
+                                        label="Batas Tanggal Pembayaran (Opsional)" 
+                                        value={form.paymentDeadline || ''} 
+                                        onChange={e => setForm({ ...form, paymentDeadline: e.target.value })} 
+                                    />
+                                    <p className="text-[10px] text-slate-500">Opsional: Boleh dikosongkan jika belum ditentukan.</p>
+                                </div>
+                            ) : (
+                                <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl flex items-start gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
+                                        <Calendar size={15} />
+                                    </div>
+                                    <div>
+                                        <span className="text-xs font-bold text-amber-900 block">Batas Tanggal Pembayaran</span>
+                                        <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
+                                            Akan ditentukan & diinput oleh <b>Admin Aset</b> setelah pesanan masuk dan diverifikasi.
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                         <InputField 
-                            type="date"
-                            label="Batas Tanggal Pembayaran *" 
-                            value={form.paymentDeadline || ''} 
-                            onChange={e => setForm({ ...form, paymentDeadline: e.target.value })} 
-                            required
+                            label="Nama Siswa / Pemesan *" 
+                            value={form.customerName} 
+                            onChange={e => setForm({ ...form, customerName: e.target.value, studentName: e.target.value })} 
+                            required 
+                            placeholder="Contoh: Ahmad Fauzan" 
                         />
-                    )}
-
-                    {form.type === 'RETAIL' && (
+                        <InputField 
+                            label="No. WhatsApp / HP" 
+                            value={form.customerPhone} 
+                            onChange={e => setForm({ ...form, customerPhone: e.target.value })} 
+                            placeholder="Contoh: 08123456789" 
+                        />
+                        <SelectField 
+                            label="Jenjang / Unit *" 
+                            value={form.targetUnit} 
+                            onChange={e => setForm({ ...form, targetUnit: e.target.value, items: [] })} 
+                            required
+                        >
+                            <option value="">-- Pilih Unit --</option>
+                            {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </SelectField>
                         <SelectField 
                             label="Jenis Kelamin *" 
                             value={form.gender} 
@@ -363,8 +508,8 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                             <option value="IKHWAN">Ikhwan (Laki-laki)</option>
                             <option value="AKHWAT">Akhwat (Perempuan)</option>
                         </SelectField>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             {/* Input Seragam Eceran (Format Persis Form Publik) */}
@@ -548,66 +693,143 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             {/* Input SPMB (Paket) */}
             {form.type === 'SPMB' && (
                 <div className="space-y-4">
-                    <SelectField 
-                        label="Tambah Paket Seragam *" 
-                        value="" 
-                        onChange={e => handleAddPackage(e.target.value)} 
-                        disabled={!form.targetUnit}
-                    >
-                        <option value="">-- Tambah Paket --</option>
-                        {packages
-                            .filter(p => !form.targetUnit || p.targetUnit === form.targetUnit || !p.targetUnit || p.targetUnit === 'ALL')
-                            .map(p => <option key={p.id} value={p.id}>{p.name} (Rp {p.price.toLocaleString('id-ID')})</option>)}
-                    </SelectField>
-
-                    {form.packages.map((pkg, pkgIndex) => (
-                        <div key={pkgIndex} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 relative">
-                            <button 
-                                type="button" 
-                                onClick={() => removePackage(pkgIndex)} 
-                                className="absolute top-3 right-3 text-red-500 hover:text-red-700 bg-red-50 rounded p-1"
-                            >
-                                <X size={16} />
-                            </button>
-                            <div>
-                                <label className="block text-sm font-bold text-blue-800">{pkg.name}</label>
-                                <div className="text-xs text-slate-500">Harga Paket: Rp {pkg.price.toLocaleString('id-ID')} &bull; Total Dipesan: {pkg.qty || 0} Paket</div>
-                            </div>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mt-2">
-                                {[...new Set(pkg.items.map(i => i.size))].map(sizeName => {
-                                    const sampleItem = pkg.items.find(i => i.size === sizeName);
-                                    return (
-                                        <div key={sizeName} className="flex items-center gap-2 bg-white border border-slate-200 rounded p-1.5 shadow-sm">
-                                            <span className="text-xs font-bold text-slate-700 w-10 text-center">{sizeName}</span>
-                                            <input 
-                                                type="number" 
-                                                min="0" 
-                                                className="w-full border-l border-slate-200 pl-2 py-1 text-sm font-bold text-blue-700 outline-none" 
-                                                value={sampleItem?.qty || ''} 
-                                                onChange={e => {
-                                                    const newQty = parseInt(e.target.value) || 0;
-                                                    updatePackageItemQty(pkgIndex, sizeName, newQty);
-                                                }} 
-                                                placeholder="0" 
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <PackageCheck size={15} className="text-blue-600" />
+                                <span>Pilih Paket Seragam SPMB *</span>
+                            </label>
+                            {form.packages.length > 0 && (
+                                <span className="text-xs font-bold text-blue-800 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                                    {form.packages.length} Jenis Paket Dipilih
+                                </span>
+                            )}
                         </div>
-                    ))}
+
+                        <SelectField 
+                            label="Tambah Paket Seragam" 
+                            value="" 
+                            onChange={e => handleAddPackage(e.target.value)} 
+                            disabled={!form.targetUnit}
+                        >
+                            <option value="">{form.targetUnit ? '-- Klik untuk Menambah Paket Seragam --' : '-- Pilih Jenjang / Unit Terlebih Dahulu --'}</option>
+                            {packages
+                                .filter(p => !form.targetUnit || p.targetUnit === form.targetUnit || !p.targetUnit || p.targetUnit === 'ALL')
+                                .map(p => <option key={p.id} value={p.id}>{p.name} — Rp {p.price.toLocaleString('id-ID')} / paket</option>)}
+                        </SelectField>
+
+                        {!form.targetUnit && (
+                            <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
+                                <AlertCircle size={14} className="shrink-0" />
+                                Pilih Jenjang / Unit Sekolah pada data pemesan di atas untuk melihat daftar paket yang tersedia.
+                            </p>
+                        )}
+                    </div>
+
+                    {form.packages.length === 0 && form.targetUnit && (
+                        <div className="text-center py-6 px-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl text-xs text-slate-500">
+                            Belum ada paket seragam yang dipilih. Silakan pilih paket dari pilihan di atas.
+                        </div>
+                    )}
+
+                    {form.packages.map((pkg, pkgIndex) => {
+                        const uniqueSizes = [...new Set(pkg.items.map(i => i.size))];
+                        const totalPkgQty = uniqueSizes.reduce((sum, size) => {
+                            const sample = pkg.items.find(i => i.size === size);
+                            return sum + (sample ? sample.qty : 0);
+                        }, 0);
+                        const pkgSubtotal = totalPkgQty * pkg.price;
+
+                        return (
+                            <div key={pkgIndex} className="bg-white p-4 sm:p-5 rounded-2xl border border-blue-100 shadow-sm space-y-3 relative hover:border-blue-300 transition-all">
+                                <button 
+                                    type="button" 
+                                    onClick={() => removePackage(pkgIndex)} 
+                                    className="absolute top-3.5 right-3.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 transition-colors cursor-pointer"
+                                    title="Hapus paket ini"
+                                >
+                                    <X size={16} />
+                                </button>
+
+                                <div className="pr-8">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h5 className="text-sm font-bold text-slate-900">{pkg.name}</h5>
+                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                                            Rp {pkg.price.toLocaleString('id-ID')} / paket
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Total Dipesan: <b className="text-slate-800">{totalPkgQty} Paket</b> &bull; Subtotal: <b className="text-blue-800">Rp {pkgSubtotal.toLocaleString('id-ID')}</b>
+                                    </p>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100">
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                                        Jumlah Pesanan Per Ukuran (Size):
+                                    </label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                                        {uniqueSizes.map(sizeName => {
+                                            const sampleItem = pkg.items.find(i => i.size === sizeName);
+                                            const currentQty = sampleItem?.qty || 0;
+                                            return (
+                                                <div 
+                                                    key={sizeName} 
+                                                    className={`flex items-center rounded-xl border p-1.5 transition-all ${
+                                                        currentQty > 0 
+                                                            ? 'bg-blue-50/70 border-blue-300 ring-2 ring-blue-400/20' 
+                                                            : 'bg-slate-50 border-slate-200 hover:bg-white'
+                                                    }`}
+                                                >
+                                                    <span className={`text-xs font-bold px-2 py-1 rounded-lg shrink-0 ${
+                                                        currentQty > 0 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-white text-slate-700 border border-slate-200'
+                                                    }`}>
+                                                        {sizeName}
+                                                    </span>
+                                                    <input 
+                                                        type="number" 
+                                                        min="0" 
+                                                        className="w-full pl-2 pr-1 py-1 text-sm font-bold text-right text-blue-900 bg-transparent outline-none" 
+                                                        value={sampleItem?.qty || ''} 
+                                                        onChange={e => {
+                                                            const newQty = parseInt(e.target.value) || 0;
+                                                            updatePackageItemQty(pkgIndex, sizeName, newQty);
+                                                        }} 
+                                                        placeholder="0" 
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
             {/* Total Tagihan Box */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-200 flex justify-between items-center">
+            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 rounded-2xl shadow-md flex flex-wrap justify-between items-center gap-4">
                 <div>
-                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">Total Tagihan Pesanan</span>
-                    <span className="text-xl font-black text-blue-800">Rp {form.totalAmount.toLocaleString('id-ID')}</span>
+                    <span className="text-xs text-blue-200 font-bold uppercase tracking-wider block">Total Tagihan Pesanan</span>
+                    <span className="text-2xl font-black text-white tracking-tight">Rp {form.totalAmount.toLocaleString('id-ID')}</span>
+                    {form.type === 'SPMB' && form.packages.length > 0 && (
+                        <span className="text-xs text-blue-200 block mt-0.5">
+                            {form.packages.reduce((sum, p) => sum + (p.qty || 0), 0)} Total Paket dari {form.packages.length} Jenis
+                        </span>
+                    )}
                 </div>
-                <div className="text-right text-xs text-slate-500">
-                    <div>Status Pesanan: <strong className="text-amber-700">PENDING</strong></div>
-                    <div>Pembayaran: <strong className="text-slate-700">{form.paymentMethod || 'TRANSFER'}</strong></div>
+                <div className="text-right text-xs space-y-1">
+                    <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-slate-300">Status Pesanan:</span>
+                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                            PENDING
+                        </span>
+                    </div>
+                    <div className="text-slate-300">
+                        Pembayaran: <strong className="text-white">{form.paymentMethod || 'TRANSFER'}</strong>
+                    </div>
                 </div>
             </div>
 
@@ -619,9 +841,9 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                         (form.type === 'RETAIL' && form.items.length === 0 && namaDadaPutihQty === 0 && namaDadaCoklatQty === 0) || 
                         (form.type === 'SPMB' && form.packages.length === 0)
                     }
-                    className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 shadow-lg shadow-blue-500/20 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-blue-500/25 text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                 >
-                    <Save size={16} />
+                    <Save size={17} />
                     <span>Simpan & Buat Pesanan</span>
                 </button>
             </div>

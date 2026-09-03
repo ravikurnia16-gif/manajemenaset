@@ -890,8 +890,11 @@ export const SalesTab = ({
   variants = [], 
   onFulfillSale, 
   onDelete, 
-  onUpdatePayment 
+  onUpdatePayment,
+  onRefresh
 }) => {
+  const currentUser = JSON.parse(localStorage.getItem('user')) || {};
+  const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(currentUser.role);
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
   const [copied, setCopied] = useState(false);
@@ -1500,24 +1503,63 @@ export const SalesTab = ({
                         {new Date(s.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       </div>
                       {(() => {
-                        if (!s.note || !s.note.includes('[DEADLINE:')) return null;
-                        const match = s.note.match(/\[DEADLINE:(.*?)\]/);
-                        if (!match || !match[1]) return null;
-                        const dlStr = match[1].trim();
-                        const dlDate = /^\d{4}-\d{2}-\d{2}$/.test(dlStr) ? new Date(dlStr + 'T23:59:59') : new Date(dlStr);
-                        const isOverdue = dlDate && (new Date() > dlDate) && s.paymentStatus !== 'PAID';
-                        const formatted = dlDate && !isNaN(dlDate.getTime()) 
-                          ? dlDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-                          : dlStr;
-                        return (
-                          <div className={`text-[9px] font-bold mb-1 px-1.5 py-0.5 rounded-md inline-block ${
-                            isOverdue 
-                              ? 'bg-rose-100 text-rose-800 border border-rose-200' 
-                              : 'bg-amber-50 text-amber-800 border border-amber-200'
-                          }`}>
-                            {isOverdue ? '⚠️ Lewat:' : '⏳ Batas:'} {formatted}
-                          </div>
-                        );
+                        const match = s.note?.match(/\[DEADLINE:(.*?)\]/);
+                        if (match && match[1]) {
+                          const dlStr = match[1].trim();
+                          const dlDate = /^\d{4}-\d{2}-\d{2}$/.test(dlStr) ? new Date(dlStr + 'T23:59:59') : new Date(dlStr);
+                          const isOverdue = dlDate && (new Date() > dlDate) && s.paymentStatus !== 'PAID';
+                          const formatted = dlDate && !isNaN(dlDate.getTime()) 
+                            ? dlDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                            : dlStr;
+                          return (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!isAdmin) return;
+                                const newDl = prompt('Ubah Batas Tanggal Pembayaran (YYYY-MM-DD):', dlStr);
+                                if (newDl === null) return;
+                                try {
+                                  await api.put(`/uniforms/sales/${s.id}/deadline`, { deadline: newDl });
+                                  if (onRefresh) onRefresh();
+                                } catch (err) {
+                                  alert(err.response?.data?.error || 'Gagal mengubah batas tanggal');
+                                }
+                              }}
+                              className={`text-[9px] font-bold mb-1 px-1.5 py-0.5 rounded-md inline-block transition-all ${
+                                isAdmin ? 'cursor-pointer hover:ring-1 hover:ring-blue-400' : 'cursor-default'
+                              } ${
+                                isOverdue 
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                                  : 'bg-amber-50 text-amber-800 border border-amber-200'
+                              }`}
+                              title={isAdmin ? "Klik untuk mengubah batas tanggal pembayaran" : undefined}
+                            >
+                              {isOverdue ? '⚠️ Lewat:' : '⏳ Batas:'} {formatted}
+                            </button>
+                          );
+                        } else if (s.type === 'SPMB' && isAdmin) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const defDate = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+                                const newDl = prompt('Set Batas Tanggal Pembayaran (YYYY-MM-DD):', defDate);
+                                if (newDl === null || !newDl) return;
+                                try {
+                                  await api.put(`/uniforms/sales/${s.id}/deadline`, { deadline: newDl });
+                                  if (onRefresh) onRefresh();
+                                } catch (err) {
+                                  alert(err.response?.data?.error || 'Gagal mengatur batas tanggal');
+                                }
+                              }}
+                              className="text-[9px] font-bold mb-1 px-1.5 py-0.5 rounded-md inline-block bg-slate-100 text-slate-600 border border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 cursor-pointer transition-all"
+                              title="Batas tanggal belum diinput. Klik untuk mengatur batas tanggal pembayaran"
+                            >
+                              + Set Deadline
+                            </button>
+                          );
+                        }
+                        return null;
                       })()}
                       <div className="flex flex-wrap items-center justify-center gap-1">
                         <a 

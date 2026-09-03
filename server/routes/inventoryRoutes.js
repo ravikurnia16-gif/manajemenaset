@@ -32,6 +32,7 @@ router.delete('/categories/:id', isAdmin, invCtrl.deleteCategory);
 // ITEMS
 router.get('/items', invCtrl.getItems);
 router.post('/items', isAdmin, invCtrl.createItem);
+router.patch('/items/bulk-price', isAdmin, invCtrl.updateBulkPrice);
 router.put('/items/:id', isAdmin, invCtrl.updateItem);
 router.delete('/items/:id', isSuperAdminOrIT, invCtrl.deleteItem);
 

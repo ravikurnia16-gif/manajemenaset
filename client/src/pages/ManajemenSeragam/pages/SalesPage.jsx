@@ -195,6 +195,7 @@ export default function SalesPage() {
                             onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
                             onUpdatePayment={handleUpdatePayment}
+                            onRefresh={fetchData}
                         />
                     )}
                     {activeTab === 'sales_retail' && (
@@ -211,6 +212,7 @@ export default function SalesPage() {
                             onFulfillSale={handleFulfillSale}
                             onDelete={handleDeleteSale}
                             onUpdatePayment={handleUpdatePayment}
+                            onRefresh={fetchData}
                         />
                     )}
                     {activeTab === 'sales_invoices' && (
@@ -236,7 +238,7 @@ export default function SalesPage() {
                 modal.type === 'sale' ? 'Buat Pesanan' :
                 modal.type === 'exchange' ? 'Tukar Ukuran' :
                 modal.type === 'fulfill' ? 'Proses & Keluarkan Barang' : ''
-            } wide={modal.type === 'package' || modal.type === 'exchange'}>
+            } wide={modal.type === 'package' || modal.type === 'exchange' || modal.type === 'sale'}>
                 {modal.type === 'package' && (
                     <PackageForm items={items} units={units} onSave={handleSavePackage} initialData={modal.data} />
                 )}

@@ -208,14 +208,90 @@ exports.updateItem = async (req, res) => {
                 ...rest,
                 categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : undefined,
                 minStock: req.body.minStock !== undefined ? parseInt(req.body.minStock) : undefined,
-                price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined,
-                sellingPrice: req.body.sellingPrice !== undefined ? parseFloat(req.body.sellingPrice) : undefined,
+                price: req.body.price !== undefined ? (req.body.price === '' || req.body.price === null || isNaN(parseFloat(req.body.price)) ? null : parseFloat(req.body.price)) : undefined,
+                sellingPrice: req.body.sellingPrice !== undefined ? (req.body.sellingPrice === '' || req.body.sellingPrice === null || isNaN(parseFloat(req.body.sellingPrice)) ? null : parseFloat(req.body.sellingPrice)) : undefined,
                 isAsset: isAsset !== undefined ? (isAsset === true || isAsset === 'true') : undefined,
                 image: imageUrl
             }
         });
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.updateBulkPrice = async (req, res) => {
+    try {
+        const { items, itemIds, adjustmentType, percentage } = req.body;
+
+        // Case 1: Specific items array with individual prices [{ id, price, sellingPrice }]
+        if (Array.isArray(items) && items.length > 0) {
+            const updates = items.map(item => {
+                const updateData = {};
+                if (item.price !== undefined) {
+                    updateData.price = (item.price === '' || item.price === null || isNaN(parseFloat(item.price))) ? null : parseFloat(item.price);
+                }
+                if (item.sellingPrice !== undefined) {
+                    updateData.sellingPrice = (item.sellingPrice === '' || item.sellingPrice === null || isNaN(parseFloat(item.sellingPrice))) ? null : parseFloat(item.sellingPrice);
+                }
+                return prisma.invItem.update({
+                    where: { id: parseInt(item.id) },
+                    data: updateData
+                });
+            });
+            await prisma.$transaction(updates);
+            return res.json({ success: true, count: updates.length });
+        }
+
+        // Case 2: Percentage adjustment on selected itemIds
+        if (Array.isArray(itemIds) && itemIds.length > 0) {
+            const targetItems = await prisma.invItem.findMany({
+                where: { id: { in: itemIds.map(id => parseInt(id)) } }
+            });
+
+            const updates = [];
+            const pct = parseFloat(percentage) || 0;
+
+            for (const item of targetItems) {
+                let newSellingPrice = item.sellingPrice;
+                let newCostPrice = item.price;
+
+                if (adjustmentType === 'INCREASE_SELLING_PERCENT') {
+                    if (item.sellingPrice !== null && item.sellingPrice !== undefined) {
+                        newSellingPrice = Math.round(item.sellingPrice * (1 + pct / 100));
+                    }
+                } else if (adjustmentType === 'DECREASE_SELLING_PERCENT') {
+                    if (item.sellingPrice !== null && item.sellingPrice !== undefined) {
+                        newSellingPrice = Math.max(0, Math.round(item.sellingPrice * (1 - pct / 100)));
+                    }
+                } else if (adjustmentType === 'MARGIN_FROM_COST') {
+                    if (item.price !== null && item.price !== undefined) {
+                        newSellingPrice = Math.round(item.price * (1 + pct / 100));
+                    }
+                } else if (adjustmentType === 'INCREASE_COST_PERCENT') {
+                    if (item.price !== null && item.price !== undefined) {
+                        newCostPrice = Math.round(item.price * (1 + pct / 100));
+                    }
+                }
+
+                updates.push(
+                    prisma.invItem.update({
+                        where: { id: item.id },
+                        data: {
+                            price: newCostPrice,
+                            sellingPrice: newSellingPrice
+                        }
+                    })
+                );
+            }
+
+            await prisma.$transaction(updates);
+            return res.json({ success: true, count: updates.length });
+        }
+
+        return res.status(400).json({ error: 'Parameter update harga tidak valid' });
+    } catch (e) {
+        console.error('updateBulkPrice error:', e);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 exports.deleteItem = async (req, res) => {
