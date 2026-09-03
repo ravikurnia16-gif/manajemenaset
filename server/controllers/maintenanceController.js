@@ -568,6 +568,9 @@ exports.createReport = async (req, res) => {
         // --- WhatsApp Notification (Async) ---
         (async () => {
             try {
+                const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+                const reportUrl = `${baseUrl}/pemeliharaan/${report.id}`;
+
                 const submitter = await prisma.user.findUnique({
                     where: { id: user.id },
                     include: { unit: true }
@@ -580,7 +583,8 @@ exports.createReport = async (req, res) => {
                         `📋 *Judul* : ${isDirect ? `[INSTRUKSI KABID] ${title}` : title}\n` +
                         `📄 *Kode* : ${code}\n` +
                         `🔧 *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n` +
-                        `${isDirect ? `*Status* : Langsung Ditugaskan (Pimpinan) ✅\n\n` : `\n`}` +
+                        `${isDirect ? `*Status* : Langsung Ditugaskan (Pimpinan) ✅\n` : ''}` +
+                        `🔗 *Link Laporan* :\n${reportUrl}\n\n` +
                         `Mohon menunggu proses pengerjaan.`;
 
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
@@ -626,6 +630,7 @@ exports.createReport = async (req, res) => {
                         `📝 *Masalah* : ${description}\n\n` +
                         (report.location ? `📍 *Lokasi* : ${report.location}\n` : '') +
                         (targetDept !== 'PEMBANGUNAN' ? `📦 *Aset Terkait* :\n${assetListStr}\n\n` : '') +
+                        `🔗 *Link Laporan* :\n${reportUrl}\n\n` +
                         `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : (targetDept === 'PEMBANGUNAN' ? `Mohon segera ditindaklanjuti.` : `*Kepada Tim Sarpras & Staff Teknisi Aset*, mohon bantu untuk segera ditindaklanjuti.`)}\n\n` +
                         `Syukron jazakumullahu khairan.`;
 
@@ -660,6 +665,7 @@ exports.createReport = async (req, res) => {
                             `📜 *Kode* : ${code}\n` +
                             `👤 *Pemberi Tugas* : Admin (Penugasan Internal)\n` +
                             `📝 *Masalah* : ${description}\n\n` +
+                            `🔗 *Link Laporan* :\n${reportUrl}\n\n` +
                             `Mohon segera ditindaklanjuti. Syukron.`;
 
                         setTimeout(async () => {
@@ -910,6 +916,9 @@ exports.updateStatus = async (req, res) => {
                     'REJECTED': 'Ditolak \u274C'
                 };
 
+                const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+                const reportUrl = `${baseUrl}/pemeliharaan/${report.id}`;
+
                 const statusLabel = statusLabels[status] || status;
                 let msg = `Bismillah.\n*Info Laporan Pemeliharaan*\n\n` +
                     `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
@@ -928,6 +937,8 @@ exports.updateStatus = async (req, res) => {
                 if (status === 'COMPLETED' && actionTaken) {
                     msg += `\n*Tindakan:* ${actionTaken}\n`;
                 }
+
+                msg += `\n🔗 *Detail Laporan* :\n${reportUrl}\n`;
 
                 setTimeout(async () => {
                     try {
