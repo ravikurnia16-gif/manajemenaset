@@ -27,43 +27,12 @@ const DIVISION_TAGS = [
 ];
 
 const ROUTINE_TEMPLATES = {
-    ASET: [
-        'Pengecekan fisik dan verifikasi kondisi aset ruangan/gedung sekolah & kantor yayasan',
-        'Pencetakan, penempelan, dan pemindaian label barcode/QR Code pada aset inventaris baru',
-        'Pembaruan Kartu Inventaris Ruangan (KIR) dan pencatatan mutasi/perpindahan aset antar unit',
-        'Audit fisik berkala dan rekonsiliasi data inventaris sarana dan prasarana lingkungan yayasan',
-        'Identifikasi aset rusak/rusak berat serta penyusunan usulan perbaikan atau penghapusan aset',
-        'Pendataan, dokumentasi serah terima sarana baru, dan verifikasi fisik kelengkapan barang'
-    ],
-    GUDANG: [
-        'Pengecekan dan rekonsiliasi stok seragam & ATK di rak penyimpanan',
-        'Penerimaan dan inspeksi barang masuk dari vendor/supplier',
-        'Penataan, labeling dus barang, dan pembersihan area gudang logistik',
-        'Pemeriksaan dan pengemasan pesanan seragam untuk unit pemesan'
-    ],
-    TEKNISI: [
-        'Inspeksi dan pembersihan filter unit AC di ruangan kantor/kelas',
-        'Pengecekan panel kelistrikan, genset cadangan, dan lampu penerangan',
-        'Pemeriksaan instalasi air, pompa distribusi, toren air, dan sanitasi',
-        'Perbaikan ringan sarana meubeler, kunci pintu, dan fasilitas umum'
-    ],
-    KENDARAAN: [
-        'Pemeriksaan harian armada (oli mesin, air radiator, minyak rem, aki)',
-        'Pengecekan tekanan angin ban dan kebersihan interior & eksterior unit bus/mobil',
-        'Verifikasi pengisian form checklist peminjaman kendaraan sebelum jalan',
-        'Pencatatan kilometer akhir dan pengecekan BBM setelah pemakaian'
-    ],
-    KEUANGAN: [
-        'Rekapitulasi kas kecil, nota pengeluaran operasional, dan bukti kas bon',
-        'Verifikasi tagihan/invoice masuk dari vendor dan penyusunan berkas SPK',
-        'Pencatatan laporan transaksi penjualan seragam dan rekap setoran bank',
-        'Pengarsipan dokumen dinas, surat keluar, dan administrasi perkantoran'
-    ],
-    UMUM: [
-        'Briefing koordinasi harian operasional staf sarana dan prasarana',
-        'Pengecekan kesiapan sarana fasilitas untuk kegiatan yayasan/unit',
-        'Monitoring kebersihan dan kerapian lingkungan kerja sarana'
-    ]
+    ASET: [],
+    GUDANG: [],
+    TEKNISI: [],
+    KENDARAAN: [],
+    KEUANGAN: [],
+    UMUM: []
 };
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
@@ -130,7 +99,7 @@ const LaporanStaff = () => {
     const [cameraModalConfig, setCameraModalConfig] = useState({ isOpen: false, index: null, period: 'morning' });
 
     // Staff Custom Templates (disusun sendiri oleh masing-masing staf)
-    const customTemplatesKey = `staff_custom_templates_${user?.id || 'default'}`;
+    const customTemplatesKey = `staff_custom_templates_v2_${user?.id || 'default'}`;
     const [staffCustomTemplates, setStaffCustomTemplates] = useState(() => {
         try {
             const saved = localStorage.getItem(customTemplatesKey);
@@ -138,12 +107,7 @@ const LaporanStaff = () => {
         } catch (e) {
             console.error('Error loading custom templates:', e);
         }
-        const initialList = ROUTINE_TEMPLATES[userDivision] || ROUTINE_TEMPLATES.ASET || [];
-        return initialList.map((text, idx) => ({
-            id: 'tpl_' + idx + '_' + Math.random().toString(36).substr(2, 6),
-            text,
-            categoryTag: userDivision || 'ASET'
-        }));
+        return [];
     });
 
     const [newTemplateText, setNewTemplateText] = useState('');
@@ -527,14 +491,9 @@ const LaporanStaff = () => {
     };
 
     const handleResetToDefaultTemplates = () => {
-        if (!window.confirm('Kembalikan template ke saran awal divisi Anda? Perubahan template Anda saat ini akan direset.')) return;
-        const initialList = ROUTINE_TEMPLATES[userDivision] || ROUTINE_TEMPLATES.ASET || [];
-        const reset = initialList.map((text, idx) => ({
-            id: 'tpl_' + idx + '_' + Math.random().toString(36).substr(2, 6),
-            text,
-            categoryTag: userDivision || 'ASET'
-        }));
-        saveStaffTemplates(reset);
+        if (staffCustomTemplates.length === 0) return;
+        if (!window.confirm('Kosongkan semua daftar template kegiatan mandiri Anda?')) return;
+        saveStaffTemplates([]);
     };
 
     // -------------------------------------------------------------
@@ -1789,7 +1748,7 @@ const LaporanStaff = () => {
                                                         type="button"
                                                         onClick={handleResetToDefaultTemplates}
                                                         className="text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-lg transition-all cursor-pointer"
-                                                        title="Kembalikan ke saran awal divisi"
+                                                        title="Kosongkan daftar template"
                                                     >
                                                         <RotateCcw size={12} />
                                                     </button>
@@ -1934,47 +1893,49 @@ const LaporanStaff = () => {
                                             </div>
 
                                             {/* Optional Reference Accordion from other divisions */}
-                                            <div className="pt-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowAllTemplates(!showAllTemplates)}
-                                                    className="text-[10px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
-                                                >
-                                                    <ChevronDown size={13} className={`transition-transform duration-200 ${showAllTemplates ? 'rotate-180' : ''}`} />
-                                                    {showAllTemplates ? 'Sembunyikan Referensi Divisi Lain' : '💡 Butuh Ide? Lihat Referensi Template Divisi Lain'}
-                                                </button>
-                                                {showAllTemplates && (
-                                                    <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar p-2 bg-slate-50 rounded-xl border border-slate-200/60 animate-in fade-in duration-200">
-                                                        {Object.entries(ROUTINE_TEMPLATES).map(([catKey, routines]) => (
-                                                            <div key={catKey} className="space-y-1">
-                                                                <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                                                                    {DIVISION_TAGS.find(d => d.key === catKey)?.label || catKey}
-                                                                </span>
-                                                                {routines.map((rText, rIdx) => (
-                                                                    <div key={rIdx} className="p-1.5 bg-white rounded-lg border border-slate-200/60 text-[11px] flex items-center justify-between gap-1.5">
-                                                                        <span className="flex-1 text-slate-600 truncate">{rText}</span>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                const newTpl = {
-                                                                                    id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                                                                                    text: rText,
-                                                                                    categoryTag: catKey
-                                                                                };
-                                                                                saveStaffTemplates([...staffCustomTemplates, newTpl]);
-                                                                            }}
-                                                                            className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded cursor-pointer whitespace-nowrap"
-                                                                            title="Salin butir ini ke Template Saya"
-                                                                        >
-                                                                            + Salin
-                                                                        </button>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            {Object.values(ROUTINE_TEMPLATES).some(arr => arr.length > 0) && (
+                                                <div className="pt-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAllTemplates(!showAllTemplates)}
+                                                        className="text-[10px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
+                                                    >
+                                                        <ChevronDown size={13} className={`transition-transform duration-200 ${showAllTemplates ? 'rotate-180' : ''}`} />
+                                                        {showAllTemplates ? 'Sembunyikan Referensi Divisi Lain' : '💡 Butuh Ide? Lihat Referensi Template Divisi Lain'}
+                                                    </button>
+                                                    {showAllTemplates && (
+                                                        <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar p-2 bg-slate-50 rounded-xl border border-slate-200/60 animate-in fade-in duration-200">
+                                                            {Object.entries(ROUTINE_TEMPLATES).map(([catKey, routines]) => (
+                                                                <div key={catKey} className="space-y-1">
+                                                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                                                                        {DIVISION_TAGS.find(d => d.key === catKey)?.label || catKey}
+                                                                    </span>
+                                                                    {routines.map((rText, rIdx) => (
+                                                                        <div key={rIdx} className="p-1.5 bg-white rounded-lg border border-slate-200/60 text-[11px] flex items-center justify-between gap-1.5">
+                                                                            <span className="flex-1 text-slate-600 truncate">{rText}</span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const newTpl = {
+                                                                                        id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                                                                        text: rText,
+                                                                                        categoryTag: catKey
+                                                                                    };
+                                                                                    saveStaffTemplates([...staffCustomTemplates, newTpl]);
+                                                                                }}
+                                                                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded cursor-pointer whitespace-nowrap"
+                                                                                title="Salin butir ini ke Template Saya"
+                                                                            >
+                                                                                + Salin
+                                                                            </button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Active Assigned Tasks Converter */}

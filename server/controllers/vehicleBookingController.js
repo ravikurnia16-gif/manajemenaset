@@ -3,17 +3,18 @@ const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+require('dayjs/locale/id');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.locale('id');
+
 // Helper for WA date formatting
 const formatWAWaktu = (date) => {
     if (!date) return '-';
-    const d = new Date(date);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    const day = d.getDate();
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${day} ${month} ${year} ${hh}.${mm}`;
+    return dayjs(date).tz('Asia/Jakarta').format('DD MMM YYYY HH.mm');
 };
 
 // Helper for formatting absolute media URL
@@ -673,8 +674,8 @@ exports.endTrip = async (req, res) => {
                 `Pemberitahuan kepada PIC Armada & Tim Sarpras:\n` +
                 `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
                 `Pengemudi / Peminjam: *${booking.user.name}*\n` +
-                `KM Pengembalian: *${endKm} km*\n` +
-                `Waktu: *${new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}*\n\n` +
+                `Pengguna: *${req.user.name}*\n` +
+                `Waktu: *${formatWAWaktu(new Date())}*\n\n` +
                 `*Rincian Kerusakan/Insiden:*\n"${incidentNotes || '-'}"\n\n` +
                 (photoUrl ? `*Foto Bukti Kejadian:* ${formatMediaUrl(photoUrl)}\n\n` : '') +
                 `_Laporan ini telah tercatat di sistem pada Tab Laporan Kerusakan untuk segera ditindaklanjuti._`;
@@ -852,15 +853,11 @@ exports.getBookings = async (req, res) => {
                 // So: booking.startDate <= endDate AND booking.endDate >= startDate
                 const conditions = [];
                 if (startDate) {
-                    const viewStart = new Date(startDate);
-                    viewStart.setHours(0, 0, 0, 0);
-                    // booking ends after view start
+                    const viewStart = dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate();
                     where.endDate = { ...where.endDate, gte: viewStart };
                 }
                 if (endDate) {
-                    const viewEnd = new Date(endDate);
-                    viewEnd.setHours(23, 59, 59, 999);
-                    // booking starts before view end
+                    const viewEnd = dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate();
                     where.startDate = { ...where.startDate, lte: viewEnd };
                 }
             }
@@ -884,13 +881,11 @@ exports.getBookings = async (req, res) => {
             if (startDate || endDate) {
                 where.startDate = {};
                 if (startDate) {
-                    const start = new Date(startDate);
-                    start.setHours(0, 0, 0, 0);
+                    const start = dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate();
                     where.startDate.gte = start;
                 }
                 if (endDate) {
-                    const end = new Date(endDate);
-                    end.setHours(23, 59, 59, 999);
+                    const end = dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate();
                     where.startDate.lte = end;
                 }
             }
@@ -1075,8 +1070,8 @@ exports.checkOverdueVehicleBookings = async () => {
             // 1. Notifikasi Sistem (Lonceng) ke Peminjam
             await createNotification(
                 booking.userId,
-                'Pengingat: Selesaikan Perjalanan',
-                `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${new Date(booking.endDate).toLocaleString('id-ID')}. (Peringatan ke-${updatedBooking.endWarningCount})`,
+                'Perjalanan Kendaraan Melewati Batas Waktu',
+                `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${formatWAWaktu(booking.endDate)}. (Peringatan ke-${updatedBooking.endWarningCount})`,
                 'WARNING',
                 '/kendaraan/peminjaman'
             );
@@ -1084,9 +1079,9 @@ exports.checkOverdueVehicleBookings = async () => {
             // 2. Notifikasi WhatsApp ke Peminjam
             if (booking.user.phone) {
                 const waMsg = `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\n` +
-                    `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
-                    `Destinasi: ${booking.destination}\n` +
-                    `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
+                    `Kendaraan: ${booking.vehicle.name}\n` +
+                    `Tujuan: ${booking.destination}\n` +
+                    `Waktu Seharusnya Selesai: ${formatWAWaktu(booking.endDate)}\n` +
                     `Sudah Lewat: *${diffHours} jam*\n\n` +
                     `Apakah perjalanan Anda sudah selesai?\n\n` +
                     `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
@@ -1481,9 +1476,8 @@ exports.getVehicleRouteHistory = async (req, res) => {
             
             // If date is provided, filter by that date
             if (date) {
-                const targetDate = new Date(date);
-                const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
-                const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+                const startOfDay = dayjs.tz(date, 'Asia/Jakarta').startOf('day').toDate();
+                const endOfDay = dayjs.tz(date, 'Asia/Jakarta').endOf('day').toDate();
                 
                 whereClause.createdAt = {
                     gte: startOfDay,
@@ -1491,8 +1485,7 @@ exports.getVehicleRouteHistory = async (req, res) => {
                 };
             } else {
                 // Default to today if no date and no booking id specified
-                const today = new Date();
-                const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+                const startOfDay = dayjs().tz('Asia/Jakarta').startOf('day').toDate();
                 whereClause.createdAt = { gte: startOfDay };
             }
         } else {
@@ -1522,16 +1515,12 @@ exports.getDiscrepancyAnalytics = async (req, res) => {
         // Date range filter
         let dateFilter = null;
         if (startDate && endDate) {
-            const start = new Date(startDate);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
+            const start = dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate();
+            const end = dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate();
             dateFilter = { gte: start, lte: end };
         } else if (month && year) {
-            const start = new Date(parseInt(year), parseInt(month) - 1, 1);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(start);
-            end.setMonth(end.getMonth() + 1);
+            const start = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-01`, 'Asia/Jakarta').startOf('month').toDate();
+            const end = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-01`, 'Asia/Jakarta').endOf('month').toDate();
             dateFilter = { gte: start, lt: end };
         }
 

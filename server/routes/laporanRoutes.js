@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 const multer = require('multer');
 const laporanController = require('../controllers/laporanController');
 const { verifyToken } = require('../middleware/authMiddleware');
@@ -28,5 +30,15 @@ router.post('/upload-photo', upload.single('photo'), laporanController.uploadRep
 
 // Inactivity Alert for Kabid (2 working days)
 router.post('/notify-inactive', laporanController.notifyKabidInactiveStaff);
+
+// TEMPORARY DEBUG ENDPOINT
+router.get('/debug-reports', async (req, res) => {
+    const reports = await prisma.personnelReport.findMany({
+        where: { type: 'DAILY' },
+        orderBy: { date: 'desc' },
+        take: 5
+    });
+    res.json(reports);
+});
 
 module.exports = router;

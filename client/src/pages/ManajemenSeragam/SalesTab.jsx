@@ -286,43 +286,43 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
         </div>
 
         {/* Quick Actions */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full lg:w-auto">
           <button
             type="button"
             onClick={handleSetAllSedia}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap"
+            className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-bold transition shadow-sm text-center"
             title="Set semua item yang stoknya ada menjadi SEDIA"
           >
-            <Sparkles size={13} /> Set Semua SEDIA
+            <Sparkles size={13} className="shrink-0" /> <span className="truncate">Semua SEDIA</span>
           </button>
 
           <button
             type="button"
             onClick={handleSetAllDiambil}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap"
+            className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] sm:text-xs font-bold transition shadow-sm text-center"
             title="Set semua item menjadi DIAMBIL (Sudah Diserahkan)"
           >
-            <CheckCheck size={13} /> Set Semua DIAMBIL
+            <CheckCheck size={13} className="shrink-0" /> <span className="truncate">Semua DIAMBIL</span>
           </button>
 
           <button
             type="button"
             onClick={handleSetAllIndent}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition whitespace-nowrap"
+            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 rounded-xl text-[11px] sm:text-xs font-bold transition text-center"
             title="Set semua item menjadi INDENT"
           >
-            ⏳ Set Semua INDENT
+            <span>⏳ Set Semua INDENT</span>
           </button>
 
           {/* Quick Common Warehouse Selector */}
-          <div className="w-full sm:w-auto flex items-center gap-1.5 bg-white border border-blue-200 rounded-xl px-2.5 py-1.5 text-xs shadow-sm">
+          <div className="col-span-2 sm:col-span-1 w-full sm:w-auto flex items-center gap-1.5 bg-white border border-blue-200 rounded-xl px-2.5 py-1.5 text-xs shadow-sm min-w-0">
             <MapPin size={13} className="text-blue-600 shrink-0" />
             <select
               value={commonWarehouseId}
               onChange={(e) => handleApplyCommonWarehouse(e.target.value)}
-              className="w-full sm:w-auto bg-transparent font-bold text-slate-700 outline-none text-xs truncate cursor-pointer"
+              className="w-full sm:w-auto bg-transparent font-bold text-slate-700 outline-none text-xs truncate cursor-pointer min-w-0"
             >
-              <option value="">-- Lokasi Gudang Pengambilan (Semua) --</option>
+              <option value="">-- Lokasi Gudang (Semua) --</option>
               {warehouses.map(w => (
                 <option key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</option>
               ))}
@@ -1092,16 +1092,16 @@ export const SalesTab = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       {/* Top Search, Public Link Buttons & Create Bar */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
-        <div className="flex flex-wrap gap-2 items-center flex-1 max-w-lg w-full">
-          <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3">
+        <div className="flex flex-wrap gap-2 items-center flex-1 w-full max-w-lg">
+          <div className="relative flex-1 min-w-0 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text" 
-              placeholder="Cari kode invoice, nama pelanggan, atau siswa..." 
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" 
+              placeholder="Cari invoice, pelanggan, atau siswa..." 
+              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
             />
@@ -1109,17 +1109,17 @@ export const SalesTab = ({
         </div>
 
         {/* Action Buttons: Public Form Link & Create Admin Order & Export Excel */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Tombol Ekspor Pesanan */}
           <button
             type="button"
             onClick={handleExportExcel}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0 cursor-pointer disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer disabled:cursor-not-allowed text-center"
             title="Ekspor Data Pesanan Seragam ke File Excel"
           >
-            {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-            <span>{isExporting ? 'Mengekspor...' : 'Ekspor Excel'}</span>
+            {isExporting ? <Loader2 size={13} className="animate-spin shrink-0" /> : <Download size={13} className="shrink-0" />}
+            <span className="truncate">{isExporting ? 'Mengekspor...' : 'Ekspor Excel'}</span>
           </button>
 
           {/* Tombol Buka Form Publik */}
@@ -1127,30 +1127,30 @@ export const SalesTab = ({
             href="/pesan-seragam"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-sm text-center"
             title="Buka Halaman Form Pemesanan Seragam Publik untuk Wali Murid"
           >
-            <Globe size={14} className="text-emerald-600" />
-            <span>Form Pesan Seragam Publik</span>
-            <ExternalLink size={12} className="text-emerald-500" />
+            <Globe size={14} className="text-emerald-600 shrink-0" />
+            <span className="truncate">Form Publik</span>
+            <ExternalLink size={12} className="text-emerald-500 shrink-0 hidden sm:inline" />
           </a>
 
           {/* Tombol Salin Link */}
           <button
             type="button"
             onClick={handleCopyPublicLink}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-sm text-center"
             title="Salin Link Pemesanan Publik untuk Dibagikan ke Wali Murid via WhatsApp"
           >
             {copied ? (
               <>
-                <CheckCheck size={14} className="text-emerald-600" />
-                <span className="text-emerald-600">Tersalin!</span>
+                <CheckCheck size={14} className="text-emerald-600 shrink-0" />
+                <span className="text-emerald-600 truncate">Tersalin!</span>
               </>
             ) : (
               <>
-                <Copy size={13} className="text-slate-500" />
-                <span>Salin Link</span>
+                <Copy size={13} className="text-slate-500 shrink-0" />
+                <span className="truncate">Salin Link</span>
               </>
             )}
           </button>
@@ -1159,39 +1159,39 @@ export const SalesTab = ({
           <button
             type="button"
             onClick={() => openModal('exchange')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-sm shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-sm text-center"
             title="Tukar Ukuran Seragam (Retur / Ganti Ukuran)"
           >
-            <RefreshCw size={13} className="text-amber-600" />
-            <span>Tukar Ukuran</span>
+            <RefreshCw size={13} className="text-amber-600 shrink-0" />
+            <span className="truncate">Tukar Ukuran</span>
           </button>
 
           {/* Tombol Buat Pesanan (Admin) */}
           <button 
             onClick={() => openModal('sale')} 
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all shrink-0"
+            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer text-center"
           >
-            <ShoppingCart size={14} /> Buat Pesanan
+            <ShoppingCart size={14} className="shrink-0" /> <span>Buat Pesanan</span>
           </button>
         </div>
       </div>
 
-      {/* Quick Status Filter Tabs */}
-      <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+      {/* Quick Status Filter Tabs - Scrollable on Mobile, Wrapped on Desktop */}
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 sm:pb-0 sm:flex-wrap custom-scrollbar max-w-full text-xs font-bold -mx-1 px-1">
         <button
           onClick={() => setStatusFilter('ALL')}
-          className={`px-3 py-1.5 rounded-xl transition ${
+          className={`shrink-0 px-3 py-1.5 rounded-xl transition ${
             statusFilter === 'ALL'
               ? 'bg-slate-800 text-white shadow-sm'
               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
           }`}
         >
-          Semua Pesanan ({counts.all})
+          Semua ({counts.all})
         </button>
 
         <button
           onClick={() => setStatusFilter('PENDING')}
-          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+          className={`shrink-0 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
             statusFilter === 'PENDING'
               ? 'bg-amber-500 text-white shadow-sm'
               : 'bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100'
@@ -1203,7 +1203,7 @@ export const SalesTab = ({
 
         <button
           onClick={() => setStatusFilter('INDENT')}
-          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+          className={`shrink-0 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
             statusFilter === 'INDENT'
               ? 'bg-amber-600 text-white shadow-sm'
               : 'bg-amber-100/70 border border-amber-300 text-amber-900 hover:bg-amber-200'
@@ -1214,7 +1214,7 @@ export const SalesTab = ({
 
         <button
           onClick={() => setStatusFilter('PROSES')}
-          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+          className={`shrink-0 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
             statusFilter === 'PROSES'
               ? 'bg-blue-600 text-white shadow-sm'
               : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
@@ -1226,20 +1226,20 @@ export const SalesTab = ({
         {counts.overdue30 > 0 && (
           <button
             onClick={() => setStatusFilter('OVERDUE30')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition animate-pulse ${
+            className={`shrink-0 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition animate-pulse ${
               statusFilter === 'OVERDUE30'
                 ? 'bg-rose-600 text-white shadow-sm'
                 : 'bg-rose-50 border border-rose-300 text-rose-800 hover:bg-rose-100'
             }`}
           >
             <AlertTriangle size={13} className="text-rose-600" />
-            🚨 Siap Ambil &gt; 30 Hari ({counts.overdue30})
+            🚨 Siap &gt; 30 Hari ({counts.overdue30})
           </button>
         )}
 
         <button
           onClick={() => setStatusFilter('COMPLETED')}
-          className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
+          className={`shrink-0 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition ${
             statusFilter === 'COMPLETED'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100'
@@ -1249,8 +1249,401 @@ export const SalesTab = ({
         </button>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto custom-scrollbar">
+      {/* Mobile Card View (No Horizontal Scroll on Mobile Phone Screen) */}
+      <div className="block md:hidden space-y-3">
+        {loading ? (
+          <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-xs text-center text-slate-400 text-sm">
+            Memuat data pesanan...
+          </div>
+        ) : sortedAndFilteredSales.length === 0 ? (
+          <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-xs text-center text-slate-400 text-sm">
+            Belum ada transaksi pesanan yang sesuai filter.
+          </div>
+        ) : (
+          sortedAndFilteredSales.map(s => {
+            const hasPackages = s.salePackages && s.salePackages.length > 0;
+            let ndTotal = 0;
+            if (s.note && s.note.includes('[NAMADADA')) {
+              const matches = [...s.note.matchAll(/\[(NAMADADA(?:_PUTIH|_COKLAT)?):(\d+):(\d+)(?::([A-Z_]+))?\]/g)];
+              for (const m of matches) {
+                if (m[4] !== 'BATAL') {
+                  ndTotal += (parseInt(m[2]) || 0) * (parseInt(m[3]) || 0);
+                }
+              }
+            }
+
+            const { items: sItems, ndItems: sNdItems, allItems: sAllItems } = getSaleItemsAndNd(s);
+            const activeSubtotal = (s.type === 'SPMB' || s.type === 'UNIT_ORDER')
+              ? (Number(s.subtotal) || 0)
+              : ((s.items?.filter(item => item.status !== 'BATAL').reduce((acc, item) => acc + (Number(item.totalPrice) || 0), 0) || 0) + ndTotal);
+            const activeTotalAmount = Math.max(0, activeSubtotal - (Number(s.discount) || 0));
+            const isExpanded = expandedSaleIds.has(s.id);
+            const itemCount = sAllItems.length || 0;
+
+            const indentItems = sAllItems.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
+            const sediaItems = sAllItems.filter(i => i.status === 'SEDIA');
+            const isCompleted = s.status === 'SELESAI' || s.status === 'COMPLETED';
+            const orderDateObj = new Date(s.updatedAt || s.createdAt || 0);
+            const diffDays = Math.floor((Date.now() - orderDateObj) / (1000 * 60 * 60 * 24));
+            const isOverdue30 = (s.status === 'PROSES' || s.status === 'SEDIA' || sediaItems.length > 0) && !isCompleted && s.status !== 'BATAL' && s.status !== 'CANCELLED' && diffDays >= 30;
+
+            return (
+              <div 
+                key={s.id}
+                className={`p-3.5 rounded-2xl border transition-all space-y-3 ${
+                  isOverdue30
+                    ? 'bg-rose-50/40 border-rose-300 ring-1 ring-rose-400/20'
+                    : isExpanded 
+                    ? 'bg-blue-50/40 border-blue-300' 
+                    : indentItems.length > 0 && !isCompleted 
+                    ? 'bg-amber-50/20 border-amber-200' 
+                    : isCompleted 
+                    ? 'bg-white border-slate-200/60 opacity-90' 
+                    : 'bg-white border-slate-200/80 shadow-xs'
+                }`}
+              >
+                {/* Header: Invoice, Type, Status */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-mono text-xs font-black text-slate-800 tracking-tight truncate">
+                      {s.code}
+                    </span>
+                    <Badge color={s.type === 'SPMB' || s.type === 'UNIT_ORDER' ? 'purple' : 'slate'}>
+                      {s.type}
+                    </Badge>
+                  </div>
+
+                  <div className="shrink-0">
+                    <Badge color={
+                      isCompleted ? 'green' : 
+                      s.status === 'PROSES' || s.status === 'SEDIA' ? 'blue' : 
+                      s.status === 'PENDING' ? 'yellow' : 'slate'
+                    }>
+                      {isCompleted ? 'SELESAI' : s.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Pelanggan & Siswa */}
+                <div className="space-y-0.5">
+                  <div className="font-bold text-slate-800 text-sm leading-snug break-words">
+                    {s.customerName}
+                  </div>
+                  {s.studentName && (
+                    <div className="text-xs text-slate-500 font-medium">
+                      Siswa: <span className="font-bold text-slate-700">{s.studentName}</span> {s.studentClass ? `(${s.studentClass})` : ''}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Badges Row (Overdue, Inden, Sedia, Diambil, Selesai) */}
+                {(isOverdue30 || indentItems.length > 0 || (isCompleted && (s.completedAt || s.updatedAt)) || sediaItems.length > 0 || sAllItems.some(i => i.status === 'DIAMBIL')) && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    {isOverdue30 && (
+                      <span className="text-[10px] font-black text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        🚨 Siap {diffDays} Hari
+                      </span>
+                    )}
+                    {indentItems.length > 0 && !isCompleted && (
+                      <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        ⏳ {indentItems.length} Inden
+                      </span>
+                    )}
+                    {sediaItems.length > 0 && !isCompleted && indentItems.length === 0 && (
+                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        ✓ {sediaItems.length} Sedia
+                      </span>
+                    )}
+                    {!isCompleted && sAllItems.filter(i => i.status === 'DIAMBIL').length > 0 && (
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        📦 {sAllItems.filter(i => i.status === 'DIAMBIL').length} Diambil
+                      </span>
+                    )}
+                    {isCompleted && (s.completedAt || s.updatedAt) && (
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        <CheckCheck size={11} className="text-emerald-600" />
+                        {new Date(s.completedAt || s.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}{' '}
+                        {new Date(s.completedAt || s.updatedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Tagihan & Pembayaran Box */}
+                <div className="bg-slate-50/90 p-3 rounded-xl border border-slate-200/70 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Tagihan</span>
+                      {(Number(s.totalAmount) || 0) > activeTotalAmount ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-rose-400 line-through">Rp {(Number(s.totalAmount) || 0).toLocaleString('id-ID')}</span>
+                          <span className="font-black text-slate-800 text-sm">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
+                        </div>
+                      ) : (
+                        <span className="font-black text-slate-800 text-sm">Rp {activeTotalAmount.toLocaleString('id-ID')}</span>
+                      )}
+                    </div>
+
+                    <div className="text-right flex flex-col items-end">
+                      <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
+                        {s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'PARTIAL' ? 'PARSIAL' : 'BELUM BAYAR'}
+                      </Badge>
+                      {s.paymentStatus === 'PAID' && (
+                        <span className="text-[10px] font-bold text-emerald-700 font-mono mt-0.5">
+                          Rp {(Number(s.paidAmount) || activeTotalAmount).toLocaleString('id-ID')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Partial Progress */}
+                  {s.paymentStatus === 'PARTIAL' && (
+                    <div className="space-y-1 pt-1.5 border-t border-slate-200/60">
+                      <div className="flex justify-between text-[10px] font-bold">
+                        <span className="text-slate-500">Terbayar: <b className="text-emerald-700">Rp {(Number(s.paidAmount) || 0).toLocaleString('id-ID')}</b></span>
+                        <span className="text-rose-600">Sisa: <b>Rp {Math.max(0, activeTotalAmount - (Number(s.paidAmount) || 0)).toLocaleString('id-ID')}</b></span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-amber-500 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.max(0, ((Number(s.paidAmount) || 0) / (activeTotalAmount || 1)) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Paid timestamp */}
+                  {s.paymentStatus === 'PAID' && (() => {
+                    let paidDate = null;
+                    if (s.note && s.note.includes('[PAID_AT:')) {
+                      const match = s.note.match(/\[PAID_AT:(.*?)\]/);
+                      if (match && match[1]) {
+                        const parsed = new Date(match[1]);
+                        if (!isNaN(parsed.getTime())) paidDate = parsed;
+                      }
+                    }
+                    if (!paidDate && s.paymentStatus === 'PAID') {
+                      const dt = s.updatedAt || s.completedAt || s.createdAt;
+                      if (dt) paidDate = new Date(dt);
+                    }
+                    if (!paidDate) return null;
+                    return (
+                      <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1 pt-0.5">
+                        <CheckCircle size={10} className="text-emerald-600 shrink-0" />
+                        <span>Dilunasi: {paidDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} {paidDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Kelola Pembayaran Button */}
+                  {onUpdatePayment && (
+                    <button 
+                      type="button"
+                      onClick={() => setPaymentModal({ open: true, sale: s })}
+                      className="w-full mt-1 py-1.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <CreditCard size={12} />
+                      <span>Kelola Pembayaran</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Tanggal & Deadline */}
+                <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-500 pt-0.5">
+                  <div className="flex items-center gap-1">
+                    <Clock size={12} className="text-slate-400 shrink-0" />
+                    <span>{new Date(s.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  </div>
+
+                  {(() => {
+                    const match = s.note?.match(/\[DEADLINE:(.*?)\]/);
+                    if (match && match[1]) {
+                      const dlStr = match[1].trim();
+                      const dlDate = /^\d{4}-\d{2}-\d{2}$/.test(dlStr) ? new Date(dlStr + 'T23:59:59') : new Date(dlStr);
+                      const isOverdue = dlDate && (new Date() > dlDate) && s.paymentStatus !== 'PAID';
+                      const formatted = dlDate && !isNaN(dlDate.getTime()) 
+                        ? dlDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                        : dlStr;
+                      return (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!isAdmin) return;
+                            const newDl = prompt('Ubah Batas Tanggal Pembayaran (YYYY-MM-DD):', dlStr);
+                            if (newDl === null) return;
+                            try {
+                              await api.put(`/uniforms/sales/${s.id}/deadline`, { deadline: newDl });
+                              if (onRefresh) onRefresh();
+                            } catch (err) {
+                              alert(err.response?.data?.error || 'Gagal mengubah batas tanggal');
+                            }
+                          }}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition-all ${
+                            isAdmin ? 'cursor-pointer hover:ring-1 hover:ring-blue-400' : 'cursor-default'
+                          } ${
+                            isOverdue 
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                              : 'bg-amber-50 text-amber-800 border border-amber-200'
+                          }`}
+                        >
+                          {isOverdue ? '⚠️ Lewat:' : '⏳ Batas:'} {formatted}
+                        </button>
+                      );
+                    } else if (s.type === 'SPMB' && isAdmin) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const defDate = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+                            const newDl = prompt('Set Batas Tanggal Pembayaran (YYYY-MM-DD):', defDate);
+                            if (newDl === null || !newDl) return;
+                            try {
+                              await api.put(`/uniforms/sales/${s.id}/deadline`, { deadline: newDl });
+                              if (onRefresh) onRefresh();
+                            } catch (err) {
+                              alert(err.response?.data?.error || 'Gagal mengatur batas tanggal');
+                            }
+                          }}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+                        >
+                          + Set Deadline
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+
+                {/* Action Buttons Grid on Mobile */}
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+                  <a 
+                    href={`/public/invoice-seragam/${s.id}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 py-1.5 px-2.5 rounded-xl inline-flex items-center justify-center gap-1 text-center"
+                  >
+                    Invoice <ExternalLink size={11} />
+                  </a>
+
+                  {s.type === 'SPMB' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        let phone = s.customerPhone;
+                        if (!phone) {
+                          phone = prompt('Nomor WhatsApp belum tersedia. Masukkan Nomor WA Pemesan:');
+                          if (!phone) return;
+                        }
+                        const existingDl = s.note?.match(/\[DEADLINE:(.*?)\]/)?.[1] || new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+                        const deadline = prompt('Masukkan Batas Tanggal Pembayaran (YYYY-MM-DD):', existingDl);
+                        if (deadline === null) return;
+                        try {
+                          const res = await api.post(`/uniforms/sales/${s.id}/send-billing-wa`, { phone, deadline });
+                          alert(res.data.message || 'Tagihan WhatsApp berhasil dikirim ke pemesan!');
+                          if (onRefresh) onRefresh();
+                        } catch (err) {
+                          alert(err.response?.data?.error || 'Gagal mengirimkan tagihan WhatsApp');
+                        }
+                      }}
+                      className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 py-1.5 px-2.5 rounded-xl inline-flex items-center justify-center gap-1 text-center cursor-pointer"
+                    >
+                      <Send size={11} /> WA Tagihan
+                    </button>
+                  )}
+
+                  {openModal && (
+                    <button 
+                      type="button"
+                      onClick={() => openModal('exchange', s)} 
+                      className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 py-1.5 px-2.5 rounded-xl inline-flex items-center justify-center gap-1 text-center cursor-pointer" 
+                    >
+                      <RefreshCw size={11} /> Tukar
+                    </button>
+                  )}
+
+                  {s.status === 'PENDING' && onDelete && (
+                    <button 
+                      onClick={() => onDelete(s.id)} 
+                      className="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 py-1.5 px-2.5 rounded-xl inline-flex items-center justify-center gap-1 text-center cursor-pointer" 
+                    >
+                      <Trash2 size={12} /> Batal
+                    </button>
+                  )}
+                </div>
+
+                {/* Kelola Item Accordion Button */}
+                {canFulfill && s.status !== 'CANCELLED' && (
+                  <button 
+                    onClick={() => toggleExpand(s.id)} 
+                    className={`w-full text-xs font-bold py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      isExpanded 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : indentItems.length > 0 && !isCompleted
+                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                        : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60'
+                    }`}
+                  >
+                    {isExpanded ? (
+                      <>
+                        <ChevronUp size={14} /> Tutup Kelola Item
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={14} /> Kelola {itemCount} Item Seragam
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Inline Fulfill Panel inside Mobile Card */}
+                {isExpanded && (
+                  <div className="pt-2 border-t border-indigo-100">
+                    <InlineFulfillPanel 
+                      sale={s} 
+                      warehouses={warehouses} 
+                      variants={variants}
+                      onSave={async (fulfillments) => {
+                        if (onFulfillSale) {
+                          await onFulfillSale(s.id, fulfillments);
+                          toggleExpand(s.id);
+                        }
+                      }} 
+                      onClose={() => toggleExpand(s.id)} 
+                    />
+                  </div>
+                )}
+
+                {/* Sub Package Rows (if any) */}
+                {hasPackages && s.salePackages.map((pkg) => {
+                  const pkgItems = s.items ? s.items.filter(i => i.salePackageId === pkg.id) : [];
+                  const isPkgPending = pkgItems.some(i => i.qtyDelivered < i.qty);
+                  return (
+                    <div key={pkg.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60 text-xs flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-700">{pkg.package?.name || 'Paket'}</span>
+                        <span className="bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded text-[10px]">{pkg.qty}x</span>
+                      </div>
+                      <div className="text-slate-500 font-medium">
+                        Rp {(Number(pkg.price) || 0).toLocaleString('id-ID')}
+                      </div>
+                      <div>
+                        {isPkgPending ? (
+                          <span className="text-[10px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">Pending</span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Selesai</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Main Desktop Table (Hidden on Mobile) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto custom-scrollbar">
         <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
             <tr>

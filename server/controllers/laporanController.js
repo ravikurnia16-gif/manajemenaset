@@ -85,7 +85,7 @@ exports.getReports = async (req, res) => {
         
         let targetDate = dayjs().tz('Asia/Jakarta');
         if (date) {
-            targetDate = dayjs(date).tz('Asia/Jakarta');
+            targetDate = dayjs.tz(date, 'Asia/Jakarta');
         }
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
@@ -222,7 +222,7 @@ exports.updateMyReport = async (req, res) => {
         
         let reportDate = dayjs().tz('Asia/Jakarta');
         if (targetDate) {
-            reportDate = dayjs(targetDate).tz('Asia/Jakarta');
+            reportDate = dayjs.tz(targetDate, 'Asia/Jakarta');
         }
 
         const dateStart = reportDate.startOf('day').toDate();
@@ -354,7 +354,7 @@ exports.getDashboardAnalytics = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak. Dashboard hanya untuk Kepala Bidang Sarana.' });
         }
 
-        const targetDate = req.query.date ? dayjs(req.query.date).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
+        const targetDate = req.query.date ? dayjs.tz(req.query.date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
@@ -595,8 +595,8 @@ exports.getWeeklySummary = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
-        let startDate = req.query.startDate ? dayjs(req.query.startDate).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta').startOf('week').add(1, 'day'); // Monday
-        let endDate = req.query.endDate ? dayjs(req.query.endDate).tz('Asia/Jakarta') : startDate.add(4, 'day'); // Friday
+        let startDate = req.query.startDate ? dayjs.tz(req.query.startDate, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta').startOf('week').add(1, 'day'); // Monday
+        let endDate = req.query.endDate ? dayjs.tz(req.query.endDate, 'Asia/Jakarta') : startDate.add(4, 'day'); // Friday
 
         const dStart = startDate.startOf('day').toDate();
         const dEnd = endDate.endOf('day').toDate();
@@ -906,7 +906,7 @@ exports.analyzeWithAI = async (req, res) => {
                 ? targetStart.format('DD MMMM YYYY')
                 : `${targetStart.format('DD MMMM YYYY')} s.d. ${targetEnd.format('DD MMMM YYYY')}`;
         } else {
-            const targetDate = date ? dayjs(date).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
+            const targetDate = date ? dayjs.tz(date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
             targetStart = targetDate.startOf('day');
             targetEnd = targetDate.endOf('day');
             formattedPeriod = targetStart.format('DD MMMM YYYY');
@@ -1242,8 +1242,8 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
  */
 exports.getKabidSummary = async (req, res) => {
     try {
-        const targetStartDate = req.query.startDate ? dayjs(req.query.startDate).tz('Asia/Jakarta') : (req.query.date ? dayjs(req.query.date).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta'));
-        const targetEndDate = req.query.endDate ? dayjs(req.query.endDate).tz('Asia/Jakarta') : targetStartDate;
+        const targetStartDate = req.query.startDate ? dayjs.tz(req.query.startDate, 'Asia/Jakarta') : (req.query.date ? dayjs.tz(req.query.date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta'));
+        const targetEndDate = req.query.endDate ? dayjs.tz(req.query.endDate, 'Asia/Jakarta') : targetStartDate;
         
         const startOfDay = targetStartDate.startOf('day').toDate();
         const endOfDay = targetEndDate.endOf('day').toDate();
