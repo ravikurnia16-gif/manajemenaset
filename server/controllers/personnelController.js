@@ -2193,131 +2193,7 @@ exports.getPersonnelAISummary = async (req, res) => {
     }
 };
 
-// --- SANCTION LIFTING ---
 
-exports.proposeSanctionLift = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { reason } = req.body;
-
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user.isSanctioned) {
-            return res.status(400).json({ error: 'Akun Anda tidak dalam masa sanksi.' });
-        }
-        if (user.sanctionProposedLift) {
-            return res.status(400).json({ error: 'Anda sudah mengajukan pencabutan sanksi sebelumnya. Mohon tunggu proses review.' });
-        }
-        if (!reason) {
-            return res.status(400).json({ error: 'Alasan pencabutan sanksi wajib diisi.' });
-        }
-
-        const updatedUser = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                sanctionProposedLift: true,
-                sanctionLiftReason: reason
-            }
-        });
-
-        // Notify Admins
-        const admins = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { role: 'SUPER_ADMIN' },
-                    { role: 'ADMIN_ASET' }
-                ]
-            }
-        });
-
-        for (const admin of admins) {
-            await createNotification(
-                admin.id,
-                'Pengajuan Pencabutan Sanksi',
-                `${updatedUser.name} mengajukan pencabutan sanksi. Alasan: ${reason}`,
-                'INFO',
-                '/kendaraan'
-            );
-            if (admin.phone) {
-                const msg = `📢 *PENGAJUAN PENCABUTAN SANKSI*\n\n` +
-                    `User: ${updatedUser.name}\n` +
-                    `Alasan: ${reason}\n\n` +
-                    `Mohon untuk di-review di menu Pelanggaran User aplikasi SARPRAS.`;
-                await whatsappService.sendMessage(admin.phone, msg);
-            }
-        }
-
-        res.json({ message: 'Pengajuan pencabutan sanksi berhasil dikirim.' });
-    } catch (err) {
-        console.error('[Propose Sanction Lift Error]', err.message);
-        res.status(500).json({ error: 'Gagal mengajukan pencabutan sanksi: ' + err.message });
-    }
-};
-
-exports.reviewSanctionLift = async (req, res) => {
-    try {
-        const { userId, isApproved } = req.body;
-        const adminId = req.user.id;
-
-        const admin = await prisma.user.findUnique({ where: { id: adminId } });
-        if (!admin.position?.toLowerCase().includes('Staff Kendaraan')) {
-            return res.status(403).json({ error: 'Akses ditolak.' });
-        }
-
-        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
-        if (!user || !user.isSanctioned) {
-            return res.status(404).json({ error: 'User tidak ditemukan atau tidak sedang disanksi.' });
-        }
-
-        if (isApproved) {
-            // Un-sanction and reset warnings for bookings? Actually just reset user isSanctioned flag
-            await prisma.user.update({
-                where: { id: parseInt(userId) },
-                data: {
-                    isSanctioned: false,
-                    sanctionProposedLift: false,
-                    sanctionLiftReason: null
-                }
-            });
-
-            // Also reset warning counts on any active/recent bookings to prevent immediate re-sanction if loop triggers again.
-            // Wait, the late loops only trigger if tripStartTime is null or tripEndTime is null. 
-            // If we completed or cancelled the trip, it won't be processed again by those loops.
-            // So just un-sanctioning the user is enough.
-
-            if (user.phone) {
-                const msg = `✅ *PENCABUTAN SANKSI DISETUJUI*\n\n` +
-                    `Bismillah Ustadz ${user.name},\n\n` +
-                    `Pengajuan pencabutan sanksi Anda telah disetujui oleh ${admin.name}. Hak akses peminjaman kendaraan Anda telah dikembalikan.\n\n` +
-                    `Mohon untuk tertib dalam memulai dan mengakhiri perjalanan ke depannya. Syukron.`;
-                await whatsappService.sendMessage(user.phone, msg);
-            }
-            await createNotification(user.id, 'Sanksi Dicabut', 'Pengajuan pencabutan sanksi Anda telah disetujui. Anda dapat melakukan peminjaman kembali.', 'SUCCESS', '/kendaraan');
-
-            res.json({ message: 'Sanksi berhasil dicabut.' });
-        } else {
-            // Reject lift
-            await prisma.user.update({
-                where: { id: parseInt(userId) },
-                data: {
-                    sanctionProposedLift: false
-                }
-            });
-
-            if (user.phone) {
-                const msg = `❌ *PENCABUTAN SANKSI DITOLAK*\n\n` +
-                    `Bismillah Ustadz ${user.name},\n\n` +
-                    `Maaf, pengajuan pencabutan sanksi Anda ditolak oleh ${admin.name}.`;
-                await whatsappService.sendMessage(user.phone, msg);
-            }
-            await createNotification(user.id, 'Pencabutan Sanksi Ditolak', 'Pengajuan pencabutan sanksi Anda ditolak.', 'ERROR', '/kendaraan');
-
-            res.json({ message: 'Pencabutan sanksi ditolak.' });
-        }
-    } catch (err) {
-        console.error('[Review Sanction Lift Error]', err.message);
-        res.status(500).json({ error: 'Gagal memproses review pencabutan sanksi: ' + err.message });
-    }
-};
 
 exports.generateSummary = async (req, res) => {
     try {
@@ -2428,30 +2304,55 @@ exports.proposeSanctionLift = async (req, res) => {
             }
         });
 
-        // Notify Admins
-        const admins = await prisma.user.findMany({
+        // Notify Staff Kendaraan & Kepala Bidang Sarana
+        const staffKendaraanAndAdmins = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: 'Kepala Bidang Sarana' },
-                    { position: 'Staff Kendaraan' }
+                    { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'kendaraan' } },
+                    { position: { contains: 'Staff Kendaraan' } },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KABID_SARPRAS' },
+                    { role: 'ADMIN_ASET' },
+                    { role: 'SUPER_ADMIN' }
+                ],
+                NOT: [
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
-            }
+            },
+            select: { id: true, name: true, phone: true, position: true, role: true }
         });
 
-        for (const admin of admins) {
-            await createNotification(
-                admin.id,
-                'Pengajuan Pencabutan Sanksi',
-                `${updatedUser.name} mengajukan pencabutan sanksi. Alasan: ${reason}`,
-                'INFO',
-                '/kendaraan'
-            );
-            if (admin.phone) {
-                const msg = `📢 *PENGAJUAN PENCABUTAN SANKSI*\n\n` +
-                    `User: ${updatedUser.name}\n` +
-                    `Alasan: ${reason}\n\n` +
-                    `Mohon untuk di-review di menu Pelanggaran User aplikasi SARPRAS.`;
-                await whatsappService.sendMessage(admin.phone, msg);
+        const waMsg = `📢 *PENGAJUAN PENCABUTAN SANKSI KENDARAAN* 📢\n\n` +
+            `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+            `Tim Staff Kendaraan & Admin Sarpras,\n\n` +
+            `Terdapat pengajuan permohonan *pencabutan sanksi peminjaman kendaraan* dari pengguna:\n\n` +
+            `👤 *Nama*: ${updatedUser.name} (${updatedUser.username || '-'})\n` +
+            `🏢 *Jabatan/Unit*: ${updatedUser.position || '-'}\n` +
+            `📝 *Alasan*: "${reason}"\n\n` +
+            `Mohon Tim Staff Kendaraan / Admin dapat meninjau dan memproses pengajuan ini pada menu *Pelanggaran User* / *Peminjaman Kendaraan* di aplikasi SARPRAS.\n\n` +
+            `_Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El-Iman_`;
+
+        for (const recipient of staffKendaraanAndAdmins) {
+            try {
+                await createNotification(
+                    recipient.id,
+                    'Pengajuan Pencabutan Sanksi Kendaraan',
+                    `${updatedUser.name} mengajukan pencabutan sanksi peminjaman kendaraan. Alasan: ${reason}`,
+                    'INFO',
+                    '/kendaraan'
+                );
+            } catch (nErr) {
+                console.warn('[SanctionLift] Error createNotification:', nErr.message);
+            }
+
+            if (recipient.phone && recipient.phone.trim() && recipient.phone !== '08') {
+                try {
+                    await whatsappService.sendMessage(recipient.phone.trim(), waMsg);
+                } catch (waErr) {
+                    console.warn(`[SanctionLift] Gagal kirim WA ke ${recipient.name} (${recipient.phone}):`, waErr.message);
+                }
             }
         }
 
@@ -2468,8 +2369,13 @@ exports.reviewSanctionLift = async (req, res) => {
         const adminId = req.user.id;
 
         const admin = await prisma.user.findUnique({ where: { id: adminId } });
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(admin.role) && !admin.position?.toLowerCase().includes('kepala bidang')) {
-            return res.status(403).json({ error: 'Akses ditolak.' });
+        const posLower = (admin?.position || '').toLowerCase();
+        const isAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(admin?.role) ||
+            posLower.includes('kepala bidang') ||
+            posLower.includes('kendaraan');
+
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'Akses ditolak. Khusus Tim Kendaraan atau Kepala Bidang Sarana.' });
         }
 
         const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
@@ -2477,8 +2383,25 @@ exports.reviewSanctionLift = async (req, res) => {
             return res.status(404).json({ error: 'User tidak ditemukan atau tidak sedang disanksi.' });
         }
 
+        // Ambil daftar Staff Kendaraan untuk notifikasi tim
+        const staffKendaraan = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'kendaraan' } },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KABID_SARPRAS' }
+                ],
+                NOT: [
+                    { id: adminId },
+                    { position: { equals: 'Staff Keuangan' } },
+                    { position: { equals: 'Staff Keuangan / Sopir' } }
+                ]
+            },
+            select: { id: true, name: true, phone: true }
+        });
+
         if (isApproved) {
-            // Un-sanction and reset warnings for bookings? Actually just reset user isSanctioned flag
             await prisma.user.update({
                 where: { id: parseInt(userId) },
                 data: {
@@ -2516,6 +2439,20 @@ exports.reviewSanctionLift = async (req, res) => {
             }
             await createNotification(user.id, 'Sanksi Dicabut', 'Pengajuan pencabutan sanksi Anda telah disetujui. Anda dapat melakukan peminjaman kembali.', 'SUCCESS', '/kendaraan');
 
+            // Beritahu juga Tim Kendaraan
+            const teamApproveMsg = `✅ *PENCABUTAN SANKSI KENDARAAN DISETUJUI*\n\n` +
+                `Permohonan pencabutan sanksi peminjaman kendaraan telah disetujui:\n` +
+                `👤 *Nama*: ${user.name}\n` +
+                `👮 *Di-review oleh*: ${admin.name}\n` +
+                `📝 *Catatan*: ${reviewNotes || 'Tidak ada catatan'}\n\n` +
+                `Hak akses peminjaman kendaraan pengguna telah diaktifkan kembali.`;
+
+            for (const st of staffKendaraan) {
+                if (st.phone && st.phone.trim() && st.phone !== '08') {
+                    try { await whatsappService.sendMessage(st.phone.trim(), teamApproveMsg); } catch(e) {}
+                }
+            }
+
             res.json({ message: 'Sanksi berhasil dicabut.' });
         } else {
             // Reject lift
@@ -2551,6 +2488,20 @@ exports.reviewSanctionLift = async (req, res) => {
                 await whatsappService.sendMessage(user.phone, msg);
             }
             await createNotification(user.id, 'Pencabutan Sanksi Ditolak', 'Pengajuan pencabutan sanksi Anda ditolak.', 'WARNING', '/kendaraan');
+
+            // Beritahu juga Tim Kendaraan
+            const teamRejectMsg = `❌ *PENCABUTAN SANKSI KENDARAAN DITOLAK*\n\n` +
+                `Permohonan pencabutan sanksi peminjaman kendaraan telah ditolak:\n` +
+                `👤 *Nama*: ${user.name}\n` +
+                `👮 *Di-review oleh*: ${admin.name}\n` +
+                `📝 *Catatan*: ${reviewNotes || 'Tidak ada catatan'}\n\n` +
+                `Akun pengguna tetap berada dalam status pembekuan.`;
+
+            for (const st of staffKendaraan) {
+                if (st.phone && st.phone.trim() && st.phone !== '08') {
+                    try { await whatsappService.sendMessage(st.phone.trim(), teamRejectMsg); } catch(e) {}
+                }
+            }
 
             res.json({ message: 'Pengajuan pencabutan sanksi ditolak.' });
         }

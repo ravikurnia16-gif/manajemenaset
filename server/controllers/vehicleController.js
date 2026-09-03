@@ -767,3 +767,8 @@ exports.getVehicleDashboard = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// --- SANCTION LIFTING (DELEGATED TO PERSONNEL CONTROLLER) ---
+const personnelController = require('./personnelController');
+exports.proposeSanctionLift = personnelController.proposeSanctionLift;
+exports.reviewSanctionLift = personnelController.reviewSanctionLift;

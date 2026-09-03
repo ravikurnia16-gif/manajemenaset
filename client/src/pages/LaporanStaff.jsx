@@ -154,6 +154,7 @@ const LaporanStaff = () => {
     const [weeklyData, setWeeklyData] = useState(null);
     const [weeklyStartDate, setWeeklyStartDate] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
     const [weeklyEndDate, setWeeklyEndDate] = useState(dayjs().startOf('week').add(6, 'day').format('YYYY-MM-DD'));
+    const [customKabidNiy, setCustomKabidNiy] = useState('');
 
     // Assignments
     const [assignments, setAssignments] = useState([]);
@@ -474,6 +475,11 @@ const LaporanStaff = () => {
             });
             if (res.data.success) {
                 setWeeklyData(res.data);
+                if (res.data.kabid?.niy) {
+                    setCustomKabidNiy(res.data.kabid.niy);
+                } else if (user?.nip || user?.username) {
+                    setCustomKabidNiy(user.nip || user.username);
+                }
             }
         } catch (error) {
             console.error('Error fetching weekly summary:', error);
@@ -2016,6 +2022,17 @@ const LaporanStaff = () => {
                                         <span>Sampai:</span>
                                         <input type="date" value={weeklyEndDate} onChange={(e) => setWeeklyEndDate(e.target.value)} className="bg-transparent outline-none" />
                                     </div>
+                                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+                                        <span>NIY:</span>
+                                        <input 
+                                            type="text" 
+                                            value={customKabidNiy} 
+                                            onChange={(e) => setCustomKabidNiy(e.target.value)} 
+                                            placeholder="NIY Kepala..." 
+                                            className="w-28 bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-xs outline-none" 
+                                            title="Nomor Induk Yayasan (NIY) Kepala Bidang Sarana"
+                                        />
+                                    </div>
                                     <button
                                         onClick={() => window.print()}
                                         className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 cursor-pointer"
@@ -2116,9 +2133,88 @@ const LaporanStaff = () => {
                                             <p className="text-xs font-bold uppercase mt-1">Kepala Bidang Sarana</p>
                                         </div>
                                         <div className="space-y-0.5">
-                                            <p className="text-xs font-bold underline">Ravi Kurnia</p>
-                                            <p className="text-[10px] text-slate-500 font-mono">NIY. </p>
+                                            <p className="text-xs font-bold underline">{weeklyData?.kabid?.name || 'Ravi Kurnia'}</p>
+                                            <p className="text-[10px] text-slate-600 font-mono">
+                                                NIY. {customKabidNiy || weeklyData?.kabid?.niy || user?.nip || user?.username || ''}
+                                            </p>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* ============================================================== */}
+                                {/* HALAMAN LAMPIRAN DOKUMENTASI FOTO KEGIATAN */}
+                                {/* ============================================================== */}
+                                <div className="pt-10 mt-10 border-t-2 border-dashed border-slate-300 print:border-none print:pt-0 print:mt-0" style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
+                                    {/* KOP LAMPIRAN */}
+                                    <div className="text-center border-b-2 border-slate-800 pb-3 space-y-1">
+                                        <h3 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">LAMPIRAN DOKUMENTASI LAPANGAN</h3>
+                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                                            FOTO BUKTI AKTIVITAS HARIAN STAF BIDANG SARANA
+                                        </h4>
+                                        <p className="text-xs font-bold text-slate-600">
+                                            Periode: {weeklyData?.period?.formattedPeriod}
+                                        </p>
+                                    </div>
+
+                                    {/* DAFTAR FOTO DOKUMENTASI */}
+                                    {weeklyData?.documentationPhotos && weeklyData.documentationPhotos.length > 0 ? (
+                                        <div className="pt-6 space-y-4">
+                                            <div className="flex items-center justify-between text-xs text-slate-500 pb-2 border-b border-slate-100">
+                                                <span className="font-bold">Total Foto Terlampir: {weeklyData.documentationPhotos.length} Foto Dokumentasi</span>
+                                                <span className="text-[10px] text-slate-400 italic">*Foto diunggah langsung oleh staf sarana saat pelaporan harian</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                {weeklyData.documentationPhotos.map((doc, pIdx) => (
+                                                    <div key={pIdx} className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 space-y-2 flex flex-col justify-between break-inside-avoid shadow-2xs">
+                                                        <div className="w-full h-44 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                                                            <img 
+                                                                src={getMediaUrl(doc.photoUrl)} 
+                                                                alt={doc.activity} 
+                                                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                                                                onClick={() => setLightboxPhoto(getMediaUrl(doc.photoUrl))}
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = 'https://placehold.co/400x300?text=Foto+Dokumentasi';
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1 text-left">
+                                                            <div className="flex items-center justify-between gap-1">
+                                                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                                                                    {doc.dateShort}
+                                                                </span>
+                                                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-600">
+                                                                    {doc.categoryTag}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs font-black text-slate-800 line-clamp-1">
+                                                                {doc.staffName} <span className="text-[10px] font-normal text-slate-500">({doc.position})</span>
+                                                            </p>
+                                                            <p className="text-[11px] text-slate-600 font-medium line-clamp-2 leading-tight">
+                                                                {doc.activity}
+                                                            </p>
+                                                            {doc.obstacleNote && (
+                                                                <p className="text-[10px] text-rose-600 font-bold bg-rose-50 p-1 rounded">
+                                                                    ⚠️ {doc.obstacleNote}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="pt-12 pb-12 text-center text-slate-400 space-y-2">
+                                            <Camera size={36} className="mx-auto text-slate-300" />
+                                            <p className="text-xs italic">Tidak ada lampiran foto dokumentasi lapangan pada rentang tanggal ini.</p>
+                                        </div>
+                                    )}
+
+                                    {/* Catatan Kaki Lampiran */}
+                                    <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 mt-6">
+                                        <span>Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El-Iman Padang</span>
+                                        <span>Halaman Lampiran Dokumentasi Foto Kegiatan Lapangan</span>
                                     </div>
                                 </div>
                             </div>

@@ -595,8 +595,20 @@ exports.getWeeklySummary = async (req, res) => {
             orderBy: { date: 'asc' }
         });
 
+        // Find Kabid user in DB for accurate NIY signature
+        const kabidUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KABID_SARPRAS' }
+                ]
+            },
+            select: { id: true, name: true, nip: true, username: true, position: true }
+        }) || req.user;
+
         // Group by Date & Division
         const dailyDivisionBreakdown = [];
+        const documentationPhotos = [];
         let curr = startDate.clone();
         let totalCompleted = 0;
         let totalInProgress = 0;
@@ -614,7 +626,27 @@ exports.getWeeklySummary = async (req, res) => {
                 const a = pts?.afternoon || pts?.afternoonPoints || [];
                 
                 [...m, ...a].forEach(item => {
-                    if (item.text) {
+                    const photos = Array.isArray(item.photos) ? item.photos : [];
+                    
+                    // Collect photos for the lampiran dokumentasi foto page
+                    photos.forEach(ph => {
+                        const url = typeof ph === 'string' ? ph : (ph?.url || '');
+                        if (url && url.trim()) {
+                            documentationPhotos.push({
+                                photoUrl: url.trim(),
+                                date: curr.format('dddd, DD MMMM YYYY'),
+                                dateShort: curr.format('DD/MM'),
+                                staffName: r.user?.name || 'Staf',
+                                position: r.user?.position || 'Bidang Sarana',
+                                categoryTag: item.categoryTag || 'UMUM',
+                                activity: item.text || 'Dokumentasi Lapangan',
+                                status: item.status || 'COMPLETED',
+                                obstacleNote: item.obstacleNote || ''
+                            });
+                        }
+                    });
+
+                    if (item.text || photos.length > 0) {
                         const status = item.status || 'COMPLETED';
                         if (status === 'COMPLETED') totalCompleted++;
                         else if (status === 'IN_PROGRESS') totalInProgress++;
@@ -623,7 +655,7 @@ exports.getWeeklySummary = async (req, res) => {
                             obstacleList.push({
                                 date: curr.format('DD/MM/YYYY'),
                                 staffName: r.user?.name,
-                                activity: item.text,
+                                activity: item.text || 'Kendala Lapangan',
                                 obstacleNote: item.obstacleNote || 'Kendala'
                             });
                         }
@@ -632,9 +664,10 @@ exports.getWeeklySummary = async (req, res) => {
                             staffName: r.user?.name,
                             position: r.user?.position,
                             categoryTag: item.categoryTag || 'UMUM',
-                            activity: item.text,
+                            activity: item.text || '(Dokumentasi Foto Lapangan)',
                             status,
-                            obstacleNote: item.obstacleNote || ''
+                            obstacleNote: item.obstacleNote || '',
+                            photos: photos.map(p => typeof p === 'string' ? p : p?.url).filter(Boolean)
                         });
                     }
                 });
@@ -652,6 +685,11 @@ exports.getWeeklySummary = async (req, res) => {
 
         res.json({
             success: true,
+            kabid: {
+                name: kabidUser?.name || req.user?.name || 'Ravi Kurnia',
+                niy: kabidUser?.nip || kabidUser?.username || req.user?.nip || req.user?.username || '',
+                position: kabidUser?.position || req.user?.position || 'Kepala Bidang Sarana'
+            },
             period: {
                 startDate: startDate.format('YYYY-MM-DD'),
                 endDate: endDate.format('YYYY-MM-DD'),
@@ -664,7 +702,8 @@ exports.getWeeklySummary = async (req, res) => {
                 totalAll: totalCompleted + totalInProgress + totalObstacles
             },
             dailyDivisionBreakdown,
-            obstacleList
+            obstacleList,
+            documentationPhotos
         });
 
     } catch (error) {

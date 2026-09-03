@@ -385,7 +385,6 @@ const AssetList = ({ validationMode = false }) => {
                 'Tanggal Transaksi Masuk (yyyy-mm-dd)',
                 'Harga Perolehan',
                 'Umur Ekonomis Aset(tahun)',
-                'Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)',
                 'Bisa Dipinjam (ya/tidak)',
                 'Biaya Pinjam',
                 'PIC (Nama Manual)'
@@ -403,7 +402,6 @@ const AssetList = ({ validationMode = false }) => {
                 '2026-01-15',
                 7500000,
                 5,
-                90,
                 'ya',
                 50000,
                 'Ahmad'

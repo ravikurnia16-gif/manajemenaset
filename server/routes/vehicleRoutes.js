@@ -15,6 +15,10 @@ router.put('/:id', verifyToken, handleUpload('photo', 'vehicles'), vehicleContro
 router.put('/:id/mark-paid', verifyToken, vehicleController.markVehicleAsPaid);
 router.delete('/:id', verifyToken, vehicleController.deleteVehicle);
 
+// Sanction Routes
+router.post('/sanctions/propose', verifyToken, vehicleController.proposeSanctionLift);
+router.post('/sanctions/review', verifyToken, vehicleController.reviewSanctionLift);
+
 // Test Routes (Tanpa Token untuk kemudahan testing di browser)
 router.get('/test/pajak', vehicleController.triggerTaxCheck);
 router.get('/test/wa', vehicleController.sendTestWA);

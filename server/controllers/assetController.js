@@ -665,15 +665,6 @@ exports.batchImportAssets = async (req, res) => {
             { key: 'Harga Perolehan', label: 'Harga Perolehan' },
             { key: 'Umur Ekonomis Aset(tahun)', label: 'Umur Ekonomis Aset(tahun)' },
             {
-                key: [
-                    'Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)',
-                    'Butuh Pemeliharaan (Hari / 0 jika tidak)',
-                    'Butuh Pemeliharaan (ya/tidak)',
-                    'Butuh Pemeliharaan'
-                ],
-                label: 'Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)'
-            },
-            {
                 key: ['Bisa Dipinjam (ya/tidak)', 'Bisa Dipinjam'],
                 label: 'Bisa Dipinjam (ya/tidak)'
             },
@@ -886,14 +877,14 @@ exports.batchImportAssets = async (req, res) => {
                     else matchedAcq = rawAcq || 'Pembelian';
                 }
 
-                // 9. Butuh Pemeliharaan & Interval
+                // 9. Butuh Pemeliharaan & Interval (Opsional)
                 const rawMaint = item['Butuh Pemeliharaan (isi jumlah hari jika ya, 0 jika tidak)'] ??
                                  item['Butuh Pemeliharaan (Hari / 0 jika tidak)'] ??
                                  item['Butuh Pemeliharaan (ya/tidak)'] ??
                                  item['Butuh Pemeliharaan'];
                 let needsRoutineMaintenance = false;
-                let maintenanceInterval = 180;
-                if (rawMaint !== undefined && rawMaint !== null) {
+                let maintenanceInterval = 0;
+                if (rawMaint !== undefined && rawMaint !== null && String(rawMaint).trim() !== '') {
                     const strMaint = String(rawMaint).trim().toLowerCase();
                     const numMaint = parseInt(strMaint);
                     if (!isNaN(numMaint) && numMaint > 0) {
