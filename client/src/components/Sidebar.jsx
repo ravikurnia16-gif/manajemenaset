@@ -126,11 +126,11 @@ const Sidebar = ({ isOpen = true }) => {
 
     return (
         <div className={cn(
-            "bg-slate-900 text-white min-h-screen flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-800 custom-scrollbar",
+            "bg-slate-900 text-white h-screen max-h-screen flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-800 overflow-hidden select-none",
             isOpen ? "w-64" : "w-0 overflow-hidden border-none"
         )}>
             <div className={cn(
-                "border-b border-slate-800 bg-slate-900 sticky top-0 z-10 flex items-center transition-all duration-300 overflow-hidden whitespace-nowrap",
+                "border-b border-slate-800 bg-slate-900 shrink-0 z-10 flex items-center transition-all duration-300 overflow-hidden whitespace-nowrap",
                 isOpen ? "p-5 justify-start h-auto opacity-100" : "p-0 h-0 opacity-0"
             )}>
                 <div className="flex items-center gap-3">
@@ -149,7 +149,7 @@ const Sidebar = ({ isOpen = true }) => {
             </div>
 
             <nav className={cn(
-                "flex-1 overflow-y-auto custom-scrollbar space-y-4 transition-all duration-300",
+                "flex-1 min-h-0 overflow-y-auto overscroll-contain sidebar-scrollbar space-y-4 transition-all duration-300",
                 isOpen ? "p-3" : "p-0 overflow-hidden"
             )}>
                 {/* 1. Manajemen Aset */}
@@ -378,13 +378,13 @@ const Sidebar = ({ isOpen = true }) => {
             </nav>
 
             <div className={cn(
-                "border-t border-slate-800 bg-slate-900/50 transition-all duration-300 overflow-hidden whitespace-nowrap pb-24 sm:pb-0",
-                isOpen ? "px-4 pt-4 pb-28 sm:pb-4 sm:px-4 sm:pt-4 opacity-100" : "p-0 h-0 opacity-0"
+                "border-t border-slate-800 bg-slate-900/95 shrink-0 transition-all duration-300 overflow-hidden whitespace-nowrap pb-24 sm:pb-3",
+                isOpen ? "px-4 pt-3 pb-24 sm:pb-3 sm:px-4 opacity-100" : "p-0 h-0 opacity-0"
             )}>
                 <button
                     onClick={handleLogout}
                     className={cn(
-                        "flex items-center gap-3 p-3 w-full rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors text-sm font-medium",
+                        "flex items-center gap-3 p-2.5 w-full rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors text-sm font-medium cursor-pointer",
                         !isOpen && "justify-center"
                     )}
                     title={!isOpen ? "Logout" : ""}
@@ -392,7 +392,7 @@ const Sidebar = ({ isOpen = true }) => {
                     <LogOut size={18} />
                     <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>Logout</span>
                 </button>
-                <div className="mt-3 pt-3 border-t border-slate-800/80 text-center text-[10px] text-slate-400 font-medium leading-relaxed whitespace-normal">
+                <div className="mt-2 pt-2 border-t border-slate-800/80 text-center text-[10px] text-slate-500 font-medium leading-relaxed whitespace-normal">
                     &copy; Kepala Bidang Sarana 2025/2027 x PT. Nusantara Insan Olahkarya
                 </div>
             </div>

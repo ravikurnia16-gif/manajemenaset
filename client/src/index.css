@@ -24,6 +24,25 @@
     scrollbar-width: none !important;  /* Firefox */
 }
 
+/* Scrollbar elegan dan interaktif untuk Sidebar */
+.sidebar-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: #334155; /* slate-700 */
+    border-radius: 9999px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #475569; /* slate-600 */
+}
+.sidebar-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;

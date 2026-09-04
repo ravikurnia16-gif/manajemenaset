@@ -185,7 +185,15 @@ const Layout = () => {
 
     return (
         <div className="flex bg-slate-50 h-screen font-sans text-slate-900 overflow-hidden print:h-auto print:overflow-visible print:bg-white print:block">
-            <div className="print:hidden">
+            {/* Mobile Backdrop */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-20 lg:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
+            <div className="print:hidden h-full flex flex-col shrink-0 z-30">
                 <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
             </div>
 
