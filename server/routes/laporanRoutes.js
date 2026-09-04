@@ -23,6 +23,7 @@ router.get('/dashboard/analytics', laporanController.getDashboardAnalytics);
 router.get('/weekly-summary', laporanController.getWeeklySummary);
 router.post('/ai/analyze', laporanController.analyzeWithAI);
 router.put('/:id/verify', laporanController.verifyReport);
+router.put('/:id/point-review', laporanController.updatePointReview);
 
 // Staff Scorecard & MinIO Media
 router.get('/my-stats', laporanController.getMyStats);
@@ -30,6 +31,7 @@ router.post('/upload-photo', upload.single('photo'), laporanController.uploadRep
 
 // Inactivity Alert for Kabid (2 working days)
 router.post('/notify-inactive', laporanController.notifyKabidInactiveStaff);
+router.post('/remind-staff', laporanController.remindStaffMissingReport);
 
 // Setoran Hafalan (Ziyadah & Murajaah)
 router.get('/hafalan', laporanController.getSetoranHafalan);

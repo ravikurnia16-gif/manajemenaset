@@ -6,7 +6,7 @@ import {
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
     Warehouse, Box, Wrench, Truck, FileSignature, ArrowRight, Share2, Layers,
-    Copy, Check, Trash2, Edit2, RotateCcw, BookOpen
+    Copy, Check, Trash2, Edit2, RotateCcw, BookOpen, Bell, BellRing
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -126,6 +126,11 @@ const LaporanStaff = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [verifyingReportId, setVerifyingReportId] = useState(null);
     const [verificationForm, setVerificationForm] = useState({ status: 'VERIFIED', feedbackNote: '' });
+    // Point Review States (Kabid ulas per point kegiatan)
+    const [activePointReview, setActivePointReview] = useState(null); // { reportId, period: 'morning'|'afternoon', pointIndex }
+    const [pointReviewForm, setPointReviewForm] = useState({ status: 'APPROVED', feedbackNote: '' });
+    const [savingPointReview, setSavingPointReview] = useState(false);
+    const [remindingStaff, setRemindingStaff] = useState(false);
 
     // AI Analysis Modal & Date Range
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -612,13 +617,131 @@ const LaporanStaff = () => {
         try {
             const res = await api.put(`/laporan/${reportId}/verify`, verificationForm);
             if (res.data.success) {
-                alert('Laporan berhasil diverifikasi!');
+                alert('Laporan berhasil diverifikasi dan staf telah diberitahu!');
                 setVerifyingReportId(null);
                 fetchReportsFeed();
             }
         } catch (error) {
             console.error('Verification error:', error);
             alert('Gagal memverifikasi laporan.');
+        }
+    };
+
+    const openPointReviewForm = (reportId, period, pointIndex, existingReview) => {
+        setActivePointReview({ reportId, period, pointIndex });
+        setPointReviewForm({
+            status: existingReview?.status || 'APPROVED',
+            feedbackNote: existingReview?.feedbackNote || ''
+        });
+    };
+
+    const handleSavePointReview = async (reportId, period, pointIndex) => {
+        try {
+            setSavingPointReview(true);
+            const res = await api.put(`/laporan/${reportId}/point-review`, {
+                period,
+                pointIndex,
+                status: pointReviewForm.status,
+                feedbackNote: pointReviewForm.feedbackNote
+            });
+            if (res.data.success) {
+                // Update local state in reportsFeed immediately
+                setReportsFeed(prevFeed => prevFeed.map(r => {
+                    if (r.id !== reportId) return r;
+                    const pts = r.metadata?.manualPoints || { morning: [], afternoon: [] };
+                    const targetList = [...(pts[period] || [])];
+                    if (targetList[pointIndex]) {
+                        targetList[pointIndex] = {
+                            ...targetList[pointIndex],
+                            review: res.data.review
+                        };
+                    }
+                    return {
+                        ...r,
+                        metadata: {
+                            ...r.metadata,
+                            manualPoints: {
+                                ...pts,
+                                [period]: targetList
+                            }
+                        }
+                    };
+                }));
+                setActivePointReview(null);
+                alert('Ulasan butir kegiatan berhasil disimpan dan notifikasi telah dikirim ke staf!');
+            }
+        } catch (error) {
+            console.error('Failed to save point review:', error);
+            alert('Gagal menyimpan ulasan butir kegiatan: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setSavingPointReview(false);
+        }
+    };
+
+    const handleDeletePointReview = async (reportId, period, pointIndex) => {
+        if (!window.confirm('Hapus ulasan untuk butir kegiatan ini?')) return;
+        try {
+            setSavingPointReview(true);
+            const res = await api.put(`/laporan/${reportId}/point-review`, {
+                period,
+                pointIndex,
+                status: null,
+                feedbackNote: ''
+            });
+            if (res.data.success) {
+                setReportsFeed(prevFeed => prevFeed.map(r => {
+                    if (r.id !== reportId) return r;
+                    const pts = r.metadata?.manualPoints || { morning: [], afternoon: [] };
+                    const targetList = [...(pts[period] || [])];
+                    if (targetList[pointIndex]) {
+                        const updatedItem = { ...targetList[pointIndex] };
+                        delete updatedItem.review;
+                        targetList[pointIndex] = updatedItem;
+                    }
+                    return {
+                        ...r,
+                        metadata: {
+                            ...r.metadata,
+                            manualPoints: {
+                                ...pts,
+                                [period]: targetList
+                            }
+                        }
+                    };
+                }));
+                setActivePointReview(null);
+            }
+        } catch (error) {
+            console.error('Failed to delete point review:', error);
+            alert('Gagal menghapus ulasan: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setSavingPointReview(false);
+        }
+    };
+
+    const handleRemindStaff = async (targetUserId = null, staffName = null) => {
+        try {
+            const confirmMsg = targetUserId 
+                ? `Kirimkan pengingat pengisian laporan kepada ${staffName} via WhatsApp & Notifikasi Aplikasi?` 
+                : `Kirimkan pengingat pengisian laporan kepada SEMUA staf yang belum melengkapi laporan hari ini via WhatsApp & Notifikasi Aplikasi?`;
+            
+            if (!window.confirm(confirmMsg)) return;
+
+            setRemindingStaff(true);
+            const res = await api.post('/laporan/remind-staff', {
+                userId: targetUserId || undefined,
+                date: selectedDate
+            });
+
+            if (res.data.success) {
+                alert(res.data.message || 'Pengingat berhasil dikirim ke staf terkait!');
+                if (activeTab === 'dashboard') fetchDashboardAnalytics();
+            }
+        } catch (error) {
+            console.error('Error reminding staff:', error);
+            alert('Gagal mengirim pengingat: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setRemindingStaff(false);
         }
     };
 
@@ -1298,24 +1421,52 @@ const LaporanStaff = () => {
 
                                 {/* Realtime Status List */}
                                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                                        <User size={18} className="text-blue-600" /> Status Kehadiran Laporan Hari Ini
-                                    </h3>
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                                <User size={18} className="text-blue-600" /> Status Kehadiran Laporan Hari Ini
+                                            </h3>
+                                            <p className="text-[11px] text-slate-400 font-medium">Pantau kelengkapan laporan staf hari ini</p>
+                                        </div>
+                                        {dashboardData.staffStatusList?.some(st => st.status !== 'LENGKAP') && (
+                                            <button
+                                                type="button"
+                                                disabled={remindingStaff}
+                                                onClick={() => handleRemindStaff(null)}
+                                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer disabled:opacity-50"
+                                                title="Kirimkan pengingat WhatsApp & Notifikasi ke semua staf yang belum lengkap"
+                                            >
+                                                {remindingStaff ? <Loader2 size={13} className="animate-spin" /> : <BellRing size={13} />}
+                                                <span>Ingatkan Semua ({dashboardData.staffStatusList.filter(st => st.status !== 'LENGKAP').length} Staf)</span>
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
                                         {dashboardData.staffStatusList?.map(st => (
-                                            <div key={st.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-800">{st.name}</h4>
-                                                    <p className="text-[10px] text-slate-400">{st.position}</p>
+                                            <div key={st.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 gap-2">
+                                                <div className="min-w-0 flex-1">
+                                                    <h4 className="text-xs font-bold text-slate-800 truncate">{st.name}</h4>
+                                                    <p className="text-[10px] text-slate-400 truncate">{st.position}</p>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 shrink-0">
                                                     <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase ${
                                                         st.status === 'LENGKAP' ? 'bg-emerald-100 text-emerald-700' :
                                                         st.status === 'PARSIAL' ? 'bg-amber-100 text-amber-700' :
                                                         'bg-rose-100 text-rose-700'
                                                     }`}>
-                                                        {st.status === 'LENGKAP' ? 'Lengkap (Pagi & Siang)' : st.status === 'PARSIAL' ? 'Parsial (1 Sesi)' : 'Belum Lapor'}
+                                                        {st.status === 'LENGKAP' ? 'Lengkap ✅' : st.status === 'PARSIAL' ? 'Parsial ⏳' : 'Belum Lapor ❌'}
                                                     </span>
+                                                    {st.status !== 'LENGKAP' && (
+                                                        <button
+                                                            type="button"
+                                                            disabled={remindingStaff}
+                                                            onClick={() => handleRemindStaff(st.id, st.name)}
+                                                            className="px-2.5 py-1 bg-white hover:bg-amber-50 hover:text-amber-800 text-slate-600 border border-slate-200 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50"
+                                                            title={`Kirimkan pengingat ke ${st.name} via WA & Notifikasi`}
+                                                        >
+                                                            <Bell size={11} className="text-amber-600" /> Ingatkan
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -1346,8 +1497,8 @@ const LaporanStaff = () => {
                                         />
                                     </div>
 
-                                    {/* Status Filter */}
-                                    <div className="flex items-center gap-1.5 shrink-0">
+                                    {/* Status Filter & Remind Button */}
+                                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                                         {['ALL', 'LENGKAP', 'PARSIAL', 'BELUM'].map(st => (
                                             <button
                                                 key={st}
@@ -1359,6 +1510,16 @@ const LaporanStaff = () => {
                                                 {st === 'ALL' ? 'Semua Status' : st}
                                             </button>
                                         ))}
+                                        <button
+                                            type="button"
+                                            disabled={remindingStaff}
+                                            onClick={() => handleRemindStaff(null)}
+                                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer disabled:opacity-50"
+                                            title="Kirim pengingat WhatsApp & Notifikasi ke semua staf yang belum melengkapi laporan hari ini"
+                                        >
+                                            {remindingStaff ? <Loader2 size={13} className="animate-spin" /> : <BellRing size={13} />}
+                                            <span>Ingatkan Staf</span>
+                                        </button>
                                     </div>
                                 </div>
 
@@ -1473,6 +1634,139 @@ const LaporanStaff = () => {
                                                                                 ))}
                                                                             </div>
                                                                         )}
+
+                                                                        {/* Display Existing Review */}
+                                                                        {p.review && (
+                                                                            <div className={`mt-2 p-2.5 rounded-xl border text-xs space-y-1 ${
+                                                                                p.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
+                                                                                p.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
+                                                                                'bg-blue-50/90 border-blue-200 text-blue-900'
+                                                                            }`}>
+                                                                                <div className="flex items-center justify-between gap-1">
+                                                                                    <span className="font-bold flex items-center gap-1.5 text-[11px]">
+                                                                                        {p.review.status === 'APPROVED' ? '✅ Disetujui' :
+                                                                                         p.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan'}
+                                                                                        <span className="text-[10px] opacity-75 font-normal">
+                                                                                            oleh {p.review.reviewerName || 'Kabid'} • {dayjs(p.review.reviewedAt).format('HH:mm')}
+                                                                                        </span>
+                                                                                    </span>
+                                                                                    {isKabid && (
+                                                                                        <button 
+                                                                                            type="button"
+                                                                                            onClick={() => openPointReviewForm(report.id, 'morning', idx, p.review)}
+                                                                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                                                                                        >
+                                                                                            Ubah
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                                {p.review.feedbackNote && (
+                                                                                    <p className="text-xs font-semibold italic pl-1 leading-snug">
+                                                                                        "{p.review.feedbackNote}"
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Inline Review Form (Khusus Kabid saat aktif) */}
+                                                                        {isKabid && activePointReview?.reportId === report.id && activePointReview?.period === 'morning' && activePointReview?.pointIndex === idx && (
+                                                                            <div className="mt-2.5 p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-2.5">
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <h5 className="text-[11px] font-black text-blue-950 uppercase flex items-center gap-1">
+                                                                                        <MessageSquare size={13} className="text-blue-600" /> Ulas Butir #{idx + 1} (Sesi Pagi)
+                                                                                    </h5>
+                                                                                    <button type="button" onClick={() => setActivePointReview(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={14} /></button>
+                                                                                </div>
+
+                                                                                {/* Status Selection Buttons */}
+                                                                                <div className="grid grid-cols-3 gap-1.5">
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'APPROVED' }))}
+                                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                                                                            pointReviewForm.status === 'APPROVED' 
+                                                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        ✅ Sesuai
+                                                                                    </button>
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'REVISION' }))}
+                                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                                                                            pointReviewForm.status === 'REVISION' 
+                                                                                                ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
+                                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        ⚠️ Revisi
+                                                                                    </button>
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'NOTE' }))}
+                                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                                                                            pointReviewForm.status === 'NOTE' 
+                                                                                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        💡 Catatan
+                                                                                    </button>
+                                                                                </div>
+
+                                                                                <textarea 
+                                                                                    rows="2" 
+                                                                                    placeholder="Tulis ulasan, arahan, atau catatan perbaikan untuk staf..."
+                                                                                    value={pointReviewForm.feedbackNote}
+                                                                                    onChange={(e) => setPointReviewForm(prev => ({ ...prev, feedbackNote: e.target.value }))}
+                                                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                                                                                />
+
+                                                                                <div className="flex items-center gap-2 pt-0.5">
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => handleSavePointReview(report.id, 'morning', idx)}
+                                                                                        disabled={savingPointReview}
+                                                                                        className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                                                                                    >
+                                                                                        {savingPointReview ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                                                                        <span>Kirim Ulasan</span>
+                                                                                    </button>
+                                                                                    {p.review && (
+                                                                                        <button 
+                                                                                            type="button"
+                                                                                            onClick={() => handleDeletePointReview(report.id, 'morning', idx)}
+                                                                                            disabled={savingPointReview}
+                                                                                            className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer"
+                                                                                            title="Hapus ulasan butir ini"
+                                                                                        >
+                                                                                            Hapus
+                                                                                        </button>
+                                                                                    )}
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => setActivePointReview(null)}
+                                                                                        className="py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
+                                                                                    >
+                                                                                        Batal
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Tombol Ulas Butir Ini jika belum diulas */}
+                                                                        {isKabid && !p.review && !(activePointReview?.reportId === report.id && activePointReview?.period === 'morning' && activePointReview?.pointIndex === idx) && (
+                                                                            <div className="flex justify-end pt-0.5">
+                                                                                <button 
+                                                                                    type="button"
+                                                                                    onClick={() => openPointReviewForm(report.id, 'morning', idx, null)}
+                                                                                    className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                                                                                >
+                                                                                    <MessageSquare size={11} /> Ulas Butir Ini
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -1525,6 +1819,139 @@ const LaporanStaff = () => {
                                                                                         className="w-16 h-16 rounded-xl object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity shrink-0" 
                                                                                     />
                                                                                 ))}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Display Existing Review */}
+                                                                        {p.review && (
+                                                                            <div className={`mt-2 p-2.5 rounded-xl border text-xs space-y-1 ${
+                                                                                p.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
+                                                                                p.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
+                                                                                'bg-blue-50/90 border-blue-200 text-blue-900'
+                                                                            }`}>
+                                                                                <div className="flex items-center justify-between gap-1">
+                                                                                    <span className="font-bold flex items-center gap-1.5 text-[11px]">
+                                                                                        {p.review.status === 'APPROVED' ? '✅ Disetujui' :
+                                                                                         p.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan'}
+                                                                                        <span className="text-[10px] opacity-75 font-normal">
+                                                                                            oleh {p.review.reviewerName || 'Kabid'} • {dayjs(p.review.reviewedAt).format('HH:mm')}
+                                                                                        </span>
+                                                                                    </span>
+                                                                                    {isKabid && (
+                                                                                        <button 
+                                                                                            type="button"
+                                                                                            onClick={() => openPointReviewForm(report.id, 'afternoon', idx, p.review)}
+                                                                                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                                                                                        >
+                                                                                            Ubah
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                                {p.review.feedbackNote && (
+                                                                                    <p className="text-xs font-semibold italic pl-1 leading-snug">
+                                                                                        "{p.review.feedbackNote}"
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Inline Review Form (Khusus Kabid saat aktif) */}
+                                                                        {isKabid && activePointReview?.reportId === report.id && activePointReview?.period === 'afternoon' && activePointReview?.pointIndex === idx && (
+                                                                            <div className="mt-2.5 p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-200 space-y-2.5">
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <h5 className="text-[11px] font-black text-indigo-950 uppercase flex items-center gap-1">
+                                                                                        <MessageSquare size={13} className="text-indigo-600" /> Ulas Butir #{idx + 1} (Sesi Siang)
+                                                                                    </h5>
+                                                                                    <button type="button" onClick={() => setActivePointReview(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={14} /></button>
+                                                                                </div>
+
+                                                                                {/* Status Selection Buttons */}
+                                                                                <div className="grid grid-cols-3 gap-1.5">
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'APPROVED' }))}
+                                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                                                                            pointReviewForm.status === 'APPROVED' 
+                                                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        ✅ Sesuai
+                                                                                    </button>
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'REVISION' }))}
+                                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                                                                            pointReviewForm.status === 'REVISION' 
+                                                                                                ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
+                                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        ⚠️ Revisi
+                                                                                    </button>
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'NOTE' }))}
+                                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                                                                            pointReviewForm.status === 'NOTE' 
+                                                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+                                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        💡 Catatan
+                                                                                    </button>
+                                                                                </div>
+
+                                                                                <textarea 
+                                                                                    rows="2" 
+                                                                                    placeholder="Tulis ulasan, arahan, atau catatan perbaikan untuk staf..."
+                                                                                    value={pointReviewForm.feedbackNote}
+                                                                                    onChange={(e) => setPointReviewForm(prev => ({ ...prev, feedbackNote: e.target.value }))}
+                                                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400"
+                                                                                />
+
+                                                                                <div className="flex items-center gap-2 pt-0.5">
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => handleSavePointReview(report.id, 'afternoon', idx)}
+                                                                                        disabled={savingPointReview}
+                                                                                        className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                                                                                    >
+                                                                                        {savingPointReview ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                                                                        <span>Kirim Ulasan</span>
+                                                                                    </button>
+                                                                                    {p.review && (
+                                                                                        <button 
+                                                                                            type="button"
+                                                                                            onClick={() => handleDeletePointReview(report.id, 'afternoon', idx)}
+                                                                                            disabled={savingPointReview}
+                                                                                            className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer"
+                                                                                            title="Hapus ulasan butir ini"
+                                                                                        >
+                                                                                            Hapus
+                                                                                        </button>
+                                                                                    )}
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => setActivePointReview(null)}
+                                                                                        className="py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
+                                                                                    >
+                                                                                        Batal
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Tombol Ulas Butir Ini jika belum diulas */}
+                                                                        {isKabid && !p.review && !(activePointReview?.reportId === report.id && activePointReview?.period === 'afternoon' && activePointReview?.pointIndex === idx) && (
+                                                                            <div className="flex justify-end pt-0.5">
+                                                                                <button 
+                                                                                    type="button"
+                                                                                    onClick={() => openPointReviewForm(report.id, 'afternoon', idx, null)}
+                                                                                    className="px-2.5 py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                                                                                >
+                                                                                    <MessageSquare size={11} /> Ulas Butir Ini
+                                                                                </button>
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -2161,6 +2588,30 @@ const LaporanStaff = () => {
                                                         )}
                                                     </div>
 
+                                                    {/* Feedback / Arahan dari Kabid jika ada */}
+                                                    {point.review && (
+                                                        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                                                            point.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
+                                                            point.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
+                                                            'bg-blue-50/90 border-blue-200 text-blue-900'
+                                                        }`}>
+                                                            <div className="flex items-center justify-between font-bold text-[11px]">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    {point.review.status === 'APPROVED' ? '✅ Disetujui Pimpinan' :
+                                                                     point.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan (Arahan Kabid)' : '💡 Catatan Arahan Pimpinan'}
+                                                                </span>
+                                                                <span className="text-[10px] opacity-75 font-normal">
+                                                                    oleh {point.review.reviewerName || 'Kabid Sarana'} • {dayjs(point.review.reviewedAt).format('DD/MM HH:mm')}
+                                                                </span>
+                                                            </div>
+                                                            {point.review.feedbackNote && (
+                                                                <p className="text-xs font-semibold italic pl-1 leading-relaxed bg-white/70 p-2 rounded-lg border border-slate-200/60">
+                                                                    "{point.review.feedbackNote}"
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+
                                                     {/* Row 2: Touch-Friendly Status Pills (Fast on Mobile!) */}
                                                     <div className="flex items-center gap-1.5 pt-0.5">
                                                         <button
@@ -2412,6 +2863,30 @@ const LaporanStaff = () => {
                                                             </button>
                                                         )}
                                                     </div>
+
+                                                    {/* Feedback / Arahan dari Kabid jika ada */}
+                                                    {point.review && (
+                                                        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                                                            point.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
+                                                            point.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
+                                                            'bg-blue-50/90 border-blue-200 text-blue-900'
+                                                        }`}>
+                                                            <div className="flex items-center justify-between font-bold text-[11px]">
+                                                                <span className="flex items-center gap-1.5">
+                                                                    {point.review.status === 'APPROVED' ? '✅ Disetujui Pimpinan' :
+                                                                     point.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan (Arahan Kabid)' : '💡 Catatan Arahan Pimpinan'}
+                                                                </span>
+                                                                <span className="text-[10px] opacity-75 font-normal">
+                                                                    oleh {point.review.reviewerName || 'Kabid Sarana'} • {dayjs(point.review.reviewedAt).format('DD/MM HH:mm')}
+                                                                </span>
+                                                            </div>
+                                                            {point.review.feedbackNote && (
+                                                                <p className="text-xs font-semibold italic pl-1 leading-relaxed bg-white/70 p-2 rounded-lg border border-slate-200/60">
+                                                                    "{point.review.feedbackNote}"
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
 
                                                     {/* Row 2: Touch-Friendly Status Pills */}
                                                     <div className="flex items-center gap-1.5 pt-0.5">

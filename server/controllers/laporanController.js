@@ -270,6 +270,7 @@ exports.updateMyReport = async (req, res) => {
             obstacleNote: (p.obstacleNote || '').trim(),
             isRoutine: !!p.isRoutine,
             photos: Array.isArray(p.photos) ? p.photos : [],
+            review: p.review || null,
             updatedAt: new Date().toISOString()
         });
 
@@ -493,6 +494,7 @@ exports.getDashboardAnalytics = async (req, res) => {
                 id: st.id,
                 name: st.name,
                 position: st.position,
+                phone: st.phone || null,
                 status,
                 hasMorning: hasM,
                 hasAfternoon: hasA,
@@ -802,7 +804,12 @@ exports.verifyReport = async (req, res) => {
         const { status, feedbackNote } = req.body; // status: 'VERIFIED' | 'NEEDS_REVISION'
 
         const report = await prisma.personnelReport.findUnique({
-            where: { id: parseInt(id) }
+            where: { id: parseInt(id) },
+            include: {
+                user: {
+                    select: { id: true, name: true, phone: true }
+                }
+            }
         });
 
         if (!report) {
@@ -827,10 +834,159 @@ exports.verifyReport = async (req, res) => {
             }
         });
 
+        // Notifikasi ke staf pelapor (In-App & WhatsApp)
+        if (report.userId) {
+            const isVerified = verificationData.status === 'VERIFIED';
+            createNotification(
+                report.userId,
+                'Verifikasi Laporan Harian',
+                `Laporan harian Anda (${dayjs(report.date).tz('Asia/Jakarta').format('DD/MM/YYYY')}) telah ${isVerified ? 'diverifikasi ✅' : 'diminta dilengkapi ⚠️'}${verificationData.feedbackNote ? ': "' + verificationData.feedbackNote + '"' : '.'}`,
+                isVerified ? 'SUCCESS' : 'WARNING',
+                '/laporan-staff/laporan'
+            ).catch(err => console.warn('In-app notif failed:', err.message));
+
+            if (report.user?.phone) {
+                const statusLabel = isVerified ? '✅ Terverifikasi Lengkap' : '⚠️ Perlu Dilengkapi / Revisi';
+                const waMessage = `*VERIFIKASI LAPORAN HARIAN*\n\n` +
+                    `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                    `Yth. *${report.user.name}*,\n\n` +
+                    `Laporan harian Anda untuk tanggal *${dayjs(report.date).tz('Asia/Jakarta').format('dddd, DD MMMM YYYY')}* telah ditinjau oleh Kepala Bidang Sarana:\n\n` +
+                    `📊 *Status:* ${statusLabel}\n` +
+                    (verificationData.feedbackNote ? `💬 *Catatan / Arahan:* "${verificationData.feedbackNote}"\n\n` : '\n') +
+                    `Silakan cek selengkapnya di aplikasi Manajemen Aset pada menu Laporan Harian.\n\n` +
+                    `_Pesan otomatis Sistem Manajemen Aset Yayasan Dar el-Iman_`;
+
+                whatsappService.sendMessage(report.user.phone, waMessage).catch(err => {
+                    console.warn('[WhatsApp] Gagal kirim notifikasi verifikasi laporan:', err.message);
+                });
+            }
+        }
+
         res.json({ success: true, verification: verificationData, report: updated });
     } catch (error) {
         console.error('Error verifying report:', error);
         res.status(500).json({ error: 'Gagal memverifikasi laporan' });
+    }
+};
+
+/**
+ * PUT /api/laporan/:id/point-review
+ * Review / feedback on a specific point in a report by Kepala Bidang Sarana.
+ * body: {
+ *   period: 'morning' | 'afternoon',
+ *   pointIndex: number,
+ *   status: 'APPROVED' | 'REVISION' | 'NOTE' | null,
+ *   feedbackNote: string
+ * }
+ */
+exports.updatePointReview = async (req, res) => {
+    try {
+        if (!isKabid(req.user)) {
+            return res.status(403).json({ error: 'Hanya Kepala Bidang Sarana yang dapat memberikan ulasan butir kegiatan.' });
+        }
+
+        const { id } = req.params;
+        const { period, pointIndex, status, feedbackNote } = req.body;
+
+        if (!['morning', 'afternoon'].includes(period)) {
+            return res.status(400).json({ error: 'Periode tidak valid. Harus morning atau afternoon.' });
+        }
+
+        const report = await prisma.personnelReport.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                user: {
+                    select: { id: true, name: true, phone: true }
+                }
+            }
+        });
+
+        if (!report) {
+            return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        }
+
+        const existingMetadata = typeof report.metadata === 'object' && report.metadata !== null ? { ...report.metadata } : {};
+        const manualPoints = existingMetadata.manualPoints ? { ...existingMetadata.manualPoints } : { morning: [], afternoon: [] };
+        const pointsList = Array.isArray(manualPoints[period]) ? [...manualPoints[period]] : [];
+
+        if (pointIndex < 0 || pointIndex >= pointsList.length) {
+            return res.status(400).json({ error: 'Indeks butir laporan tidak ditemukan' });
+        }
+
+        const targetPoint = { ...pointsList[pointIndex] };
+        const pointText = targetPoint.text || 'Dokumentasi Lapangan';
+        let reviewData = null;
+
+        // If status is null and feedbackNote is empty, remove review
+        if (!status && (!feedbackNote || !feedbackNote.trim())) {
+            delete targetPoint.review;
+        } else {
+            reviewData = {
+                status: status || 'NOTE',
+                feedbackNote: (feedbackNote || '').trim(),
+                reviewerName: req.user.name || 'Ravi Kurnia',
+                reviewedAt: new Date().toISOString()
+            };
+            targetPoint.review = reviewData;
+        }
+
+        pointsList[pointIndex] = targetPoint;
+        manualPoints[period] = pointsList;
+
+        const updated = await prisma.personnelReport.update({
+            where: { id: parseInt(id) },
+            data: {
+                metadata: {
+                    ...existingMetadata,
+                    manualPoints
+                }
+            }
+        });
+
+        // Beri tahu staf yang diulas via In-App Notification dan WhatsApp
+        if (reviewData && report.userId) {
+            const sessionName = period === 'morning' ? 'Sesi Pagi' : 'Sesi Siang';
+            const statusLabel = reviewData.status === 'APPROVED' ? '✅ Disetujui / Sesuai' : (reviewData.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan');
+
+            // 1. In-App Notification
+            createNotification(
+                report.userId,
+                `Ulasan Kegiatan: ${sessionName} #${pointIndex + 1}`,
+                `Ulasan Kabid (${statusLabel}): "${pointText.substring(0, 45)}${pointText.length > 45 ? '...' : ''}"${reviewData.feedbackNote ? ' - ' + reviewData.feedbackNote : ''}`,
+                reviewData.status === 'APPROVED' ? 'SUCCESS' : (reviewData.status === 'REVISION' ? 'WARNING' : 'INFO'),
+                '/laporan-staff/laporan'
+            ).catch(err => console.warn('In-app notif failed:', err.message));
+
+            // 2. WhatsApp Notification
+            if (report.user?.phone) {
+                const waMessage = `*ULASAN BUTIR KEGIATAN LAPORAN*\n\n` +
+                    `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                    `Yth. *${report.user.name}*,\n\n` +
+                    `Kepala Bidang Sarana (Ustadz Ravi Kurnia) telah memberikan ulasan pada butir kegiatan Anda:\n\n` +
+                    `📅 *Tanggal:* ${dayjs(report.date).tz('Asia/Jakarta').format('dddd, DD MMMM YYYY')}\n` +
+                    `⏰ *Sesi:* ${sessionName} (Butir #${pointIndex + 1})\n` +
+                    `📌 *Kegiatan:* ${pointText}\n` +
+                    `📊 *Penilaian:* ${statusLabel}\n` +
+                    (reviewData.feedbackNote ? `💬 *Catatan / Arahan:* "${reviewData.feedbackNote}"\n\n` : '\n') +
+                    `Silakan cek selengkapnya di aplikasi Manajemen Aset pada menu Laporan Harian.\n\n` +
+                    `_Pesan otomatis Sistem Manajemen Aset Yayasan Dar el-Iman_`;
+
+                whatsappService.sendMessage(report.user.phone, waMessage).catch(err => {
+                    console.warn('[WhatsApp] Gagal kirim notifikasi ulasan butir kegiatan:', err.message);
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            period,
+            pointIndex,
+            review: reviewData,
+            report: updated
+        });
+    } catch (error) {
+        console.error('Error updating point review:', error);
+        res.status(500).json({ error: 'Gagal memperbarui ulasan butir kegiatan' });
     }
 };
 
@@ -1176,8 +1332,6 @@ exports.sendReportReminders = async () => {
         });
 
         for (const user of staffUsers) {
-            if (!user.phone) continue;
-            
             const userReports = reports.filter(r => r.userId === user.id);
             let hasReported = false;
 
@@ -1196,13 +1350,166 @@ exports.sendReportReminders = async () => {
             }
 
             if (!hasReported) {
-                const shiftName = isMorningShift ? 'Pagi (07.15 - 12.00)' : 'Siang (13.00 - 16.15)';
-                const msg = `Halo ${user.name},\n\nAnda belum mengisi *Laporan Kegiatan ${shiftName}* hari ini.\nMohon segera melengkapi laporan Anda pada menu "Laporan Harian" di Sistem Manajemen Aset.\n\nTerima kasih.`;
-                await whatsappService.sendMessage(user.phone, msg);
+                const shiftName = isMorningShift ? 'Sesi Pagi (07.15 - 12.00)' : 'Sesi Siang (13.00 - 16.15)';
+                const shiftShort = isMorningShift ? 'Sesi Pagi' : 'Sesi Siang';
+
+                // In-App Notification
+                createNotification(
+                    user.id,
+                    `Pengingat Laporan: ${shiftShort}`,
+                    `Anda belum mengisi laporan kegiatan ${shiftName} hari ini. Silakan segera lengkapi di menu Laporan Harian.`,
+                    'WARNING',
+                    '/laporan-staff/laporan'
+                ).catch(err => console.warn('In-app reminder error:', err.message));
+
+                if (user.phone) {
+                    const msg = `*PENGINGAT PENGISIAN LAPORAN HARIAN*\n\n` +
+                        `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                        `Halo *${user.name}*,\n\n` +
+                        `Anda belum mengisi *Laporan Kegiatan ${shiftName}* untuk hari ini.\n` +
+                        `Mohon segera melengkapi laporan kegiatan Anda pada menu *Laporan Harian* di aplikasi Sistem Manajemen Aset.\n\n` +
+                        `Terima kasih atas kerja samanya.\n` +
+                        `_Pesan otomatis Sistem Manajemen Aset Yayasan Dar el-Iman_`;
+                    await whatsappService.sendMessage(user.phone, msg);
+                }
             }
         }
     } catch (error) {
         console.error('Error sending report reminders:', error);
+    }
+};
+
+/**
+ * POST /api/laporan/remind-staff
+ * Manual trigger by Kepala Bidang Sarana to remind staff who haven't completed daily report.
+ * body: {
+ *   userId?: number, // optional: if specified, reminds this user only; if not, reminds all incomplete staff
+ *   date?: string // format YYYY-MM-DD, defaults to today WIB
+ * }
+ */
+exports.remindStaffMissingReport = async (req, res) => {
+    try {
+        if (!isKabid(req.user)) {
+            return res.status(403).json({ error: 'Hanya Kepala Bidang Sarana yang dapat mengirimkan pengingat laporan.' });
+        }
+
+        const { userId, date } = req.body;
+        const targetDate = date ? dayjs.tz(date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
+        const startOfDay = targetDate.startOf('day').toDate();
+        const endOfDay = targetDate.endOf('day').toDate();
+        const dateFormatted = targetDate.format('dddd, DD MMMM YYYY');
+
+        // Filter staff users
+        const whereClause = { ...STAFF_USER_WHERE };
+        if (userId) {
+            whereClause.id = parseInt(userId, 10);
+        }
+
+        const staffUsers = await prisma.user.findMany({
+            where: whereClause,
+            select: { id: true, name: true, position: true, phone: true }
+        });
+
+        if (!staffUsers.length) {
+            return res.status(404).json({ error: 'Staf tidak ditemukan.' });
+        }
+
+        // Fetch reports on target date
+        const reports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
+                date: { gte: startOfDay, lte: endOfDay },
+                user: { role: 'ADMIN_ASET' }
+            }
+        });
+
+        const remindedList = [];
+
+        for (const staff of staffUsers) {
+            const userReports = reports.filter(r => r.userId === staff.id);
+            let hasM = false;
+            let hasA = false;
+
+            for (const r of userReports) {
+                const pts = r.metadata?.manualPoints;
+                const m = pts?.morning || pts?.morningPoints || [];
+                const a = pts?.afternoon || pts?.afternoonPoints || [];
+                if (!hasM) {
+                    hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim() !== '') || (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
+                }
+                if (!hasA) {
+                    hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim() !== '') || (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
+                }
+                if (hasM && hasA) break;
+            }
+
+            // If already complete (both morning and afternoon), skip
+            if (hasM && hasA) {
+                continue;
+            }
+
+            let missingDesc = '';
+            let missingSessionShort = '';
+            if (!hasM && !hasA) {
+                missingDesc = 'Sesi Pagi (07.15 - 12.00) dan Sesi Siang (13.00 - 16.15)';
+                missingSessionShort = 'Pagi & Siang';
+            } else if (!hasM) {
+                missingDesc = 'Sesi Pagi (07.15 - 12.00)';
+                missingSessionShort = 'Sesi Pagi';
+            } else {
+                missingDesc = 'Sesi Siang (13.00 - 16.15)';
+                missingSessionShort = 'Sesi Siang';
+            }
+
+            // 1. Send In-App Notification
+            createNotification(
+                staff.id,
+                `Pengingat Laporan Harian (${missingSessionShort})`,
+                `Ustadz Ravi Kurnia mengingatkan Anda untuk segera melengkapi laporan harian (${missingDesc}) tanggal ${targetDate.format('DD/MM/YYYY')}.`,
+                'WARNING',
+                '/laporan-staff/laporan'
+            ).catch(err => console.warn('In-app reminder error:', err.message));
+
+            // 2. Send WhatsApp Notification
+            if (staff.phone) {
+                const waMessage = `*PENGINGAT PENGISIAN LAPORAN HARIAN*\n\n` +
+                    `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
+                    `Yth. *${staff.name}* (${staff.position || 'Staf Sarana'}),\n\n` +
+                    `Pemberitahuan dari Kepala Bidang Sarana (Ustadz Ravi Kurnia):\n\n` +
+                    `Anda terpantau belum mengisi / melengkapi laporan kerja untuk:\n` +
+                    `📅 *Hari/Tanggal:* ${dateFormatted}\n` +
+                    `⏰ *Kekurangan Sesi:* ${missingDesc}\n\n` +
+                    `Mohon untuk segera mengisi butir kegiatan dan dokumentasi kerja Anda melalui menu *Laporan Harian* pada aplikasi Sistem Manajemen Aset.\n\n` +
+                    `Terima kasih atas kerja sama dan dedikasinya.\n\n` +
+                    `_Pesan resmi Sistem Manajemen Aset Yayasan Dar el-Iman_`;
+
+                whatsappService.sendMessage(staff.phone, waMessage).catch(err => {
+                    console.warn(`[WhatsApp] Gagal kirim pengingat ke ${staff.name}:`, err.message);
+                });
+            }
+
+            remindedList.push({
+                id: staff.id,
+                name: staff.name,
+                position: staff.position,
+                phone: staff.phone,
+                missingSession: missingSessionShort
+            });
+        }
+
+        res.json({
+            success: true,
+            totalReminded: remindedList.length,
+            remindedList,
+            message: remindedList.length > 0 
+                ? `Berhasil mengirim pengingat ke ${remindedList.length} staf.` 
+                : 'Semua staf yang diperiksa sudah mengisi laporan lengkap.'
+        });
+
+    } catch (error) {
+        console.error('Error reminding staff:', error);
+        res.status(500).json({ error: 'Gagal mengirim pengingat ke staf.' });
     }
 };
 
