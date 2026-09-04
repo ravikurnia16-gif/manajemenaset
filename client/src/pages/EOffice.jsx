@@ -414,7 +414,7 @@ const PointListEditor = ({ value, onChange, label = "Isi Dokumen & Butir Poin" }
                         }`}
                     >
                         <ListOrdered size={13} />
-                        <span>Mode Poin Berstruktur (1, 2, 3 -> a, b, c)</span>
+                        <span>Mode Poin Berstruktur (1, 2, 3 → a, b, c)</span>
                     </button>
                     <button
                         type="button"

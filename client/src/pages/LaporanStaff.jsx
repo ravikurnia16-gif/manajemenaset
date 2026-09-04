@@ -98,6 +98,7 @@ const LaporanStaff = () => {
     const [showMissedDates, setShowMissedDates] = useState(false);
     const [mobileSessionTab, setMobileSessionTab] = useState('ALL'); // 'ALL' | 'MORNING' | 'AFTERNOON'
     const [cameraModalConfig, setCameraModalConfig] = useState({ isOpen: false, index: null, period: 'morning' });
+    const currentLoadedDateRef = useRef(null);
 
     // Staff Custom Templates (disusun sendiri oleh masing-masing staf)
     const customTemplatesKey = `staff_custom_templates_v2_${user?.id || 'default'}`;
@@ -178,9 +179,9 @@ const LaporanStaff = () => {
         }
     }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate]);
 
-    // Auto-Save Draft to LocalStorage
+    // Auto-Save Draft to LocalStorage (Hanya jika points di memori sudah sinkron dengan selectedDate)
     useEffect(() => {
-        if (!isKabid && activeTab === 'laporan' && !loading) {
+        if (!isKabid && activeTab === 'laporan' && !loading && currentLoadedDateRef.current === selectedDate) {
             const hasContent = morningPoints.some(p => p.text?.trim() || p.photos?.length > 0) || afternoonPoints.some(p => p.text?.trim() || p.photos?.length > 0);
             if (hasContent) {
                 const draftKey = `draft_laporan_${user.id || 'default'}_${selectedDate}`;
@@ -291,8 +292,9 @@ const LaporanStaff = () => {
     const fetchMyReport = async () => {
         try {
             setLoading(true);
+            const targetDateToLoad = selectedDate;
             const res = await api.get('/laporan', {
-                params: { date: selectedDate }
+                params: { date: targetDateToLoad }
             });
             if (res.data.success) {
                 const rep = res.data.myReport;
@@ -300,29 +302,32 @@ const LaporanStaff = () => {
                 if (pts && (pts.morning?.length > 0 || pts.afternoon?.length > 0 || pts.morningPoints?.length > 0 || pts.afternoonPoints?.length > 0)) {
                     const m = pts.morning || pts.morningPoints || [];
                     const a = pts.afternoon || pts.afternoonPoints || [];
-                    setMorningPoints(m.length > 0 ? m : [{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                    setAfternoonPoints(a.length > 0 ? a : [{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                    setMorningPoints(m.length > 0 ? m : [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                    setAfternoonPoints(a.length > 0 ? a : [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                     setHasRestoredDraft(false);
+                    currentLoadedDateRef.current = targetDateToLoad;
                 } else {
                     // Try restore draft from LocalStorage
-                    const draftKey = `draft_laporan_${user.id || 'default'}_${selectedDate}`;
+                    const draftKey = `draft_laporan_${user.id || 'default'}_${targetDateToLoad}`;
                     const savedDraft = localStorage.getItem(draftKey);
                     if (savedDraft) {
                         try {
                             const parsed = JSON.parse(savedDraft);
                             if (parsed.morning?.length > 0 || parsed.afternoon?.length > 0) {
-                                setMorningPoints(parsed.morning || [{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                                setAfternoonPoints(parsed.afternoon || [{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                                setMorningPoints(parsed.morning || [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                                setAfternoonPoints(parsed.afternoon || [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                                 setHasRestoredDraft(true);
+                                currentLoadedDateRef.current = targetDateToLoad;
                                 return;
                             }
                         } catch (e) {
                             console.error('Failed to parse draft', e);
                         }
                     }
-                    setMorningPoints([{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                    setAfternoonPoints([{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                    setMorningPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                    setAfternoonPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                     setHasRestoredDraft(false);
+                    currentLoadedDateRef.current = targetDateToLoad;
                 }
             }
         } catch (error) {
@@ -345,10 +350,15 @@ const LaporanStaff = () => {
 
     const handleSaveReport = async () => {
         try {
-            setSaving(true);
             const validMorning = morningPoints.filter(p => (p.text && p.text.trim()) || (p.photos && p.photos.length > 0));
             const validAfternoon = afternoonPoints.filter(p => (p.text && p.text.trim()) || (p.photos && p.photos.length > 0));
 
+            if (validMorning.length === 0 && validAfternoon.length === 0) {
+                alert('Mohon isi minimal satu uraian kegiatan pada Sesi Pagi atau Sesi Siang sebelum menyimpan laporan.');
+                return;
+            }
+
+            setSaving(true);
             const res = await api.post('/laporan/my', {
                 targetDate: selectedDate,
                 manualPoints: {
@@ -363,13 +373,18 @@ const LaporanStaff = () => {
                 localStorage.removeItem(draftKey);
                 setHasRestoredDraft(false);
 
-                alert('Laporan Harian berhasil disimpan!');
-                fetchMyReport();
-                fetchMyStats();
+                const isOldDate = selectedDate !== dayjs().format('YYYY-MM-DD');
+                const formattedDate = dayjs(selectedDate).format('DD/MM/YYYY');
+                alert(isOldDate 
+                    ? `Alhamdulillah, laporan susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!` 
+                    : 'Alhamdulillah, laporan harian berhasil disimpan!'
+                );
+                await Promise.all([fetchMyReport(), fetchMyStats()]);
             }
         } catch (error) {
             console.error('Error saving report:', error);
-            alert('Gagal menyimpan laporan.');
+            const errMsg = error.response?.data?.error || 'Gagal menyimpan laporan. Silakan periksa koneksi dan coba lagi.';
+            alert(errMsg);
         } finally {
             setSaving(false);
         }
@@ -1595,6 +1610,30 @@ const LaporanStaff = () => {
                                 </div>
                             )}
 
+                            {/* BANNER MODE LAPORAN SUSULAN (WIB) */}
+                            {selectedDate !== dayjs().format('YYYY-MM-DD') && (
+                                <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-bold shrink-0">
+                                            <Calendar size={18} />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-100 block">Mode Pengisian Susulan (WIB)</span>
+                                            <h4 className="text-xs sm:text-sm font-black">
+                                                Mengisi Laporan untuk: {dayjs(selectedDate).format('dddd, DD MMMM YYYY')}
+                                            </h4>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}
+                                        className="text-[11px] font-bold bg-white text-orange-800 hover:bg-orange-50 px-3 py-1.5 rounded-xl transition-all shrink-0 cursor-pointer shadow-xs active:scale-95"
+                                    >
+                                        Kembali ke Hari Ini
+                                    </button>
+                                </div>
+                            )}
+
                             {/* RANGKUMAN TANGGAL BELUM LAPOR (SENIN - JUMAT) */}
                             {personalStats?.missedDates && personalStats.missedDates.length > 0 ? (
                                 <div className="bg-amber-50 border border-amber-300 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl space-y-2.5 sm:space-y-3 shadow-2xs">
@@ -2498,9 +2537,14 @@ const LaporanStaff = () => {
                                     className="w-full sm:w-auto px-6 sm:px-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-800 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                 >
                                     {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                                    <span>Simpan Laporan Harian</span>
+                                    <span>
+                                        {saving 
+                                            ? 'Menyimpan ke Server...' 
+                                            : (selectedDate !== dayjs().format('YYYY-MM-DD') ? 'Simpan Laporan Susulan' : 'Simpan Laporan Harian')
+                                        }
+                                    </span>
                                     <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                                        {dayjs(selectedDate).format('DD/MM')}
+                                        {dayjs(selectedDate).format('DD/MM/YYYY')} (WIB)
                                     </span>
                                 </button>
                             </div>

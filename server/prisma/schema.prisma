@@ -65,6 +65,7 @@ model User {
   requestedMovements       Movement[]             @relation("RequestedMovements")
   approvedMovements        Movement[]             @relation("ApprovedMovements")
   personnelReports         PersonnelReport[]
+  setoranHafalan           SetoranHafalan[]
   assignedAssignments      PersonnelAssignment[]  @relation("Assignee")
   createdAssignments       PersonnelAssignment[]  @relation("Assigner")
   assignedProcurementItems ProcurementItem[]      @relation("ItemAssignee")
@@ -965,6 +966,31 @@ model PersonnelReport {
   date      DateTime                @default(now())
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
+}
+
+model SetoranHafalan {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipeSetoran String   @default("Ziyadah") // Ziyadah, Murajaah
+  juz         Int      @default(30)
+  surah       String
+  surahNumber Int
+  ayatAwal    Int
+  ayatAkhir   Int
+  totalAyat   Int
+  pembimbing  String?
+  nilai       String   @default("Mumtaz") // Mumtaz, Jayyid Jiddan, Jayyid, Maqbul
+  catatan     String?  @db.Text
+  recordedBy  String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
+  @@index([tipeSetoran])
+  @@index([juz])
 }
 
 enum AssignmentStatus {

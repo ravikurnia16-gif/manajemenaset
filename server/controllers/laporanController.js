@@ -91,6 +91,7 @@ exports.getReports = async (req, res) => {
         const endOfDay = targetDate.endOf('day').toDate();
 
         const isUserKabid = isKabid(req.user);
+        const reqUserId = parseInt(req.user.id, 10);
         
         let whereClause = {
             type: 'DAILY',
@@ -98,15 +99,16 @@ exports.getReports = async (req, res) => {
             date: {
                 gte: startOfDay,
                 lte: endOfDay
-            },
-            user: {
-                role: 'ADMIN_ASET'
             }
         };
 
-        // Strict RBAC: Non-Kabid can ONLY see their own report
+        // Strict RBAC: Non-Kabid can ONLY see their own report (any role)
         if (!isUserKabid) {
-            whereClause.userId = req.user.id;
+            whereClause.userId = reqUserId;
+        } else {
+            whereClause.user = {
+                role: 'ADMIN_ASET'
+            };
         }
 
         const rawReports = await prisma.personnelReport.findMany({
@@ -151,8 +153,9 @@ exports.getReports = async (req, res) => {
             }
         }
 
-        // Strictly keep reports belonging to Role ADMIN_ASET, and omit background auto logs with no manual points
+        // For Kabid, filter only ADMIN_ASET and exclude auto logs; for Non-Kabid always keep own report
         let reports = Object.values(userReportsMap).filter(r => {
+            if (!isUserKabid && r.userId === reqUserId) return true;
             if (r.user?.role !== 'ADMIN_ASET') return false;
             const hasManual = isReportSubmitted(r);
             const hasRealManualContent = r.content && !r.content.includes('(Otomatis)');
@@ -198,7 +201,7 @@ exports.getReports = async (req, res) => {
             });
         }
 
-        const myReport = reports.find(r => r.userId === req.user.id) || null;
+        const myReport = reports.find(r => r.userId === reqUserId) || userReportsMap[reqUserId] || null;
 
         res.json({ 
             success: true, 
@@ -220,53 +223,99 @@ exports.getReports = async (req, res) => {
 exports.updateMyReport = async (req, res) => {
     try {
         const { category, targetDate, manualPoints } = req.body;
+        const userId = parseInt(req.user.id, 10);
         
+        // Selalu gunakan zona waktu Waktu Indonesia Barat (WIB / Asia/Jakarta)
         let reportDate = dayjs().tz('Asia/Jakarta');
         if (targetDate) {
             reportDate = dayjs.tz(targetDate, 'Asia/Jakarta');
         }
 
+        // Normalisasi batas awal dan akhir hari berdasarkan WIB
         const dateStart = reportDate.startOf('day').toDate();
         const dateEnd = reportDate.endOf('day').toDate();
 
-        let report = await prisma.personnelReport.findFirst({
+        // Cari laporan yang sudah ada pada tanggal tersebut (prioritaskan yang memiliki manualPoints)
+        const existingReports = await prisma.personnelReport.findMany({
             where: {
-                userId: req.user.id,
+                userId,
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: {
                     gte: dateStart,
                     lte: dateEnd
                 }
-            }
+            },
+            orderBy: { updatedAt: 'desc' }
         });
 
+        // Pilih laporan yang sudah punya manualPoints, atau rekaman pertama
+        let report = existingReports.find(r => r.metadata && r.metadata.manualPoints) || existingReports[0] || null;
+
+        const incomingMorning = Array.isArray(manualPoints?.morning) ? manualPoints.morning : [];
+        const incomingAfternoon = Array.isArray(manualPoints?.afternoon) ? manualPoints.afternoon : [];
+
+        // Ambil data lama jika ada untuk smart merge
+        const existingMetadata = typeof report?.metadata === 'object' && report?.metadata !== null ? report.metadata : {};
+        const oldPoints = existingMetadata.manualPoints || {};
+        const oldMorning = Array.isArray(oldPoints.morning || oldPoints.morningPoints) ? (oldPoints.morning || oldPoints.morningPoints) : [];
+        const oldAfternoon = Array.isArray(oldPoints.afternoon || oldPoints.afternoonPoints) ? (oldPoints.afternoon || oldPoints.afternoonPoints) : [];
+
+        // Format points
+        const mapPoint = (p) => ({
+            text: (p.text || '').trim(),
+            categoryTag: p.categoryTag || category || 'UMUM',
+            status: p.status || 'COMPLETED',
+            obstacleNote: (p.obstacleNote || '').trim(),
+            isRoutine: !!p.isRoutine,
+            photos: Array.isArray(p.photos) ? p.photos : [],
+            updatedAt: new Date().toISOString()
+        });
+
+        // Smart merge: jika incoming kosong tapi data lama ada, pertahankan data lama
+        let finalMorning = incomingMorning.map(mapPoint);
+        if (finalMorning.length === 0 && oldMorning.length > 0 && incomingAfternoon.length > 0) {
+            finalMorning = oldMorning;
+        }
+
+        let finalAfternoon = incomingAfternoon.map(mapPoint);
+        if (finalAfternoon.length === 0 && oldAfternoon.length > 0 && incomingMorning.length > 0) {
+            finalAfternoon = oldAfternoon;
+        }
+
         const formattedPoints = {
-            morning: (manualPoints?.morning || []).map(p => ({
-                text: p.text || '',
-                categoryTag: p.categoryTag || category || 'UMUM',
-                status: p.status || 'COMPLETED', // COMPLETED, IN_PROGRESS, OBSTACLE
-                obstacleNote: p.obstacleNote || '',
-                isRoutine: !!p.isRoutine,
-                photos: Array.isArray(p.photos) ? p.photos : [],
-                updatedAt: new Date().toISOString()
-            })),
-            afternoon: (manualPoints?.afternoon || []).map(p => ({
-                text: p.text || '',
-                categoryTag: p.categoryTag || category || 'UMUM',
-                status: p.status || 'COMPLETED',
-                obstacleNote: p.obstacleNote || '',
-                isRoutine: !!p.isRoutine,
-                photos: Array.isArray(p.photos) ? p.photos : [],
-                updatedAt: new Date().toISOString()
-            }))
+            morning: finalMorning,
+            afternoon: finalAfternoon
         };
 
+        // Buat ringkasan teks otomatis ke kolom content
+        const summaryLines = [];
+        if (finalMorning.length > 0) {
+            summaryLines.push('[SESI PAGI]');
+            finalMorning.forEach((p, idx) => {
+                const obs = p.status === 'OBSTACLE' && p.obstacleNote ? ` (Kendala: ${p.obstacleNote})` : '';
+                summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text || 'Dokumentasi Foto'} [${p.status}]${obs}`);
+            });
+        }
+        if (finalAfternoon.length > 0) {
+            summaryLines.push('[SESI SIANG]');
+            finalAfternoon.forEach((p, idx) => {
+                const obs = p.status === 'OBSTACLE' && p.obstacleNote ? ` (Kendala: ${p.obstacleNote})` : '';
+                summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text || 'Dokumentasi Foto'} [${p.status}]${obs}`);
+            });
+        }
+        const autoContent = summaryLines.join('\n');
+
+        // Simpan pada tengah hari (12:00:00 WIB) agar aman dari pergeseran batas hari UTC vs WIB
+        const normalizedDate = reportDate.hour(12).minute(0).second(0).toDate();
+
         if (report) {
-            const existingMetadata = typeof report.metadata === 'object' && report.metadata !== null ? report.metadata : {};
             report = await prisma.personnelReport.update({
                 where: { id: report.id },
                 data: { 
+                    content: autoContent || report.content || '',
+                    category: category || report.category || 'UMUM',
+                    date: normalizedDate,
                     metadata: {
                         ...existingMetadata,
                         manualPoints: formattedPoints,
@@ -277,15 +326,15 @@ exports.updateMyReport = async (req, res) => {
         } else {
             report = await prisma.personnelReport.create({
                 data: {
-                    userId: req.user.id,
+                    userId,
                     type: 'DAILY',
                     category: category || 'UMUM',
-                    content: '', 
+                    content: autoContent, 
                     metadata: {
                         manualPoints: formattedPoints,
                         lastSubmittedAt: new Date().toISOString()
                     },
-                    date: reportDate.toDate()
+                    date: normalizedDate
                 }
             });
         }
@@ -293,7 +342,7 @@ exports.updateMyReport = async (req, res) => {
         res.json({ success: true, report });
     } catch (error) {
         console.error('Error updating report:', error);
-        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+        res.status(500).json({ error: 'Terjadi kesalahan pada server saat menyimpan laporan' });
     }
 };
 
@@ -303,7 +352,7 @@ exports.updateMyReport = async (req, res) => {
  */
 exports.getReportStatus = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = parseInt(req.user.id, 10);
         const targetDate = dayjs().tz('Asia/Jakarta');
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
@@ -790,10 +839,17 @@ exports.verifyReport = async (req, res) => {
  */
 exports.getMyStats = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = parseInt(req.user.id, 10);
+        const { month } = req.query; // format YYYY-MM opsional
         const now = dayjs().tz('Asia/Jakarta');
-        const monthStart = now.startOf('month');
-        const monthEnd = now.endOf('month');
+        
+        let targetMonth = now;
+        if (month && dayjs(month).isValid()) {
+            targetMonth = dayjs.tz(month, 'Asia/Jakarta');
+        }
+
+        const monthStart = targetMonth.startOf('month');
+        const monthEnd = targetMonth.endOf('month');
 
         const monthReports = await prisma.personnelReport.findMany({
             where: {
@@ -809,25 +865,35 @@ exports.getMyStats = async (req, res) => {
         let totalActivities = 0;
         let latestFeedback = null;
 
-        // Calculate missed working days (Monday - Friday only, from 1st of month up to today)
+        // Hitung hari kerja (Senin - Jumat) dari tanggal 1 sampai hari ini (atau akhir bulan jika melihat bulan lalu)
         const missedDates = [];
         let curr = monthStart.clone();
         const todayStr = now.format('YYYY-MM-DD');
+        const limitDate = targetMonth.isSame(now, 'month') ? now : monthEnd;
 
-        while (curr.isBefore(now) || curr.format('YYYY-MM-DD') === todayStr) {
+        while (curr.isBefore(limitDate) || curr.format('YYYY-MM-DD') === limitDate.format('YYYY-MM-DD')) {
             const dayOfWeek = curr.day(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
             if (dayOfWeek >= 1 && dayOfWeek <= 5) {
                 const dateStr = curr.format('YYYY-MM-DD');
-                const report = monthReports.find(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
+                
+                // Cari SEMUA laporan pada tanggal tersebut agar tidak tertahan pada baris autoLog
+                const dayReports = monthReports.filter(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
                 
                 let hasM = false;
                 let hasA = false;
-                if (report && report.metadata && report.metadata.manualPoints) {
-                    const pts = report.metadata.manualPoints;
-                    const m = pts.morning || pts.morningPoints || [];
-                    const a = pts.afternoon || pts.afternoonPoints || [];
-                    hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-                    hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+                for (const report of dayReports) {
+                    if (report.metadata && report.metadata.manualPoints) {
+                        const pts = report.metadata.manualPoints;
+                        const m = pts.morning || pts.morningPoints || [];
+                        const a = pts.afternoon || pts.afternoonPoints || [];
+                        if (!hasM) {
+                            hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+                        }
+                        if (!hasA) {
+                            hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+                        }
+                    }
+                    if (hasM && hasA) break;
                 }
 
                 if (hasM && hasA) {
@@ -847,7 +913,7 @@ exports.getMyStats = async (req, res) => {
             curr = curr.add(1, 'day');
         }
 
-        // Count total activities and grab latest feedback
+        // Hitung total kegiatan dan ambil umpan balik verifikasi terakhir Kabid
         monthReports.forEach(r => {
             const pts = r.metadata?.manualPoints;
             const m = pts?.morning || pts?.morningPoints || [];
@@ -856,7 +922,7 @@ exports.getMyStats = async (req, res) => {
 
             if (!latestFeedback && r.metadata?.verification?.feedbackNote) {
                 latestFeedback = {
-                    date: dayjs(r.date).format('DD MMM YYYY'),
+                    date: dayjs(r.date).tz('Asia/Jakarta').format('DD MMM YYYY'),
                     status: r.metadata.verification.status,
                     note: r.metadata.verification.feedbackNote,
                     by: r.metadata.verification.verifiedBy
@@ -864,10 +930,10 @@ exports.getMyStats = async (req, res) => {
             }
         });
 
-        // Total working days passed so far in current month
+        // Total hari kerja yang sudah berjalan
         let totalWorkDaysPassed = 0;
         let countCurr = monthStart.clone();
-        while (countCurr.isBefore(now) || countCurr.format('YYYY-MM-DD') === todayStr) {
+        while (countCurr.isBefore(limitDate) || countCurr.format('YYYY-MM-DD') === limitDate.format('YYYY-MM-DD')) {
             const d = countCurr.day();
             if (d >= 1 && d <= 5) totalWorkDaysPassed++;
             countCurr = countCurr.add(1, 'day');
@@ -885,7 +951,7 @@ exports.getMyStats = async (req, res) => {
                 totalActivities,
                 disciplineScore,
                 latestFeedback,
-                missedDates // Array of missed work days
+                missedDates // Array hari kerja yang belum lengkap
             }
         });
     } catch (error) {
@@ -1362,27 +1428,33 @@ exports.getKabidSummary = async (req, res) => {
 };
 
 // =========================================================================
-// MODUL SETORAN HAFALAN (ZIYADAH & MURAJAAH)
+// MODUL SETORAN HAFALAN (ZIYADAH & MURAJAAH) - TABEL KHUSUS SetoranHafalan
 // =========================================================================
 
 /**
  * GET /api/laporan/hafalan
- * Mengambil riwayat setoran hafalan
+ * Mengambil riwayat setoran hafalan dari tabel khusus SetoranHafalan
  */
 exports.getSetoranHafalan = async (req, res) => {
     try {
         const { staffId, tipe, juz, startDate, endDate, search } = req.query;
         const isUserKabid = isKabid(req.user);
 
-        let whereClause = {
-            content: 'SETORAN_HAFALAN'
-        };
+        let whereClause = {};
 
         // Non-Kabid hanya dapat melihat data setorannya sendiri
         if (!isUserKabid) {
             whereClause.userId = req.user.id;
         } else if (staffId && staffId !== 'ALL') {
             whereClause.userId = parseInt(staffId, 10);
+        }
+
+        if (tipe && tipe !== 'ALL') {
+            whereClause.tipeSetoran = tipe;
+        }
+
+        if (juz && juz !== 'ALL') {
+            whereClause.juz = parseInt(juz, 10);
         }
 
         if (startDate || endDate) {
@@ -1395,7 +1467,17 @@ exports.getSetoranHafalan = async (req, res) => {
             }
         }
 
-        const rawRecords = await prisma.personnelReport.findMany({
+        if (search && search.trim()) {
+            const q = search.trim();
+            whereClause.OR = [
+                { surah: { contains: q } },
+                { pembimbing: { contains: q } },
+                { catatan: { contains: q } },
+                { user: { name: { contains: q } } }
+            ];
+        }
+
+        const records = await prisma.setoranHafalan.findMany({
             where: whereClause,
             include: {
                 user: {
@@ -1406,51 +1488,6 @@ exports.getSetoranHafalan = async (req, res) => {
                 date: 'desc'
             }
         });
-
-        let records = rawRecords.map(r => {
-            const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
-            const awal = meta.ayatAwal || 1;
-            const akhir = meta.ayatAkhir || 1;
-            const totalAyat = meta.totalAyat || (akhir >= awal ? akhir - awal + 1 : 1);
-            return {
-                id: r.id,
-                userId: r.userId,
-                user: r.user,
-                date: r.date,
-                createdAt: r.createdAt,
-                updatedAt: r.updatedAt,
-                tipeSetoran: meta.tipeSetoran || 'Ziyadah',
-                juz: meta.juz || 30,
-                surah: meta.surah || '',
-                surahNumber: meta.surahNumber || 0,
-                ayatAwal: awal,
-                ayatAkhir: akhir,
-                totalAyat,
-                pembimbing: meta.pembimbing || '',
-                nilai: meta.nilai || 'Mumtaz',
-                catatan: meta.catatan || '',
-                recordedBy: meta.recordedBy || ''
-            };
-        });
-
-        if (tipe && tipe !== 'ALL') {
-            records = records.filter(r => (r.tipeSetoran || '').toLowerCase() === tipe.toLowerCase());
-        }
-
-        if (juz && juz !== 'ALL') {
-            const jNum = parseInt(juz, 10);
-            records = records.filter(r => parseInt(r.juz, 10) === jNum);
-        }
-
-        if (search && search.trim()) {
-            const q = search.toLowerCase();
-            records = records.filter(r => 
-                (r.surah || '').toLowerCase().includes(q) ||
-                (r.pembimbing || '').toLowerCase().includes(q) ||
-                (r.catatan || '').toLowerCase().includes(q) ||
-                (r.user?.name || '').toLowerCase().includes(q)
-            );
-        }
 
         res.json({
             success: true,
@@ -1472,9 +1509,7 @@ exports.getSetoranHafalanStats = async (req, res) => {
         const { staffId } = req.query;
         const isUserKabid = isKabid(req.user);
 
-        let whereClause = {
-            content: 'SETORAN_HAFALAN'
-        };
+        let whereClause = {};
 
         if (!isUserKabid) {
             whereClause.userId = req.user.id;
@@ -1482,7 +1517,7 @@ exports.getSetoranHafalanStats = async (req, res) => {
             whereClause.userId = parseInt(staffId, 10);
         }
 
-        const rawRecords = await prisma.personnelReport.findMany({
+        const records = await prisma.setoranHafalan.findMany({
             where: whereClause,
             orderBy: { date: 'desc' },
             include: {
@@ -1490,38 +1525,33 @@ exports.getSetoranHafalanStats = async (req, res) => {
             }
         });
 
-        let totalSetoran = rawRecords.length;
+        let totalSetoran = records.length;
         let totalZiyadah = 0;
         let totalMurajaah = 0;
         let totalAyat = 0;
         const juzDistribution = {};
 
-        rawRecords.forEach(r => {
-            const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
-            const tipe = meta.tipeSetoran || 'Ziyadah';
-            if (tipe.toLowerCase() === 'ziyadah') totalZiyadah++;
-            else if (tipe.toLowerCase() === 'murajaah') totalMurajaah++;
+        records.forEach(r => {
+            if ((r.tipeSetoran || '').toLowerCase() === 'ziyadah') totalZiyadah++;
+            else if ((r.tipeSetoran || '').toLowerCase() === 'murajaah') totalMurajaah++;
 
-            const awal = meta.ayatAwal || 1;
-            const akhir = meta.ayatAkhir || 1;
-            const ayatCount = meta.totalAyat || (akhir >= awal ? akhir - awal + 1 : 0);
-            totalAyat += ayatCount;
+            totalAyat += (r.totalAyat || (r.ayatAkhir >= r.ayatAwal ? r.ayatAkhir - r.ayatAwal + 1 : 0));
 
-            const juz = meta.juz || 30;
+            const juz = r.juz || 30;
             juzDistribution[juz] = (juzDistribution[juz] || 0) + 1;
         });
 
-        const latestRecord = rawRecords[0] ? {
-            id: rawRecords[0].id,
-            date: rawRecords[0].date,
-            userName: rawRecords[0].user?.name,
-            tipeSetoran: rawRecords[0].metadata?.tipeSetoran || 'Ziyadah',
-            surah: rawRecords[0].metadata?.surah || '',
-            juz: rawRecords[0].metadata?.juz || 30,
-            ayatAwal: rawRecords[0].metadata?.ayatAwal || 1,
-            ayatAkhir: rawRecords[0].metadata?.ayatAkhir || 1,
-            totalAyat: rawRecords[0].metadata?.totalAyat || 1,
-            nilai: rawRecords[0].metadata?.nilai || 'Mumtaz'
+        const latestRecord = records[0] ? {
+            id: records[0].id,
+            date: records[0].date,
+            userName: records[0].user?.name,
+            tipeSetoran: records[0].tipeSetoran,
+            surah: records[0].surah,
+            juz: records[0].juz,
+            ayatAwal: records[0].ayatAwal,
+            ayatAkhir: records[0].ayatAkhir,
+            totalAyat: records[0].totalAyat,
+            nilai: records[0].nilai
         } : null;
 
         res.json({
@@ -1543,7 +1573,7 @@ exports.getSetoranHafalanStats = async (req, res) => {
 
 /**
  * POST /api/laporan/hafalan
- * Mencatat setoran hafalan baru
+ * Mencatat setoran hafalan baru ke tabel SetoranHafalan
  */
 exports.createSetoranHafalan = async (req, res) => {
     try {
@@ -1583,29 +1613,20 @@ exports.createSetoranHafalan = async (req, res) => {
             reportDate = dayjs.tz(tanggalSetoran, 'Asia/Jakarta');
         }
 
-        const metadata = {
-            isSetoranHafalan: true,
-            tipeSetoran: tipeSetoran === 'Murajaah' ? 'Murajaah' : 'Ziyadah',
-            juz: parseInt(juz, 10) || 30,
-            surah: surah.trim(),
-            surahNumber: parseInt(surahNumber, 10) || 0,
-            ayatAwal: awal,
-            ayatAkhir: akhir,
-            totalAyat,
-            pembimbing: pembimbing ? pembimbing.trim() : '',
-            nilai: nilai || 'Mumtaz',
-            catatan: catatan ? catatan.trim() : '',
-            recordedBy: req.user.name || req.user.username,
-            recordedAt: new Date().toISOString()
-        };
-
-        const created = await prisma.personnelReport.create({
+        const record = await prisma.setoranHafalan.create({
             data: {
                 userId: targetUserId,
-                type: 'DAILY',
-                category: 'UMUM',
-                content: 'SETORAN_HAFALAN',
-                metadata,
+                tipeSetoran: tipeSetoran === 'Murajaah' ? 'Murajaah' : 'Ziyadah',
+                juz: parseInt(juz, 10) || 30,
+                surah: surah.trim(),
+                surahNumber: parseInt(surahNumber, 10) || 0,
+                ayatAwal: awal,
+                ayatAkhir: akhir,
+                totalAyat,
+                pembimbing: pembimbing ? pembimbing.trim() : null,
+                nilai: nilai || 'Mumtaz',
+                catatan: catatan ? catatan.trim() : null,
+                recordedBy: req.user.name || req.user.username,
                 date: reportDate.toDate()
             },
             include: {
@@ -1618,13 +1639,7 @@ exports.createSetoranHafalan = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Setoran hafalan berhasil disimpan',
-            record: {
-                id: created.id,
-                userId: created.userId,
-                user: created.user,
-                date: created.date,
-                ...metadata
-            }
+            record
         });
     } catch (error) {
         console.error('Error creating setoran hafalan:', error);
@@ -1634,16 +1649,16 @@ exports.createSetoranHafalan = async (req, res) => {
 
 /**
  * PUT /api/laporan/hafalan/:id
- * Memperbarui data setoran hafalan
+ * Memperbarui data setoran hafalan di tabel SetoranHafalan
  */
 exports.updateSetoranHafalan = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const existing = await prisma.personnelReport.findUnique({
+        const existing = await prisma.setoranHafalan.findUnique({
             where: { id }
         });
 
-        if (!existing || existing.content !== 'SETORAN_HAFALAN') {
+        if (!existing) {
             return res.status(404).json({ error: 'Data setoran hafalan tidak ditemukan' });
         }
 
@@ -1665,36 +1680,28 @@ exports.updateSetoranHafalan = async (req, res) => {
             tanggalSetoran
         } = req.body;
 
-        const currentMeta = typeof existing.metadata === 'object' && existing.metadata !== null ? existing.metadata : {};
-        const awal = ayatAwal !== undefined ? parseInt(ayatAwal, 10) : currentMeta.ayatAwal;
-        const akhir = ayatAkhir !== undefined ? parseInt(ayatAkhir, 10) : currentMeta.ayatAkhir;
-        const totalAyat = (awal && akhir && akhir >= awal) ? (akhir - awal + 1) : currentMeta.totalAyat;
-
-        const updatedMeta = {
-            ...currentMeta,
-            tipeSetoran: tipeSetoran || currentMeta.tipeSetoran,
-            juz: juz !== undefined ? parseInt(juz, 10) : currentMeta.juz,
-            surah: surah || currentMeta.surah,
-            surahNumber: surahNumber !== undefined ? parseInt(surahNumber, 10) : currentMeta.surahNumber,
-            ayatAwal: awal,
-            ayatAkhir: akhir,
-            totalAyat,
-            pembimbing: pembimbing !== undefined ? pembimbing.trim() : currentMeta.pembimbing,
-            nilai: nilai || currentMeta.nilai,
-            catatan: catatan !== undefined ? catatan.trim() : currentMeta.catatan,
-            updatedBy: req.user.name || req.user.username,
-            updatedAt: new Date().toISOString()
-        };
+        const awal = ayatAwal !== undefined ? parseInt(ayatAwal, 10) : existing.ayatAwal;
+        const akhir = ayatAkhir !== undefined ? parseInt(ayatAkhir, 10) : existing.ayatAkhir;
+        const totalAyat = (awal && akhir && akhir >= awal) ? (akhir - awal + 1) : existing.totalAyat;
 
         let dateUpdate = existing.date;
         if (tanggalSetoran) {
             dateUpdate = dayjs.tz(tanggalSetoran, 'Asia/Jakarta').toDate();
         }
 
-        const updated = await prisma.personnelReport.update({
+        const updated = await prisma.setoranHafalan.update({
             where: { id },
             data: {
-                metadata: updatedMeta,
+                tipeSetoran: tipeSetoran || existing.tipeSetoran,
+                juz: juz !== undefined ? parseInt(juz, 10) : existing.juz,
+                surah: surah || existing.surah,
+                surahNumber: surahNumber !== undefined ? parseInt(surahNumber, 10) : existing.surahNumber,
+                ayatAwal: awal,
+                ayatAkhir: akhir,
+                totalAyat,
+                pembimbing: pembimbing !== undefined ? (pembimbing ? pembimbing.trim() : null) : existing.pembimbing,
+                nilai: nilai || existing.nilai,
+                catatan: catatan !== undefined ? (catatan ? catatan.trim() : null) : existing.catatan,
                 date: dateUpdate
             },
             include: {
@@ -1705,13 +1712,7 @@ exports.updateSetoranHafalan = async (req, res) => {
         res.json({
             success: true,
             message: 'Setoran hafalan berhasil diperbarui',
-            record: {
-                id: updated.id,
-                userId: updated.userId,
-                user: updated.user,
-                date: updated.date,
-                ...updatedMeta
-            }
+            record: updated
         });
     } catch (error) {
         console.error('Error updating setoran hafalan:', error);
@@ -1721,16 +1722,16 @@ exports.updateSetoranHafalan = async (req, res) => {
 
 /**
  * DELETE /api/laporan/hafalan/:id
- * Menghapus data setoran hafalan
+ * Menghapus data setoran hafalan dari tabel SetoranHafalan
  */
 exports.deleteSetoranHafalan = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
-        const existing = await prisma.personnelReport.findUnique({
+        const existing = await prisma.setoranHafalan.findUnique({
             where: { id }
         });
 
-        if (!existing || existing.content !== 'SETORAN_HAFALAN') {
+        if (!existing) {
             return res.status(404).json({ error: 'Data setoran hafalan tidak ditemukan' });
         }
 
@@ -1739,7 +1740,7 @@ exports.deleteSetoranHafalan = async (req, res) => {
             return res.status(403).json({ error: 'Anda tidak memiliki izin menghapus data ini' });
         }
 
-        await prisma.personnelReport.delete({
+        await prisma.setoranHafalan.delete({
             where: { id }
         });
 
@@ -1752,4 +1753,5 @@ exports.deleteSetoranHafalan = async (req, res) => {
         res.status(500).json({ error: 'Gagal menghapus setoran hafalan' });
     }
 };
+
 
