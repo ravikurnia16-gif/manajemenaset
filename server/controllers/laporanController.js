@@ -106,9 +106,10 @@ exports.getReports = async (req, res) => {
         if (!isUserKabid) {
             whereClause.userId = reqUserId;
         } else {
-            whereClause.user = {
-                role: 'ADMIN_ASET'
-            };
+            whereClause.OR = [
+                { user: { role: 'ADMIN_ASET' } },
+                { userId: reqUserId }
+            ];
         }
 
         const rawReports = await prisma.personnelReport.findMany({
@@ -201,7 +202,7 @@ exports.getReports = async (req, res) => {
             });
         }
 
-        const myReport = reports.find(r => r.userId === reqUserId) || userReportsMap[reqUserId] || null;
+        const myReport = userReportsMap[reqUserId] || reports.find(r => r.userId === reqUserId) || null;
 
         res.json({ 
             success: true, 

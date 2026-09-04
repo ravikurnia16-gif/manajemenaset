@@ -181,7 +181,7 @@ const LaporanStaff = () => {
 
     // Auto-Save Draft to LocalStorage (Hanya jika points di memori sudah sinkron dengan selectedDate)
     useEffect(() => {
-        if (!isKabid && activeTab === 'laporan' && !loading && currentLoadedDateRef.current === selectedDate) {
+        if (activeTab === 'laporan' && !loading && currentLoadedDateRef.current === selectedDate) {
             const hasContent = morningPoints.some(p => p.text?.trim() || p.photos?.length > 0) || afternoonPoints.some(p => p.text?.trim() || p.photos?.length > 0);
             if (hasContent) {
                 const draftKey = `draft_laporan_${user.id || 'default'}_${selectedDate}`;
@@ -348,14 +348,26 @@ const LaporanStaff = () => {
         }
     };
 
-    const handleSaveReport = async () => {
+    const handleSaveReport = async (targetPeriod = null) => {
         try {
             const validMorning = morningPoints.filter(p => (p.text && p.text.trim()) || (p.photos && p.photos.length > 0));
             const validAfternoon = afternoonPoints.filter(p => (p.text && p.text.trim()) || (p.photos && p.photos.length > 0));
 
-            if (validMorning.length === 0 && validAfternoon.length === 0) {
-                alert('Mohon isi minimal satu uraian kegiatan pada Sesi Pagi atau Sesi Siang sebelum menyimpan laporan.');
-                return;
+            if (targetPeriod === 'morning') {
+                if (validMorning.length === 0) {
+                    alert('Mohon isi minimal satu uraian kegiatan pada Sesi Pagi sebelum menyimpan.');
+                    return;
+                }
+            } else if (targetPeriod === 'afternoon') {
+                if (validAfternoon.length === 0) {
+                    alert('Mohon isi minimal satu uraian kegiatan pada Sesi Siang sebelum menyimpan.');
+                    return;
+                }
+            } else {
+                if (validMorning.length === 0 && validAfternoon.length === 0) {
+                    alert('Mohon isi minimal satu uraian kegiatan pada Sesi Pagi atau Sesi Siang sebelum menyimpan laporan.');
+                    return;
+                }
             }
 
             setSaving(true);
@@ -375,9 +387,13 @@ const LaporanStaff = () => {
 
                 const isOldDate = selectedDate !== dayjs().format('YYYY-MM-DD');
                 const formattedDate = dayjs(selectedDate).format('DD/MM/YYYY');
+                let periodText = '';
+                if (targetPeriod === 'morning') periodText = 'Sesi Pagi ';
+                else if (targetPeriod === 'afternoon') periodText = 'Sesi Siang ';
+
                 alert(isOldDate 
-                    ? `Alhamdulillah, laporan susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!` 
-                    : 'Alhamdulillah, laporan harian berhasil disimpan!'
+                    ? `Alhamdulillah, laporan ${periodText}susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!` 
+                    : `Alhamdulillah, laporan ${periodText}harian berhasil disimpan!`
                 );
                 await Promise.all([fetchMyReport(), fetchMyStats()]);
             }
@@ -752,7 +768,7 @@ const LaporanStaff = () => {
     }, [dashboardData]);
 
     return (
-        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-36 sm:pb-16">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-44 sm:pb-16">
             {/* TOP HEADER */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm">
                 <div className="flex items-center gap-3 sm:gap-4">
@@ -762,7 +778,7 @@ const LaporanStaff = () => {
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                             <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight truncate">
-                                {isKabid ? 'Manajemen & Kinerja Staf' : 'Laporan Harian Staf'}
+                                {isKabid ? (activeTab === 'laporan' ? 'Laporan Harian Kepala Bidang' : 'Manajemen & Kinerja Staf') : 'Laporan Harian Staf'}
                             </h1>
                             <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${isKabid ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                 {isKabid ? 'Kepala Bidang Sarana' : (user.position || 'Staff Manajemen Aset')}
@@ -770,7 +786,7 @@ const LaporanStaff = () => {
                         </div>
                         <p className="text-slate-400 text-[11px] sm:text-sm font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
                             {isKabid 
-                                ? 'Pusat evaluasi kerja, monitoring kendala lapangan, analitik AI, dan rekapitulasi pekanan.'
+                                ? (activeTab === 'laporan' ? 'Catat agenda dan aktivitas kerja harian Kepala Bidang Sarana (Sesi Pagi & Siang), foto bukti lapangan, dan simpan laporan.' : 'Pusat evaluasi kerja, monitoring kendala lapangan, analitik AI, dan rekapitulasi pekanan.')
                                 : 'Catat kegiatan kerja Sesi Pagi & Siang, dokumentasikan bukti foto, dan pantau tugas.'}
                         </p>
                     </div>
@@ -837,6 +853,14 @@ const LaporanStaff = () => {
                             }`}
                         >
                             <TrendingUp size={16} /> Executive Dashboard
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('laporan')}
+                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'laporan' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <FileText size={16} /> Isi Laporan Harian
                         </button>
                         <button
                             onClick={() => setActiveTab('monitoring')}
@@ -2081,13 +2105,25 @@ const LaporanStaff = () => {
                                                 </h3>
                                                 <p className="text-[11px] text-slate-400 font-medium">Batas pengingat: 13.30 WIB</p>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setMorningPoints([...morningPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
-                                                className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                                            >
-                                                <Plus size={14} /> <span className="hidden sm:inline">Tambah Kegiatan</span><span className="sm:hidden">+ Butir</span>
-                                            </button>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMorningPoints([...morningPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
+                                                    className="px-2.5 sm:px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                >
+                                                    <Plus size={14} /> <span className="hidden sm:inline">Tambah Kegiatan</span><span className="sm:hidden">+ Butir</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSaveReport('morning')}
+                                                    disabled={saving}
+                                                    className="px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50"
+                                                    title="Simpan Laporan Sesi Pagi"
+                                                >
+                                                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                                    <span>Simpan</span>
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-4">
@@ -2294,6 +2330,17 @@ const LaporanStaff = () => {
                                             >
                                                 <Plus size={15} /> Tambah Butir Kegiatan Pagi
                                             </button>
+
+                                            {/* Tombol Simpan Khusus Sesi Pagi */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSaveReport('morning')}
+                                                disabled={saving}
+                                                className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50 mt-1"
+                                            >
+                                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                                <span>Simpan Laporan Sesi Pagi</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -2310,13 +2357,25 @@ const LaporanStaff = () => {
                                                 </h3>
                                                 <p className="text-[11px] text-slate-400 font-medium">Batas pengingat: 16.16 WIB</p>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setAfternoonPoints([...afternoonPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
-                                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                                            >
-                                                <Plus size={14} /> <span className="hidden sm:inline">Tambah Kegiatan</span><span className="sm:hidden">+ Butir</span>
-                                            </button>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAfternoonPoints([...afternoonPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
+                                                    className="px-2.5 sm:px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                >
+                                                    <Plus size={14} /> <span className="hidden sm:inline">Tambah Kegiatan</span><span className="sm:hidden">+ Butir</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSaveReport('afternoon')}
+                                                    disabled={saving}
+                                                    className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50"
+                                                    title="Simpan Laporan Sesi Siang"
+                                                >
+                                                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                                    <span>Simpan</span>
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-4">
@@ -2523,30 +2582,125 @@ const LaporanStaff = () => {
                                             >
                                                 <Plus size={15} /> Tambah Butir Kegiatan Siang
                                             </button>
+
+                                            {/* Tombol Simpan Khusus Sesi Siang */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSaveReport('afternoon')}
+                                                disabled={saving}
+                                                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50 mt-1"
+                                            >
+                                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                                <span>Simpan Laporan Sesi Siang</span>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* SAVE BUTTON - Floating on Mobile above Navbar, Sticky on Desktop */}
-                            <div className="fixed sm:sticky bottom-18 sm:bottom-4 z-30 left-3 right-3 sm:left-auto sm:right-auto sm:flex sm:justify-end">
-                                <button
-                                    type="button"
-                                    onClick={handleSaveReport}
-                                    disabled={saving}
-                                    className="w-full sm:w-auto px-6 sm:px-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-800 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 active:scale-95"
-                                >
-                                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                                    <span>
-                                        {saving 
-                                            ? 'Menyimpan ke Server...' 
-                                            : (selectedDate !== dayjs().format('YYYY-MM-DD') ? 'Simpan Laporan Susulan' : 'Simpan Laporan Harian')
-                                        }
-                                    </span>
-                                    <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                                        {dayjs(selectedDate).format('DD/MM/YYYY')} (WIB)
-                                    </span>
-                                </button>
+                            <div className="fixed sm:sticky bottom-[72px] sm:bottom-4 z-[45] left-3 right-3 sm:left-auto sm:right-auto sm:flex sm:justify-end">
+                                {/* Mobile view */}
+                                <div className="flex sm:hidden flex-col gap-2 w-full bg-white/95 backdrop-blur-md p-2.5 rounded-2xl border border-slate-200/90 shadow-2xl">
+                                    {mobileSessionTab === 'MORNING' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSaveReport('morning')}
+                                            disabled={saving}
+                                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                                        >
+                                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                            <span>Simpan Laporan Sesi Pagi</span>
+                                            <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                                                {dayjs(selectedDate).format('DD/MM/YYYY')}
+                                            </span>
+                                        </button>
+                                    )}
+                                    {mobileSessionTab === 'AFTERNOON' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSaveReport('afternoon')}
+                                            disabled={saving}
+                                            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-indigo-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                                        >
+                                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                            <span>Simpan Laporan Sesi Siang</span>
+                                            <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                                                {dayjs(selectedDate).format('DD/MM/YYYY')}
+                                            </span>
+                                        </button>
+                                    )}
+                                    {mobileSessionTab === 'ALL' && (
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSaveReport('morning')}
+                                                disabled={saving}
+                                                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                            >
+                                                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                                <span>Simpan Pagi</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSaveReport('afternoon')}
+                                                disabled={saving}
+                                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-indigo-500/20 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                            >
+                                                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                                <span>Simpan Siang</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSaveReport(null)}
+                                                disabled={saving}
+                                                className="px-3 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
+                                                title="Simpan Semua Sesi"
+                                            >
+                                                <Save size={15} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Desktop view */}
+                                <div className="hidden sm:flex sm:items-center sm:gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSaveReport('morning')}
+                                        disabled={saving}
+                                        className="px-5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs rounded-2xl transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                                    >
+                                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                        <span>Simpan Sesi Pagi</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSaveReport('afternoon')}
+                                        disabled={saving}
+                                        className="px-5 py-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-2xl transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                                    >
+                                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                        <span>Simpan Sesi Siang</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSaveReport(null)}
+                                        disabled={saving}
+                                        className="px-7 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-800 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                    >
+                                        {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                        <span>
+                                            {saving 
+                                                ? 'Menyimpan ke Server...' 
+                                                : (selectedDate !== dayjs().format('YYYY-MM-DD') ? 'Simpan Semua Laporan Susulan' : 'Simpan Semua (Pagi & Siang)')
+                                            }
+                                        </span>
+                                        <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                                            {dayjs(selectedDate).format('DD/MM/YYYY')} (WIB)
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
