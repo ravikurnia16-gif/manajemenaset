@@ -31,6 +31,13 @@ router.post('/upload-photo', upload.single('photo'), laporanController.uploadRep
 // Inactivity Alert for Kabid (2 working days)
 router.post('/notify-inactive', laporanController.notifyKabidInactiveStaff);
 
+// Setoran Hafalan (Ziyadah & Murajaah)
+router.get('/hafalan', laporanController.getSetoranHafalan);
+router.get('/hafalan/stats', laporanController.getSetoranHafalanStats);
+router.post('/hafalan', laporanController.createSetoranHafalan);
+router.put('/hafalan/:id', laporanController.updateSetoranHafalan);
+router.delete('/hafalan/:id', laporanController.deleteSetoranHafalan);
+
 // TEMPORARY DEBUG ENDPOINT
 router.get('/debug-reports', async (req, res) => {
     const reports = await prisma.personnelReport.findMany({

@@ -94,6 +94,7 @@ exports.getReports = async (req, res) => {
         
         let whereClause = {
             type: 'DAILY',
+            NOT: { content: 'SETORAN_HAFALAN' },
             date: {
                 gte: startOfDay,
                 lte: endOfDay
@@ -232,6 +233,7 @@ exports.updateMyReport = async (req, res) => {
             where: {
                 userId: req.user.id,
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: {
                     gte: dateStart,
                     lte: dateEnd
@@ -310,6 +312,7 @@ exports.getReportStatus = async (req, res) => {
             where: {
                 userId,
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay }
             }
         });
@@ -368,6 +371,7 @@ exports.getDashboardAnalytics = async (req, res) => {
         const todayReports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
                 user: { role: 'ADMIN_ASET' }
             },
@@ -454,6 +458,7 @@ exports.getDashboardAnalytics = async (req, res) => {
         const reportsIn2Days = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOf2WorkDays, lte: endOf2WorkDays },
                 user: { role: 'ADMIN_ASET' }
             }
@@ -491,6 +496,7 @@ exports.getDashboardAnalytics = async (req, res) => {
             const dReports = await prisma.personnelReport.findMany({
                 where: { 
                     type: 'DAILY', 
+                    NOT: { content: 'SETORAN_HAFALAN' },
                     date: { gte: dStart, lte: dEnd },
                     user: { role: 'ADMIN_ASET' }
                 }
@@ -526,6 +532,7 @@ exports.getDashboardAnalytics = async (req, res) => {
         const monthReports = await prisma.personnelReport.findMany({
             where: { 
                 type: 'DAILY', 
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: monthStart, lte: endOfDay },
                 user: { role: 'ADMIN_ASET' }
             }
@@ -604,6 +611,7 @@ exports.getWeeklySummary = async (req, res) => {
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: dStart, lte: dEnd },
                 user: { role: 'ADMIN_ASET' }
             },
@@ -791,6 +799,7 @@ exports.getMyStats = async (req, res) => {
             where: {
                 userId,
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: monthStart.toDate(), lte: monthEnd.toDate() }
             },
             orderBy: { date: 'desc' }
@@ -915,6 +924,7 @@ exports.analyzeWithAI = async (req, res) => {
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: targetStart.toDate(), lte: targetEnd.toDate() }
             },
             include: {
@@ -1092,6 +1102,7 @@ exports.sendReportReminders = async () => {
         const reports = await prisma.personnelReport.findMany({
             where: { 
                 type: 'DAILY', 
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
                 user: { role: 'ADMIN_ASET' }
             }
@@ -1172,6 +1183,7 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
         const reportsIn2Days = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOf2WorkDays, lte: endOf2WorkDays },
                 user: { role: 'ADMIN_ASET' }
             }
@@ -1256,6 +1268,7 @@ exports.getKabidSummary = async (req, res) => {
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
                 user: { role: 'ADMIN_ASET' }
             }
@@ -1347,3 +1360,396 @@ exports.getKabidSummary = async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+// =========================================================================
+// MODUL SETORAN HAFALAN (ZIYADAH & MURAJAAH)
+// =========================================================================
+
+/**
+ * GET /api/laporan/hafalan
+ * Mengambil riwayat setoran hafalan
+ */
+exports.getSetoranHafalan = async (req, res) => {
+    try {
+        const { staffId, tipe, juz, startDate, endDate, search } = req.query;
+        const isUserKabid = isKabid(req.user);
+
+        let whereClause = {
+            content: 'SETORAN_HAFALAN'
+        };
+
+        // Non-Kabid hanya dapat melihat data setorannya sendiri
+        if (!isUserKabid) {
+            whereClause.userId = req.user.id;
+        } else if (staffId && staffId !== 'ALL') {
+            whereClause.userId = parseInt(staffId, 10);
+        }
+
+        if (startDate || endDate) {
+            whereClause.date = {};
+            if (startDate) {
+                whereClause.date.gte = dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate();
+            }
+            if (endDate) {
+                whereClause.date.lte = dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate();
+            }
+        }
+
+        const rawRecords = await prisma.personnelReport.findMany({
+            where: whereClause,
+            include: {
+                user: {
+                    select: { id: true, name: true, username: true, position: true, role: true }
+                }
+            },
+            orderBy: {
+                date: 'desc'
+            }
+        });
+
+        let records = rawRecords.map(r => {
+            const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
+            const awal = meta.ayatAwal || 1;
+            const akhir = meta.ayatAkhir || 1;
+            const totalAyat = meta.totalAyat || (akhir >= awal ? akhir - awal + 1 : 1);
+            return {
+                id: r.id,
+                userId: r.userId,
+                user: r.user,
+                date: r.date,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+                tipeSetoran: meta.tipeSetoran || 'Ziyadah',
+                juz: meta.juz || 30,
+                surah: meta.surah || '',
+                surahNumber: meta.surahNumber || 0,
+                ayatAwal: awal,
+                ayatAkhir: akhir,
+                totalAyat,
+                pembimbing: meta.pembimbing || '',
+                nilai: meta.nilai || 'Mumtaz',
+                catatan: meta.catatan || '',
+                recordedBy: meta.recordedBy || ''
+            };
+        });
+
+        if (tipe && tipe !== 'ALL') {
+            records = records.filter(r => (r.tipeSetoran || '').toLowerCase() === tipe.toLowerCase());
+        }
+
+        if (juz && juz !== 'ALL') {
+            const jNum = parseInt(juz, 10);
+            records = records.filter(r => parseInt(r.juz, 10) === jNum);
+        }
+
+        if (search && search.trim()) {
+            const q = search.toLowerCase();
+            records = records.filter(r => 
+                (r.surah || '').toLowerCase().includes(q) ||
+                (r.pembimbing || '').toLowerCase().includes(q) ||
+                (r.catatan || '').toLowerCase().includes(q) ||
+                (r.user?.name || '').toLowerCase().includes(q)
+            );
+        }
+
+        res.json({
+            success: true,
+            records,
+            isKabid: isUserKabid
+        });
+    } catch (error) {
+        console.error('Error fetching setoran hafalan:', error);
+        res.status(500).json({ error: 'Gagal memuat riwayat setoran hafalan' });
+    }
+};
+
+/**
+ * GET /api/laporan/hafalan/stats
+ * Ringkasan statistik hafalan (total setoran, Ziyadah, Murajaah, total ayat)
+ */
+exports.getSetoranHafalanStats = async (req, res) => {
+    try {
+        const { staffId } = req.query;
+        const isUserKabid = isKabid(req.user);
+
+        let whereClause = {
+            content: 'SETORAN_HAFALAN'
+        };
+
+        if (!isUserKabid) {
+            whereClause.userId = req.user.id;
+        } else if (staffId && staffId !== 'ALL') {
+            whereClause.userId = parseInt(staffId, 10);
+        }
+
+        const rawRecords = await prisma.personnelReport.findMany({
+            where: whereClause,
+            orderBy: { date: 'desc' },
+            include: {
+                user: { select: { id: true, name: true } }
+            }
+        });
+
+        let totalSetoran = rawRecords.length;
+        let totalZiyadah = 0;
+        let totalMurajaah = 0;
+        let totalAyat = 0;
+        const juzDistribution = {};
+
+        rawRecords.forEach(r => {
+            const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
+            const tipe = meta.tipeSetoran || 'Ziyadah';
+            if (tipe.toLowerCase() === 'ziyadah') totalZiyadah++;
+            else if (tipe.toLowerCase() === 'murajaah') totalMurajaah++;
+
+            const awal = meta.ayatAwal || 1;
+            const akhir = meta.ayatAkhir || 1;
+            const ayatCount = meta.totalAyat || (akhir >= awal ? akhir - awal + 1 : 0);
+            totalAyat += ayatCount;
+
+            const juz = meta.juz || 30;
+            juzDistribution[juz] = (juzDistribution[juz] || 0) + 1;
+        });
+
+        const latestRecord = rawRecords[0] ? {
+            id: rawRecords[0].id,
+            date: rawRecords[0].date,
+            userName: rawRecords[0].user?.name,
+            tipeSetoran: rawRecords[0].metadata?.tipeSetoran || 'Ziyadah',
+            surah: rawRecords[0].metadata?.surah || '',
+            juz: rawRecords[0].metadata?.juz || 30,
+            ayatAwal: rawRecords[0].metadata?.ayatAwal || 1,
+            ayatAkhir: rawRecords[0].metadata?.ayatAkhir || 1,
+            totalAyat: rawRecords[0].metadata?.totalAyat || 1,
+            nilai: rawRecords[0].metadata?.nilai || 'Mumtaz'
+        } : null;
+
+        res.json({
+            success: true,
+            stats: {
+                totalSetoran,
+                totalZiyadah,
+                totalMurajaah,
+                totalAyat,
+                juzDistribution,
+                latestRecord
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching setoran hafalan stats:', error);
+        res.status(500).json({ error: 'Gagal memuat statistik setoran hafalan' });
+    }
+};
+
+/**
+ * POST /api/laporan/hafalan
+ * Mencatat setoran hafalan baru
+ */
+exports.createSetoranHafalan = async (req, res) => {
+    try {
+        const {
+            staffId,
+            tipeSetoran = 'Ziyadah',
+            juz = 30,
+            surah,
+            surahNumber,
+            ayatAwal,
+            ayatAkhir,
+            pembimbing = '',
+            nilai = 'Mumtaz',
+            catatan = '',
+            tanggalSetoran
+        } = req.body;
+
+        if (!surah || ayatAwal === undefined || ayatAkhir === undefined) {
+            return res.status(400).json({ error: 'Surah, ayat awal, dan ayat akhir wajib diisi.' });
+        }
+
+        const isUserKabid = isKabid(req.user);
+        const targetUserId = (isUserKabid && staffId) ? parseInt(staffId, 10) : req.user.id;
+
+        const awal = parseInt(ayatAwal, 10);
+        const akhir = parseInt(ayatAkhir, 10);
+        if (isNaN(awal) || isNaN(akhir) || awal < 1 || akhir < 1) {
+            return res.status(400).json({ error: 'Nomor ayat tidak valid.' });
+        }
+        if (awal > akhir) {
+            return res.status(400).json({ error: 'Ayat awal tidak boleh lebih besar dari ayat akhir.' });
+        }
+        const totalAyat = akhir - awal + 1;
+
+        let reportDate = dayjs().tz('Asia/Jakarta');
+        if (tanggalSetoran) {
+            reportDate = dayjs.tz(tanggalSetoran, 'Asia/Jakarta');
+        }
+
+        const metadata = {
+            isSetoranHafalan: true,
+            tipeSetoran: tipeSetoran === 'Murajaah' ? 'Murajaah' : 'Ziyadah',
+            juz: parseInt(juz, 10) || 30,
+            surah: surah.trim(),
+            surahNumber: parseInt(surahNumber, 10) || 0,
+            ayatAwal: awal,
+            ayatAkhir: akhir,
+            totalAyat,
+            pembimbing: pembimbing ? pembimbing.trim() : '',
+            nilai: nilai || 'Mumtaz',
+            catatan: catatan ? catatan.trim() : '',
+            recordedBy: req.user.name || req.user.username,
+            recordedAt: new Date().toISOString()
+        };
+
+        const created = await prisma.personnelReport.create({
+            data: {
+                userId: targetUserId,
+                type: 'DAILY',
+                category: 'UMUM',
+                content: 'SETORAN_HAFALAN',
+                metadata,
+                date: reportDate.toDate()
+            },
+            include: {
+                user: {
+                    select: { id: true, name: true, username: true, position: true, role: true }
+                }
+            }
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Setoran hafalan berhasil disimpan',
+            record: {
+                id: created.id,
+                userId: created.userId,
+                user: created.user,
+                date: created.date,
+                ...metadata
+            }
+        });
+    } catch (error) {
+        console.error('Error creating setoran hafalan:', error);
+        res.status(500).json({ error: 'Gagal menyimpan setoran hafalan' });
+    }
+};
+
+/**
+ * PUT /api/laporan/hafalan/:id
+ * Memperbarui data setoran hafalan
+ */
+exports.updateSetoranHafalan = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const existing = await prisma.personnelReport.findUnique({
+            where: { id }
+        });
+
+        if (!existing || existing.content !== 'SETORAN_HAFALAN') {
+            return res.status(404).json({ error: 'Data setoran hafalan tidak ditemukan' });
+        }
+
+        const isUserKabid = isKabid(req.user);
+        if (!isUserKabid && existing.userId !== req.user.id) {
+            return res.status(403).json({ error: 'Anda tidak memiliki izin mengubah setoran ini' });
+        }
+
+        const {
+            tipeSetoran,
+            juz,
+            surah,
+            surahNumber,
+            ayatAwal,
+            ayatAkhir,
+            pembimbing,
+            nilai,
+            catatan,
+            tanggalSetoran
+        } = req.body;
+
+        const currentMeta = typeof existing.metadata === 'object' && existing.metadata !== null ? existing.metadata : {};
+        const awal = ayatAwal !== undefined ? parseInt(ayatAwal, 10) : currentMeta.ayatAwal;
+        const akhir = ayatAkhir !== undefined ? parseInt(ayatAkhir, 10) : currentMeta.ayatAkhir;
+        const totalAyat = (awal && akhir && akhir >= awal) ? (akhir - awal + 1) : currentMeta.totalAyat;
+
+        const updatedMeta = {
+            ...currentMeta,
+            tipeSetoran: tipeSetoran || currentMeta.tipeSetoran,
+            juz: juz !== undefined ? parseInt(juz, 10) : currentMeta.juz,
+            surah: surah || currentMeta.surah,
+            surahNumber: surahNumber !== undefined ? parseInt(surahNumber, 10) : currentMeta.surahNumber,
+            ayatAwal: awal,
+            ayatAkhir: akhir,
+            totalAyat,
+            pembimbing: pembimbing !== undefined ? pembimbing.trim() : currentMeta.pembimbing,
+            nilai: nilai || currentMeta.nilai,
+            catatan: catatan !== undefined ? catatan.trim() : currentMeta.catatan,
+            updatedBy: req.user.name || req.user.username,
+            updatedAt: new Date().toISOString()
+        };
+
+        let dateUpdate = existing.date;
+        if (tanggalSetoran) {
+            dateUpdate = dayjs.tz(tanggalSetoran, 'Asia/Jakarta').toDate();
+        }
+
+        const updated = await prisma.personnelReport.update({
+            where: { id },
+            data: {
+                metadata: updatedMeta,
+                date: dateUpdate
+            },
+            include: {
+                user: { select: { id: true, name: true, position: true } }
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Setoran hafalan berhasil diperbarui',
+            record: {
+                id: updated.id,
+                userId: updated.userId,
+                user: updated.user,
+                date: updated.date,
+                ...updatedMeta
+            }
+        });
+    } catch (error) {
+        console.error('Error updating setoran hafalan:', error);
+        res.status(500).json({ error: 'Gagal memperbarui setoran hafalan' });
+    }
+};
+
+/**
+ * DELETE /api/laporan/hafalan/:id
+ * Menghapus data setoran hafalan
+ */
+exports.deleteSetoranHafalan = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const existing = await prisma.personnelReport.findUnique({
+            where: { id }
+        });
+
+        if (!existing || existing.content !== 'SETORAN_HAFALAN') {
+            return res.status(404).json({ error: 'Data setoran hafalan tidak ditemukan' });
+        }
+
+        const isUserKabid = isKabid(req.user);
+        if (!isUserKabid && existing.userId !== req.user.id) {
+            return res.status(403).json({ error: 'Anda tidak memiliki izin menghapus data ini' });
+        }
+
+        await prisma.personnelReport.delete({
+            where: { id }
+        });
+
+        res.json({
+            success: true,
+            message: 'Setoran hafalan berhasil dihapus'
+        });
+    } catch (error) {
+        console.error('Error deleting setoran hafalan:', error);
+        res.status(500).json({ error: 'Gagal menghapus setoran hafalan' });
+    }
+};
+

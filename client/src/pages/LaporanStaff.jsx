@@ -6,7 +6,7 @@ import {
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
     Warehouse, Box, Wrench, Truck, FileSignature, ArrowRight, Share2, Layers,
-    Copy, Check, Trash2, Edit2, RotateCcw
+    Copy, Check, Trash2, Edit2, RotateCcw, BookOpen
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -16,6 +16,7 @@ import * as XLSX from 'xlsx';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 import dayjs from 'dayjs';
+import SetoranHafalanTab from '../components/SetoranHafalanTab';
 
 const DIVISION_TAGS = [
     { key: 'ASET', label: 'Staff Manajemen Aset', icon: Box, color: 'bg-blue-500' },
@@ -854,6 +855,14 @@ const LaporanStaff = () => {
                         >
                             <CheckSquare size={16} /> Delegasi Penugasan
                         </button>
+                        <button
+                            onClick={() => setActiveTab('hafalan')}
+                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'hafalan' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <BookOpen size={16} /> Setoran Hafalan
+                        </button>
                     </>
                 ) : (
                     <>
@@ -872,6 +881,14 @@ const LaporanStaff = () => {
                             }`}
                         >
                             <CheckSquare size={16} /> Penugasan Saya
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('hafalan')}
+                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'hafalan' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <BookOpen size={16} /> Setoran Hafalan
                         </button>
                     </>
                 )}
@@ -3084,6 +3101,11 @@ const LaporanStaff = () => {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {/* SETORAN HAFALAN TAB (ZIYADAH & MURAJAAH) */}
+            {activeTab === 'hafalan' && (
+                <SetoranHafalanTab isKabid={isKabid} user={user} />
             )}
 
             {/* LIVE IN-APP CAMERA MODAL */}
