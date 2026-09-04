@@ -537,12 +537,14 @@ exports.createReport = async (req, res) => {
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
 
                 const inAppRoles = targetDept === 'PEMBANGUNAN' ? [
-                    { position: { contains: 'Kepala Bidang Pembangunan' } },
-                    { position: { contains: 'Staff Pembangunan' } }
+                    { position: { contains: 'Staff Manajemen Aset' } },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KABID_SARPRAS' }
                 ] : [
                     { position: { contains: 'Kepala Bidang Sarana' } },
                     { position: { contains: 'Staff Manajemen Aset' } },
-                    { position: { contains: 'Staff Teknisi Aset' } }
+                    { position: { contains: 'Staff Teknisi Aset' } },
+                    { role: 'KABID_SARPRAS' }
                 ];
 
                 const notifRecipients = await prisma.user.findMany({
@@ -592,12 +594,14 @@ exports.createReport = async (req, res) => {
 
                 // 2. WhatsApp Notification to Admins and Staff Teknisi Aset
                 const waRoles = targetDept === 'PEMBANGUNAN' ? [
-                    { position: { contains: 'Kepala Bidang Pembangunan' } },
-                    { position: { contains: 'Staff Pembangunan' } }
+                    { position: { contains: 'Staff Manajemen Aset' } },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KABID_SARPRAS' }
                 ] : [
                     { position: { contains: 'Kepala Bidang Sarana' } },
                     { position: { contains: 'Staff Manajemen Aset' } },
-                    { position: { contains: 'Staff Teknisi Aset' } }
+                    { position: { contains: 'Staff Teknisi Aset' } },
+                    { role: 'KABID_SARPRAS' }
                 ];
 
                 const waRecipients = await prisma.user.findMany({
@@ -631,7 +635,7 @@ exports.createReport = async (req, res) => {
                         (report.location ? `📍 *Lokasi* : ${report.location}\n` : '') +
                         (targetDept !== 'PEMBANGUNAN' ? `📦 *Aset Terkait* :\n${assetListStr}\n\n` : '') +
                         `🔗 *Link Laporan* :\n${reportUrl}\n\n` +
-                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : (targetDept === 'PEMBANGUNAN' ? `Mohon segera ditindaklanjuti.` : `*Kepada Tim Sarpras & Staff Teknisi Aset*, mohon bantu untuk segera ditindaklanjuti.`)}\n\n` +
+                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : (targetDept === 'PEMBANGUNAN' ? `*Kepada Kepala Bidang Sarana & Staff Manajemen Aset*, mohon bantu untuk segera ditindaklanjuti.` : `*Kepada Tim Sarpras & Staff Teknisi Aset*, mohon bantu untuk segera ditindaklanjuti.`)}\n\n` +
                         `Syukron jazakumullahu khairan.`;
 
                     // Send to all found recipients with delay
