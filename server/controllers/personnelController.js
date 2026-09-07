@@ -2308,17 +2308,9 @@ exports.proposeSanctionLift = async (req, res) => {
         const staffKendaraanAndAdmins = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: { contains: 'Kendaraan' } },
-                    { position: { contains: 'kendaraan' } },
-                    { position: { contains: 'Staff Kendaraan' } },
                     { position: { contains: 'Kepala Bidang Sarana' } },
-                    { role: 'KABID_SARPRAS' },
-                    { role: 'ADMIN_ASET' },
-                    { role: 'SUPER_ADMIN' }
-                ],
-                NOT: [
-                    { position: { equals: 'Staff Keuangan' } },
-                    { position: { equals: 'Staff Keuangan / Sopir' } }
+                    { position: { contains: 'Staff Kendaraan' } },
+                    { position: { contains: 'Staff kendaraan' } }
                 ]
             },
             select: { id: true, name: true, phone: true, position: true, role: true }
@@ -2326,12 +2318,12 @@ exports.proposeSanctionLift = async (req, res) => {
 
         const waMsg = `📢 *PENGAJUAN PENCABUTAN SANKSI KENDARAAN* 📢\n\n` +
             `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
-            `Tim Staff Kendaraan & Admin Sarpras,\n\n` +
+            `Kepala Bidang Sarana & Staff Kendaraan,\n\n` +
             `Terdapat pengajuan permohonan *pencabutan sanksi peminjaman kendaraan* dari pengguna:\n\n` +
             `👤 *Nama*: ${updatedUser.name} (${updatedUser.username || '-'})\n` +
             `🏢 *Jabatan/Unit*: ${updatedUser.position || '-'}\n` +
             `📝 *Alasan*: "${reason}"\n\n` +
-            `Mohon Tim Staff Kendaraan / Admin dapat meninjau dan memproses pengajuan ini pada menu *Pelanggaran User* / *Peminjaman Kendaraan* di aplikasi SARPRAS.\n\n` +
+            `Mohon Kepala Bidang Sarana / Staff Kendaraan dapat meninjau dan memproses pengajuan ini pada menu *Pelanggaran User* / *Peminjaman Kendaraan* di aplikasi SARPRAS.\n\n` +
             `_Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El-Iman_`;
 
         for (const recipient of staffKendaraanAndAdmins) {
@@ -2383,19 +2375,16 @@ exports.reviewSanctionLift = async (req, res) => {
             return res.status(404).json({ error: 'User tidak ditemukan atau tidak sedang disanksi.' });
         }
 
-        // Ambil daftar Staff Kendaraan untuk notifikasi tim
+        // Ambil daftar Staff Kendaraan & Kepala Bidang Sarana untuk notifikasi tim
         const staffKendaraan = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: { contains: 'Kendaraan' } },
-                    { position: { contains: 'kendaraan' } },
                     { position: { contains: 'Kepala Bidang Sarana' } },
-                    { role: 'KABID_SARPRAS' }
+                    { position: { contains: 'Staff Kendaraan' } },
+                    { position: { contains: 'Staff kendaraan' } }
                 ],
                 NOT: [
-                    { id: adminId },
-                    { position: { equals: 'Staff Keuangan' } },
-                    { position: { equals: 'Staff Keuangan / Sopir' } }
+                    { id: adminId }
                 ]
             },
             select: { id: true, name: true, phone: true }

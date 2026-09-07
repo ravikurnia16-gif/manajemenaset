@@ -600,7 +600,6 @@ exports.createReport = async (req, res) => {
                 ] : [
                     { position: { contains: 'Kepala Bidang Sarana' } },
                     { position: { contains: 'Staff Manajemen Aset' } },
-                    { position: { contains: 'Staff Teknisi Aset' } },
                     { role: 'KABID_SARPRAS' }
                 ];
 
