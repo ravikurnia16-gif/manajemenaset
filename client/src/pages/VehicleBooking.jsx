@@ -465,31 +465,47 @@ const VehicleBooking = () => {
     const fetchStaff = async () => {
         try {
             const res = await api.get('personnel/all-users');
-            setStaff(res.data);
-        } catch (err) { console.error(err); }
+            const data = Array.isArray(res.data) ? res.data : (res.data?.users || []);
+            setStaff(data);
+        } catch (err) {
+            console.error(err);
+            setStaff([]);
+        }
     };
 
     const fetchDrivers = async () => {
         try {
             setLoading(true);
             const res = await api.get('personnel/drivers');
-            setDrivers(res.data);
-        } catch (err) { console.error(err); }
+            const data = Array.isArray(res.data) ? res.data : (res.data?.drivers || []);
+            setDrivers(data);
+        } catch (err) {
+            console.error(err);
+            setDrivers([]);
+        }
         finally { setLoading(false); }
     };
 
     const fetchDriverViolations = async () => {
         try {
             const res = await api.get('personnel/violations');
-            setDriverViolations(res.data);
-        } catch (err) { console.error(err); }
+            const data = Array.isArray(res.data) ? res.data : (res.data?.violations || []);
+            setDriverViolations(data);
+        } catch (err) {
+            console.error(err);
+            setDriverViolations([]);
+        }
     };
 
     const fetchSanctionedUsers = async () => {
         try {
             const res = await api.get('personnel/sanctions');
-            setSanctionedUsers(res.data);
-        } catch (err) { console.error('Error fetching sanctioned users:', err); }
+            const data = Array.isArray(res.data) ? res.data : (res.data?.users || []);
+            setSanctionedUsers(data);
+        } catch (err) {
+            console.error('Error fetching sanctioned users:', err);
+            setSanctionedUsers([]);
+        }
     };
     const handleToggleDriver = async (userId, isCurrentlyDriver) => {
         try {
@@ -1833,7 +1849,7 @@ const VehicleBooking = () => {
                                                             </button>
 
                                                             {Object.entries(
-                                                                drivers
+                                                                (Array.isArray(drivers) ? drivers : [])
                                                                     .filter(s => {
                                                                         const searchStr = `${s.name || ''} ${s.unit?.name || ''}`.toLowerCase();
                                                                         return searchStr.includes(driverSearch.toLowerCase());
@@ -2642,14 +2658,14 @@ const VehicleBooking = () => {
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                             onChange={(e) => {
                                                 const val = e.target.value.toLowerCase();
-                                                setDrivers(prev => prev.map(d => ({ ...d, hidden: !(d.name || d.username || '').toLowerCase().includes(val) })));
+                                                setDrivers(prev => (Array.isArray(prev) ? prev : []).map(d => ({ ...d, hidden: !(d.name || d.username || '').toLowerCase().includes(val) })));
                                             }}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {drivers.filter(d => !d.hidden).map(d => (
+                                    {(Array.isArray(drivers) ? drivers : []).filter(d => !d.hidden).map(d => (
                                         <div key={d.id} className="bg-white border flex flex-col justify-between border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
                                             {/* Status Badge */}
                                             <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-black tracking-wider uppercase ${d.dynamicStatus === 'ON_TRIP' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
@@ -2718,12 +2734,12 @@ const VehicleBooking = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {drivers.filter(d => d.dynamicStatus === 'ON_TRIP').length === 0 ? (
+                                    {(Array.isArray(drivers) ? drivers : []).filter(d => d.dynamicStatus === 'ON_TRIP').length === 0 ? (
                                         <div className="col-span-full py-16 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
                                             <Navigation2 className="mx-auto text-slate-300 mb-3" size={40} />
                                             <p className="text-slate-500 font-bold">Semua driver sedang standby di kantor.</p>
                                         </div>
-                                    ) : drivers.filter(d => d.dynamicStatus === 'ON_TRIP').map(d => (
+                                    ) : (Array.isArray(drivers) ? drivers : []).filter(d => d.dynamicStatus === 'ON_TRIP').map(d => (
                                         <div key={d.id} className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-start gap-4">
                                             <div className="w-12 h-12 shrink-0 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg border-2 border-white shadow-sm">
                                                 {(d.name || d.username || '?').charAt(0).toUpperCase()}
@@ -2787,7 +2803,7 @@ const VehicleBooking = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                     <div className="md:col-span-1 space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                         <div className="font-bold text-slate-700 text-sm mb-3 sticky top-0 bg-white z-10 py-2">Daftar Driver:</div>
-                                        {drivers.map(d => (
+                                        {(Array.isArray(drivers) ? drivers : []).map(d => (
                                             <button
                                                 key={d.id}
                                                 onClick={() => setSelectedHistoryDriver(d)}
@@ -2969,11 +2985,13 @@ const VehicleBooking = () => {
                                         </div>
                                         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
                                             {Object.entries(
-                                                staff
+                                                (Array.isArray(staff) ? staff : [])
                                                     .filter(s => {
-                                                        const isAlreadyDriver = (s.position || '').toLowerCase().includes('sopir') || (s.position || '').toLowerCase().includes('driver');
+                                                        const isAlreadyDriver = (s.position || '').toLowerCase().includes('sopir') || 
+                                                                                (s.position || '').toLowerCase().includes('driver') ||
+                                                                                (Array.isArray(drivers) && drivers.some(d => d.id === s.id));
                                                         const searchStr = `${s.name || ''} ${s.username || ''}`.toLowerCase();
-                                                        const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
+                                                        const matchesSearch = searchStr.includes((candidateSearch || '').toLowerCase());
                                                         return !isAlreadyDriver && matchesSearch;
                                                     })
                                                     .reduce((acc, s) => {
@@ -3003,9 +3021,11 @@ const VehicleBooking = () => {
                                                 </div>
                                             ))}
 
-                                            {staff.filter(s => {
-                                                const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && !(s.position || '').toLowerCase().includes('driver');
-                                                const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
+                                            {(Array.isArray(staff) ? staff : []).filter(s => {
+                                                const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && 
+                                                                    !(s.position || '').toLowerCase().includes('driver') &&
+                                                                    !(Array.isArray(drivers) && drivers.some(d => d.id === s.id));
+                                                const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes((candidateSearch || '').toLowerCase());
                                                 return isNotDriver && matchesSearch;
                                             }).length === 0 && (
                                                     <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada staf yang cocok.</p>
@@ -3017,7 +3037,7 @@ const VehicleBooking = () => {
                                                 <Trash2 size={16} /> Hapus Penugasan Driver
                                             </h4>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                {drivers.map(d => (
+                                                {(Array.isArray(drivers) ? drivers : []).map(d => (
                                                     <button
                                                         key={d.id}
                                                         onClick={() => handleToggleDriver(d.id, true)}
@@ -3027,6 +3047,9 @@ const VehicleBooking = () => {
                                                         <X size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                                     </button>
                                                 ))}
+                                                {(Array.isArray(drivers) ? drivers : []).length === 0 && (
+                                                    <p className="text-xs text-slate-400 italic col-span-full py-2">Belum ada driver yang ditugaskan.</p>
+                                                )}
                                             </div>
                                         </div>
                                     </>
@@ -3581,7 +3604,7 @@ const VehicleBooking = () => {
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
                                     <option value="">-- Pilih Driver --</option>
-                                    {drivers.map(d => (
+                                    {(Array.isArray(drivers) ? drivers : []).map(d => (
                                         <option key={d.id} value={d.id}>{d.name || d.username}</option>
                                     ))}
                                 </select>

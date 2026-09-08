@@ -2562,22 +2562,4 @@ exports.getStaffSarpras = async (req, res) => {
     }
 };
 
-exports.getAllUsersForSelection = async (req, res) => {
-    try {
-        const users = await prisma.user.findMany({
-            select: {
-                id: true,
-                name: true,
-                username: true,
-                position: true,
-                role: true,
-                phone: true
-            },
-            orderBy: { name: 'asc' }
-        });
-        res.json({ success: true, users });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
 

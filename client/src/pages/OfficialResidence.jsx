@@ -355,7 +355,7 @@ export default function OfficialResidence() {
       
       // Always fetch all users for the dropdowns
       const usersRes = await axios.get("/personnel/all-users");
-      setAllUsers(usersRes.data);
+      setAllUsers(Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.users || []));
     } catch (error) {
       console.error("Failed to fetch data:", error);
     }
