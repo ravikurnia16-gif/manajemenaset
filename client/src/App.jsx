@@ -133,11 +133,11 @@ function App() {
         const res = await api.get('/settings');
         if (res.data) {
           const { orgName, orgLogo } = res.data;
-          
+
           if (orgName) {
             document.title = orgName;
           }
-          
+
           if (orgLogo) {
             // Find or create favicon link
             let link = document.querySelector("link[rel~='icon']");
@@ -172,12 +172,14 @@ function App() {
   }
   const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
   const sarprasKeywords = [
-      'sarana dan prasarana',
-      'manajemen aset',
-      'gudang dan logistik',
-      'teknisi',
-      'keuangan dan administrasi',
-      'kendaraan'
+    'sarana dan prasarana',
+    'manajemen aset',
+    'gudang dan logistik',
+    'teknisi',
+    'keuangan dan administrasi',
+    'kendaraan',
+    'infrastruktur it',
+    'desainer'
   ];
   const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
@@ -240,7 +242,7 @@ function App() {
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="vendors" element={<VendorManagement />} />
-          
+
           {/* Modul Manajemen Workshop */}
           <Route path="workshop/dashboard" element={<WorkshopDashboard />} />
           <Route path="workshop/orders" element={<WorkshopOrderList />} />
@@ -250,7 +252,7 @@ function App() {
           <Route path="settings" element={<Settings />} />
 
           <Route path="mutasi" element={<MutationList />} />
-          
+
           {/* Module: Survey Kepuasan */}
           <Route path="survey/manage" element={
             ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role) ? <SurveyManager /> : <Navigate to="/dashboard" />
@@ -318,12 +320,12 @@ function App() {
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
-          
+
           {/* <Route path="security/dashboard" element={<SecurityDashboard />} />
           <Route path="security/pos" element={<SecurityPosts />} />
           <Route path="security/anggota" element={<SecurityGuards />} />
           <Route path="security/jadwal" element={<SecuritySchedule />} /> */}
-          
+
           <Route path="laporan" element={
             canViewLaporan ? <LaporanStaff /> : <Navigate to="/dashboard" />
           } />

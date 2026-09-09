@@ -226,10 +226,10 @@ const Settings = () => {
         } else {
             newList = [...currentList, groupId];
         }
-        
+
         const newSettings = { ...settings, aiAllowedGroups: newList.join(',') };
         setSettings(newSettings); // Optimistic update
-        
+
         try {
             await api.put('/settings', newSettings);
         } catch (error) {
@@ -1032,6 +1032,9 @@ const Settings = () => {
                                                 { label: 'Staff Teknisi Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                                { label: 'Staff Infrastruktur IT', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                                { label: 'Staff Desainer', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+
 
                                                 // BIDANG IT
                                                 { label: 'Kepala Bidang IT', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
@@ -1101,6 +1104,8 @@ const Settings = () => {
                                             <option value="Kepala Bidang IT">Kepala Bidang IT (Super Admin)</option>
                                             <option value="Staff Programming">Staff Programming (Super Admin)</option>
                                             <option value="Staff IT">Staff IT (Admin Aset)</option>
+                                            <option value="Staff Infrastruktur IT">Staff Infrastruktur IT (Admin Aset)</option>
+                                            <option value="Staff Desainer">Staff Desainer (Admin Aset)</option>
 
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SDM & KEUANGAN --</option>
                                             <option value="Kepala Bidang SDM">Kepala Bidang SDM (Global Terbatas)</option>
@@ -1187,9 +1192,9 @@ const Settings = () => {
                                 <>
                                     <div className={`px-4 py-2 rounded-full text-sm font-bold border flex items-center gap-2
                                         ${waStatus.status === 'CONNECTED' ? 'bg-green-50 text-green-600 border-green-200' :
-                                        waStatus.status === 'SCAN_QR' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                                        waStatus.status === 'INITIALIZING' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                                        'bg-red-50 text-red-600 border-red-200'}`}
+                                            waStatus.status === 'SCAN_QR' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                                waStatus.status === 'INITIALIZING' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                                    'bg-red-50 text-red-600 border-red-200'}`}
                                     >
                                         <div className={`w-2.5 h-2.5 rounded-full ${waStatus.status === 'CONNECTED' ? 'bg-green-500' : waStatus.status === 'SCAN_QR' ? 'bg-amber-500 animate-pulse' : waStatus.status === 'INITIALIZING' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`}></div>
                                         Status: {waStatus.status === 'CONNECTED' ? 'Terhubung' : waStatus.status === 'SCAN_QR' ? 'Menunggu Scan QR' : waStatus.status === 'INITIALIZING' ? 'Sedang Memulai...' : 'Terputus'}
@@ -1226,7 +1231,7 @@ const Settings = () => {
                             <div className="border-t border-slate-100 p-6 bg-slate-50">
                                 <h3 className="font-bold text-slate-800 mb-1">Grup yang Diizinkan (AI Bot)</h3>
                                 <p className="text-slate-500 text-xs mb-4">Centang grup di bawah ini agar Bot AI merespons pesan secara otomatis di dalam grup tersebut. Jika daftar kosong, pastikan bot telah dimasukkan ke dalam grup.</p>
-                                
+
                                 {loadingWaGroups ? (
                                     <div className="text-slate-500 text-sm animate-pulse">Memuat daftar grup...</div>
                                 ) : waGroups.length === 0 ? (
@@ -1239,8 +1244,8 @@ const Settings = () => {
                                             const isSelected = settings.aiAllowedGroups?.includes(group.id);
                                             return (
                                                 <label key={group.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:border-blue-300'}`}>
-                                                    <input 
-                                                        type="checkbox" 
+                                                    <input
+                                                        type="checkbox"
                                                         checked={isSelected || false}
                                                         onChange={() => handleToggleWaGroup(group.id)}
                                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
@@ -1254,7 +1259,7 @@ const Settings = () => {
                                         })}
                                     </div>
                                 )}
-                                
+
                                 <div className="mt-4 pt-4 border-t border-slate-200">
                                     <label className="block text-xs font-bold text-slate-700 mb-1">Input Manual ID Grup (Opsional)</label>
                                     <p className="text-[10px] text-slate-500 mb-2">

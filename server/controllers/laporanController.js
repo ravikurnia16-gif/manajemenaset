@@ -20,7 +20,9 @@ const SARPRAS_KEYWORDS = [
     'teknisi aset',
     'teknisi',
     'keuangan dan administrasi',
-    'sarana dan prasarana'
+    'sarana dan prasarana',
+    'infrastruktur it',
+    'desainer'
 ];
 
 // Strict filter for staff users: ONLY role ADMIN_ASET (Exclude Kabid, Admin Unit, and non-asset roles)

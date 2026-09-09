@@ -64,7 +64,9 @@ const Sidebar = ({ isOpen = true }) => {
         'gudang dan logistik',
         'teknisi',
         'keuangan dan administrasi',
-        'kendaraan'
+        'kendaraan',
+        'infrastruktur it',
+        'desainer'
     ];
     const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
