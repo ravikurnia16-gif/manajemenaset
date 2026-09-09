@@ -895,7 +895,8 @@ exports.updateStatus = async (req, res) => {
                                 `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
                                 `📜 *Kode* : ${report.code}\n` +
                                 `📋 *Judul* : ${report.title}\n` +
-                                `📝 *Masalah* : ${report.description}\n\n` +
+                                `📝 *Masalah* : ${report.description}\n` +
+                                (report.approvalNote ? `📌 *Catatan Tambahan* : ${report.approvalNote}\n\n` : `\n`) +
                                 (isExternal ? externalExtra : `🚀 *MULAI PENGERJAAN*:\n${maintenanceUrl}\n\n`) +
                                 `Syukron jazakumullahu khairan.`;
 
