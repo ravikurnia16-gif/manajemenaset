@@ -209,10 +209,31 @@ const initializeWhatsApp = () => {
                                 qSender = qMsg._data?.notifyName || "User";
                             }
                         }
+                        // Deteksi jika pesan yang di-reply adalah Voice Note / Audio
+                        let quotedAudio = null;
+                        const isAudioVN = qMsg.hasMedia && (qMsg.type === 'ptt' || qMsg.type === 'audio');
+                        if (isAudioVN) {
+                            try {
+                                console.log('[WhatsApp Local] Pesan yang di-reply adalah Voice Note/Audio. Mengunduh audio...');
+                                const media = await qMsg.downloadMedia();
+                                if (media && media.data) {
+                                    quotedAudio = {
+                                        mimetype: media.mimetype || 'audio/ogg',
+                                        data: media.data
+                                    };
+                                    console.log(`[WhatsApp Local] Berhasil mengunduh media VN quoted (${quotedAudio.mimetype}, ${Math.round(quotedAudio.data.length / 1024)} KB).`);
+                                }
+                            } catch (mErr) {
+                                console.warn('[WhatsApp Local] Gagal download media VN quoted:', mErr.message);
+                            }
+                        }
+
                         quotedInfo = {
                             messageId: qMsg.id?._serialized,
                             senderName: qSender,
-                            body: qMsg.body || (qMsg.hasMedia ? "[Media/Lampiran]" : "")
+                            body: qMsg.body || (isAudioVN ? "[Voice Note]" : (qMsg.hasMedia ? "[Media/Lampiran]" : "")),
+                            isVoiceNote: isAudioVN,
+                            audio: quotedAudio
                         };
                     }
                 } catch (qErr) {
@@ -255,13 +276,20 @@ const initializeWhatsApp = () => {
 
             const triggerRegex = /\b(admin|min|\@admin)\b/i;
             const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
-            const isCodeCommand = msg.body.startsWith('/') || msg.body.startsWith('#');
+            const isCodeCommand = msg.body && (msg.body.startsWith('/') || msg.body.startsWith('#'));
             
-            // Trigger aktif jika: memanggil admin, ditag @, format kode # / /, atau membalas pesan bot
-            if (triggerRegex.test(msg.body) || isMentioned || isCodeCommand || isReplyingToBot) {
+            // Trigger aktif jika: obrolan pribadi dengan staf berizin, memanggil admin/min, ditag @, format kode # / /, atau membalas pesan bot
+            if (isPrivate || triggerRegex.test(msg.body) || isMentioned || isCodeCommand || isReplyingToBot) {
                 shouldTrigger = true;
-                if (!isCodeCommand) {
+                if (!isCodeCommand && msg.body) {
                      cleanMessage = msg.body.replace(triggerRegex, '').trim();
+                }
+            }
+            
+            // Penanganan khusus jika me-reply Voice Note (VN)
+            if (shouldTrigger && quotedInfo && quotedInfo.isVoiceNote) {
+                if (!cleanMessage || cleanMessage.trim() === '') {
+                    cleanMessage = "Tolong dengarkan dan proses pesan suara (Voice Note) yang saya reply ini.";
                 }
             }
             
