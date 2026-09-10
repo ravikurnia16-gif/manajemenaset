@@ -207,12 +207,32 @@ exports.getProcurementById = async (req, res) => {
         });
         if (!procurement) return res.status(404).json({ error: 'Data not found' });
 
+        const formattedItems = (procurement.items || []).map(it => {
+            let cleanSpec = it.spec || '';
+            let itemNotes = null;
+            if (cleanSpec) {
+                const match = cleanSpec.match(/\[Catatan:\s*([\s\S]*?)\]$/);
+                if (match) {
+                    itemNotes = match[1].trim();
+                    cleanSpec = cleanSpec.replace(/\[Catatan:\s*[\s\S]*?\]$/, '').trim();
+                }
+            }
+            return {
+                ...it,
+                spec: cleanSpec,
+                notes: itemNotes
+            };
+        });
+
         const noteProgress = procurement.progress?.find(p => p.message && p.message.includes('[Catatan Pemohon untuk Admin Aset]'));
-        const notes = noteProgress ? noteProgress.message.replace('📝 [Catatan Pemohon untuk Admin Aset]:\n', '').trim() : null;
+        const topNotes = noteProgress
+            ? noteProgress.message.replace('📝 [Catatan Pemohon untuk Admin Aset]:\n', '').trim()
+            : (formattedItems[0]?.notes || null);
 
         res.json({
             ...procurement,
-            notes
+            items: formattedItems,
+            notes: topNotes
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -243,6 +263,13 @@ exports.createProcurement = async (req, res) => {
         for (const item of items) {
             const code = await generateCode();
             const result = await prisma.$transaction(async (prisma) => {
+                // Combine spec with item.notes if present
+                let finalSpec = item.spec ? item.spec.trim() : '';
+                const itemNotes = item.notes ? item.notes.trim() : '';
+                if (itemNotes) {
+                    finalSpec = finalSpec ? `${finalSpec}\n[Catatan: ${itemNotes}]` : `[Catatan: ${itemNotes}]`;
+                }
+
                 // Create Header
                 const procurement = await prisma.procurement.create({
                     data: {
@@ -261,7 +288,7 @@ exports.createProcurement = async (req, res) => {
                 const itemData = {
                     procurementId: procurement.id,
                     name: item.name,
-                    spec: item.spec,
+                    spec: finalSpec || null,
                     qty: parseInt(item.qty),
                     unit: item.unit,
                     estPrice: parseFloat(item.estPrice || 0),
@@ -276,23 +303,29 @@ exports.createProcurement = async (req, res) => {
                     itemData.assignedTo = assignedUser ? (assignedUser.name || assignedUser.username) : null;
                 }
 
-                await prisma.procurementItem.create({
+                const createdItem = await prisma.procurementItem.create({
                     data: itemData
                 });
 
-                if (notes && typeof notes === 'string' && notes.trim()) {
+                const effectiveNote = itemNotes || (notes && typeof notes === 'string' ? notes.trim() : '');
+                if (effectiveNote) {
                     await prisma.procurementProgress.create({
                         data: {
                             procurementId: procurement.id,
                             userId: user.id,
-                            message: `📝 [Catatan Pemohon untuk Admin Aset]:\n${notes.trim()}`,
+                            message: `📝 [Catatan Pemohon untuk Admin Aset]:\n${effectiveNote}`,
                             type: 'MANUAL',
                             stage: 1
                         }
                     });
                 }
 
-                return { ...procurement, notes: (notes && typeof notes === 'string' && notes.trim()) ? notes.trim() : null, assignedUser };
+                return {
+                    ...procurement,
+                    notes: effectiveNote || null,
+                    assignedUser,
+                    items: [{ ...createdItem, spec: item.spec || '', notes: itemNotes || null }]
+                };
             });
             results.push(result);
         }
@@ -678,6 +711,14 @@ exports.updateItemDetail = async (req, res) => {
     const { fundingSource, brand, usefulLife, vendorId, vendorName, finalPrice, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote, spec, categoryId } = req.body;
 
     try {
+        let finalSpec = spec !== undefined ? spec : undefined;
+        if (req.body.notes !== undefined && finalSpec !== undefined) {
+            const trimmedNotes = (req.body.notes || '').trim();
+            if (trimmedNotes) {
+                finalSpec = finalSpec ? `${finalSpec}\n[Catatan: ${trimmedNotes}]` : `[Catatan: ${trimmedNotes}]`;
+            }
+        }
+
         const updateData = {
             fundingSource,
             brand,
@@ -688,7 +729,7 @@ exports.updateItemDetail = async (req, res) => {
             assignedTo,
             assignedToId: assignedToId ? parseInt(assignedToId) : null,
             assignmentNote: assignmentNote || undefined,
-            spec: spec !== undefined ? spec : undefined,
+            spec: finalSpec,
             categoryId: categoryId ? parseInt(categoryId) : undefined
         };
 
@@ -711,7 +752,21 @@ exports.updateItemDetail = async (req, res) => {
             data: updateData
         });
 
-        res.json(item);
+        let cleanSpec = item.spec || '';
+        let itemNotes = null;
+        if (cleanSpec) {
+            const match = cleanSpec.match(/\[Catatan:\s*([\s\S]*?)\]$/);
+            if (match) {
+                itemNotes = match[1].trim();
+                cleanSpec = cleanSpec.replace(/\[Catatan:\s*[\s\S]*?\]$/, '').trim();
+            }
+        }
+
+        res.json({
+            ...item,
+            spec: cleanSpec,
+            notes: itemNotes
+        });
 
         // --- WhatsApp Notification: Penugasan (Async & Debounced) ---
         // Only notify if assignment is NEW or CHANGED

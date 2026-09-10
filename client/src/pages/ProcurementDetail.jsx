@@ -457,21 +457,34 @@ const ProcurementDetail = () => {
                 try { const p = JSON.parse(str); return Array.isArray(p) ? p : []; }
                 catch { return []; }
             };
-            data.items = (data.items || []).map(item => ({
-                ...item,
-                newVendorName: '',
-                brand: item.brand || '',
-                usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
-                finalPrice: item.finalPrice || item.estPrice,
-                fundingSource: item.fundingSource || 'Mandiri',
-                vendorId: item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : ''),
-                vendorName: item.vendorName || '',
-                comparisonVendors: safeJSON(item.comparisonVendors),
-                needComparison: item.needComparison !== false,
-                assignedTo: item.assignedTo || '',
-                assignedToId: item.assignedToId || null,
-                assignmentNote: item.assignmentNote || ''
-            }));
+            data.items = (data.items || []).map(item => {
+                let cleanSpec = item.spec || '';
+                let itemNotes = item.notes || '';
+                if (cleanSpec) {
+                    const match = cleanSpec.match(/\[Catatan:\s*([\s\S]*?)\]$/);
+                    if (match) {
+                        if (!itemNotes) itemNotes = match[1].trim();
+                        cleanSpec = cleanSpec.replace(/\[Catatan:\s*[\s\S]*?\]$/, '').trim();
+                    }
+                }
+                return {
+                    ...item,
+                    spec: cleanSpec,
+                    notes: itemNotes,
+                    newVendorName: '',
+                    brand: item.brand || '',
+                    usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
+                    finalPrice: item.finalPrice || item.estPrice,
+                    fundingSource: item.fundingSource || 'Mandiri',
+                    vendorId: item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : ''),
+                    vendorName: item.vendorName || '',
+                    comparisonVendors: safeJSON(item.comparisonVendors),
+                    needComparison: item.needComparison !== false,
+                    assignedTo: item.assignedTo || '',
+                    assignedToId: item.assignedToId || null,
+                    assignmentNote: item.assignmentNote || ''
+                };
+            });
             setReq(data);
             setAllRooms(roomsRes.data || []);
             setRooms((roomsRes.data || []).filter(r => r.unitId === data.unitId));
@@ -548,6 +561,7 @@ const ProcurementDetail = () => {
                 assignedTo: item.assignedTo, assignedToId: item.assignedToId,
                 assignmentNote: item.assignmentNote,
                 spec: item.spec,
+                notes: item.notes,
                 categoryId: item.categoryId ? parseInt(item.categoryId) : null
             });
 
@@ -1110,7 +1124,26 @@ const ProcurementDetail = () => {
                                             onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                                         >
                                             <td style={{ padding: '14px 20px', textAlign: 'center', fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.slate }}>{i + 1}</td>
-                                            <td style={{ padding: '14px 20px', fontWeight: 600, color: T.navy, fontSize: 13 }}>{item.name}</td>
+                                            <td style={{ padding: '14px 20px', fontWeight: 600, color: T.navy, fontSize: 13 }}>
+                                                <div>{item.name}</div>
+                                                {item.notes && (
+                                                    <div style={{
+                                                        marginTop: 5,
+                                                        fontSize: 11,
+                                                        color: '#8a6519',
+                                                        background: '#fef9ed',
+                                                        padding: '3px 8px',
+                                                        borderRadius: 6,
+                                                        border: '1px solid #f2e2ba',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 4
+                                                    }}>
+                                                        <span style={{ fontWeight: 700 }}>Catatan:</span>
+                                                        <span>{item.notes}</span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td style={{ padding: '14px 20px', fontSize: 12, color: T.slate }}>{item.spec || '—'}</td>
                                             <td style={{ padding: '14px 20px', textAlign: 'center', fontWeight: 700 }}>{item.qty}</td>
                                             <td style={{ padding: '14px 20px', fontSize: 12, color: T.slate }}>{item.unit}</td>
@@ -1186,7 +1219,25 @@ const ProcurementDetail = () => {
                                                     }}>{index + 1}</span>
                                                     <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{item.name}</span>
                                                 </div>
-                                                <p style={{ fontSize: 11.5, color: T.slate, marginLeft: 34 }}>{item.spec}</p>
+                                                <p style={{ fontSize: 11.5, color: T.slate, marginLeft: 34 }}>{item.spec || '—'}</p>
+                                                {item.notes && (
+                                                    <div style={{
+                                                        marginLeft: 34,
+                                                        marginTop: 4,
+                                                        fontSize: 11,
+                                                        color: '#8a6519',
+                                                        background: '#fef9ed',
+                                                        padding: '2px 8px',
+                                                        borderRadius: 6,
+                                                        border: '1px solid #f2e2ba',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 4
+                                                    }}>
+                                                        <span style={{ fontWeight: 700 }}>Catatan Pemohon:</span>
+                                                        <span>{item.notes}</span>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Filter Unit */}
@@ -1286,7 +1337,24 @@ const ProcurementDetail = () => {
                                 }}>
                                     <div>
                                         <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{item.name}</span>
-                                        <span style={{ fontSize: 12, color: T.slate, marginLeft: 10 }}>{item.spec} · {item.qty} {item.unit}</span>
+                                        <span style={{ fontSize: 12, color: T.slate, marginLeft: 10 }}>{item.spec || '—'} · {item.qty} {item.unit}</span>
+                                        {item.notes && (
+                                            <span style={{
+                                                marginLeft: 10,
+                                                fontSize: 11,
+                                                color: '#8a6519',
+                                                background: '#fef9ed',
+                                                padding: '2px 8px',
+                                                borderRadius: 6,
+                                                border: '1px solid #f2e2ba',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4
+                                            }}>
+                                                <span style={{ fontWeight: 700 }}>Catatan:</span>
+                                                <span>{item.notes}</span>
+                                            </span>
+                                        )}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
@@ -1443,7 +1511,24 @@ const ProcurementDetail = () => {
                                     background: (item.vendorName || item.vendorId) && item.finalPrice ? `linear-gradient(to right, ${T.successBg}50, ${T.white})` : T.cream
                                 }}>
                                     <div style={{ fontWeight: 700, fontSize: 14, color: T.navy, marginBottom: 4 }}>{item.name}</div>
-                                    <div style={{ fontSize: 11.5, color: T.slate, marginBottom: 16 }}>{item.spec}</div>
+                                    <div style={{ fontSize: 11.5, color: T.slate, marginBottom: item.notes ? 6 : 16 }}>{item.spec || '—'}</div>
+                                    {item.notes && (
+                                        <div style={{
+                                            marginBottom: 16,
+                                            fontSize: 11,
+                                            color: '#8a6519',
+                                            background: '#fef9ed',
+                                            padding: '3px 8px',
+                                            borderRadius: 6,
+                                            border: '1px solid #f2e2ba',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4
+                                        }}>
+                                            <span style={{ fontWeight: 700 }}>Catatan Pemohon:</span>
+                                            <span>{item.notes}</span>
+                                        </div>
+                                    )}
 
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
                                         {/* Vendor */}
@@ -1644,10 +1729,27 @@ const ProcurementDetail = () => {
                                                     border: `1px solid ${T.border}`,
                                                     boxShadow: '0 2px 8px rgba(15,31,61,0.04)'
                                                 }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: `1px dashed ${T.creamDk}` }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: it.notes ? 8 : 16, paddingBottom: 12, borderBottom: `1px dashed ${T.creamDk}` }}>
                                                         <div style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{idx + 1}. {it.name}</div>
                                                         <div style={{ fontSize: 11, color: T.slate, background: T.cream, padding: '4px 8px', borderRadius: 6 }}>Qty: {it.qty} {it.unit}</div>
                                                     </div>
+                                                    {it.notes && (
+                                                        <div style={{
+                                                            marginBottom: 16,
+                                                            fontSize: 11,
+                                                            color: '#8a6519',
+                                                            background: '#fef9ed',
+                                                            padding: '3px 8px',
+                                                            borderRadius: 6,
+                                                            border: '1px solid #f2e2ba',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 4
+                                                        }}>
+                                                            <span style={{ fontWeight: 700 }}>Catatan Pemohon:</span>
+                                                            <span>{it.notes}</span>
+                                                        </div>
+                                                    )}
 
                                                     {/* ═══ WAREHOUSE FULFILLMENT TOGGLE ═══ */}
                                                     {!itemDisabled && (

@@ -12,7 +12,7 @@ const ProcurementForm = () => {
     const [categories, setCategories] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [items, setItems] = useState([
-        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }
+        { name: '', spec: '', notes: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -57,7 +57,7 @@ const ProcurementForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }]);
+        setItems([...items, { name: '', spec: '', notes: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }]);
     };
 
     const removeItem = (index) => {
@@ -93,6 +93,7 @@ const ProcurementForm = () => {
                 return {
                     name,
                     spec: row['Spesifikasi'] || row['Spec'] || '-',
+                    notes: row['Catatan'] || row['Keterangan'] || row['Notes'] || '',
                     qty,
                     unit,
                     estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
@@ -130,6 +131,7 @@ const ProcurementForm = () => {
         worksheet.columns = [
             { header: 'Nama Barang', key: 'name', width: 25 },
             { header: 'Spesifikasi', key: 'spec', width: 30 },
+            { header: 'Catatan / Keterangan', key: 'notes', width: 30 },
             { header: 'Jumlah', key: 'qty', width: 10 },
             { header: 'Satuan', key: 'unit', width: 10 },
             { header: 'Estimasi Harga', key: 'estPrice', width: 15 },
@@ -146,8 +148,8 @@ const ProcurementForm = () => {
         };
 
         // Add sample data
-        worksheet.addRow({ name: 'Laptop', spec: 'RAM 16GB', qty: 1, unit: 'Unit', estPrice: 15000000, fundingSource: 'Mandiri' });
-        worksheet.addRow({ name: 'Printer', spec: 'Laserjet', qty: 2, unit: 'Unit', estPrice: 3500000, fundingSource: 'Mandiri' });
+        worksheet.addRow({ name: 'Laptop', spec: 'RAM 16GB', notes: 'Wajib warna hitam', qty: 1, unit: 'Unit', estPrice: 15000000, fundingSource: 'Mandiri' });
+        worksheet.addRow({ name: 'Printer', spec: 'Laserjet', notes: 'Prioritas Lab TIK', qty: 2, unit: 'Unit', estPrice: 3500000, fundingSource: 'Mandiri' });
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -378,6 +380,21 @@ const ProcurementForm = () => {
                                                 </select>
                                                 {/* Datalist moved outside loop */}
                                             </div>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-slate-100">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                    Catatan / Keterangan Item (Opsional)
+                                                </label>
+                                                <span className="text-[10px] text-slate-400 font-medium">Keterangan untuk Admin Aset</span>
+                                            </div>
+                                            <input
+                                                placeholder="Contoh: Warna hitam, prioritas awal semester, referensi link/toko, dll..."
+                                                className="border border-slate-300 p-2 rounded text-xs text-slate-700 w-full focus:border-blue-500 outline-none bg-slate-50/50 focus:bg-white transition-colors"
+                                                value={item.notes || ''}
+                                                onChange={e => handleItemChange(index, 'notes', e.target.value)}
+                                            />
                                         </div>
                                     </div>
                                     {items.length > 1 && (

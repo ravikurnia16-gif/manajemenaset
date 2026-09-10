@@ -10,6 +10,8 @@ const isSuperAdminOrIT = authorizeRole(['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPR
 
 // Public Invoice & Bukti Transaksi Endpoints
 router.get('/orders/public/:id', invCtrl.getOrderById);
+router.put('/orders/public/:id/signatures', invCtrl.updateOrderSignaturesPublic);
+router.put('/orders/public/:id/payment', invCtrl.updateOrderPayment);
 router.get('/transactions/public/:id', invCtrl.getTransactionById);
 
 router.use(verifyToken);
@@ -47,6 +49,8 @@ router.get('/orders', invCtrl.getOrders);
 router.get('/orders/:id', invCtrl.getOrderById);
 router.post('/orders', invCtrl.createOrder); // Any user can create order? Maybe need a specific role or just verifyToken
 router.put('/orders/:id/status', isAdmin, invCtrl.updateOrderStatus);
+router.put('/orders/:id/signatures', invCtrl.updateOrderSignatures);
+router.put('/orders/:id/payment', isAdmin, invCtrl.updateOrderPayment);
 
 
 // VENDORS

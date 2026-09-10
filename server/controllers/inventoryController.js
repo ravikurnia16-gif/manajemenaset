@@ -737,8 +737,59 @@ const generateOrderCode = async () => {
     return `${prefix}${(maxSeq + 1).toString().padStart(4, '0')}`;
 };
 
+// Helper to parse order note, metadata, payment, and signatures
+const parseOrderSignatures = (order) => {
+    if (!order) return order;
+    let displayNote = order.note || '';
+    let dueDate = null;
+    let paymentStatus = 'UNPAID';
+    let paidAt = null;
+    let paymentMethod = null;
+    let paymentNote = null;
+    let paymentUpdatedBy = null;
+    let signatures = {
+        requester: null,
+        deliverer: null,
+        kabid: null
+    };
+
+    if (order.note) {
+        try {
+            if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+                const parsed = JSON.parse(order.note);
+                displayNote = parsed.note !== undefined ? parsed.note : (parsed.text || '');
+                dueDate = parsed.dueDate || null;
+                paymentStatus = parsed.paymentStatus || 'UNPAID';
+                paidAt = parsed.paidAt || null;
+                paymentMethod = parsed.paymentMethod || null;
+                paymentNote = parsed.paymentNote || null;
+                paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                signatures = {
+                    requester: parsed.signatures?.requester || null,
+                    deliverer: parsed.signatures?.deliverer || null,
+                    kabid: parsed.signatures?.kabid || null
+                };
+            }
+        } catch (e) {
+            displayNote = order.note;
+        }
+    }
+
+    return {
+        ...order,
+        displayNote,
+        dueDate,
+        paymentStatus,
+        paidAt,
+        paymentMethod,
+        paymentNote,
+        paymentUpdatedBy,
+        signatures
+    };
+};
+
 exports.getOrders = async (req, res) => {
-    const { status } = req.query;
+    const { status, paymentStatus } = req.query;
     try {
         const where = status ? { status } : {};
         const orders = await prisma.invOrder.findMany({
@@ -749,7 +800,16 @@ exports.getOrders = async (req, res) => {
             },
             orderBy: { date: 'desc' }
         });
-        res.json(orders);
+        let parsedOrders = orders.map(parseOrderSignatures);
+        if (paymentStatus) {
+            if (paymentStatus === 'OVERDUE') {
+                const now = new Date();
+                parsedOrders = parsedOrders.filter(o => o.paymentStatus !== 'PAID' && o.dueDate && new Date(o.dueDate) < now);
+            } else {
+                parsedOrders = parsedOrders.filter(o => o.paymentStatus === paymentStatus);
+            }
+        }
+        res.json(parsedOrders);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
@@ -775,20 +835,31 @@ exports.getOrderById = async (req, res) => {
             }
         });
         if (!order) return res.status(404).json({ error: 'Invoice pesanan gudang tidak ditemukan' });
-        res.json(order);
+        res.json(parseOrderSignatures(order));
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.createOrder = async (req, res) => {
-    const { requesterName, requesterUnit, date, note, items } = req.body;
+    const { requesterName, requesterUnit, date, note, items, dueDate } = req.body;
     try {
         if (!items || items.length === 0) return res.status(400).json({ error: 'Pilih minimal satu barang.' });
         
         const code = await generateOrderCode();
         
+        const notePayload = JSON.stringify({
+            note: typeof note === 'string' ? note : '',
+            dueDate: dueDate || null,
+            paymentStatus: 'UNPAID',
+            paidAt: null,
+            paymentMethod: null,
+            paymentNote: null,
+            signatures: { requester: null, deliverer: null, kabid: null }
+        });
+
         const order = await prisma.invOrder.create({
             data: {
-                code, requesterName, requesterUnit, note,
+                code, requesterName, requesterUnit,
+                note: notePayload,
                 date: date ? new Date(date) : new Date(),
                 createdById: req.user.id,
                 items: {
@@ -802,7 +873,7 @@ exports.createOrder = async (req, res) => {
             include: { items: true }
         });
         
-        res.json(order);
+        res.json(parseOrderSignatures(order));
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
@@ -872,17 +943,376 @@ exports.updateOrderStatus = async (req, res) => {
                 }
             }
             
+            // Preserve signatures and payment metadata in note if exists
+            let currentSignatures = {};
+            let noteText = note;
+            let dueDate = null;
+            let paymentStatus = 'UNPAID';
+            let paidAt = null;
+            let paymentMethod = null;
+            let paymentNote = null;
+            let paymentUpdatedBy = null;
+
+            if (order.note && typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(order.note);
+                    currentSignatures = parsed.signatures || {};
+                    dueDate = parsed.dueDate || null;
+                    paymentStatus = parsed.paymentStatus || 'UNPAID';
+                    paidAt = parsed.paidAt || null;
+                    paymentMethod = parsed.paymentMethod || null;
+                    paymentNote = parsed.paymentNote || null;
+                    paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                    if (note === undefined || note === null) {
+                        noteText = parsed.note;
+                    }
+                } catch (e) {}
+            }
+
+            let finalNote = noteText !== undefined ? noteText : order.note;
+            if (Object.keys(currentSignatures).length > 0 || dueDate || paymentStatus || paidAt || paymentMethod || paymentNote) {
+                finalNote = JSON.stringify({
+                    note: noteText !== undefined ? noteText : (order.displayNote || ''),
+                    dueDate,
+                    paymentStatus,
+                    paidAt,
+                    paymentMethod,
+                    paymentNote,
+                    paymentUpdatedBy,
+                    signatures: currentSignatures
+                });
+            }
+
             // Update status & note
             const updatedOrder = await tx.invOrder.update({
                 where: { id: parseInt(id) },
-                data: { status, note: note || order.note }
+                data: { status, note: finalNote }
             });
             
             return updatedOrder;
         });
         
-        res.json(result);
+        res.json(parseOrderSignatures(result));
     } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+// ==========================================
+// TANDA TANGAN & ACC RESMI INVOICE GUDANG
+// ==========================================
+exports.updateOrderSignatures = async (req, res) => {
+    const { id } = req.params;
+    const { type, signatureData, signerName, action } = req.body;
+    // type: 'requester' | 'deliverer' | 'kabid'
+    // action: 'SIGN' | 'RESET'
+
+    try {
+        const order = await prisma.invOrder.findFirst({
+            where: {
+                OR: [
+                    { id: isNaN(parseInt(id)) ? -1 : parseInt(id) },
+                    { code: id }
+                ]
+            }
+        });
+
+        if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+        let currentNoteText = '';
+        let currentSignatures = { requester: null, deliverer: null, kabid: null };
+        let dueDate = null;
+        let paymentStatus = 'UNPAID';
+        let paidAt = null;
+        let paymentMethod = null;
+        let paymentNote = null;
+        let paymentUpdatedBy = null;
+
+        if (order.note) {
+            try {
+                if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+                    const parsed = JSON.parse(order.note);
+                    currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
+                    currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
+                    dueDate = parsed.dueDate || null;
+                    paymentStatus = parsed.paymentStatus || 'UNPAID';
+                    paidAt = parsed.paidAt || null;
+                    paymentMethod = parsed.paymentMethod || null;
+                    paymentNote = parsed.paymentNote || null;
+                    paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                } else {
+                    currentNoteText = order.note;
+                }
+            } catch (e) {
+                currentNoteText = order.note;
+            }
+        }
+
+        // KHUSUS KEPALA BIDANG SARANA: Harus diverifikasi dari akun resmi dengan Position Kepala Bidang Sarana
+        if (type === 'kabid') {
+            const user = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                select: { id: true, name: true, position: true, role: true, nip: true, username: true }
+            });
+
+            const pos = (user?.position || '').toLowerCase();
+            const role = user?.role || '';
+            const isAuthorizedKabid = pos.includes('kepala bidang sarana') || 
+                                      pos.includes('kabid sarpras') || 
+                                      (pos.includes('sarana') && (role === 'SUPER_ADMIN' || role === 'KABID_SARPRAS' || role === 'KEPALA_BIDANG')) ||
+                                      role === 'KABID_SARPRAS';
+
+            if (!isAuthorizedKabid) {
+                return res.status(403).json({
+                    error: 'Akses Ditolak: Hanya akun resmi dengan jabatan Kepala Bidang Sarana yang dapat memberikan ACC tanda tangan dokumen ini.'
+                });
+            }
+
+            if (action === 'RESET') {
+                currentSignatures.kabid = null;
+            } else {
+                currentSignatures.kabid = {
+                    approved: true,
+                    name: user.name || user.username || 'Kepala Bidang Sarana',
+                    position: user.position || 'Kepala Bidang Sarana',
+                    nip: user.nip || '-',
+                    signedAt: new Date().toISOString(),
+                    signatureData: signatureData || null,
+                    authHash: `ACC-KABID-SARPRAS-${order.code}-${Date.now().toString(36).toUpperCase()}`
+                };
+            }
+        } else if (type === 'requester') {
+            if (action === 'RESET') {
+                currentSignatures.requester = null;
+            } else {
+                currentSignatures.requester = {
+                    name: signerName || order.requesterName,
+                    signedAt: new Date().toISOString(),
+                    signatureData: signatureData
+                };
+            }
+        } else if (type === 'deliverer') {
+            if (action === 'RESET') {
+                currentSignatures.deliverer = null;
+            } else {
+                currentSignatures.deliverer = {
+                    name: signerName || req.user?.name || req.user?.username || 'Petugas Logistik DEI',
+                    signedAt: new Date().toISOString(),
+                    signatureData: signatureData
+                };
+            }
+        } else {
+            return res.status(400).json({ error: 'Tipe tanda tangan tidak valid.' });
+        }
+
+        const updatedNote = JSON.stringify({
+            note: currentNoteText,
+            dueDate,
+            paymentStatus,
+            paidAt,
+            paymentMethod,
+            paymentNote,
+            paymentUpdatedBy,
+            signatures: currentSignatures
+        });
+
+        const updatedOrder = await prisma.invOrder.update({
+            where: { id: order.id },
+            data: { note: updatedNote },
+            include: {
+                items: { include: { item: { include: { category: true } } } },
+                createdBy: { select: { name: true, username: true } }
+            }
+        });
+
+        res.json(parseOrderSignatures(updatedOrder));
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
+exports.updateOrderSignaturesPublic = async (req, res) => {
+    const { id } = req.params;
+    const { type, signatureData, signerName, action } = req.body;
+
+    try {
+        if (type === 'kabid') {
+            return res.status(403).json({
+                error: 'ACC Kepala Bidang Sarana harus dilakukan melalui login akun resmi Kepala Bidang Sarana.'
+            });
+        }
+
+        const order = await prisma.invOrder.findFirst({
+            where: {
+                OR: [
+                    { id: isNaN(parseInt(id)) ? -1 : parseInt(id) },
+                    { code: id }
+                ]
+            }
+        });
+
+        if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+        let currentNoteText = '';
+        let currentSignatures = { requester: null, deliverer: null, kabid: null };
+        let dueDate = null;
+        let paymentStatus = 'UNPAID';
+        let paidAt = null;
+        let paymentMethod = null;
+        let paymentNote = null;
+        let paymentUpdatedBy = null;
+
+        if (order.note) {
+            try {
+                if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+                    const parsed = JSON.parse(order.note);
+                    currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
+                    currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
+                    dueDate = parsed.dueDate || null;
+                    paymentStatus = parsed.paymentStatus || 'UNPAID';
+                    paidAt = parsed.paidAt || null;
+                    paymentMethod = parsed.paymentMethod || null;
+                    paymentNote = parsed.paymentNote || null;
+                    paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                } else {
+                    currentNoteText = order.note;
+                }
+            } catch (e) {
+                currentNoteText = order.note;
+            }
+        }
+
+        if (type === 'requester') {
+            if (action === 'RESET') {
+                currentSignatures.requester = null;
+            } else {
+                currentSignatures.requester = {
+                    name: signerName || order.requesterName,
+                    signedAt: new Date().toISOString(),
+                    signatureData: signatureData
+                };
+            }
+        } else if (type === 'deliverer') {
+            if (action === 'RESET') {
+                currentSignatures.deliverer = null;
+            } else {
+                currentSignatures.deliverer = {
+                    name: signerName || 'Petugas Logistik DEI',
+                    signedAt: new Date().toISOString(),
+                    signatureData: signatureData
+                };
+            }
+        } else {
+            return res.status(400).json({ error: 'Tipe tanda tangan tidak valid.' });
+        }
+
+        const updatedNote = JSON.stringify({
+            note: currentNoteText,
+            dueDate,
+            paymentStatus,
+            paidAt,
+            paymentMethod,
+            paymentNote,
+            paymentUpdatedBy,
+            signatures: currentSignatures
+        });
+
+        const updatedOrder = await prisma.invOrder.update({
+            where: { id: order.id },
+            data: { note: updatedNote },
+            include: {
+                items: { include: { item: { include: { category: true } } } },
+                createdBy: { select: { name: true, username: true } }
+            }
+        });
+
+        res.json(parseOrderSignatures(updatedOrder));
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
+// ==========================================
+// STATUS PEMBAYARAN & JATUH TEMPO
+// ==========================================
+exports.updateOrderPayment = async (req, res) => {
+    const { id } = req.params;
+    const { paymentStatus, dueDate, paidAt, paymentMethod, paymentNote } = req.body;
+    // paymentStatus: 'PAID' | 'UNPAID'
+
+    try {
+        const order = await prisma.invOrder.findFirst({
+            where: {
+                OR: [
+                    { id: isNaN(parseInt(id)) ? -1 : parseInt(id) },
+                    { code: id }
+                ]
+            }
+        });
+
+        if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+        let currentNoteText = '';
+        let currentSignatures = { requester: null, deliverer: null, kabid: null };
+        let currentDueDate = null;
+        let currentPaymentStatus = 'UNPAID';
+        let currentPaidAt = null;
+        let currentPaymentMethod = null;
+        let currentPaymentNote = null;
+        let currentPaymentUpdatedBy = null;
+
+        if (order.note) {
+            try {
+                if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+                    const parsed = JSON.parse(order.note);
+                    currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
+                    currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
+                    currentDueDate = parsed.dueDate || null;
+                    currentPaymentStatus = parsed.paymentStatus || 'UNPAID';
+                    currentPaidAt = parsed.paidAt || null;
+                    currentPaymentMethod = parsed.paymentMethod || null;
+                    currentPaymentNote = parsed.paymentNote || null;
+                    currentPaymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                } else {
+                    currentNoteText = order.note;
+                }
+            } catch (e) {
+                currentNoteText = order.note;
+            }
+        }
+
+        const newPaymentStatus = paymentStatus !== undefined ? paymentStatus : currentPaymentStatus;
+        const newDueDate = dueDate !== undefined ? (dueDate || null) : currentDueDate;
+        const newPaidAt = newPaymentStatus === 'PAID' ? (paidAt || currentPaidAt || new Date().toISOString()) : null;
+        const newPaymentMethod = newPaymentStatus === 'PAID' ? (paymentMethod !== undefined ? paymentMethod : (currentPaymentMethod || 'Tunai / Kasir')) : null;
+        const newPaymentNote = paymentNote !== undefined ? paymentNote : currentPaymentNote;
+        const newPaymentUpdatedBy = req.user ? (req.user.name || req.user.username) : (currentPaymentUpdatedBy || 'Petugas');
+
+        const updatedNote = JSON.stringify({
+            note: currentNoteText,
+            dueDate: newDueDate,
+            paymentStatus: newPaymentStatus,
+            paidAt: newPaidAt,
+            paymentMethod: newPaymentMethod,
+            paymentNote: newPaymentNote,
+            paymentUpdatedBy: newPaymentUpdatedBy,
+            signatures: currentSignatures
+        });
+
+        const updatedOrder = await prisma.invOrder.update({
+            where: { id: order.id },
+            data: { note: updatedNote },
+            include: {
+                items: { include: { item: { include: { category: true } } } },
+                createdBy: { select: { name: true, username: true } }
+            }
+        });
+
+        res.json(parseOrderSignatures(updatedOrder));
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 // ==========================================
