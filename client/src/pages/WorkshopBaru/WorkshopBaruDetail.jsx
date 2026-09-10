@@ -20,7 +20,8 @@ import {
     MessageSquare,
     Sparkles,
     ShieldCheck,
-    Send
+    Send,
+    SlidersHorizontal
 } from 'lucide-react';
 import api from '../../lib/axios';
 import Swal from 'sweetalert2';
@@ -43,11 +44,17 @@ function WorkshopBaruDetail() {
     const [statusModal, setStatusModal] = useState(false);
     const [newStatus, setNewStatus] = useState('');
     const [statusMsg, setStatusMsg] = useState('');
+    const [statusPercentage, setStatusPercentage] = useState(25);
 
     const [progressModal, setProgressModal] = useState(false);
     const [progressMsg, setProgressMsg] = useState('');
-    const [progressPercent, setProgressPercent] = useState('');
+    const [progressPercent, setProgressPercent] = useState('25');
     const [photoBase64, setPhotoBase64] = useState(null);
+
+    // Quick Update Percentage Modal
+    const [quickPercentModal, setQuickPercentModal] = useState(false);
+    const [quickPercentVal, setQuickPercentVal] = useState(25);
+    const [quickPercentNote, setQuickPercentNote] = useState('');
 
     const [detailsModal, setDetailsModal] = useState(false);
     const [editWorkshopType, setEditWorkshopType] = useState('');
@@ -62,11 +69,20 @@ function WorkshopBaruDetail() {
         try {
             setLoading(true);
             const res = await api.get(`/workshop/orders/${id}`);
-            setOrder(res.data);
-            setNewStatus(res.data.status);
-            setEditWorkshopType(res.data.workshopType || '');
-            setEditDeadline(res.data.deadline ? new Date(res.data.deadline).toISOString().split('T')[0] : '');
-            setEditItems(res.data.items?.map(it => ({ id: it.id, name: it.name, estimatedPrice: it.estimatedPrice || 0 })) || []);
+            const data = res.data;
+            setOrder(data);
+            setNewStatus(data.status);
+            setEditWorkshopType(data.workshopType || '');
+            setEditDeadline(data.deadline ? new Date(data.deadline).toISOString().split('T')[0] : '');
+            setEditItems(data.items?.map(it => ({ id: it.id, name: it.name, estimatedPrice: it.estimatedPrice || 0 })) || []);
+
+            const latestProg = data.progress && data.progress.length > 0 ? data.progress[0] : null;
+            const pct = data.currentPercentage !== undefined
+                ? data.currentPercentage
+                : (latestProg?.percentage !== undefined ? latestProg.percentage : (data.status === 'COMPLETED' ? 100 : (data.status === 'QUALITY_CHECK' ? 90 : 25)));
+            setStatusPercentage(pct);
+            setQuickPercentVal(pct);
+            setProgressPercent(String(pct));
         } catch (error) {
             console.error('Failed to fetch order detail:', error);
             Swal.fire('Error', 'Gagal memuat detail pesanan workshop.', 'error');
@@ -103,6 +119,7 @@ function WorkshopBaruDetail() {
             await api.put(`/workshop/orders/${id}/status`, {
                 status: newStatus,
                 message: statusMsg,
+                percentage: newStatus === 'IN_PROGRESS' ? parseInt(statusPercentage, 10) : undefined,
                 photoBase64: photoBase64
             });
             Swal.fire('Berhasil', 'Status pesanan berhasil diperbarui.', 'success');
@@ -119,18 +136,35 @@ function WorkshopBaruDetail() {
         e.preventDefault();
         try {
             await api.post(`/workshop/orders/${id}/progress`, {
-                message: progressMsg,
-                percentage: progressPercent ? parseInt(progressPercent) : 0,
+                message: progressMsg || `Update progres fisik pengerjaan: ${progressPercent || 0}%`,
+                percentage: progressPercent ? parseInt(progressPercent, 10) : 0,
                 photoBase64: photoBase64
             });
             Swal.fire('Berhasil', 'Catatan progres berhasil ditambahkan.', 'success');
             setProgressModal(false);
             setProgressMsg('');
-            setProgressPercent('');
             setPhotoBase64(null);
             fetchOrder();
         } catch (error) {
             Swal.fire('Gagal', error.response?.data?.error || 'Gagal menambahkan progres', 'error');
+        }
+    };
+
+    const handleSaveQuickPercent = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post(`/workshop/orders/${id}/progress`, {
+                percentage: parseInt(quickPercentVal, 10),
+                message: quickPercentNote || `Update progres fisik pengerjaan: ${quickPercentVal}%`,
+                photoBase64: photoBase64
+            });
+            Swal.fire('Berhasil', `Persentase progres berhasil diperbarui ke ${quickPercentVal}%.`, 'success');
+            setQuickPercentModal(false);
+            setQuickPercentNote('');
+            setPhotoBase64(null);
+            fetchOrder();
+        } catch (error) {
+            Swal.fire('Gagal', error.response?.data?.error || 'Gagal memperbarui persentase', 'error');
         }
     };
 
@@ -194,7 +228,11 @@ function WorkshopBaruDetail() {
     }
 
     const latestProgress = order.progress && order.progress.length > 0 ? order.progress[0] : null;
-    const currentPercent = latestProgress?.percentage || (order.status === 'COMPLETED' ? 100 : (order.status === 'IN_PROGRESS' ? 40 : 0));
+    const currentPercent = order.currentPercentage !== undefined
+        ? order.currentPercentage
+        : (latestProgress?.percentage !== undefined && latestProgress?.percentage !== null
+            ? latestProgress.percentage
+            : (order.status === 'COMPLETED' ? 100 : (order.status === 'QUALITY_CHECK' ? 90 : (order.status === 'IN_PROGRESS' ? 25 : 0))));
 
     return (
         <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
@@ -224,6 +262,19 @@ function WorkshopBaruDetail() {
                                 <Edit3 size={16} /> Edit Info / Harga
                             </button>
 
+                            {order.status === 'IN_PROGRESS' && (
+                                <button
+                                    onClick={() => {
+                                        setQuickPercentVal(currentPercent);
+                                        setQuickPercentNote('');
+                                        setQuickPercentModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-colors"
+                                >
+                                    <SlidersHorizontal size={16} /> Update Persentase ({currentPercent}%)
+                                </button>
+                            )}
+
                             <button
                                 onClick={() => setProgressModal(true)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-colors"
@@ -232,7 +283,10 @@ function WorkshopBaruDetail() {
                             </button>
 
                             <button
-                                onClick={() => setStatusModal(true)}
+                                onClick={() => {
+                                    setStatusPercentage(currentPercent || 25);
+                                    setStatusModal(true);
+                                }}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors"
                             >
                                 <CheckCircle2 size={16} /> Ubah Status
@@ -300,12 +354,33 @@ function WorkshopBaruDetail() {
                 {/* Progress Bar */}
                 <div className="pt-2 border-t border-slate-100">
                     <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1.5">
-                        <span>Penyelesaian Fisik</span>
-                        <span className="text-emerald-600 font-black">{currentPercent}%</span>
+                        <div className="flex items-center gap-2">
+                            <span>Penyelesaian Fisik</span>
+                            {order.status === 'IN_PROGRESS' && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                    Tahap In Progress
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <span className="text-emerald-600 font-black text-sm">{currentPercent}%</span>
+                            {isWorkshopAdmin && order.status === 'IN_PROGRESS' && (
+                                <button
+                                    onClick={() => {
+                                        setQuickPercentVal(currentPercent);
+                                        setQuickPercentNote('');
+                                        setQuickPercentModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-xs transition-colors print:hidden"
+                                >
+                                    <SlidersHorizontal size={12} /> Update %
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
                         <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500"
                             style={{ width: `${currentPercent}%` }}
                         ></div>
                     </div>
@@ -544,12 +619,17 @@ function WorkshopBaruDetail() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleUpdateStatus} className="space-y-3 text-xs">
+                        <form onSubmit={handleUpdateStatus} className="space-y-3.5 text-xs">
                             <div>
                                 <label className="font-bold text-slate-600 block mb-1">Pilih Status Baru</label>
                                 <select
                                     value={newStatus}
-                                    onChange={e => setNewStatus(e.target.value)}
+                                    onChange={e => {
+                                        setNewStatus(e.target.value);
+                                        if (e.target.value === 'IN_PROGRESS' && (!statusPercentage || statusPercentage === 0)) {
+                                            setStatusPercentage(currentPercent || 25);
+                                        }
+                                    }}
                                     className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
                                     required
                                 >
@@ -559,6 +639,55 @@ function WorkshopBaruDetail() {
                                     <option value="COMPLETED">COMPLETED (Selesai)</option>
                                 </select>
                             </div>
+
+                            {/* Section: Persentase saat IN_PROGRESS */}
+                            {newStatus === 'IN_PROGRESS' && (
+                                <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="font-bold text-blue-900 flex items-center gap-1.5 text-xs">
+                                            <SlidersHorizontal size={14} className="text-blue-600" />
+                                            Persentase Progres (In Progress)
+                                        </label>
+                                        <span className="font-mono text-sm font-black text-blue-700 bg-white px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-xs">
+                                            {statusPercentage}%
+                                        </span>
+                                    </div>
+
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="5"
+                                        value={statusPercentage}
+                                        onChange={e => setStatusPercentage(parseInt(e.target.value, 10))}
+                                        className="w-full accent-blue-600 cursor-pointer h-2 bg-blue-200 rounded-lg appearance-none"
+                                    />
+
+                                    {/* Quick preset chips */}
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {[
+                                            { val: 10, label: '10% Persiapan' },
+                                            { val: 25, label: '25% Potong/Bahan' },
+                                            { val: 50, label: '50% Rangka/Las' },
+                                            { val: 75, label: '75% Finishing' },
+                                            { val: 90, label: '90% Siap QC' }
+                                        ].map(preset => (
+                                            <button
+                                                key={preset.val}
+                                                type="button"
+                                                onClick={() => setStatusPercentage(preset.val)}
+                                                className={`px-2 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                                    statusPercentage === preset.val
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="font-bold text-slate-600 block mb-1">Catatan Perubahan Status</label>
@@ -606,6 +735,103 @@ function WorkshopBaruDetail() {
                 </div>
             )}
 
+            {/* --- MODAL: Quick Update Persentase Progres --- */}
+            {quickPercentModal && (
+                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl animate-in fade-in zoom-in duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                                    <SlidersHorizontal size={16} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-sm">Update Persentase Progres</h3>
+                                    <p className="text-[11px] text-slate-500">Tahap pengerjaan fisik bengkel (In Progress)</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setQuickPercentModal(false)} className="text-slate-400 hover:text-slate-600">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveQuickPercent} className="space-y-4 text-xs">
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-3">
+                                <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Persentase Saat Ini</div>
+                                <div className="text-4xl font-black text-blue-600 font-mono tracking-tight">
+                                    {quickPercentVal}%
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    step="5"
+                                    value={quickPercentVal}
+                                    onChange={e => setQuickPercentVal(parseInt(e.target.value, 10))}
+                                    className="w-full accent-blue-600 cursor-pointer h-2.5 bg-slate-200 rounded-lg appearance-none"
+                                />
+                                {/* Quick preset buttons */}
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                                    {[10, 25, 50, 75, 90, 100].map(val => (
+                                        <button
+                                            key={val}
+                                            type="button"
+                                            onClick={() => setQuickPercentVal(val)}
+                                            className={`py-1 rounded-lg text-xs font-bold border transition-all ${
+                                                quickPercentVal === val
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {val}%
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Catatan Progres (Opsional)</label>
+                                <textarea
+                                    rows={2}
+                                    value={quickPercentNote}
+                                    onChange={e => setQuickPercentNote(e.target.value)}
+                                    placeholder={`Contoh: Pengerjaan mencapai ${quickPercentVal}%, sedang perakitan rangka & pengelasan...`}
+                                    className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Upload Foto Progres (Opsional)</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handlePhotoChange}
+                                    className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                />
+                                {photoBase64 && (
+                                    <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover rounded-lg mt-2 border" />
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setQuickPercentModal(false)}
+                                    className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-semibold"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
+                                >
+                                    Simpan Persentase
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* --- MODAL: Tambah Progres & Foto --- */}
             {progressModal && (
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -617,19 +843,39 @@ function WorkshopBaruDetail() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleAddProgress} className="space-y-3 text-xs">
-                            <div>
-                                <label className="font-bold text-slate-600 block mb-1">Persentase Pengerjaan (0 - 100%)</label>
+                        <form onSubmit={handleAddProgress} className="space-y-3.5 text-xs">
+                            <div className="p-3 bg-blue-50/70 border border-blue-200/70 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="font-bold text-blue-900 block">Persentase Pengerjaan (0 - 100%)</label>
+                                    <span className="font-mono text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">
+                                        {progressPercent || 0}%
+                                    </span>
+                                </div>
                                 <input
-                                    type="number"
+                                    type="range"
                                     min={0}
                                     max={100}
-                                    value={progressPercent}
+                                    step={5}
+                                    value={progressPercent || 0}
                                     onChange={e => setProgressPercent(e.target.value)}
-                                    placeholder="Contoh: 50"
-                                    className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                                    required
+                                    className="w-full accent-blue-600 cursor-pointer h-2 bg-blue-200 rounded-lg appearance-none"
                                 />
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                    {[10, 25, 50, 75, 90, 100].map(val => (
+                                        <button
+                                            key={val}
+                                            type="button"
+                                            onClick={() => setProgressPercent(String(val))}
+                                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                                                Number(progressPercent) === val
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {val}%
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <div>

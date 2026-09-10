@@ -142,6 +142,7 @@ const ProcurementList = () => {
             'Judul': req.title,
             'Unit Kerja': req.unit?.name,
             'Pemohon': req.user?.username,
+            'Catatan': req.notes || '-',
             'Jenis': req.type,
             'Status': req.status,
             'Tanggal': new Date(req.createdAt).toLocaleDateString('id-ID'),
@@ -353,6 +354,12 @@ const ProcurementList = () => {
                                     </div>
                                     <div className="font-bold text-sm text-slate-800 truncate">{req.title || '-'}</div>
                                     <div className="text-[10px] text-slate-500 mt-0.5">{req.unit?.name} • {req.user?.username}</div>
+                                    {req.notes && (
+                                        <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/70 rounded px-2 py-0.5 mt-1.5 inline-flex items-center gap-1 max-w-full">
+                                            <span className="font-bold shrink-0">Catatan:</span>
+                                            <span className="truncate">{req.notes}</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center justify-between mt-2">
                                         <span className="text-[10px] text-slate-400">
                                             {new Date(req.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -420,6 +427,12 @@ const ProcurementList = () => {
                                     <td className="p-4">
                                         <div className="font-bold text-slate-800">{req.title || '-'}</div>
                                         <div className="text-xs text-slate-500">{req.unit?.name} • {req.user?.username}</div>
+                                        {req.notes && (
+                                            <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded px-2 py-0.5 mt-1.5 inline-flex items-center gap-1 max-w-xs truncate" title={req.notes}>
+                                                <span className="font-bold shrink-0">Catatan:</span>
+                                                <span className="truncate">{req.notes}</span>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="p-4">
                                         <span className={`px-2 py-1 rounded text-[10px] font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'

@@ -84,11 +84,26 @@ exports.getAllProcurements = async (req, res) => {
             include: {
                 user: { select: { username: true } },
                 unit: { select: { name: true } },
-                _count: { select: { items: true } }
+                _count: { select: { items: true } },
+                progress: {
+                    where: { message: { contains: '[Catatan Pemohon untuk Admin Aset]' } },
+                    take: 1,
+                    select: { message: true }
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(procurements);
+
+        const formatted = procurements.map(p => {
+            const rawNote = p.progress?.[0]?.message;
+            const notes = rawNote ? rawNote.replace('📝 [Catatan Pemohon untuk Admin Aset]:\n', '').trim() : null;
+            const { progress, ...rest } = p;
+            return {
+                ...rest,
+                notes
+            };
+        });
+        res.json(formatted);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -191,7 +206,14 @@ exports.getProcurementById = async (req, res) => {
             }
         });
         if (!procurement) return res.status(404).json({ error: 'Data not found' });
-        res.json(procurement);
+
+        const noteProgress = procurement.progress?.find(p => p.message && p.message.includes('[Catatan Pemohon untuk Admin Aset]'));
+        const notes = noteProgress ? noteProgress.message.replace('📝 [Catatan Pemohon untuk Admin Aset]:\n', '').trim() : null;
+
+        res.json({
+            ...procurement,
+            notes
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -199,7 +221,7 @@ exports.getProcurementById = async (req, res) => {
 
 // Create Request
 exports.createProcurement = async (req, res) => {
-    const { title, type, items, rkbId, isDirectOrder, assignedStaffId } = req.body;
+    const { title, type, items, rkbId, isDirectOrder, assignedStaffId, notes } = req.body;
     const user = req.user;
 
     try {
@@ -258,7 +280,19 @@ exports.createProcurement = async (req, res) => {
                     data: itemData
                 });
 
-                return { ...procurement, assignedUser };
+                if (notes && typeof notes === 'string' && notes.trim()) {
+                    await prisma.procurementProgress.create({
+                        data: {
+                            procurementId: procurement.id,
+                            userId: user.id,
+                            message: `📝 [Catatan Pemohon untuk Admin Aset]:\n${notes.trim()}`,
+                            type: 'MANUAL',
+                            stage: 1
+                        }
+                    });
+                }
+
+                return { ...procurement, notes: (notes && typeof notes === 'string' && notes.trim()) ? notes.trim() : null, assignedUser };
             });
             results.push(result);
         }
@@ -271,12 +305,15 @@ exports.createProcurement = async (req, res) => {
                     `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
                 ).join('\n');
 
+                const noteDirectMsg = (notes && typeof notes === 'string' && notes.trim()) ? `\n*Catatan Pemohon:*\n"${notes.trim()}"\n` : '';
+
                 const msg = `Bismillah.\n\n` +
                     `*Info Penugasan Pengadaan (MANDAT KABID)*\n\n` +
                     `Halo *${assignedUser.name || assignedUser.username}*,\n\n` +
                     `Anda menerima perintah langsung pengadaan *"${title}"* dari Kepala Bidang.\n\n` +
                     `*Rincian Barang:*\n` +
-                    `${itemListMsg}\n\n` +
+                    `${itemListMsg}\n` +
+                    noteDirectMsg + `\n` +
                     `Mohon segera diproses. Syukron.`;
 
                 setTimeout(async () => {
@@ -297,6 +334,9 @@ exports.createProcurement = async (req, res) => {
             try {
                 const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
+                const notePreview = (notes && typeof notes === 'string' && notes.trim())
+                    ? ` (Catatan: "${notes.trim().length > 60 ? notes.trim().slice(0, 60) + '...' : notes.trim()}")`
+                    : '';
 
                 const admins = await prisma.user.findMany({
                     where: {
@@ -312,9 +352,9 @@ exports.createProcurement = async (req, res) => {
                     await createNotification(
                         admin.id,
                         isDirect ? 'Perintah Pengadaan Auto-Approve' : 'Permintaan Pengadaan Baru',
-                        `${submitterName} ${isDirect ? 'memerintahkan' : 'mengajukan'} ${results.length} permintaan pengadaan.`,
+                        `${submitterName} ${isDirect ? 'memerintahkan' : 'mengajukan'} ${results.length} permintaan pengadaan.${notePreview}`,
                         isDirect ? 'SUCCESS' : 'URGENT',
-                        '/procurement'
+                        '/procurements'
                     );
                 }
             } catch (err) {
@@ -336,11 +376,14 @@ exports.createProcurement = async (req, res) => {
                     `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
 
+                const noteMsgText = (notes && typeof notes === 'string' && notes.trim()) ? `\n*Catatan Pemohon untuk Admin:*\n"${notes.trim()}"\n` : '';
+
                 if (submitter.phone) {
                     const msgSubmitter = `Bismillah.\n*Info Request Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
-                        `${itemList}\n\n` +
-                        `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) \u2705\n` : `Pesanan Ustadz/Ustadzah akan segera kami proses.`}`;
+                        `${itemList}\n` +
+                        (notes && notes.trim() ? `\n*Catatan:* ${notes.trim()}\n` : '') + `\n` +
+                        `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) ✅\n` : `Pesanan Ustadz/Ustadzah akan segera kami proses.`}`;
 
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
@@ -361,9 +404,10 @@ exports.createProcurement = async (req, res) => {
                     if (admins.length > 0) {
                         const msgAdm = `Bismillah.\n*Info Request Pengadaan (URGENT)*\n\n` +
                             `Ada ${results.length} pesanan baru dari:\n` +
-                            `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
-                            `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
-                            `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
+                            `👤 *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
+                            `🆔 *NIY* : ${submitter.username || '-'}\n` +
+                            `🏢 *Unit* : ${submitter.unit?.name || '-'}\n` +
+                            noteMsgText + `\n` +
                             `*Rincian Permintaan:*\n` +
                             `${itemList}\n\n` +
                             `Mohon segera di proses.`;

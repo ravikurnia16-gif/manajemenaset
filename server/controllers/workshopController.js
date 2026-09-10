@@ -158,12 +158,36 @@ exports.getAllOrders = async (req, res) => {
                 requestedBy: { select: { name: true, username: true } },
                 unit: { select: { name: true } },
                 workshopUnit: { select: { name: true } },
-                _count: { select: { items: true } }
+                _count: { select: { items: true } },
+                progress: {
+                    select: { percentage: true, createdAt: true, message: true },
+                    orderBy: { createdAt: 'desc' },
+                    take: 1
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
 
-        res.json(orders);
+        const formattedOrders = orders.map(order => {
+            const latest = order.progress && order.progress.length > 0 ? order.progress[0] : null;
+            let currentPercentage = 0;
+            if (latest && typeof latest.percentage === 'number') {
+                currentPercentage = latest.percentage;
+            } else if (order.status === 'COMPLETED') {
+                currentPercentage = 100;
+            } else if (order.status === 'QUALITY_CHECK') {
+                currentPercentage = 90;
+            } else if (order.status === 'IN_PROGRESS') {
+                currentPercentage = 25;
+            }
+
+            return {
+                ...order,
+                currentPercentage
+            };
+        });
+
+        res.json(formattedOrders);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -178,6 +202,7 @@ exports.getOrderById = async (req, res) => {
             include: {
                 items: true,
                 progress: {
+                    select: { percentage: true, createdAt: true, message: true },
                     include: { user: { select: { id: true, name: true, username: true } } },
                     orderBy: { createdAt: 'desc' }
                 },
@@ -190,7 +215,20 @@ exports.getOrderById = async (req, res) => {
         });
 
         if (!order) return res.status(404).json({ error: 'Order not found' });
-        res.json(order);
+
+        const latest = order.progress && order.progress.length > 0 ? order.progress[0] : null;
+        let currentPercentage = 0;
+        if (latest && typeof latest.percentage === 'number') {
+            currentPercentage = latest.percentage;
+        } else if (order.status === 'COMPLETED') {
+            currentPercentage = 100;
+        } else if (order.status === 'QUALITY_CHECK') {
+            currentPercentage = 90;
+        } else if (order.status === 'IN_PROGRESS') {
+            currentPercentage = 25;
+        }
+
+        res.json({ ...order, currentPercentage });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -229,54 +267,57 @@ exports.createOrder = async (req, res) => {
                 priority: priority || 'NORMAL',
                 deadline: deadline ? new Date(deadline) : null,
                 notes,
-                requestedById: user.id,
-                unitId: unitId ? parseInt(unitId) : user.unitId,
-                workshopType: workshopType || null,
-                workshopUnitId: workshopUnitId ? parseInt(workshopUnitId) : null,
                 picName,
+                workshopType: workshopType || null,
                 estimatedCost,
                 status: 'PENDING',
+                requestedById: user.id,
+                unitId: unitId ? parseInt(unitId) : user.unitId,
+                workshopUnitId: workshopUnitId ? parseInt(workshopUnitId) : null,
                 maintenanceId: maintenanceId ? parseInt(maintenanceId) : null,
                 items: {
                     create: itemData
+                },
+                progress: {
+                    create: {
+                        message: 'Pesanan workshop dibuat dan masuk ke antrean.',
+                        percentage: 0,
+                        createdById: user.id
+                    }
                 }
             },
             include: {
                 items: true,
-                requestedBy: true
+                requestedBy: true,
+                unit: true
             }
         });
 
-        // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
+        try {
+            await generateSuratPesanan(newOrder, user);
+        } catch (eDocErr) {
+            console.error('Failed to generate automatic Surat Pesanan:', eDocErr);
+        }
+
         const recipients = await prisma.user.findMany({
             where: {
-                position: { in: ['Sarpras Unit', 'Kepala Unit'] },
-                unitId: 21,
-                phone: { not: null, not: '' }
-            }
+                OR: [
+                    { unitId: 21 },
+                    { role: { in: ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'] } }
+                ],
+                phone: { not: null }
+            },
+            select: { phone: true, name: true }
         });
 
         if (recipients.length > 0) {
-            let unitName = '-';
-            if (newOrder.unitId) {
-                const ut = await prisma.unit.findUnique({ where: { id: newOrder.unitId } });
-                if (ut) unitName = ut.name;
-            }
-
-            const senderName = newOrder.requestedBy ? (newOrder.requestedBy.name || newOrder.requestedBy.username) : 'Pemohon';
-
-            let itemDetails = '';
-            if (newOrder.items && newOrder.items.length > 0) {
-                itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
-            }
-
-            const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
-
-            const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
+            const appUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+            const itemDetails = newOrder.items.map((it, idx) => `${idx + 1}. ${it.name} (${it.qty} ${it.unit})`).join('\n');
+            const msg = `*Pesanan Baru Masuk ke Workshop*\n\n` +
                 `Kode: *${newOrder.code}*\n` +
-                `Dari: *${senderName}* (${unitName})\n` +
-                `Order: *${newOrder.title}*\n` +
-                `Prioritas: *${newOrder.priority}*\n` +
+                `Judul: *${newOrder.title}*\n` +
+                `Tipe: *${newOrder.workshopType || 'Umum'}*\n` +
+                `Pemohon: *${user.name}* (${newOrder.unit?.name || '-'})\n` +
                 `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
                 `*Rincian Item*:\n${itemDetails}\n\n` +
                 `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
@@ -299,24 +340,46 @@ exports.createOrder = async (req, res) => {
 // 5. Update Status
 exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, message, photoBase64 } = req.body;
+    const { status, message, photoBase64, percentage } = req.body;
     const user = req.user;
 
     try {
-        const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) }, include: { requestedBy: true } });
+        const order = await prisma.workshopOrder.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                requestedBy: true,
+                progress: { orderBy: { createdAt: 'desc' }, take: 1 }
+            }
+        });
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
         const updateData = { status };
         let progressMsg = `Status diperbarui menjadi: ${status}`;
         
+        let parsedPercent = undefined;
+        if (percentage !== undefined && percentage !== null && percentage !== '') {
+            parsedPercent = Math.min(100, Math.max(0, parseInt(percentage, 10)));
+            if (isNaN(parsedPercent)) parsedPercent = 0;
+        } else {
+            if (status === 'COMPLETED') {
+                parsedPercent = 100;
+            } else if (status === 'QUALITY_CHECK') {
+                parsedPercent = 90;
+            } else if (status === 'PENDING') {
+                parsedPercent = 0;
+            } else if (status === 'IN_PROGRESS') {
+                const prev = order.progress?.[0]?.percentage;
+                parsedPercent = typeof prev === 'number' && prev > 0 ? prev : 25;
+            }
+        }
+
         if (status === 'IN_PROGRESS' && order.status === 'PENDING') {
             updateData.startDate = new Date();
-            progressMsg = 'Pekerjaan dimulai.';
+            progressMsg = `Pekerjaan dimulai (Progres: ${parsedPercent ?? 25}%).`;
         } else if (status === 'COMPLETED') {
             updateData.completionDate = new Date();
-            progressMsg = 'Pekerjaan selesai.';
+            progressMsg = 'Pekerjaan selesai 100%.';
             
-            // Sync status E-Office Document if exists
             if (order.officeDocumentId) {
                 const doc = await prisma.officeDocument.findUnique({ where: { id: order.officeDocumentId } });
                 if (doc) {
@@ -334,7 +397,6 @@ exports.updateOrderStatus = async (req, res) => {
             progressMsg = message;
         }
 
-        // Upload photo if any
         let photoUrl = null;
         if (photoBase64 && photoBase64.startsWith('data:')) {
             const matches = photoBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -356,17 +418,18 @@ exports.updateOrderStatus = async (req, res) => {
                 data: {
                     orderId: parseInt(id),
                     message: progressMsg,
+                    percentage: parsedPercent !== undefined ? parsedPercent : 0,
                     photo: photoUrl,
                     createdById: user.id
                 }
             });
 
-            // Sync to Procurement if linked
             if (order.procurementId) {
+                const percentText = parsedPercent !== undefined ? ` (${parsedPercent}%)` : '';
                 await prisma.procurementProgress.create({
                     data: {
                         procurementId: order.procurementId,
-                        message: `[Workshop Update] ${progressMsg}`,
+                        message: `[Workshop Update] ${progressMsg}${percentText}`,
                         type: 'SYSTEM'
                     }
                 });
@@ -375,11 +438,11 @@ exports.updateOrderStatus = async (req, res) => {
             return updated;
         });
 
-        // Notif to requestor
         if (order.requestedBy?.phone) {
+            const percentWa = parsedPercent !== undefined ? `\nProgres Pengerjaan: *${parsedPercent}%*` : '';
             const waMsg = `Bismillah.\n*Update Order Workshop*\n\n` +
                 `Order Anda: *${order.title}*\n` +
-                `Status saat ini: *${status}*\n\n` +
+                `Status saat ini: *${status}*${percentWa}\n\n` +
                 (message ? `Catatan: ${message}` : `Silakan cek di sistem.`);
                 
             setTimeout(() => {
@@ -387,7 +450,7 @@ exports.updateOrderStatus = async (req, res) => {
             }, 3000);
         }
 
-        res.json(updatedOrder);
+        res.json({ ...updatedOrder, currentPercentage: parsedPercent ?? 0 });
 
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -412,18 +475,30 @@ exports.addProgress = async (req, res) => {
             }
         }
 
+        const parsedPercent = percentage !== undefined && percentage !== null && percentage !== ''
+            ? Math.min(100, Math.max(0, parseInt(percentage, 10)))
+            : 0;
+
+        const finalMsg = message || `Update progres fisik pengerjaan: ${parsedPercent}%`;
+
         const progress = await prisma.workshopProgress.create({
             data: {
                 orderId: parseInt(id),
-                message,
-                percentage: percentage ? parseInt(percentage) : 0,
+                message: finalMsg,
+                percentage: parsedPercent,
                 photo: photoUrl,
                 createdById: user.id
             }
         });
 
-        // Get the order to check if it has procurementId
         const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) } });
+        if (order && order.status === 'PENDING' && parsedPercent > 0) {
+            await prisma.workshopOrder.update({
+                where: { id: parseInt(id) },
+                data: { status: 'IN_PROGRESS', startDate: new Date() }
+            });
+        }
+
         if (order && order.procurementId) {
             await prisma.procurementProgress.create({
                 data: {
@@ -813,14 +888,74 @@ exports.deleteWorkshopProduct = async (req, res) => {
 // GET /api/workshop/settings-unit
 exports.getWorkshopSettingsAndUnit = async (req, res) => {
     try {
-        const [settings, unit21] = await Promise.all([
+        const [settings, unit21, unit21Users] = await Promise.all([
             prisma.setting.findUnique({ where: { id: 1 } }),
-            prisma.unit.findUnique({ where: { id: 21 } })
+            prisma.unit.findFirst({
+                where: {
+                    OR: [
+                        { id: 21 },
+                        { name: { contains: 'Workshop' } }
+                    ]
+                }
+            }),
+            prisma.user.findMany({
+                where: {
+                    OR: [
+                        { unitId: 21 },
+                        { unit: { name: { contains: 'Workshop' } } },
+                        { position: { contains: 'Workshop' } }
+                    ]
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    username: true,
+                    nip: true,
+                    phone: true,
+                    position: true,
+                    role: true,
+                    unitId: true,
+                    unit: { select: { id: true, name: true } }
+                }
+            })
         ]);
+
+        // Cari Kepala Unit jika data di tabel unit belum lengkap
+        let headUser = null;
+        if (unit21?.headName) {
+            headUser = unit21Users.find(u => u.name && u.name.trim().toLowerCase() === unit21.headName.trim().toLowerCase());
+        }
+        if (!headUser && unit21?.headNip && unit21.headNip !== '-') {
+            headUser = unit21Users.find(u => 
+                (u.nip && u.nip.trim() === unit21.headNip.trim()) ||
+                (u.username && u.username.trim() === unit21.headNip.trim())
+            );
+        }
+        if (!headUser && unit21Users.length > 0) {
+            headUser = unit21Users.find(u => (u.position || '').toLowerCase().includes('kepala unit')) ||
+                       unit21Users.find(u => (u.position || '').toLowerCase().includes('kepala')) ||
+                       unit21Users.find(u => (u.position || '').toLowerCase().includes('sarpras unit')) ||
+                       unit21Users.find(u => u.role === 'ADMIN_UNIT') ||
+                       unit21Users[0] || null;
+        }
+
+        const headName = unit21?.headName || headUser?.name || '';
+        const headNip = (unit21?.headNip && unit21.headNip !== '-' && unit21.headNip.trim() !== '') 
+            ? unit21.headNip 
+            : (headUser?.nip || headUser?.username || '');
+        const phone = (unit21?.phone && unit21.phone !== '-' && unit21.phone.trim() !== '')
+            ? unit21.phone 
+            : (headUser?.phone || '');
 
         res.json({
             settings: settings || {},
-            unit21: unit21 || {}
+            unit21: {
+                ...(unit21 || {}),
+                headName,
+                headNip,
+                phone
+            },
+            unit21Users: unit21Users || []
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -832,22 +967,41 @@ exports.updateWorkshopSettingsAndUnit = async (req, res) => {
     try {
         const { workshopPicKayu, workshopPicBesi, headName, headNip, phone, description } = req.body;
 
+        const targetUnit = await prisma.unit.findFirst({
+            where: {
+                OR: [
+                    { id: 21 },
+                    { name: { contains: 'Workshop' } }
+                ]
+            }
+        });
+
+        const targetUnitId = targetUnit ? targetUnit.id : 21;
+
         const [settings, unit21] = await Promise.all([
             prisma.setting.upsert({
                 where: { id: 1 },
                 update: { workshopPicKayu, workshopPicBesi },
                 create: { id: 1, workshopPicKayu, workshopPicBesi }
             }),
-            prisma.unit.update({
-                where: { id: 21 },
-                data: {
+            prisma.unit.upsert({
+                where: { id: targetUnitId },
+                update: {
                     headName: headName !== undefined ? headName : undefined,
                     headNip: headNip !== undefined ? headNip : undefined,
                     phone: phone !== undefined ? phone : undefined,
                     description: description !== undefined ? description : undefined
+                },
+                create: {
+                    id: targetUnitId,
+                    name: 'Workshop',
+                    headName: headName || 'Kepala Unit Workshop',
+                    headNip: headNip || '',
+                    phone: phone || '',
+                    description: description || ''
                 }
             }).catch(e => {
-                console.warn('Unit 21 update warning (may not exist yet):', e.message);
+                console.warn('Unit 21 upsert warning:', e.message);
                 return null;
             })
         ]);

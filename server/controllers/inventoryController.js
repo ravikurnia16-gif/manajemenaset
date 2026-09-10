@@ -744,7 +744,7 @@ exports.getOrders = async (req, res) => {
         const orders = await prisma.invOrder.findMany({
             where,
             include: {
-                items: { include: { item: true } },
+                items: { include: { item: { include: { category: true } } } },
                 createdBy: { select: { name: true, username: true } }
             },
             orderBy: { date: 'desc' }

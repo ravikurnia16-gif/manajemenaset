@@ -263,6 +263,38 @@ const VendorManagement = () => {
     const handleImageUpload = (e, target) => {
         const file = e.target.files[0];
         if (file) {
+            if (target === 'product') {
+                // Auto crop & process ke rasio 1:1 Postingan Instagram (1080x1080 px)
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 1080;
+                    canvas.height = 1080;
+                    const ctx = canvas.getContext('2d');
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+
+                    const minDim = Math.min(img.width, img.height);
+                    const sx = (img.width - minDim) / 2;
+                    const sy = (img.height - minDim) / 2;
+                    ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 1080, 1080);
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + "_ig_1x1.jpg", { type: 'image/jpeg' });
+                            const previewUrl = URL.createObjectURL(blob);
+                            if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
+                                URL.revokeObjectURL(productPhotoPreview);
+                            }
+                            setProductPhotoPreview(previewUrl);
+                            setProductPhotoFile(newFile);
+                        }
+                    }, 'image/jpeg', 0.92);
+                };
+                img.src = URL.createObjectURL(file);
+                return;
+            }
+
             const previewUrl = URL.createObjectURL(file);
             if (target === 'vendor') {
                 if (vendorPhotoPreview && vendorPhotoPreview.startsWith('blob:')) {
@@ -270,12 +302,6 @@ const VendorManagement = () => {
                 }
                 setVendorPhotoPreview(previewUrl);
                 setVendorPhotoFile(file);
-            } else {
-                if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
-                    URL.revokeObjectURL(productPhotoPreview);
-                }
-                setProductPhotoPreview(previewUrl);
-                setProductPhotoFile(file);
             }
         }
     };
@@ -862,12 +888,24 @@ const VendorManagement = () => {
                                             </div>
                                         </div>
                                         <div className="space-y-2 flex flex-col items-center">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest self-start ml-1">Foto Produk</label>
-                                            <div className="flex-1 w-full bg-slate-100 rounded-3xl flex items-center justify-center overflow-hidden relative cursor-pointer group" onClick={() => document.getElementById('product-img').click()}>
+                                            <div className="w-full flex items-center justify-between">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto Produk (Postingan IG)</label>
+                                                <span className="text-[9px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">1:1 Persegi</span>
+                                            </div>
+                                            <div className="aspect-square w-full bg-slate-100 rounded-3xl flex items-center justify-center overflow-hidden relative cursor-pointer group border-2 border-dashed border-slate-200 hover:border-pink-300 transition-all" onClick={() => document.getElementById('product-img').click()}>
                                                 {productPhotoPreview ? (
-                                                    <img src={productPhotoPreview} className="w-full h-full object-cover" />
+                                                    <>
+                                                        <img src={productPhotoPreview} className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 backdrop-blur-xs">
+                                                            <Camera size={14} /> Ganti Foto 1:1
+                                                        </div>
+                                                    </>
                                                 ) : (
-                                                    <Camera className="text-slate-300" size={40} />
+                                                    <div className="flex flex-col items-center gap-1.5 text-slate-400 p-4 text-center">
+                                                        <Camera className="text-slate-300 group-hover:text-pink-500 transition-colors" size={36} />
+                                                        <span className="text-[10px] font-bold text-slate-500">Pilih Foto 1:1 IG</span>
+                                                        <span className="text-[9px] text-slate-400">Otomatis di-crop pas (1080×1080)</span>
+                                                    </div>
                                                 )}
                                                 <input id="product-img" type="file" hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'product')} />
                                             </div>

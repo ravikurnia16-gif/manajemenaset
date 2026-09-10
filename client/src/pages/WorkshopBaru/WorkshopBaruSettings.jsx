@@ -64,10 +64,12 @@ export default function WorkshopBaruSettings() {
 
             let loadedSettings = {};
             let loadedUnit = {};
+            let u21UsersFromServer = [];
 
             if (settingsUnitRes.status === 'fulfilled') {
                 loadedSettings = settingsUnitRes.value.data?.settings || {};
                 loadedUnit = settingsUnitRes.value.data?.unit21 || {};
+                u21UsersFromServer = settingsUnitRes.value.data?.unit21Users || [];
             } else {
                 // Fallback to separate endpoints
                 const s = await api.get('/settings').catch(() => ({ data: {} }));
@@ -76,12 +78,56 @@ export default function WorkshopBaruSettings() {
                 loadedUnit = u.data || {};
             }
 
+            const allUsers = usersRes.status === 'fulfilled' ? (usersRes.value.data || []) : [];
+            const mergedUsers = [...allUsers];
+            u21UsersFromServer.forEach(u => {
+                if (!mergedUsers.some(existing => existing.id === u.id)) {
+                    mergedUsers.push(u);
+                }
+            });
+            setUsers(mergedUsers);
+
+            // Filter users strictly belonging to Unit 21 (Workshop)
+            const u21List = mergedUsers.filter(u =>
+                u.unitId === 21 ||
+                (u.unit?.name || '').toLowerCase().includes('workshop') ||
+                (u.position || '').toLowerCase().includes('workshop')
+            );
+            const candidateUsers = u21List.length > 0 ? u21List : mergedUsers;
+
+            // Resolve Kepala Unit
+            let matchedUser = null;
+            if (loadedUnit.headName) {
+                matchedUser = candidateUsers.find(u => u.name && u.name.trim().toLowerCase() === loadedUnit.headName.trim().toLowerCase()) ||
+                              mergedUsers.find(u => u.name && u.name.trim().toLowerCase() === loadedUnit.headName.trim().toLowerCase());
+            }
+            if (!matchedUser && loadedUnit.headNip && loadedUnit.headNip !== '-') {
+                matchedUser = candidateUsers.find(u => 
+                    (u.nip && u.nip.trim() === loadedUnit.headNip.trim()) ||
+                    (u.username && u.username.trim() === loadedUnit.headNip.trim())
+                );
+            }
+            if (!matchedUser && candidateUsers.length > 0) {
+                matchedUser = candidateUsers.find(u => (u.position || '').toLowerCase().includes('kepala')) ||
+                              candidateUsers.find(u => (u.position || '').toLowerCase().includes('sarpras unit')) ||
+                              candidateUsers.find(u => u.role === 'ADMIN_UNIT') ||
+                              candidateUsers[0];
+            }
+
+            const initialHeadName = loadedUnit.headName || matchedUser?.name || '';
+            const initialHeadNip = (loadedUnit.headNip && loadedUnit.headNip !== '-' && loadedUnit.headNip.trim() !== '')
+                ? loadedUnit.headNip
+                : (matchedUser?.nip || matchedUser?.username || '');
+            const initialPhone = (loadedUnit.phone && loadedUnit.phone !== '-' && loadedUnit.phone.trim() !== '')
+                ? loadedUnit.phone
+                : (matchedUser?.phone || '');
+
             setSettings({
                 workshopPicKayu: loadedSettings.workshopPicKayu || '',
                 workshopPicBesi: loadedSettings.workshopPicBesi || '',
-                headName: loadedUnit.headName || loadedSettings.orgHeadName || 'Kepala Unit Workshop',
-                headNip: loadedUnit.headNip || loadedSettings.orgHeadNip || '-',
-                phone: loadedUnit.phone || loadedSettings.orgPhone || '',
+                headName: initialHeadName,
+                headNip: initialHeadNip,
+                phone: initialPhone,
                 description: loadedUnit.description || ''
             });
 
@@ -102,10 +148,6 @@ export default function WorkshopBaruSettings() {
                         setUnitRules(JSON.parse(savedLocal));
                     } catch (e) {}
                 }
-            }
-
-            if (usersRes.status === 'fulfilled') {
-                setUsers(usersRes.value.data || []);
             }
         } catch (error) {
             console.error('Failed to load settings:', error);
@@ -178,9 +220,58 @@ export default function WorkshopBaruSettings() {
     const eligibleHeadUsers = unit21Users.length > 0 ? unit21Users : users;
 
     const selectedHeadUser = eligibleHeadUsers.find(u =>
-        (settings.headName && u.name.toLowerCase() === settings.headName.toLowerCase()) ||
-        (settings.headNip && u.username && u.username.toLowerCase() === settings.headNip.toLowerCase())
+        (settings.headName && u.name && u.name.trim().toLowerCase() === settings.headName.trim().toLowerCase()) ||
+        (settings.headNip && (u.nip === settings.headNip || u.username === settings.headNip))
     );
+
+    // Auto-sync NIY and Phone if a head user is matched but the fields are empty or '-'
+    useEffect(() => {
+        if (selectedHeadUser) {
+            const autoNiy = selectedHeadUser.nip || selectedHeadUser.username || '';
+            const autoPhone = selectedHeadUser.phone || '';
+            let needsUpdate = false;
+            let nextNip = settings.headNip;
+            let nextPhone = settings.phone;
+
+            if ((!settings.headNip || settings.headNip === '-') && autoNiy) {
+                nextNip = autoNiy;
+                needsUpdate = true;
+            }
+            if ((!settings.phone || settings.phone === '-') && autoPhone) {
+                nextPhone = autoPhone;
+                needsUpdate = true;
+            }
+            if (needsUpdate) {
+                setSettings(prev => ({
+                    ...prev,
+                    headNip: nextNip,
+                    phone: nextPhone
+                }));
+            }
+        }
+    }, [selectedHeadUser]);
+
+    const handleHeadUserChange = (userId) => {
+        const uid = parseInt(userId);
+        const found = eligibleHeadUsers.find(u => u.id === uid);
+        if (found) {
+            const autoNiy = found.nip || found.username || '';
+            const autoPhone = found.phone || '';
+            setSettings(prev => ({
+                ...prev,
+                headName: found.name,
+                headNip: autoNiy,
+                phone: autoPhone
+            }));
+        } else {
+            setSettings(prev => ({
+                ...prev,
+                headName: '',
+                headNip: '',
+                phone: ''
+            }));
+        }
+    };
 
     if (loading) {
         return (
@@ -232,72 +323,95 @@ export default function WorkshopBaruSettings() {
                     </div>
 
                     {/* Identitas Kepala Unit 21 (Dipilih dari User Unit 21) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-indigo-50/40 p-4 rounded-xl border border-indigo-100/80">
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-600 uppercase mb-1 block flex items-center justify-between">
-                                <span>Pilih Kepala Unit <span className="text-rose-500">*</span></span>
-                                <span className="text-[9px] text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded font-extrabold">User Unit 21</span>
-                            </label>
-                            <select
-                                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-semibold text-slate-800"
-                                value={selectedHeadUser ? selectedHeadUser.id : ''}
-                                onChange={(e) => {
-                                    const uid = parseInt(e.target.value);
-                                    const found = eligibleHeadUsers.find(u => u.id === uid);
-                                    if (found) {
-                                        setSettings(prev => ({
-                                            ...prev,
-                                            headName: found.name,
-                                            headNip: found.niy || found.nip || found.username || prev.headNip || '-',
-                                            phone: found.phone || prev.phone || ''
-                                        }));
-                                    } else {
-                                        setSettings(prev => ({
-                                            ...prev,
-                                            headName: '',
-                                            headNip: '',
-                                            phone: ''
-                                        }));
-                                    }
-                                }}
-                            >
-                                <option value="">-- Pilih User Unit 21 --</option>
-                                {eligibleHeadUsers.map(u => (
-                                    <option key={u.id} value={u.id}>
-                                        {u.name} ({u.position || 'Staff'} - {u.unit?.name || 'Unit 21'})
-                                    </option>
-                                ))}
-                            </select>
-                            {settings.headName && (
-                                <p className="text-[10px] text-indigo-700 font-semibold mt-1 truncate">
-                                    ✓ Kepala Unit: <strong>{settings.headName}</strong>
+                    <div className="space-y-4 bg-gradient-to-br from-indigo-50/70 to-blue-50/40 p-5 rounded-2xl border border-indigo-100 shadow-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                        <UserCheck size={13} className="text-indigo-600" />
+                                        Pilih Kepala Unit <span className="text-rose-500">*</span>
+                                    </span>
+                                    <span className="text-[9px] text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full font-bold">
+                                        User Unit 21
+                                    </span>
+                                </label>
+                                <select
+                                    className="w-full border border-indigo-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-semibold text-slate-800 shadow-sm transition-all"
+                                    value={selectedHeadUser ? selectedHeadUser.id : ''}
+                                    onChange={(e) => handleHeadUserChange(e.target.value)}
+                                >
+                                    <option value="">-- Pilih User Unit 21 --</option>
+                                    {eligibleHeadUsers.map(u => (
+                                        <option key={u.id} value={u.id}>
+                                            {u.name} (NIY: {u.nip || u.username || '-'}) - {u.position || 'Staff Workshop'}
+                                        </option>
+                                    ))}
+                                </select>
+                                {settings.headName && (
+                                    <p className="text-[11px] text-emerald-700 font-semibold mt-1.5 flex items-center gap-1 truncate">
+                                        <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                                        <span>Terpilih: <strong>{settings.headName}</strong></span>
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
+                                    <span>NIY / NIP Kepala Unit</span>
+                                    {settings.headNip && settings.headNip !== '-' && (
+                                        <span className="text-[9px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                                            <CheckCircle2 size={10} /> Terdata Otomatis
+                                        </span>
+                                    )}
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full border border-indigo-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-800 font-mono font-bold shadow-sm"
+                                    value={settings.headNip}
+                                    onChange={e => setSettings({ ...settings, headNip: e.target.value })}
+                                    placeholder="NIY terisi otomatis..."
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    {selectedHeadUser ? `Terdata langsung dari akun: ${selectedHeadUser.name}` : 'Otomatis terdata saat memilih user'}
                                 </p>
-                            )}
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-600 uppercase mb-1.5 flex items-center justify-between">
+                                    <span>No. Telepon / WhatsApp Unit</span>
+                                    {settings.phone && settings.phone !== '-' && (
+                                        <span className="text-[9px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                                            <CheckCircle2 size={10} /> Terdata Otomatis
+                                        </span>
+                                    )}
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full border border-indigo-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-800 font-semibold shadow-sm"
+                                    value={settings.phone}
+                                    onChange={e => setSettings({ ...settings, phone: e.target.value })}
+                                    placeholder="0812... / Kontak WhatsApp"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    {selectedHeadUser ? (selectedHeadUser.phone ? `Kontak WhatsApp aktif: ${selectedHeadUser.phone}` : 'Belum ada No HP di profil akun user') : 'Otomatis terdata saat memilih user'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-600 uppercase mb-1 block">
-                                NIY / NIP Kepala Unit
-                            </label>
-                            <input
-                                type="text"
-                                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-800 font-mono"
-                                value={settings.headNip}
-                                onChange={e => setSettings({ ...settings, headNip: e.target.value })}
-                                placeholder="Contoh: 19880101..."
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-600 uppercase mb-1 block">
-                                No. Telepon / WhatsApp Unit
-                            </label>
-                            <input
-                                type="text"
-                                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-800"
-                                value={settings.phone}
-                                onChange={e => setSettings({ ...settings, phone: e.target.value })}
-                                placeholder="0811..."
-                            />
-                        </div>
+
+                        {/* Status Sinkronisasi Langsung */}
+                        {selectedHeadUser && (
+                            <div className="flex items-center gap-2 p-3 rounded-xl bg-white/80 border border-indigo-100 text-indigo-900 text-xs font-medium shadow-xs">
+                                <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+                                <div className="leading-snug">
+                                    <span className="text-slate-600">Identitas Kepala Unit terdata otomatis dari Akun: </span>
+                                    <strong className="font-bold text-slate-900">{selectedHeadUser.name}</strong>
+                                    <span className="text-slate-500"> | NIY: </span>
+                                    <span className="font-mono font-bold text-indigo-800">{settings.headNip || selectedHeadUser.nip || selectedHeadUser.username || '-'}</span>
+                                    <span className="text-slate-500"> | WhatsApp: </span>
+                                    <span className="font-bold text-emerald-800">{settings.phone || selectedHeadUser.phone || '-'}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Daftar Butir Aturan Kepala Unit */}

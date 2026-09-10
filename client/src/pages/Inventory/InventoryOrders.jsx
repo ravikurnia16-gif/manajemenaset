@@ -4,7 +4,7 @@ import {
   Package, Minus, Filter, ArrowRight, Check, X, Store, ShoppingBag, 
   Sparkles, Calendar, User, Building2, FileText, AlertCircle, RefreshCw, 
   Printer, ExternalLink, ArrowLeft, Clock, ShieldCheck, CheckCheck, 
-  Tag, Info, AlertTriangle, Layers, ChevronRight, Copy
+  Tag, Info, AlertTriangle, Layers, ChevronRight, Copy, Warehouse
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import api from '../../lib/axios';
@@ -56,9 +56,10 @@ export default function InventoryOrders() {
     setLoading(true);
     try {
       const res = await api.get('/inventory/orders', { params: { status: statusFilter } });
-      setOrders(res.data || []);
+      setOrders(Array.isArray(res.data) ? res.data : (res.data?.data || []));
     } catch (e) {
       console.error(e);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -70,10 +71,12 @@ export default function InventoryOrders() {
         api.get('/inventory/items'),
         api.get('/inventory/warehouses')
       ]);
-      setItems(resItems.data || []);
-      setWarehouses(resWh.data || []);
+      setItems(Array.isArray(resItems.data) ? resItems.data : (resItems.data?.data || []));
+      setWarehouses(Array.isArray(resWh.data) ? resWh.data : (resWh.data?.data || []));
     } catch (e) {
       console.error(e);
+      setItems([]);
+      setWarehouses([]);
     }
   };
 
@@ -101,10 +104,10 @@ export default function InventoryOrders() {
 
   // Helper untuk cek stok barang di gudang
   const getItemStockInWh = (itemId, whId) => {
-    const it = items.find(i => i.id === itemId);
+    const it = (items || []).find(i => i.id === itemId);
     if (!it || !it.stocks) return 0;
     if (whId) {
-      const st = it.stocks.find(s => s.warehouseId === parseInt(whId));
+      const st = Array.isArray(it.stocks) ? it.stocks.find(s => s.warehouseId === parseInt(whId)) : null;
       return st?.quantity || 0;
     }
     return it.totalStock || 0;
@@ -215,7 +218,7 @@ export default function InventoryOrders() {
     setProcessData(prev => ({
       ...prev,
       status: prev.status === 'PENDING' ? 'APPROVED' : prev.status,
-      approvedItems: selectedOrder.items.map(it => ({
+      approvedItems: (selectedOrder.items || []).map(it => ({
         orderItemId: it.id,
         qtyApproved: it.qtyRequested
       }))
@@ -227,7 +230,7 @@ export default function InventoryOrders() {
     if (!selectedOrder) return;
     setProcessData(prev => ({
       ...prev,
-      approvedItems: selectedOrder.items.map(it => ({
+      approvedItems: (selectedOrder.items || []).map(it => ({
         orderItemId: it.id,
         qtyApproved: 0
       }))
@@ -279,26 +282,33 @@ export default function InventoryOrders() {
     }
   };
 
-  const filteredOrders = orders.filter(o => 
-    o.code.toLowerCase().includes(search.toLowerCase()) ||
-    o.requesterName.toLowerCase().includes(search.toLowerCase()) ||
-    (o.requesterUnit || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredOrders = (orders || []).filter(o => {
+    if (!o) return false;
+    const term = (search || '').toLowerCase();
+    const code = (o.code || '').toLowerCase();
+    const reqName = (o.requesterName || '').toLowerCase();
+    const reqUnit = (o.requesterUnit || '').toLowerCase();
+    return code.includes(term) || reqName.includes(term) || reqUnit.includes(term);
+  });
 
   // Categories extracted from items list
-  const categoryList = ['SEMUA', ...new Set(items.map(i => i.category?.name).filter(Boolean))];
+  const categoryList = ['SEMUA', ...new Set((items || []).map(i => i.category?.name).filter(Boolean))];
 
   // Filtered Catalog Items for E-Commerce View
-  const catalogItems = items.filter(item => {
-    const matchSearch = item.name.toLowerCase().includes(catalogSearch.toLowerCase()) || item.code.toLowerCase().includes(catalogSearch.toLowerCase());
+  const catalogItems = (items || []).filter(item => {
+    if (!item) return false;
+    const term = (catalogSearch || '').toLowerCase();
+    const nameMatch = (item.name || '').toLowerCase().includes(term);
+    const codeMatch = (item.code || '').toLowerCase().includes(term);
+    const matchSearch = nameMatch || codeMatch;
     const matchCategory = selectedCategory === 'SEMUA' || item.category?.name === selectedCategory;
     return matchSearch && matchCategory;
   });
 
   // Calculate Total Quantity & Estimated Value in Cart
-  const totalCartCount = formData.items.reduce((acc, curr) => acc + (parseInt(curr.qtyRequested) || 0), 0);
-  const totalEstimatedValue = formData.items.reduce((acc, curr) => {
-    const itemObj = items.find(i => i.id === curr.itemId);
+  const totalCartCount = (formData.items || []).reduce((acc, curr) => acc + (parseInt(curr.qtyRequested) || 0), 0);
+  const totalEstimatedValue = (formData.items || []).reduce((acc, curr) => {
+    const itemObj = (items || []).find(i => i.id === curr.itemId);
     const price = itemObj?.sellingPrice || itemObj?.price || 0;
     return acc + (price * (parseInt(curr.qtyRequested) || 0));
   }, 0);
@@ -398,11 +408,11 @@ export default function InventoryOrders() {
                   <tr key={order.id} className="hover:bg-blue-50/30 transition-colors">
                     <td className="p-3.5">
                       <div className="font-bold text-sm text-slate-800">
-                        {new Date(order.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {order.date ? new Date(order.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : (order.createdAt ? new Date(order.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-')}
                       </div>
-                      <div className="text-[11px] text-slate-500 font-mono font-bold mt-0.5">{order.code}</div>
+                      <div className="text-[11px] text-slate-500 font-mono font-bold mt-0.5">{order.code || '-'}</div>
                     </td>
-                    <td className="p-3.5 font-bold text-slate-800">{order.requesterName}</td>
+                    <td className="p-3.5 font-bold text-slate-800">{order.requesterName || '-'}</td>
                     <td className="p-3.5">
                       <span className="text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-medium text-[11px]">
                         {order.requesterUnit || 'Umum'}
@@ -820,10 +830,10 @@ export default function InventoryOrders() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base sm:text-lg font-black text-slate-800">Detail & Proses Pesanan</h2>
                     <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs font-mono text-xs font-bold text-blue-700">
-                      <span>{selectedOrder.code}</span>
+                      <span>{selectedOrder.code || '-'}</span>
                       <button
                         type="button"
-                        onClick={() => handleCopyOrderCode(selectedOrder.code)}
+                        onClick={() => handleCopyOrderCode(selectedOrder.code || '')}
                         className="text-slate-400 hover:text-blue-600 transition p-0.5"
                         title="Salin Kode Pesanan"
                       >
@@ -934,16 +944,16 @@ export default function InventoryOrders() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Identitas Pemohon</span>
-                  <div className="font-extrabold text-slate-800 text-sm">{selectedOrder.requesterName}</div>
+                  <div className="font-extrabold text-slate-800 text-sm">{selectedOrder.requesterName || '-'}</div>
                   <div className="text-xs font-semibold text-blue-700 mt-0.5">{selectedOrder.requesterUnit || 'Unit Umum'}</div>
                 </div>
 
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tanggal Permohonan</span>
                   <div className="font-bold text-slate-800 text-sm">
-                    {new Date(selectedOrder.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {selectedOrder.date ? new Date(selectedOrder.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Input: {new Date(selectedOrder.createdAt).toLocaleDateString('id-ID')}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Input: {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString('id-ID') : '-'}</div>
                 </div>
 
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
@@ -1008,17 +1018,17 @@ export default function InventoryOrders() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {selectedOrder.items.map((item) => {
-                        const approvedQtyValue = processData.approvedItems.find(ai => ai.orderItemId === item.id)?.qtyApproved ?? (item.qtyApproved ?? item.qtyRequested);
+                      {(selectedOrder.items || []).map((item) => {
+                        const approvedQtyValue = (processData.approvedItems || []).find(ai => ai.orderItemId === item.id)?.qtyApproved ?? (item.qtyApproved ?? item.qtyRequested);
                         const currentWhStock = getItemStockInWh(item.itemId, processData.warehouseId);
                         const isExceedWhStock = processData.status === 'COMPLETED' && processData.warehouseId && approvedQtyValue > currentWhStock;
 
                         return (
                           <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${isExceedWhStock ? 'bg-rose-50/40' : ''}`}>
                             <td className="p-3">
-                              <div className="font-extrabold text-slate-800 text-sm">{item.item?.name}</div>
+                              <div className="font-extrabold text-slate-800 text-sm">{item.item?.name || 'Barang'}</div>
                               <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                {item.item?.code} • {item.item?.category?.name || 'Umum'} • [{item.item?.unit || 'Pcs'}]
+                                {item.item?.code || '-'} • {item.item?.category?.name || 'Umum'} • [{item.item?.unit || 'Pcs'}]
                               </div>
                             </td>
                             
@@ -1055,7 +1065,7 @@ export default function InventoryOrders() {
                                     }`} 
                                     value={approvedQtyValue}
                                     onChange={(e) => {
-                                      const newAppItems = [...processData.approvedItems];
+                                      const newAppItems = [...(processData.approvedItems || [])];
                                       const existIdx = newAppItems.findIndex(ai => ai.orderItemId === item.id);
                                       const val = parseInt(e.target.value) || 0;
                                       if (existIdx >= 0) newAppItems[existIdx].qtyApproved = val;
@@ -1145,7 +1155,7 @@ export default function InventoryOrders() {
                       onChange={e => setProcessData({...processData, warehouseId: e.target.value})}
                     >
                       <option value="">-- Wajib Pilih Gudang Sumber Pengeluaran --</option>
-                      {warehouses.map(wh => (
+                      {(warehouses || []).map(wh => (
                         <option key={wh.id} value={wh.id}>{wh.name} {wh.location ? `(${wh.location})` : ''}</option>
                       ))}
                     </select>

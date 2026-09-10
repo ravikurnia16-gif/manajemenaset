@@ -7,7 +7,7 @@ import api from '../lib/axios';
 
 const ProcurementForm = () => {
     const navigate = useNavigate();
-    const [header, setHeader] = useState({ title: '', rkbId: '', isDirectOrder: false, assignedStaffId: '', type: 'ASSET' });
+    const [header, setHeader] = useState({ title: '', notes: '', rkbId: '', isDirectOrder: false, assignedStaffId: '', type: 'ASSET' });
     const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
     const [categories, setCategories] = useState([]);
     const [staffList, setStaffList] = useState([]);
@@ -190,15 +190,38 @@ const ProcurementForm = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Header Section */}
-                    <div className="bg-slate-50 p-3 sm:p-6 rounded-xl border border-slate-200">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Judul Pengajuan (Wajib)</label>
-                        <input
-                            className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700"
-                            placeholder="Contoh: Pengadaan Alat TIK untuk Unit IT"
-                            value={header.title}
-                            onChange={e => setHeader({ ...header, title: e.target.value })}
-                            required
-                        />
+                    <div className="bg-slate-50 p-3 sm:p-6 rounded-xl border border-slate-200 space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Judul Pengajuan (Wajib)</label>
+                            <input
+                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700 bg-white"
+                                placeholder="Contoh: Pengadaan Alat TIK untuk Unit IT"
+                                value={header.title}
+                                onChange={e => setHeader({ ...header, title: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-sm font-bold text-slate-700">
+                                    Catatan / Keterangan (Opsional)
+                                </label>
+                                <span className="text-[11px] font-semibold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full">
+                                    Untuk Admin Aset
+                                </span>
+                            </div>
+                            <textarea
+                                rows={3}
+                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700 placeholder:text-slate-400 bg-white resize-y"
+                                placeholder="Tuliskan catatan atau keterangan kepada Admin Aset (opsional, contoh: alasan mendesak, referensi link/toko, atau kebutuhan spesifikasi tertentu)..."
+                                value={header.notes}
+                                onChange={e => setHeader({ ...header, notes: e.target.value })}
+                            />
+                            <p className="text-[11px] text-slate-500 mt-1">
+                                Keterangan ini akan disampaikan kepada Admin Aset untuk mempermudah peninjauan dan tindak lanjut pengadaan.
+                            </p>
+                        </div>
                     </div>
 
                     {/* Direct Order Panel (Super Admin / Kabid Only) */}

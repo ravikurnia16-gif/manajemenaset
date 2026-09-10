@@ -885,6 +885,38 @@ const ProcurementDetail = () => {
                 </div>
             </div>
 
+            {/* ── CATATAN PEMOHON UNTUK ADMIN ASET ── */}
+            {req.notes && (
+                <div style={{
+                    background: '#fef9ed',
+                    border: '1.5px solid #f2e2ba',
+                    borderRadius: 14,
+                    padding: '16px 20px',
+                    marginBottom: 24,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 14,
+                    boxShadow: '0 2px 8px rgba(176,125,42,0.06)'
+                }}>
+                    <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: '#c9a453', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        color: '#ffffff'
+                    }}>
+                        <FileText size={18} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#8a6519', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                            Catatan / Keterangan Pemohon untuk Admin Aset
+                        </div>
+                        <div style={{ fontSize: 13, color: '#453310', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontWeight: 500 }}>
+                            {req.notes}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── STEPPER ── */}
             <div style={{ marginBottom: 24 }}>
                 <Stepper

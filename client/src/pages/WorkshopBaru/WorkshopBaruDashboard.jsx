@@ -75,7 +75,7 @@ function WorkshopBaruDashboard() {
         return false;
     });
 
-    const getStatusBadge = (status) => {
+    const getStatusBadge = (status, order) => {
         const config = {
             DRAFT: { label: 'Draft', bg: 'bg-slate-100 text-slate-700 border-slate-200' },
             PENDING: { label: 'Antrean Masuk', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -86,9 +86,16 @@ function WorkshopBaruDashboard() {
         };
         const item = config[status] || { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
         return (
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${item.bg}`}>
-                {item.label}
-            </span>
+            <div className="flex items-center gap-1.5">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${item.bg}`}>
+                    {item.label}
+                </span>
+                {status === 'IN_PROGRESS' && order && order.currentPercentage !== undefined && (
+                    <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        {order.currentPercentage}%
+                    </span>
+                )}
+            </div>
         );
     };
 
@@ -377,7 +384,7 @@ function WorkshopBaruDashboard() {
                                         {order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                     </div>
                                 </div>
-                                {getStatusBadge(order.status)}
+                                {getStatusBadge(order.status, order)}
                                 <ChevronRight size={18} className="text-slate-400" />
                             </div>
                         </div>
