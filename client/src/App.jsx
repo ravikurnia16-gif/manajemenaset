@@ -255,12 +255,12 @@ function App() {
           <Route path="workshop/orders/new" element={<WorkshopOrderForm />} />
           <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
 
-          {/* Modul Baru: Manajemen Workshop Baru (Unit 21) */}
-          <Route path="workshop-baru/dashboard" element={<WorkshopBaruDashboard />} />
-          <Route path="workshop-baru/board" element={<WorkshopBaruBoard />} />
-          <Route path="workshop-baru/orders/:id" element={<WorkshopBaruDetail />} />
-          <Route path="workshop-baru/orders/new" element={<WorkshopOrderForm />} />
-          <Route path="workshop-baru/settings" element={<WorkshopBaruSettings />} />
+          {/* Modul Baru: Manajemen Workshop Baru (Unit 21) - Khusus Kepala Bidang Sarana */}
+          <Route path="workshop-baru/dashboard" element={isKabidSarpras ? <WorkshopBaruDashboard /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/board" element={isKabidSarpras ? <WorkshopBaruBoard /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/orders/:id" element={isKabidSarpras ? <WorkshopBaruDetail /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/orders/new" element={isKabidSarpras ? <WorkshopOrderForm /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/settings" element={isKabidSarpras ? <WorkshopBaruSettings /> : <Navigate to="/dashboard" replace />} />
 
           <Route path="settings" element={<Settings />} />
 

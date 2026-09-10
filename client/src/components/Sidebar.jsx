@@ -221,8 +221,8 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* Manajemen Workshop Baru (Unit 21) */}
-                {isWorkshopAdmin && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (
+                {/* Manajemen Workshop Baru (Unit 21) - Khusus Kepala Bidang Sarana */}
+                {isKabidSarpras && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (
                     <>
                         <Link to="/workshop-baru/dashboard" className={subNavItemClass('/workshop-baru/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard Unit 21
