@@ -10,6 +10,7 @@ import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
 import { ExchangeForm } from '../ExchangeForm';
 import { BatchInvoiceTab } from '../BatchInvoiceTab';
+import OrdersNavTabs from '../../../components/OrdersNavTabs';
 
 export default function SalesPage() {
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -26,7 +27,7 @@ export default function SalesPage() {
         { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> }
     ];
 
-    const [activeTab, setActiveTab] = useState('sales_retail');
+    const [activeTab, setActiveTab] = useState(isSuperOrAdminAset ? 'sales_retail' : 'sales_spmb');
     
     // Data states
     const [sales, setSales] = useState([]);
@@ -153,6 +154,9 @@ export default function SalesPage() {
 
     return (
         <div className="space-y-6">
+            {/* Tab Navigasi 3 Pesanan Terpadu */}
+            <OrdersNavTabs activeTab="seragam" />
+
             <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
                     <ShoppingCart size={24} />

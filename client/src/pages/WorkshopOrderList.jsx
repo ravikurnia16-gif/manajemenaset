@@ -14,6 +14,7 @@ import {
 import api from '../lib/axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import OrdersNavTabs from '../components/OrdersNavTabs';
 
 function WorkshopOrderList() {
     const location = useLocation();
@@ -23,7 +24,9 @@ function WorkshopOrderList() {
 
     const userStr = localStorage.getItem('user');
     const userObj = userStr ? JSON.parse(userStr) : null;
-    const canCreateOrder = userObj && (['SUPER_ADMIN', 'ADMIN_ASET'].includes(userObj.role) || userObj.unitId === 21);
+    const isAdminAsetOrSuper = userObj && ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(userObj.role);
+    // User unit hanya lihat saja apa pesanan unit di workshop, tidak ada fitur buat pesanan
+    const canCreateOrder = isAdminAsetOrSuper;
 
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -93,16 +96,32 @@ function WorkshopOrderList() {
     };
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
+        <div className="p-4 sm:p-6 space-y-6 bg-slate-50 min-h-screen">
+            {/* Tab Navigasi 3 Pesanan Terpadu */}
+            <OrdersNavTabs activeTab="workshop" />
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex items-center space-x-3">
-                    <button onClick={() => navigate('/workshop/dashboard')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                        <ArrowLeft size={20} />
-                    </button>
+                    {isAdminAsetOrSuper && (
+                        <button onClick={() => navigate('/workshop/dashboard')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors" title="Kembali ke Dashboard Workshop">
+                            <ArrowLeft size={20} />
+                        </button>
+                    )}
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">Daftar Pesanan Workshop</h1>
-                        <p className="text-sm text-gray-500">
-                            Kelola pesanan pekerjaan Workshop Kayu & Besi
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
+                                {isAdminAsetOrSuper ? 'Daftar Pesanan Workshop' : 'Pesanan Workshop Unit'}
+                            </h1>
+                            {!isAdminAsetOrSuper && (
+                                <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 text-xs font-bold rounded-full border border-amber-200">
+                                    Hanya Lihat
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                            {isAdminAsetOrSuper 
+                                ? 'Kelola pesanan pekerjaan Workshop Kayu & Besi'
+                                : 'Pantau progres dan status pengerjaan pesanan workshop untuk unit Anda (Hanya Lihat).'}
                             {userObj?.unit?.name && (
                                 <span className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100 font-semibold">
                                     Unit: {userObj.unit.name}
@@ -113,7 +132,7 @@ function WorkshopOrderList() {
                 </div>
                 <div className="flex space-x-2">
                     {canCreateOrder && (
-                        <Link to="/workshop/orders/new" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center shadow-sm">
+                        <Link to="/workshop/orders/new" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl flex items-center shadow-sm text-xs sm:text-sm font-bold">
                             <Plus size={18} className="mr-2" />
                             Buat Pesanan
                         </Link>
@@ -248,7 +267,7 @@ function WorkshopOrderList() {
                                                 <Link to={`/workshop/orders/${order.id}`} className="text-blue-600 hover:text-blue-900 p-1.5 hover:bg-blue-50 rounded" title="Lihat Detail">
                                                     <Eye size={18} />
                                                 </Link>
-                                                {(order.status === 'DRAFT' || order.status === 'PENDING') && (
+                                                {isAdminAsetOrSuper && (order.status === 'DRAFT' || order.status === 'PENDING') && (
                                                     <button onClick={() => handleDelete(order.id, order.code)} className="text-red-600 hover:text-red-900 p-1.5 hover:bg-red-50 rounded" title="Hapus">
                                                         <Trash2 size={18} />
                                                     </button>

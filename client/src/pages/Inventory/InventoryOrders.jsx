@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
 import SignaturePad from '../../components/SignaturePad';
+import OrdersNavTabs from '../../components/OrdersNavTabs';
 
 export default function InventoryOrders() {
   const [orders, setOrders] = useState([]);
@@ -981,6 +982,9 @@ export default function InventoryOrders() {
   return (
     <div className="p-4 sm:p-6 space-y-6 bg-slate-50 min-h-screen">
       
+      {/* Tab Navigasi 3 Pesanan Terpadu */}
+      <OrdersNavTabs activeTab="logistik" />
+
       {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div>

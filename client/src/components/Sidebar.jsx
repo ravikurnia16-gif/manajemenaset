@@ -14,10 +14,13 @@ const Sidebar = ({ isOpen = true }) => {
         construction: false,
         vehicles: false,
         warehouse: false,
+        inventory: location.pathname.startsWith('/inventory'),
+        seragam: location.pathname.startsWith('/gudang/seragam'),
+        gudangSeragam: location.pathname.startsWith('/inventory') || location.pathname.startsWith('/gudang/seragam') || location.pathname.startsWith('/workshop/orders'),
         personnel: false,
         laporan: false,
         eoffice: false,
-        workshop: false,
+        workshop: location.pathname.startsWith('/workshop') && !location.pathname.startsWith('/workshop-baru'),
         workshopBaru: location.pathname.startsWith('/workshop-baru'),
         survey: false,
         security: false
@@ -79,6 +82,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     
     const isAdminAset = role === 'ADMIN_ASET';
+    const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) || isWarehouseAdmin;
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || role === 'AUDITOR';
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(role) || isKabidSarpras;
 
@@ -209,8 +213,8 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* Manajemen Workshop (Lama / Umum) */}
-                {renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
+                {/* Manajemen Workshop (Lama / Umum) - Hanya untuk Admin */}
+                {isAdminAsetOrSuper && renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
                     <>
                         <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
@@ -272,8 +276,8 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 3. Manajemen Pergudangan Baru (Inventory) */}
-                {renderCollapsible('inventory', <Warehouse size={18} />, 'Manajemen Gudang', (
+                {/* 3. Manajemen Pergudangan Baru (Inventory) - Khusus Admin */}
+                {isAdminAsetOrSuper && renderCollapsible('inventory', <Warehouse size={18} />, 'Manajemen Gudang', (
                     <>
                         <Link to="/inventory/dashboard" className={subNavItemClass('/inventory/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
@@ -299,37 +303,42 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-
-
-                {/* 4. Manajemen Seragam */}
-                {renderCollapsible('seragam', <Shirt size={18} />, 'Manajemen Seragam', (
+                {/* 4. Manajemen Seragam - Khusus Admin */}
+                {isAdminAsetOrSuper && renderCollapsible('seragam', <Shirt size={18} />, 'Manajemen Seragam', (
                     <>
-                        {['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) ? (
-                            <>
-                                <Link to="/gudang/seragam/dashboard" className={subNavItemClass('/gudang/seragam/dashboard')}>
-                                    <LayoutDashboard size={16} /> Dashboard
-                                </Link>
-                                <Link to="/gudang/seragam/master" className={subNavItemClass('/gudang/seragam/master')}>
-                                    <Database size={16} /> Data Induk
-                                </Link>
-                                <Link to="/gudang/seragam/stok" className={subNavItemClass('/gudang/seragam/stok')}>
-                                    <Boxes size={16} /> Stok & Inventori
-                                </Link>
-                                <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
-                                    <ShoppingCart size={16} /> Pesanan Seragam
-                                </Link>
-                                <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
-                                    <Users size={16} /> Vendor & Produksi
-                                </Link>
-                                <Link to="/gudang/seragam/keuangan" className={subNavItemClass('/gudang/seragam/keuangan')}>
-                                    <FileSignature size={16} /> Laporan Keuangan
-                                </Link>
-                            </>
-                        ) : (
-                            <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
-                                <ShoppingCart size={16} /> Pesanan SPMB
-                            </Link>
-                        )}
+                        <Link to="/gudang/seragam/dashboard" className={subNavItemClass('/gudang/seragam/dashboard')}>
+                            <LayoutDashboard size={16} /> Dashboard
+                        </Link>
+                        <Link to="/gudang/seragam/master" className={subNavItemClass('/gudang/seragam/master')}>
+                            <Database size={16} /> Data Induk
+                        </Link>
+                        <Link to="/gudang/seragam/stok" className={subNavItemClass('/gudang/seragam/stok')}>
+                            <Boxes size={16} /> Stok & Inventori
+                        </Link>
+                        <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
+                            <ShoppingCart size={16} /> Pesanan Seragam
+                        </Link>
+                        <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
+                            <Users size={16} /> Vendor & Produksi
+                        </Link>
+                        <Link to="/gudang/seragam/keuangan" className={subNavItemClass('/gudang/seragam/keuangan')}>
+                            <FileSignature size={16} /> Laporan Keuangan
+                        </Link>
+                    </>
+                ))}
+
+                {/* Menu Terpadu untuk User Non-Admin (Unit Kerja): Layanan Pesanan Unit */}
+                {!isAdminAsetOrSuper && renderCollapsible('gudangSeragam', <ShoppingCart size={18} />, 'Layanan Pesanan Unit', (
+                    <>
+                        <Link to="/inventory/pesanan" className={subNavItemClass('/inventory/pesanan')}>
+                            <Box size={16} /> Pesanan Logistik
+                        </Link>
+                        <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
+                            <Shirt size={16} /> Pesanan Seragam
+                        </Link>
+                        <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
+                            <Wrench size={16} /> Pesanan Workshop
+                        </Link>
                     </>
                 ))}
 
