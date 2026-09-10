@@ -3,6 +3,9 @@ const prisma = new PrismaClient();
 const xlsx = require('xlsx');
 const fs = require('fs');
 const { uploadFile, deleteFile } = require('../services/minioService');
+const { createNotification } = require('./notificationController');
+const { sendPushToUser } = require('../services/pushService');
+const whatsappService = require('../services/whatsappService');
 
 const uploadBase64 = async (base64String, folder = 'inventory/items') => {
     if (!base64String || typeof base64String !== 'string' || !base64String.startsWith('data:')) return base64String;
@@ -737,6 +740,255 @@ const generateOrderCode = async () => {
     return `${prefix}${(maxSeq + 1).toString().padStart(4, '0')}`;
 };
 
+// ==========================================
+// NOTIFIKASI PESANAN BARANG GUDANG & LOGISTIK
+// ==========================================
+
+// Helper: Cari staff yang posisinya mengandung frasa tepat 'Staff Gudang dan Logistik' (case-insensitive)
+const getStaffGudangDanLogistikUsers = async () => {
+    try {
+        const users = await prisma.user.findMany({
+            select: { id: true, name: true, username: true, phone: true, position: true }
+        });
+        return users.filter(u => 
+            u.position && u.position.trim().toLowerCase().includes('staff gudang dan logistik')
+        );
+    } catch (e) {
+        console.error('[Inventory Notif Error] getStaffGudangDanLogistikUsers:', e.message);
+        return [];
+    }
+};
+
+// 1. Notifikasi saat pesanan barang baru dilakukan oleh user
+const notifyStaffGudangNewOrder = async (order, items = [], requesterUser = null) => {
+    try {
+        const staffUsers = await getStaffGudangDanLogistikUsers();
+        const itemCount = (order.items && order.items.length) ? order.items.length : items.length;
+        const link = `/inventory/pesanan`;
+
+        let itemsSummary = '';
+        if (order.items && order.items.length > 0) {
+            itemsSummary = order.items.map(it => `- ${it.item?.name || 'Item #' + it.itemId} (${it.qtyRequested || 0} ${it.item?.unit || 'unit'})`).join('\n');
+        }
+
+        const staffTitle = `Pesanan Baru: ${order.code}`;
+        const staffMessage = `Pesanan baru masuk dari ${order.requesterName} (${order.requesterUnit || 'Umum'}) sebanyak ${itemCount} jenis barang.`;
+
+        for (const staff of staffUsers) {
+            // In-app notification
+            createNotification(staff.id, staffTitle, staffMessage, 'INFO', link).catch(err =>
+                console.warn(`[Inventory Notif] Gagal in-app ke staff ${staff.id}:`, err.message)
+            );
+            // Web Push notification
+            sendPushToUser(staff.id, staffTitle, staffMessage, link).catch(err =>
+                console.warn(`[Inventory Push] Gagal push ke staff ${staff.id}:`, err.message)
+            );
+            // WhatsApp message
+            if (staff.phone) {
+                const waMsg = `📦 *PESANAN BARANG GUDANG & LOGISTIK BARU*\n\nKode: *${order.code}*\nPemohon: *${order.requesterName}*\nUnit: *${order.requesterUnit || 'Umum'}*\nJumlah Barang: *${itemCount} macam*\nTanggal: ${new Date(order.date || Date.now()).toLocaleDateString('id-ID')}\n\n*Rincian Barang:*\n${itemsSummary || `${itemCount} macam barang`}\n\nSilakan buka sistem Manajemen Aset untuk menindaklanjuti:\n${process.env.CLIENT_URL || 'https://sarpras.dareliman.or.id'}/inventory/pesanan`;
+                whatsappService.sendMessage(staff.phone, waMsg).catch(err =>
+                    console.warn(`[Inventory WA] Gagal WA ke staff ${staff.phone}:`, err.message)
+                );
+            }
+        }
+
+        // Konfirmasi notifikasi kepada user pemohon
+        if (order.createdById) {
+            const userTitle = `Pesanan Berhasil Diajukan: ${order.code}`;
+            const userMsg = `Pesanan barang ${order.code} berhasil diajukan dan sedang menunggu proses dari Staff Gudang dan Logistik.`;
+            createNotification(order.createdById, userTitle, userMsg, 'SUCCESS', link).catch(() => {});
+            sendPushToUser(order.createdById, userTitle, userMsg, link).catch(() => {});
+
+            const userPhone = requesterUser?.phone || order.createdBy?.phone;
+            if (userPhone) {
+                const waUserMsg = `Halo *${order.requesterName}*,\n\nPesanan barang Anda *${order.code}* berhasil diajukan ke Staff Gudang dan Logistik. Anda akan menerima notifikasi setiap ada pembaruan detail pesanan.`;
+                whatsappService.sendMessage(userPhone, waUserMsg).catch(() => {});
+            }
+        }
+    } catch (e) {
+        console.error('[Inventory Notif Error] notifyStaffGudangNewOrder:', e.message);
+    }
+};
+
+// 2. Notifikasi ketika user mengklik / meninjau pesanan
+const notifyOrderClick = async (order, viewerUser) => {
+    if (!order || !viewerUser) return;
+    try {
+        const orderCode = order.code;
+        const requesterId = order.createdById;
+        const viewerId = viewerUser.id;
+        const viewerName = viewerUser.name || viewerUser.username || 'Pengguna';
+        const link = `/inventory/pesanan`;
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+        // Jika viewer adalah pemohon sendiri
+        if (viewerId === requesterId) {
+            const recentNotif = await prisma.notification.findFirst({
+                where: {
+                    userId: viewerId,
+                    createdAt: { gte: tenMinutesAgo },
+                    title: { contains: 'Meninjau Pesanan' },
+                    message: { contains: orderCode }
+                }
+            });
+
+            if (!recentNotif) {
+                const title = `Meninjau Pesanan: ${orderCode}`;
+                const body = `Anda sedang membuka rincian pesanan ${orderCode}. Status saat ini: ${order.status || 'PENDING'}.`;
+                await createNotification(viewerId, title, body, 'INFO', link);
+                await sendPushToUser(viewerId, title, body, link);
+            }
+        } else {
+            // Jika viewer adalah staff / admin -> beri tahu pemohon bahwa pesanannya sedang dibuka & ditinjau
+            if (requesterId) {
+                const recentReqNotif = await prisma.notification.findFirst({
+                    where: {
+                        userId: requesterId,
+                        createdAt: { gte: tenMinutesAgo },
+                        title: { contains: 'Pesanan Sedang Ditinjau' },
+                        message: { contains: orderCode }
+                    }
+                });
+
+                if (!recentReqNotif) {
+                    const title = `Pesanan Sedang Ditinjau: ${orderCode}`;
+                    const body = `Pesanan barang Anda (${orderCode}) sedang dibuka dan ditinjau oleh ${viewerName}.`;
+                    await createNotification(requesterId, title, body, 'INFO', link);
+                    await sendPushToUser(requesterId, title, body, link);
+                }
+            }
+
+            // Notifikasi konfirmasi kepada viewer
+            const recentViewerNotif = await prisma.notification.findFirst({
+                where: {
+                    userId: viewerId,
+                    createdAt: { gte: tenMinutesAgo },
+                    title: { contains: 'Membuka Pesanan' },
+                    message: { contains: orderCode }
+                }
+            });
+
+            if (!recentViewerNotif) {
+                const title = `Membuka Pesanan: ${orderCode}`;
+                const body = `Anda membuka rincian pesanan ${orderCode} milik ${order.requesterName} (${order.requesterUnit || 'Umum'}).`;
+                await createNotification(viewerId, title, body, 'INFO', link);
+            }
+        }
+    } catch (e) {
+        console.error('[Inventory Notif Error] notifyOrderClick:', e.message);
+    }
+};
+
+// 3. Notifikasi setiap ada update detail pesanan kepada user
+const notifyOrderUpdate = async (orderId, updateType, details = {}) => {
+    try {
+        const order = await prisma.invOrder.findUnique({
+            where: { id: orderId },
+            include: {
+                createdBy: { select: { id: true, name: true, phone: true } },
+                items: { include: { item: true } }
+            }
+        });
+
+        if (!order || !order.createdById) return;
+
+        const link = `/inventory/pesanan`;
+        const requesterId = order.createdById;
+        const requesterPhone = order.createdBy?.phone;
+        const orderCode = order.code;
+
+        let title = `Pembaruan Pesanan: ${orderCode}`;
+        let message = `Rincian pesanan barang Anda (${orderCode}) telah diperbarui.`;
+        let notifType = 'INFO';
+        let waText = '';
+
+        if (updateType === 'STATUS') {
+            const statusLabels = {
+                'PENDING': 'Menunggu Persetujuan',
+                'APPROVED': 'Disetujui',
+                'PROCESS': 'Sedang Diproses di Gudang',
+                'COMPLETED': 'Selesai / Barang Diterima',
+                'REJECTED': 'Ditolak'
+            };
+            const label = statusLabels[details.status] || details.status;
+            notifType = details.status === 'COMPLETED' || details.status === 'APPROVED' ? 'SUCCESS' : (details.status === 'REJECTED' ? 'WARNING' : 'INFO');
+            title = `Status Pesanan Diperbarui: ${orderCode}`;
+            message = `Pesanan barang ${orderCode} telah diperbarui ke status "${label}".`;
+            if (details.note) {
+                message += ` Catatan: ${details.note}`;
+            }
+
+            waText = `📢 *UPDATE STATUS PESANAN GUDANG*\n\nHalo *${order.requesterName}*,\n\nPesanan barang Anda *${orderCode}* telah diperbarui:\nStatus: *${label}*\n${details.note ? `Catatan: ${details.note}\n` : ''}\nSilakan periksa detail pesanan di sistem Manajemen Aset:\n${process.env.CLIENT_URL || 'https://sarpras.dareliman.or.id'}/inventory/pesanan`;
+        } else if (updateType === 'PAYMENT') {
+            const isPaid = details.paymentStatus === 'PAID';
+            notifType = isPaid ? 'SUCCESS' : 'INFO';
+            title = isPaid ? `Pembayaran Lunas: ${orderCode}` : `Update Pembayaran: ${orderCode}`;
+            message = isPaid 
+                ? `Faktur pesanan ${orderCode} telah ditandai LUNAS via ${details.paymentMethod || 'Tunai/Kasir'}. Terima kasih!`
+                : `Faktur pesanan ${orderCode} berstatus BELUM LUNAS.${details.dueDate ? ` Jatuh tempo: ${new Date(details.dueDate).toLocaleDateString('id-ID')}.` : ''}`;
+            if (details.paymentNote) {
+                message += ` Catatan: ${details.paymentNote}`;
+            }
+
+            waText = `💳 *UPDATE PEMBAYARAN PESANAN GUDANG*\n\nHalo *${order.requesterName}*,\n\nKode Pesanan: *${orderCode}*\nStatus Pembayaran: *${isPaid ? '✓ LUNAS' : '⏳ BELUM LUNAS'}*\n${isPaid ? `Metode: ${details.paymentMethod || 'Tunai/Kasir'}\n` : (details.dueDate ? `Jatuh Tempo: ${new Date(details.dueDate).toLocaleDateString('id-ID')}\n` : '')}${details.paymentNote ? `Catatan: ${details.paymentNote}\n` : ''}\nTerima kasih atas kerja samanya.`;
+        } else if (updateType === 'SIGNATURE') {
+            const sigType = details.type;
+            const action = details.action;
+            const signerName = details.signerName;
+
+            if (sigType === 'kabid') {
+                if (action === 'RESET') {
+                    title = `ACC Dibatalkan: ${orderCode}`;
+                    message = `Pengesahan ACC Kepala Bidang Sarana untuk pesanan ${orderCode} telah dibatalkan.`;
+                    notifType = 'WARNING';
+                } else {
+                    title = `Dokumen Di-ACC Resmi: ${orderCode}`;
+                    message = `Faktur pesanan ${orderCode} telah resmi di-ACC & disahkan oleh Kepala Bidang Sarana. Dokumen siap dicetak.`;
+                    notifType = 'SUCCESS';
+                    waText = `✍️ *ACC RESMI KEPALA BIDANG SARANA*\n\nHalo *${order.requesterName}*,\n\nFaktur pesanan barang Anda *${orderCode}* telah *di-ACC & Disahkan* oleh Kepala Bidang Sarana.\nDokumen resmi nota & BAST sudah siap dicetak atau diunduh di sistem Manajemen Aset.`;
+                }
+            } else if (sigType === 'deliverer') {
+                if (action === 'RESET') {
+                    title = `Tanda Tangan Penyerah Dihapus: ${orderCode}`;
+                    message = `Tanda tangan petugas penyerah barang pada pesanan ${orderCode} telah dihapus.`;
+                } else {
+                    title = `Serah Terima Ditandatangani: ${orderCode}`;
+                    message = `Petugas Gudang (${signerName || 'Petugas Logistik'}) telah menandatangani penyerahan barang ${orderCode}.`;
+                    notifType = 'INFO';
+                }
+            } else if (sigType === 'requester') {
+                if (action === 'RESET') {
+                    title = `Tanda Tangan Pemohon Dihapus: ${orderCode}`;
+                    message = `Tanda tangan pemohon barang pada pesanan ${orderCode} telah dihapus.`;
+                } else {
+                    title = `Tanda Tangan Pemohon Tersimpan: ${orderCode}`;
+                    message = `Tanda tangan pemohon barang pada pesanan ${orderCode} berhasil disimpan.`;
+                    notifType = 'SUCCESS';
+                }
+            }
+        }
+
+        // Send in-app notification
+        createNotification(requesterId, title, message, notifType, link).catch(err =>
+            console.warn(`[Inventory Notif] Gagal in-app ke user ${requesterId}:`, err.message)
+        );
+
+        // Send web push notification
+        sendPushToUser(requesterId, title, message, link).catch(err =>
+            console.warn(`[Inventory Push] Gagal push ke user ${requesterId}:`, err.message)
+        );
+
+        // Send WhatsApp if applicable
+        if (waText && requesterPhone) {
+            whatsappService.sendMessage(requesterPhone, waText).catch(err =>
+                console.warn(`[Inventory WA] Gagal WA ke user ${requesterPhone}:`, err.message)
+            );
+        }
+    } catch (e) {
+        console.error('[Inventory Notif Error] notifyOrderUpdate:', e.message);
+    }
+};
+
 // Helper to parse order note, metadata, payment, and signatures
 const parseOrderSignatures = (order) => {
     if (!order) return order;
@@ -791,15 +1043,48 @@ const parseOrderSignatures = (order) => {
 exports.getOrders = async (req, res) => {
     const { status, paymentStatus } = req.query;
     try {
+        const user = req.user;
+        const isAdmin = user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
+
         const where = status ? { status } : {};
+
+        // 3. User selain admin aset dan super admin, hanya bisa melihat semua pesanan dari unit nya
+        if (!isAdmin && user) {
+            const userProfile = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: { id: true, unitId: true, unit: { select: { id: true, name: true } } }
+            });
+
+            const unitId = userProfile?.unitId || user.unitId;
+            const unitName = userProfile?.unit?.name;
+
+            const unitConditions = [
+                { createdById: user.id }
+            ];
+
+            if (unitId) {
+                unitConditions.push({ createdBy: { unitId: unitId } });
+            }
+
+            if (unitName) {
+                unitConditions.push({ requesterUnit: { contains: unitName } });
+            }
+
+            where.AND = [
+                ...(where.AND || []),
+                { OR: unitConditions }
+            ];
+        }
+
         const orders = await prisma.invOrder.findMany({
             where,
             include: {
                 items: { include: { item: { include: { category: true } } } },
-                createdBy: { select: { name: true, username: true } }
+                createdBy: { select: { id: true, name: true, username: true, unitId: true } }
             },
             orderBy: { date: 'desc' }
         });
+
         let parsedOrders = orders.map(parseOrderSignatures);
         if (paymentStatus) {
             if (paymentStatus === 'OVERDUE') {
@@ -831,10 +1116,39 @@ exports.getOrderById = async (req, res) => {
                         }
                     }
                 },
-                createdBy: { select: { name: true, username: true } }
+                createdBy: { select: { id: true, name: true, username: true, phone: true, unitId: true } }
             }
         });
         if (!order) return res.status(404).json({ error: 'Invoice pesanan gudang tidak ditemukan' });
+
+        // Pemeriksaan hak akses pesanan untuk user non-admin
+        if (req.user) {
+            const user = req.user;
+            const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
+
+            if (!isAdmin) {
+                const userProfile = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: { id: true, unitId: true, unit: { select: { id: true, name: true } } }
+                });
+
+                const unitId = userProfile?.unitId || user.unitId;
+                const unitName = (userProfile?.unit?.name || '').toLowerCase();
+                const reqUnit = (order.requesterUnit || '').toLowerCase();
+
+                const isCreator = order.createdById === user.id;
+                const isSameUnitId = unitId && order.createdBy?.unitId === unitId;
+                const isSameUnitName = unitName && reqUnit && reqUnit.includes(unitName);
+
+                if (!isCreator && !isSameUnitId && !isSameUnitName) {
+                    return res.status(403).json({ error: 'Akses Ditolak: Anda hanya dapat mengakses pesanan dari unit kerja Anda.' });
+                }
+            }
+
+            // 2. Notifikasi saat pesanan diklik / ditinjau oleh user
+            notifyOrderClick(order, req.user);
+        }
+
         res.json(parseOrderSignatures(order));
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
@@ -870,9 +1184,15 @@ exports.createOrder = async (req, res) => {
                     }))
                 }
             },
-            include: { items: true }
+            include: {
+                items: { include: { item: true } },
+                createdBy: { select: { id: true, name: true, username: true, phone: true } }
+            }
         });
         
+        // 1. Notifikasi pesanan baru dikirim ke Staff Gudang dan Logistik & konfirmasi ke user pemohon
+        notifyStaffGudangNewOrder(order, items, req.user);
+
         res.json(parseOrderSignatures(order));
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
@@ -992,6 +1312,9 @@ exports.updateOrderStatus = async (req, res) => {
             return updatedOrder;
         });
         
+        // 3. Notifikasi update status pesanan kepada user pemohon
+        notifyOrderUpdate(parseInt(id), 'STATUS', { status, note, approvedItems });
+
         res.json(parseOrderSignatures(result));
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
@@ -1080,6 +1403,25 @@ exports.updateOrderSignatures = async (req, res) => {
                 };
             }
         } else if (type === 'requester') {
+            const isAdmin = req.user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
+            if (!isAdmin) {
+                const isCreator = order.createdById === req.user.id;
+                const userProfile = await prisma.user.findUnique({
+                    where: { id: req.user.id },
+                    select: { id: true, unitId: true, unit: { select: { id: true, name: true } } }
+                });
+                const unitId = userProfile?.unitId || req.user.unitId;
+                const unitName = (userProfile?.unit?.name || '').toLowerCase();
+                const reqUnit = (order.requesterUnit || '').toLowerCase();
+                const isSameUnit = (unitId && order.createdBy?.unitId === unitId) || (unitName && reqUnit && reqUnit.includes(unitName));
+
+                if (!isCreator && !isSameUnit) {
+                    return res.status(403).json({
+                        error: 'Akses Ditolak: Hanya pemohon barang atau perwakilan dari unit bersangkutan yang dapat menandatangani sebagai penerima.'
+                    });
+                }
+            }
+
             if (action === 'RESET') {
                 currentSignatures.requester = null;
             } else {
@@ -1090,6 +1432,16 @@ exports.updateOrderSignatures = async (req, res) => {
                 };
             }
         } else if (type === 'deliverer') {
+            // User selain admin aset dan super admin, yang memesan, hanya bisa tandatangan penerima saja
+            const isAdmin = req.user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
+            const isStaffGudang = req.user && req.user.position && req.user.position.toLowerCase().includes('staff gudang dan logistik');
+
+            if (!isAdmin && !isStaffGudang) {
+                return res.status(403).json({
+                    error: 'Akses Ditolak: Hanya Admin Aset, Super Admin, atau Staff Gudang dan Logistik yang dapat menandatangani penyerahan barang.'
+                });
+            }
+
             if (action === 'RESET') {
                 currentSignatures.deliverer = null;
             } else {
@@ -1123,6 +1475,9 @@ exports.updateOrderSignatures = async (req, res) => {
             }
         });
 
+        // 3. Notifikasi update tanda tangan/ACC kepada user pemohon
+        notifyOrderUpdate(order.id, 'SIGNATURE', { type, action, signerName });
+
         res.json(parseOrderSignatures(updatedOrder));
     } catch (e) {
         console.error(e);
@@ -1135,9 +1490,9 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
     const { type, signatureData, signerName, action } = req.body;
 
     try {
-        if (type === 'kabid') {
+        if (type !== 'requester') {
             return res.status(403).json({
-                error: 'ACC Kepala Bidang Sarana harus dilakukan melalui login akun resmi Kepala Bidang Sarana.'
+                error: 'Akses publik hanya diizinkan untuk penandatanganan Pihak Penerima Barang. Tanda tangan penyerah dan pengesahan ACC resmi harus melalui login akun berwenang.'
             });
         }
 
@@ -1225,6 +1580,9 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
             }
         });
 
+        // 3. Notifikasi update tanda tangan publik kepada user pemohon
+        notifyOrderUpdate(order.id, 'SIGNATURE', { type, action, signerName });
+
         res.json(parseOrderSignatures(updatedOrder));
     } catch (e) {
         console.error(e);
@@ -1239,6 +1597,14 @@ exports.updateOrderPayment = async (req, res) => {
     const { id } = req.params;
     const { paymentStatus, dueDate, paidAt, paymentMethod, paymentNote } = req.body;
     // paymentStatus: 'PAID' | 'UNPAID'
+
+    // 2. User selain admin aset dan super admin tidak diizinkan mengubah status pembayaran (Hanya lihat)
+    const isAdmin = req.user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
+    if (!isAdmin) {
+        return res.status(403).json({
+            error: 'Akses Ditolak: Hanya Admin Aset dan Super Admin yang memiliki hak mengubah status pembayaran faktur/nota.'
+        });
+    }
 
     try {
         const order = await prisma.invOrder.findFirst({
@@ -1306,6 +1672,14 @@ exports.updateOrderPayment = async (req, res) => {
                 items: { include: { item: { include: { category: true } } } },
                 createdBy: { select: { name: true, username: true } }
             }
+        });
+
+        // 3. Notifikasi update pembayaran & jatuh tempo kepada user pemohon
+        notifyOrderUpdate(order.id, 'PAYMENT', { 
+            paymentStatus: newPaymentStatus, 
+            dueDate: newDueDate, 
+            paymentMethod: newPaymentMethod, 
+            paymentNote: newPaymentNote 
         });
 
         res.json(parseOrderSignatures(updatedOrder));

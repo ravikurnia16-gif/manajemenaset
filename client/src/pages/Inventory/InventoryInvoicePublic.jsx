@@ -869,25 +869,10 @@ export default function InventoryInvoicePublic() {
                           <span className="text-[8px] text-slate-400 font-mono">
                             {new Date(signatures.deliverer.signedAt).toLocaleDateString('id-ID')}
                           </span>
-                          <button 
-                            type="button" 
-                            onClick={() => handleResetSignature('deliverer')} 
-                            className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
-                          >
-                            Hapus TTD
-                          </button>
                         </div>
                       ) : (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => openSignatureModal('deliverer')}
-                            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer print:hidden"
-                            title="Goreskan Tanda Tangan Petugas Gudang"
-                          >
-                            <PenTool size={13} />
-                            <span>Input Tanda Tangan</span>
-                          </button>
+                          <div className="text-slate-400 italic text-xs print:hidden">( Belum ditandatangani )</div>
                           <div className="h-12 hidden print:block"></div>
                         </>
                       )}
@@ -1131,25 +1116,10 @@ export default function InventoryInvoicePublic() {
                           <span className="text-[8px] text-slate-400 font-mono">
                             {new Date(signatures.deliverer.signedAt).toLocaleDateString('id-ID')}
                           </span>
-                          <button 
-                            type="button" 
-                            onClick={() => handleResetSignature('deliverer')} 
-                            className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
-                          >
-                            Hapus TTD
-                          </button>
                         </div>
                       ) : (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => openSignatureModal('deliverer')}
-                            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition cursor-pointer print:hidden"
-                            title="Goreskan Tanda Tangan Petugas Gudang"
-                          >
-                            <PenTool size={13} />
-                            <span>Input Tanda Tangan</span>
-                          </button>
+                          <div className="text-slate-400 italic text-xs print:hidden">( Belum ditandatangani )</div>
                           <div className="h-12 hidden print:block"></div>
                         </>
                       )}

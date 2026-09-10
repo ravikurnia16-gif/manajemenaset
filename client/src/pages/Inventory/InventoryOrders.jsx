@@ -55,6 +55,11 @@ export default function InventoryOrders() {
   const openDocumentModal = (order, type = 'nota') => {
     setInvoiceModalOrder(order);
     setDocType(type);
+    if (order?.id) {
+      api.get(`/inventory/orders/${order.id}`).then(res => {
+        if (res.data) setInvoiceModalOrder(res.data);
+      }).catch(() => {});
+    }
   };
 
   const getNamaHari = (dateStr) => {
@@ -266,6 +271,67 @@ export default function InventoryOrders() {
     }
   };
 
+  // Helper check if user is Super Admin or Admin Aset
+  const checkIsAdminAsetOrSuper = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const role = u?.role || '';
+      return role === 'SUPER_ADMIN' || role === 'ADMIN_ASET';
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Helper check if user can access BAST (Admin, atau yang memesan / dari unit pemesan)
+  const checkCanAccessBast = (order) => {
+    if (!order) return false;
+    if (checkIsAdminAsetOrSuper()) return true;
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      if (order.createdById && u.id && order.createdById === u.id) return true;
+      const myName = (u.name || u.username || '').toLowerCase();
+      const reqName = (order.requesterName || '').toLowerCase();
+      if (myName && reqName && myName === reqName) return true;
+      const myUnit = (getLoggedInUserInfo().unit || '').toLowerCase();
+      const orderUnit = (order.requesterUnit || '').toLowerCase();
+      if (myUnit && orderUnit && (orderUnit.includes(myUnit) || myUnit.includes(orderUnit))) return true;
+      return true; // Default allow for orders filtered by backend
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Helper check if user can sign as recipient / pemohon (Yang memesan)
+  const checkCanSignRequester = (order) => {
+    if (!order) return false;
+    if (checkIsAdminAsetOrSuper()) return true;
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      if (order.createdById && u.id && order.createdById === u.id) return true;
+      const myName = (u.name || u.username || '').toLowerCase();
+      const reqName = (order.requesterName || '').toLowerCase();
+      if (myName && reqName && myName === reqName) return true;
+      const myUnit = (getLoggedInUserInfo().unit || '').toLowerCase();
+      const orderUnit = (order.requesterUnit || '').toLowerCase();
+      if (myUnit && orderUnit && (orderUnit.includes(myUnit) || myUnit.includes(orderUnit))) return true;
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Helper check if user can sign as deliverer / pihak yang menyerahkan (Khusus Admin & Staff Gudang)
+  const checkCanSignDeliverer = () => {
+    if (checkIsAdminAsetOrSuper()) return true;
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const pos = (u?.position || '').toLowerCase();
+      return pos.includes('staff gudang dan logistik') || pos.includes('gudang') || pos.includes('logistik');
+    } catch (e) {
+      return false;
+    }
+  };
+
   // Buka Modal Input Tanda Tangan
   const openSignatureModal = (type, order) => {
     let title = 'Tanda Tangan Pemohon Barang';
@@ -307,7 +373,7 @@ export default function InventoryOrders() {
         showConfirmButton: false
       });
     } catch (err) {
-      Swal.fire('Gagal Menyimpan', err.response?.data?.error || 'Terjadi kesalahan saat menyimpan tanda tangan', 'error');
+      Swal.fire('Gagal Menyimpan', err.response?.data?.message || err.response?.data?.error || 'Terjadi kesalahan saat menyimpan tanda tangan', 'error');
     } finally {
       setSigning(false);
     }
@@ -342,7 +408,7 @@ export default function InventoryOrders() {
         showConfirmButton: false
       });
     } catch (err) {
-      Swal.fire('Gagal', err.response?.data?.error || 'Gagal menghapus tanda tangan', 'error');
+      Swal.fire('Gagal', err.response?.data?.message || err.response?.data?.error || 'Gagal menghapus tanda tangan', 'error');
     }
   };
 
@@ -481,6 +547,9 @@ export default function InventoryOrders() {
       paymentMethod: order.paymentMethod || 'Tunai / Kasir',
       paymentNote: order.paymentNote || ''
     });
+    if (order?.id) {
+      api.get(`/inventory/orders/${order.id}`).catch(() => {});
+    }
   };
 
   // Handle Save Payment Modal
@@ -673,7 +742,7 @@ export default function InventoryOrders() {
     setCopiedCode(false);
     setProcessData({
       status: order.status || 'PENDING',
-      note: order.note || '',
+      note: getOrderNoteText(order),
       warehouseId: warehouses.length === 1 ? String(warehouses[0].id) : '',
       approvedItems: (order.items || []).map(it => ({ 
         orderItemId: it.id, 
@@ -681,6 +750,11 @@ export default function InventoryOrders() {
       }))
     });
     setIsProcessModalOpen(true);
+    if (order?.id) {
+      api.get(`/inventory/orders/${order.id}`).then(res => {
+        if (res.data) setSelectedOrder(res.data);
+      }).catch(() => {});
+    }
   };
 
   // Quick helper: Setujui semua barang 100% sesuai permintaan
@@ -916,37 +990,41 @@ export default function InventoryOrders() {
 
                   return (
                     <tr key={order.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="p-3.5">
-                        <div className="font-bold text-sm text-slate-800">
+                      <td className="p-3.5 cursor-pointer" onClick={() => openProcessModal(order)} title="Klik untuk melihat detail pesanan">
+                        <div className="font-bold text-sm text-slate-800 hover:text-blue-600 transition-colors">
                           {order.date ? new Date(order.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : (order.createdAt ? new Date(order.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-')}
                         </div>
                         <div className="text-[11px] text-slate-500 font-mono font-bold mt-0.5">{order.code || '-'}</div>
                       </td>
-                      <td className="p-3.5 font-bold text-slate-800">{order.requesterName || '-'}</td>
-                      <td className="p-3.5">
+                      <td className="p-3.5 font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => openProcessModal(order)} title="Klik untuk melihat detail pesanan">
+                        {order.requesterName || '-'}
+                      </td>
+                      <td className="p-3.5 cursor-pointer" onClick={() => openProcessModal(order)}>
                         <span className="text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-medium text-[11px]">
                           {order.requesterUnit || 'Umum'}
                         </span>
                       </td>
-                      <td className="p-3.5 text-slate-700 font-bold">
+                      <td className="p-3.5 text-slate-700 font-bold cursor-pointer" onClick={() => openProcessModal(order)}>
                         {order.items?.length || 0} jenis barang
                       </td>
-                      <td className="p-3.5 text-right font-mono font-black text-blue-700 text-xs sm:text-sm">
+                      <td className="p-3.5 text-right font-mono font-black text-blue-700 text-xs sm:text-sm cursor-pointer" onClick={() => openProcessModal(order)}>
                         {formatRupiah(orderVal)}
                       </td>
-                      <td className="p-3.5">{getStatusBadge(order.status)}</td>
+                      <td className="p-3.5 cursor-pointer" onClick={() => openProcessModal(order)}>{getStatusBadge(order.status)}</td>
                       <td className="p-3.5">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             {getPaymentBadge(order)}
-                            <button
-                              type="button"
-                              onClick={() => handleQuickTogglePayment(order)}
-                              className="text-[10px] text-slate-400 hover:text-blue-600 transition p-0.5 rounded hover:bg-slate-100"
-                              title="Ubah Cepat Status Lunas/Belum Lunas"
-                            >
-                              <RefreshCw size={11} />
-                            </button>
+                            {checkIsAdminAsetOrSuper() && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickTogglePayment(order)}
+                                className="text-[10px] text-slate-400 hover:text-blue-600 transition p-0.5 rounded hover:bg-slate-100"
+                                title="Ubah Cepat Status Lunas/Belum Lunas"
+                              >
+                                <RefreshCw size={11} />
+                              </button>
+                            )}
                           </div>
                           {order.paymentStatus === 'PAID' ? (
                             <div className="text-[10.5px] text-slate-500 font-medium">
@@ -971,30 +1049,34 @@ export default function InventoryOrders() {
                             type="button"
                             onClick={() => openDocumentModal(order, 'nota')}
                             className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg inline-flex items-center text-xs font-bold transition-all gap-1 shadow-2xs cursor-pointer"
-                            title="Buka & Cetak Nota / Faktur Penjualan"
+                            title={checkIsAdminAsetOrSuper() ? "Buka & Cetak Nota / Faktur Penjualan" : "Buka & Cetak Nota (Hanya Lihat)"}
                           >
                             <Receipt className="w-3.5 h-3.5 text-emerald-600" /> Nota
                           </button>
-                          <button 
-                            type="button"
-                            onClick={() => openDocumentModal(order, 'bast')}
-                            className="text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded-lg inline-flex items-center text-xs font-bold transition-all gap-1 shadow-2xs cursor-pointer"
-                            title="Buka & Cetak Berita Acara Serah Terima (BAST)"
-                          >
-                            <FileCheck className="w-3.5 h-3.5 text-indigo-600" /> BAST
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => openPaymentModal(order)}
-                            className={`px-2 py-1 rounded-lg inline-flex items-center text-xs font-bold transition-all gap-1 shadow-2xs cursor-pointer ${
-                              order.paymentStatus === 'PAID'
-                                ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300'
-                                : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300'
-                            }`}
-                            title="Atur Pembayaran & Jatuh Tempo"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" /> Bayar
-                          </button>
+                          {checkCanAccessBast(order) && (
+                            <button 
+                              type="button"
+                              onClick={() => openDocumentModal(order, 'bast')}
+                              className="text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-1 rounded-lg inline-flex items-center text-xs font-bold transition-all gap-1 shadow-2xs cursor-pointer"
+                              title="Buka & Cetak Berita Acara Serah Terima (BAST)"
+                            >
+                              <FileCheck className="w-3.5 h-3.5 text-indigo-600" /> BAST
+                            </button>
+                          )}
+                          {checkIsAdminAsetOrSuper() && (
+                            <button 
+                              type="button"
+                              onClick={() => openPaymentModal(order)}
+                              className={`px-2 py-1 rounded-lg inline-flex items-center text-xs font-bold transition-all gap-1 shadow-2xs cursor-pointer ${
+                                order.paymentStatus === 'PAID'
+                                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300'
+                                  : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300'
+                              }`}
+                              title="Atur Pembayaran & Jatuh Tempo"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" /> Bayar
+                            </button>
+                          )}
                           <button 
                             onClick={() => openProcessModal(order)}
                             className="text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-lg inline-flex items-center text-xs font-bold transition-all gap-1 shadow-2xs cursor-pointer"
@@ -1461,14 +1543,16 @@ export default function InventoryOrders() {
                 >
                   <Receipt size={14} className="text-emerald-700" /> Cetak Nota
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openDocumentModal(selectedOrder, 'bast')}
-                  className="text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-                  title="Buka & Cetak Berita Acara Serah Terima (BAST)"
-                >
-                  <FileCheck size={14} className="text-indigo-700" /> Cetak BAST
-                </button>
+                {checkCanAccessBast(selectedOrder) && (
+                  <button
+                    type="button"
+                    onClick={() => openDocumentModal(selectedOrder, 'bast')}
+                    className="text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                    title="Buka & Cetak Berita Acara Serah Terima (BAST)"
+                  >
+                    <FileCheck size={14} className="text-indigo-700" /> Cetak BAST
+                  </button>
+                )}
                 <button 
                   onClick={() => setIsProcessModalOpen(false)} 
                   className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer"
@@ -1613,13 +1697,15 @@ export default function InventoryOrders() {
                   </div>
                   <div className="flex items-center gap-2">
                     {getPaymentBadge(selectedOrder)}
-                    <button
-                      type="button"
-                      onClick={() => openPaymentModal(selectedOrder)}
-                      className="px-2.5 py-1 bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
-                    >
-                      <CreditCard size={12} /> Ubah Rincian Bayar
-                    </button>
+                    {checkIsAdminAsetOrSuper() && (
+                      <button
+                        type="button"
+                        onClick={() => openPaymentModal(selectedOrder)}
+                        className="px-2.5 py-1 bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
+                      >
+                        <CreditCard size={12} /> Ubah Rincian Bayar
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1656,27 +1742,33 @@ export default function InventoryOrders() {
 
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Aksi Cepat</span>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickTogglePayment(selectedOrder)}
-                      className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold border transition shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 ${
-                        selectedOrder.paymentStatus === 'PAID'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                      }`}
-                    >
-                      {selectedOrder.paymentStatus === 'PAID' ? (
-                        <>
-                          <XCircle size={13} />
-                          <span>Tandai BELUM LUNAS</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={13} />
-                          <span>Tandai LUNAS Sekarang</span>
-                        </>
-                      )}
-                    </button>
+                    {checkIsAdminAsetOrSuper() ? (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickTogglePayment(selectedOrder)}
+                        className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold border transition shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 ${
+                          selectedOrder.paymentStatus === 'PAID'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        {selectedOrder.paymentStatus === 'PAID' ? (
+                          <>
+                            <XCircle size={13} />
+                            <span>Tandai BELUM LUNAS</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle size={13} />
+                            <span>Tandai LUNAS Sekarang</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="text-[11px] text-slate-500 italic py-1">
+                        Dikelola oleh Admin Aset / Kasir
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1690,7 +1782,7 @@ export default function InventoryOrders() {
                   </h3>
                   
                   {/* Quick Action Buttons */}
-                  {selectedOrder.status !== 'COMPLETED' && (
+                  {checkIsAdminAsetOrSuper() && selectedOrder.status !== 'COMPLETED' && (
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
@@ -1746,7 +1838,7 @@ export default function InventoryOrders() {
                             <td className="p-3 text-center">
                               <span className={`px-2 py-0.5 rounded-md font-mono font-bold text-[11px] ${
                                 currentWhStock === 0 
-                                  ? 'bg-rose-100 text-rose-800' 
+                                   ? 'bg-rose-100 text-rose-800' 
                                   : (currentWhStock < item.qtyRequested ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700')
                               }`}>
                                 {currentWhStock} unit
@@ -1760,7 +1852,7 @@ export default function InventoryOrders() {
                             </td>
 
                             <td className="p-3 text-center">
-                              {selectedOrder.status === 'COMPLETED' ? (
+                              {selectedOrder.status === 'COMPLETED' || !checkIsAdminAsetOrSuper() ? (
                                 <span className="font-extrabold font-mono text-blue-700 text-sm">
                                   {approvedQtyValue} {item.item?.unit || 'Pcs'}
                                 </span>
@@ -1835,99 +1927,114 @@ export default function InventoryOrders() {
               </div>
 
               {/* 4. DECISION PANEL: STATUS PROSES & GUDANG */}
-              <div className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-4 sm:p-5 rounded-2xl border border-blue-200 space-y-4">
-                <div>
-                  <label className="block text-xs font-extrabold text-blue-950 uppercase tracking-wider mb-2">
-                    Tentukan Status Pesanan:
-                  </label>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    {[
-                      { key: 'PENDING', label: 'Menunggu', desc: 'Belum diproses', color: 'amber' },
-                      { key: 'APPROVED', label: 'Disetujui', desc: 'Barang disetujui', color: 'blue' },
-                      { key: 'PROCESS', label: 'Diproses', desc: 'Sedang disiapkan', color: 'indigo' },
-                      { key: 'COMPLETED', label: 'Selesai / Serahkan', desc: 'Potong stok gudang', color: 'emerald' },
-                      { key: 'REJECTED', label: 'Tolak', desc: 'Batalkan pesanan', color: 'rose' }
-                    ].map(st => (
-                      <button
-                        key={st.key}
-                        type="button"
-                        onClick={() => setProcessData({ ...processData, status: st.key })}
-                        className={`p-2.5 rounded-xl border text-left transition-all ${
-                          processData.status === st.key
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20 ring-2 ring-blue-300'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/40'
-                        }`}
-                      >
-                        <div className="font-extrabold text-xs">{st.label}</div>
-                        <div className={`text-[10px] mt-0.5 ${processData.status === st.key ? 'text-blue-100' : 'text-slate-400'}`}>
-                          {st.desc}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Warehouse Selector (Wajib jika COMPLETED) */}
-                {processData.status === 'COMPLETED' && selectedOrder.status !== 'COMPLETED' && (
-                  <div className="p-3.5 bg-white border-2 border-emerald-400 rounded-xl space-y-2 shadow-2xs animate-in fade-in">
-                    <div className="flex items-center gap-2 font-extrabold text-emerald-950 text-xs">
-                      <Warehouse size={16} className="text-emerald-600 shrink-0" />
-                      <span>Pilih Lokasi Gudang Pengeluaran Stok Fisik:</span>
-                    </div>
-                    <select 
-                      required 
-                      className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={processData.warehouseId} 
-                      onChange={e => setProcessData({...processData, warehouseId: e.target.value})}
-                    >
-                      <option value="">-- Wajib Pilih Gudang Sumber Pengeluaran --</option>
-                      {(warehouses || []).map(wh => (
-                        <option key={wh.id} value={wh.id}>{wh.name} {wh.location ? `(${wh.location})` : ''}</option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] text-emerald-800 leading-relaxed">
-                      * Sistem akan otomatis memotong kuantitas stok barang yang disetujui dari gudang di atas dan mencatat bukti transaksi pengeluaran (OUT).
-                    </p>
-                  </div>
-                )}
-
-                {/* Admin Note with Quick Chips */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-xs font-extrabold text-blue-950 uppercase tracking-wider">
-                      Catatan / Pesan Admin:
+              {checkIsAdminAsetOrSuper() ? (
+                <div className="bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-4 sm:p-5 rounded-2xl border border-blue-200 space-y-4">
+                  <div>
+                    <label className="block text-xs font-extrabold text-blue-950 uppercase tracking-wider mb-2">
+                      Tentukan Status Pesanan:
                     </label>
-                  </div>
-                  
-                  {/* Quick Chips */}
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {[
-                      'Barang telah disiapkan dan diserahkan lengkap.',
-                      'Disetujui sebagian karena keterbatasan stok gudang.',
-                      'Barang sedang disiapkan di gudang logistik.',
-                      'Mohon maaf, permohonan belum dapat disetujui saat ini.'
-                    ].map(chip => (
-                      <button
-                        key={chip}
-                        type="button"
-                        onClick={() => setProcessData(prev => ({ ...prev, note: chip }))}
-                        className="text-[10px] bg-white hover:bg-blue-100 text-slate-700 border border-slate-200 rounded-lg px-2 py-0.5 transition"
-                      >
-                        + {chip}
-                      </button>
-                    ))}
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {[
+                        { key: 'PENDING', label: 'Menunggu', desc: 'Belum diproses', color: 'amber' },
+                        { key: 'APPROVED', label: 'Disetujui', desc: 'Barang disetujui', color: 'blue' },
+                        { key: 'PROCESS', label: 'Diproses', desc: 'Sedang disiapkan', color: 'indigo' },
+                        { key: 'COMPLETED', label: 'Selesai / Serahkan', desc: 'Potong stok gudang', color: 'emerald' },
+                        { key: 'REJECTED', label: 'Tolak', desc: 'Batalkan pesanan', color: 'rose' }
+                      ].map(st => (
+                        <button
+                          key={st.key}
+                          type="button"
+                          onClick={() => setProcessData({ ...processData, status: st.key })}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            processData.status === st.key
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20 ring-2 ring-blue-300'
+                              : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/40'
+                          }`}
+                        >
+                          <div className="font-extrabold text-xs">{st.label}</div>
+                          <div className={`text-[10px] mt-0.5 ${processData.status === st.key ? 'text-blue-100' : 'text-slate-400'}`}>
+                            {st.desc}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <textarea 
-                    className="w-full bg-white border border-blue-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" 
-                    rows="2" 
-                    placeholder="Tuliskan catatan tambahan untuk pemohon atau alasan persetujuan/penolakan..."
-                    value={processData.note} 
-                    onChange={e => setProcessData({...processData, note: e.target.value})}
-                  ></textarea>
+                  {/* Warehouse Selector (Wajib jika COMPLETED) */}
+                  {processData.status === 'COMPLETED' && selectedOrder.status !== 'COMPLETED' && (
+                    <div className="p-3.5 bg-white border-2 border-emerald-400 rounded-xl space-y-2 shadow-2xs animate-in fade-in">
+                      <div className="flex items-center gap-2 font-extrabold text-emerald-950 text-xs">
+                        <Warehouse size={16} className="text-emerald-600 shrink-0" />
+                        <span>Pilih Lokasi Gudang Pengeluaran Stok Fisik:</span>
+                      </div>
+                      <select 
+                        required 
+                        className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={processData.warehouseId} 
+                        onChange={e => setProcessData({...processData, warehouseId: e.target.value})}
+                      >
+                        <option value="">-- Wajib Pilih Gudang Sumber Pengeluaran --</option>
+                        {(warehouses || []).map(wh => (
+                          <option key={wh.id} value={wh.id}>{wh.name} {wh.location ? `(${wh.location})` : ''}</option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-emerald-800 leading-relaxed">
+                        * Sistem akan otomatis memotong kuantitas stok barang yang disetujui dari gudang di atas dan mencatat bukti transaksi pengeluaran (OUT).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Admin Note with Quick Chips */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-extrabold text-blue-950 uppercase tracking-wider">
+                        Catatan / Pesan Admin:
+                      </label>
+                    </div>
+                    
+                    {/* Quick Chips */}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {[
+                        'Barang telah disiapkan dan diserahkan lengkap.',
+                        'Disetujui sebagian karena keterbatasan stok gudang.',
+                        'Barang sedang disiapkan di gudang logistik.',
+                        'Mohon maaf, permohonan belum dapat disetujui saat ini.'
+                      ].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setProcessData(prev => ({ ...prev, note: chip }))}
+                          className="text-[10px] bg-white hover:bg-blue-100 text-slate-700 border border-slate-200 rounded-lg px-2 py-0.5 transition"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+
+                    <textarea 
+                      className="w-full bg-white border border-blue-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" 
+                      rows="2" 
+                      placeholder="Tuliskan catatan tambahan untuk pemohon atau alasan persetujuan/penolakan..."
+                      value={processData.note} 
+                      onChange={e => setProcessData({...processData, note: e.target.value})}
+                    ></textarea>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status Pemrosesan Logistik:</span>
+                    <span className="font-extrabold text-xs text-slate-800">{selectedOrder.status}</span>
+                  </div>
+                  {selectedOrder.note && (
+                    <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100 text-xs">
+                      <span className="font-bold text-blue-900 block mb-0.5">Catatan / Respon Petugas:</span>
+                      <p className="text-slate-700 italic">{selectedOrder.note}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* FOOTER ACTIONS */}
               <div className="pt-2 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border-t border-slate-200">
@@ -1939,13 +2046,15 @@ export default function InventoryOrders() {
                   >
                     <Receipt size={14} className="text-emerald-600" /> Nota Penjualan
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => openDocumentModal(selectedOrder, 'bast')}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-bold transition cursor-pointer"
-                  >
-                    <FileCheck size={14} className="text-indigo-600" /> BAST Serah Terima
-                  </button>
+                  {checkCanAccessBast(selectedOrder) && (
+                    <button
+                      type="button"
+                      onClick={() => openDocumentModal(selectedOrder, 'bast')}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                    >
+                      <FileCheck size={14} className="text-indigo-600" /> BAST Serah Terima
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1954,14 +2063,16 @@ export default function InventoryOrders() {
                     onClick={() => setIsProcessModalOpen(false)} 
                     className="flex-1 sm:flex-initial px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
                   >
-                    Batal / Tutup
+                    {checkIsAdminAsetOrSuper() ? 'Batal / Tutup' : 'Tutup'}
                   </button>
-                  <button 
-                    type="submit" 
-                    className="flex-1 sm:flex-initial px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 transition"
-                  >
-                    <CheckCircle size={15} /> Simpan Perubahan Status
-                  </button>
+                  {checkIsAdminAsetOrSuper() && (
+                    <button 
+                      type="submit" 
+                      className="flex-1 sm:flex-initial px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 transition"
+                    >
+                      <CheckCircle size={15} /> Simpan Perubahan Status
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2039,19 +2150,33 @@ export default function InventoryOrders() {
                     </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => openPaymentModal(invoiceModalOrder)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
-                      invoiceModalOrder.paymentStatus === 'PAID'
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
-                        : 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100'
-                    }`}
-                    title="Ubah Status Pembayaran & Batas Jatuh Tempo"
-                  >
-                    <CreditCard size={14} />
-                    <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : 'Belum Lunas'}</span>
-                  </button>
+                  {checkIsAdminAsetOrSuper() ? (
+                    <button
+                      type="button"
+                      onClick={() => openPaymentModal(invoiceModalOrder)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
+                        invoiceModalOrder.paymentStatus === 'PAID'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                          : 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100'
+                      }`}
+                      title="Ubah Status Pembayaran & Batas Jatuh Tempo"
+                    >
+                      <CreditCard size={14} />
+                      <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : 'Belum Lunas'}</span>
+                    </button>
+                  ) : (
+                    <div
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border shadow-2xs ${
+                        invoiceModalOrder.paymentStatus === 'PAID'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-50 text-amber-800 border-amber-300'
+                      }`}
+                      title="Status Pembayaran (Hanya Lihat)"
+                    >
+                      <CreditCard size={14} />
+                      <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : 'Belum Lunas'}</span>
+                    </div>
+                  )}
 
                   <a
                     href={`/public/invoice-gudang/${invoiceModalOrder.id}?docType=${docType}`}
@@ -2220,13 +2345,15 @@ export default function InventoryOrders() {
                                 ⏳ BELUM LUNAS
                               </span>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => openPaymentModal(invoiceModalOrder)}
-                              className="text-[10px] text-blue-600 hover:underline print:hidden font-bold cursor-pointer"
-                            >
-                              [Ubah]
-                            </button>
+                            {checkIsAdminAsetOrSuper() && (
+                              <button
+                                type="button"
+                                onClick={() => openPaymentModal(invoiceModalOrder)}
+                                className="text-[10px] text-blue-600 hover:underline print:hidden font-bold cursor-pointer"
+                              >
+                                [Ubah]
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2363,25 +2490,33 @@ export default function InventoryOrders() {
                                 <span className="text-[7.5px] text-slate-400 font-mono">
                                   {new Date(signatures.requester.signedAt).toLocaleDateString('id-ID')}
                                 </span>
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleResetSignature(invoiceModalOrder, 'requester')} 
-                                  className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
-                                >
-                                  Hapus TTD
-                                </button>
+                                {checkIsAdminAsetOrSuper() && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleResetSignature(invoiceModalOrder, 'requester')} 
+                                    className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
+                                  >
+                                    Hapus TTD
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <>
-                                <button
-                                  type="button"
-                                  onClick={() => openSignatureModal('requester', invoiceModalOrder)}
-                                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
-                                  title="Goreskan Tanda Tangan Pemohon"
-                                >
-                                  <PenTool size={11} />
-                                  <span>Input TTD</span>
-                                </button>
+                                {checkIsAdminAsetOrSuper() ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSignatureModal('requester', invoiceModalOrder)}
+                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
+                                    title="Goreskan Tanda Tangan Pemohon"
+                                  >
+                                    <PenTool size={11} />
+                                    <span>Input TTD</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic print:hidden">
+                                    ( Belum ditandatangani )
+                                  </span>
+                                )}
                                 <div className="h-10 hidden print:block"></div>
                               </>
                             )}
@@ -2414,25 +2549,33 @@ export default function InventoryOrders() {
                                 <span className="text-[7.5px] text-slate-400 font-mono">
                                   {new Date(signatures.deliverer.signedAt).toLocaleDateString('id-ID')}
                                 </span>
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleResetSignature(invoiceModalOrder, 'deliverer')} 
-                                  className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
-                                >
-                                  Hapus TTD
-                                </button>
+                                {checkIsAdminAsetOrSuper() && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleResetSignature(invoiceModalOrder, 'deliverer')} 
+                                    className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
+                                  >
+                                    Hapus TTD
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <>
-                                <button
-                                  type="button"
-                                  onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
-                                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
-                                  title="Goreskan Tanda Tangan Petugas Gudang"
-                                >
-                                  <PenTool size={11} />
-                                  <span>Input TTD</span>
-                                </button>
+                                {checkIsAdminAsetOrSuper() ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
+                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
+                                    title="Goreskan Tanda Tangan Petugas Gudang"
+                                  >
+                                    <PenTool size={11} />
+                                    <span>Input TTD</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic print:hidden">
+                                    ( Belum ditandatangani )
+                                  </span>
+                                )}
                                 <div className="h-10 hidden print:block"></div>
                               </>
                             )}
@@ -2625,25 +2768,33 @@ export default function InventoryOrders() {
                                 <span className="text-[7.5px] text-slate-400 font-mono">
                                   {new Date(signatures.requester.signedAt).toLocaleDateString('id-ID')}
                                 </span>
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleResetSignature(invoiceModalOrder, 'requester')} 
-                                  className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
-                                >
-                                  Hapus TTD
-                                </button>
+                                {checkCanSignRequester(invoiceModalOrder) && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleResetSignature(invoiceModalOrder, 'requester')} 
+                                    className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
+                                  >
+                                    Hapus TTD
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <>
-                                <button
-                                  type="button"
-                                  onClick={() => openSignatureModal('requester', invoiceModalOrder)}
-                                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
-                                  title="Goreskan Tanda Tangan Pemohon"
-                                >
-                                  <PenTool size={11} />
-                                  <span>Input TTD</span>
-                                </button>
+                                {checkCanSignRequester(invoiceModalOrder) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSignatureModal('requester', invoiceModalOrder)}
+                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
+                                    title="Goreskan Tanda Tangan Pemohon"
+                                  >
+                                    <PenTool size={11} />
+                                    <span>Input TTD</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic print:hidden">
+                                    ( Belum ditandatangani )
+                                  </span>
+                                )}
                                 <div className="h-10 hidden print:block"></div>
                               </>
                             )}
@@ -2676,25 +2827,33 @@ export default function InventoryOrders() {
                                 <span className="text-[7.5px] text-slate-400 font-mono">
                                   {new Date(signatures.deliverer.signedAt).toLocaleDateString('id-ID')}
                                 </span>
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleResetSignature(invoiceModalOrder, 'deliverer')} 
-                                  className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
-                                >
-                                  Hapus TTD
-                                </button>
+                                {checkCanSignDeliverer() && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleResetSignature(invoiceModalOrder, 'deliverer')} 
+                                    className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
+                                  >
+                                    Hapus TTD
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <>
-                                <button
-                                  type="button"
-                                  onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
-                                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
-                                  title="Goreskan Tanda Tangan Petugas Gudang"
-                                >
-                                  <PenTool size={11} />
-                                  <span>Input TTD</span>
-                                </button>
+                                {checkCanSignDeliverer() ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
+                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
+                                    title="Goreskan Tanda Tangan Petugas Gudang"
+                                  >
+                                    <PenTool size={11} />
+                                    <span>Input TTD</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic print:hidden">
+                                    ( Belum ditandatangani )
+                                  </span>
+                                )}
                                 <div className="h-10 hidden print:block"></div>
                               </>
                             )}
