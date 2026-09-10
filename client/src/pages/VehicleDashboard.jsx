@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2 } from 'lucide-react';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2, Sparkles, FileText, Bus, ArrowRight, ShieldAlert, CheckSquare } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell, PieChart, Pie } from 'recharts';
 import api from '../lib/axios';
+import VehicleReportTab from '../components/VehicleReportTab';
 
 /* ── jsPDF + autoTable CDN loader ── */
 function loadJsPDF() {
@@ -20,15 +21,20 @@ function loadJsPDF() {
 }
 
 
-const StatCard = ({ title, value, icon: Icon, color, desc }) => (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-all">
+const StatCard = ({ title, value, icon: Icon, color, desc, onClick }) => (
+    <div
+        onClick={onClick}
+        className={`bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-all ${
+            onClick ? 'cursor-pointer hover:border-indigo-200 group' : ''
+        }`}
+    >
         <div>
-            <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-1">{title}</p>
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{value}</h3>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1 group-hover:text-indigo-600 transition-colors">{title}</p>
+            <h3 className="text-xl font-black text-slate-800 tracking-tight">{value}</h3>
             {desc && <p className="text-[10px] font-bold text-slate-400 mt-2 bg-slate-50 px-2 py-0.5 rounded-full inline-block">{desc}</p>}
         </div>
         <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
-            <Icon size={24} />
+            <Icon size={22} />
         </div>
     </div>
 );
@@ -47,7 +53,15 @@ const VehicleDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ month: '', year: '' });
     const [exporting, setExporting] = useState(false);
+    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'reports'
+    const [reportCategory, setReportCategory] = useState('PERFORMANCE');
     const dashboardRef = useRef(null);
+
+    const navigateToReport = (category = 'PERFORMANCE') => {
+        setReportCategory(category);
+        setActiveTab('reports');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -85,13 +99,21 @@ const VehicleDashboard = () => {
             const now = new Date();
             const periodLabel = data.isSummary ? 'Ringkasan Keseluruhan' : `Bulan ${data.period}`;
 
-            // Header
-            doc.setFontSize(18);
+            // Header Kop Bidang Sarana
+            doc.setFontSize(16);
             doc.setFont(undefined, 'bold');
-            doc.text('LAPORAN DASHBOARD ARMADA', pageW / 2, 18, { align: 'center' });
-            doc.setFontSize(10);
+            doc.setTextColor(30, 41, 59);
+            doc.text('BIDANG SARANA', pageW / 2, 15, { align: 'center' });
+
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text('RINGKASAN EKSEKUTIF DASHBOARD ARMADA', pageW / 2, 22, { align: 'center' });
+
+            doc.setFontSize(9);
             doc.setFont(undefined, 'normal');
-            doc.text(`Periode: ${periodLabel}  |  Tanggal Cetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageW / 2, 25, { align: 'center' });
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Periode: ${periodLabel}  |  Tanggal Cetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageW / 2, 28, { align: 'center' });
 
             // KPI Summary
             doc.setFontSize(12);
@@ -190,13 +212,41 @@ const VehicleDashboard = () => {
                 });
             }
 
+            // Agenda Jadwal Reservasi Bus (Jika ada)
+            if (data.upcomingBusBookings && data.upcomingBusBookings.length > 0) {
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(30, 41, 59);
+                doc.text('Agenda Jadwal Reservasi Bus Operasional', 14, doc.lastAutoTable.finalY + 10);
+
+                const busRows = data.upcomingBusBookings.map((b, i) => [
+                    i + 1,
+                    `${new Date(b.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(b.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}`,
+                    `${b.vehicle?.name || '-'} (${b.vehicle?.plateNumber || '-'})`,
+                    `${b.requesterName || b.user?.name || '-'} (${b.unit || b.user?.unit?.name || '-'})`,
+                    b.destination || '-',
+                    b.driver?.name || 'Belum Ditugaskan',
+                    b.status
+                ]);
+
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 13,
+                    head: [['#', 'Jadwal Keberangkatan', 'Armada Bus', 'Pemesan & Unit', 'Tujuan', 'Driver', 'Status']],
+                    body: busRows,
+                    theme: 'striped',
+                    headStyles: { fillColor: [147, 51, 234], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
             // Footer
             const pageCount = doc.internal.getNumberOfPages();
             for (let i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
                 doc.setFontSize(8);
                 doc.setFont(undefined, 'normal');
-                doc.text(`Halaman ${i} dari ${pageCount}  |  Dicetak oleh Sistem Manajemen Aset`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+                doc.text(`Halaman ${i} dari ${pageCount}  |  Bidang Sarana`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
             }
 
             doc.save(`Laporan_Armada_${periodLabel.replace(/[/ ]/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`);
@@ -244,8 +294,17 @@ const VehicleDashboard = () => {
 
     const stats = [
         { title: "Total Armada", value: data?.stats?.totalVehicles || 0, icon: Car, color: "bg-slate-800", desc: "Unit aktif terdaftar" },
-        { title: "Biaya BBM", value: `Rp ${Math.round(data?.stats?.totalFuelCost || 0).toLocaleString('id-ID')}`, icon: Fuel, color: "bg-indigo-600", desc: data?.isSummary ? "Total keseluruhan" : `Bulan ${data?.period}` },
-        { title: "Biaya Service", value: `Rp ${Math.round(data?.stats?.totalServiceCostYearly || 0).toLocaleString('id-ID')}`, icon: Wrench, color: "bg-orange-500", desc: `Total Tahun ${new Date().getFullYear()}` },
+        { title: "Biaya BBM", value: `Rp ${Math.round(data?.stats?.totalFuelCost || 0).toLocaleString('id-ID')}`, icon: Fuel, color: "bg-indigo-600", desc: data?.isSummary ? "Total keseluruhan" : `Bulan ${data?.period}`, onClick: () => navigateToReport('FUEL_LOGS') },
+        { title: "Biaya Service", value: `Rp ${Math.round(data?.stats?.totalServiceCostYearly || 0).toLocaleString('id-ID')}`, icon: Wrench, color: "bg-orange-500", desc: `Total Tahun ${new Date().getFullYear()}`, onClick: () => navigateToReport('MAINTENANCE') },
+        { title: "Jadwal Bus Aktif", value: `${data?.stats?.activeBusBookings || 0} Agenda`, icon: Bus, color: "bg-purple-600", desc: "Reservasi bus mendatang", onClick: () => navigateToReport('BUS_SCHEDULE') },
+        { 
+            title: "Sanksi Perjalanan", 
+            value: `${data?.stats?.sanctionedUsersCount || 0} Pengguna`, 
+            icon: ShieldAlert, 
+            color: (data?.stats?.sanctionedUsersCount || 0) > 0 ? "bg-red-600" : "bg-emerald-600", 
+            desc: (data?.stats?.sanctionedUsersCount || 0) > 0 ? "Akun dibekukan (Perlu Review)" : "Disiplin peminjaman tertib",
+            onClick: () => navigateToReport('SANCTIONS')
+        },
     ];
 
     const COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -297,8 +356,94 @@ const VehicleDashboard = () => {
                 </div>
             </div>
 
-            {/* Alerts - Always Real-time */}
-            {data?.urgentActions?.length > 0 && (
+            {/* Tab Navigation: Dashboard vs Laporan Armada */}
+            <div className="flex items-center gap-2 border-b border-slate-200">
+                <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all ${
+                        activeTab === 'dashboard'
+                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-xl'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <Activity size={16} /> Dashboard & Monitoring
+                </button>
+                <button
+                    onClick={() => setActiveTab('reports')}
+                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all ${
+                        activeTab === 'reports'
+                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-xl'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <FileText size={16} /> Laporan Armada & Ekspor PDF
+                    <span className="px-2 py-0.5 rounded-full text-[9px] bg-indigo-100 text-indigo-700 font-extrabold flex items-center gap-1 normal-case tracking-normal">
+                        <Sparkles size={10} /> Bidang Sarana & AI
+                    </span>
+                </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'reports' ? (
+                <VehicleReportTab dashboardData={data} availableMonths={data?.availableMonths || []} initialReportType={reportCategory} />
+            ) : (
+                <>
+                    {/* Banner Peringatan Pengguna Terkena Sanksi Perjalanan */}
+                    {data?.sanctionedUsers && data.sanctionedUsers.length > 0 && (
+                        <div className="bg-white rounded-3xl border-2 border-red-200 shadow-xl shadow-red-50/70 overflow-hidden animate-in slide-in-from-top-4 duration-700">
+                            <div className="p-5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl shadow-inner shrink-0">
+                                        <ShieldAlert size={26} className="text-white animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                                            Peringatan: Pengguna Terkena Sanksi Peminjaman Armada
+                                        </h3>
+                                        <p className="text-red-100 text-xs mt-0.5">
+                                            Terdapat <span className="font-black underline">{data.sanctionedUsers.length} pengguna</span> yang dibekukan izin peminjamannya karena pelanggaran batas waktu pengembalian kendaraan.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => navigateToReport('SANCTIONS')}
+                                    className="self-start sm:self-auto px-4 py-2 bg-white text-red-700 hover:bg-red-50 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0"
+                                >
+                                    Kelola Sanksi & Review <ArrowRight size={14} />
+                                </button>
+                            </div>
+
+                            <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-red-50/20">
+                                {data.sanctionedUsers.map((u, idx) => (
+                                    <div key={u.id || idx} className="p-4 rounded-2xl bg-white border border-red-100 shadow-sm flex flex-col justify-between hover:border-red-300 transition-all">
+                                        <div>
+                                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-900">{u.name}</h4>
+                                                    <p className="text-xs text-slate-500 font-medium">{u.position || 'Staff'} • {u.unit?.name || 'Umum'}</p>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                                                    u.sanctionProposedLift ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-red-100 text-red-700 border border-red-200'
+                                                }`}>
+                                                    {u.sanctionProposedLift ? 'Mengajukan Buka' : 'Akun Dibekukan'}
+                                                </span>
+                                            </div>
+                                            {u.phone && <p className="text-[11px] text-slate-400 font-mono mt-1">📞 {u.phone}</p>}
+                                        </div>
+                                        {u.sanctionProposedLift && u.sanctionLiftReason && (
+                                            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-100 text-[11px] text-amber-900 font-medium italic mt-2.5">
+                                                <span className="font-bold not-italic text-[10px] text-amber-700 block uppercase tracking-wider mb-0.5">Alasan Permohonan:</span>
+                                                "{u.sanctionLiftReason}"
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Alerts - Always Real-time */}
+                    {data?.urgentActions?.length > 0 && (
                 <div className="bg-white rounded-3xl border border-red-100 shadow-xl shadow-red-50/50 overflow-hidden animate-in slide-in-from-top-4 duration-700">
                     <div className="p-5 bg-gradient-to-r from-red-50 to-white flex items-center justify-between">
                         <h3 className="text-sm font-black text-red-800 flex items-center gap-2 uppercase tracking-widest">
@@ -358,7 +503,7 @@ const VehicleDashboard = () => {
             )}
 
             {/* KPI Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
             </div>
 
@@ -418,6 +563,138 @@ const VehicleDashboard = () => {
                                     <span className="font-black text-slate-800">{d.value}</span>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* -------------------- BENTO ROW: Tren Pengisian Minyak (BBM) & Ceklis Kelaikan Armada -------------------- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                {/* Tren Pengisian Minyak & Konsumsi BBM (Lebar 2/3) */}
+                <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2 flex flex-col justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-3 uppercase tracking-tight italic">
+                                <div className="p-1.5 bg-sky-50 text-sky-600 rounded-lg"><Fuel size={20} /></div> Tren Pengisian Minyak & BBM (6 Bulan)
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium mt-1">Monitoring pengeluaran biaya bensin dan volume literasi bahan bakar armada.</p>
+                        </div>
+                        <button
+                            onClick={() => navigateToReport('FUEL_LOGS')}
+                            className="text-xs font-black text-sky-600 hover:text-sky-800 hover:underline flex items-center gap-1 shrink-0"
+                        >
+                            Laporan Transaksi BBM <ArrowRight size={13} />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 min-h-[260px] max-h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data?.fuelTrends} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} dy={10} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} tickFormatter={(val) => `Rp ${(val / 1000).toLocaleString('id-ID')}k`} />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                                    formatter={(val, name) => name === 'cost' ? [`Rp ${Math.round(val).toLocaleString('id-ID')}`, 'Biaya BBM'] : [`${val.toFixed(1)} Liter`, 'Volume Liter']}
+                                />
+                                <Legend
+                                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontWeight: 'bold' }}
+                                    formatter={(value) => value === 'cost' ? 'Biaya BBM (Rp)' : 'Volume (Liter)'}
+                                />
+                                <Bar dataKey="cost" fill="#0284c7" radius={[8, 8, 0, 0]} name="cost" barSize={32} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Ringkasan BBM */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-slate-100">
+                        <div className="p-3 bg-sky-50/50 rounded-2xl border border-sky-100">
+                            <span className="text-[10px] font-black text-sky-600 uppercase tracking-widest block">Total Biaya</span>
+                            <span className="text-sm font-black text-slate-800 mt-0.5 block">
+                                Rp {Math.round(data?.stats?.totalFuelCost || 0).toLocaleString('id-ID')}
+                            </span>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Rata-rata/Bulan</span>
+                            <span className="text-sm font-black text-slate-800 mt-0.5 block">
+                                Rp {Math.round((data?.fuelTrends?.reduce((acc, f) => acc + (f.cost || 0), 0) || 0) / (data?.fuelTrends?.length || 1)).toLocaleString('id-ID')}
+                            </span>
+                        </div>
+                        <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block">Total Volume</span>
+                            <span className="text-sm font-black text-slate-800 mt-0.5 block">
+                                {(data?.fuelTrends?.reduce((acc, f) => acc + (f.liters || 0), 0) || 0).toFixed(1)} L
+                            </span>
+                        </div>
+                        <div className="p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Efisiensi Armada</span>
+                            <span className="text-sm font-black text-slate-800 mt-0.5 block">
+                                {(data?.stats?.fleetKml || 0).toFixed(1)} KM/L
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Ceklis Kelaikan Kendaraan Terkini (Lebar 1/3) */}
+                <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 lg:col-span-1 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between gap-2 mb-4">
+                            <h3 className="text-base font-black text-slate-800 uppercase tracking-tight italic flex items-center gap-2">
+                                <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><CheckSquare size={16} /></div> Ceklis Kelaikan
+                            </h3>
+                            <button
+                                onClick={() => navigateToReport('CHECKLISTS')}
+                                className="text-xs font-black text-emerald-600 hover:text-emerald-800 hover:underline flex items-center gap-1"
+                            >
+                                Lihat Semua <ArrowRight size={12} />
+                            </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-medium mb-4">Inspeksi fisik dan kelaikan jalan armada oleh petugas/supir.</p>
+
+                        <div className="space-y-3 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
+                            {data?.recentChecklists?.length > 0 ? (
+                                data.recentChecklists.map((chk, idx) => {
+                                    const isReady = chk.status === 'SIAP JALAN';
+                                    return (
+                                        <div key={chk.id || idx} className="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all group">
+                                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                                                <div>
+                                                    <h4 className="text-xs font-black text-slate-800 group-hover:text-emerald-700 transition-colors">{chk.vehicle?.name || 'Kendaraan'}</h4>
+                                                    <span className="text-[9px] font-mono font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">{chk.vehicle?.plateNumber}</span>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shrink-0 ${
+                                                    isReady ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                                }`}>
+                                                    {chk.status}
+                                                </span>
+                                            </div>
+                                            <div className="space-y-1 text-[11px] text-slate-500">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] text-slate-400">Driver:</span>
+                                                    <span className="font-bold text-slate-700">{chk.driver?.name || '-'}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] text-slate-400">Indikator BBM:</span>
+                                                    <span className="font-mono font-black text-sky-600">{chk.fuelLevel || '-'}</span>
+                                                </div>
+                                                {chk.notes && (
+                                                    <p className="text-[10px] text-slate-600 bg-white p-2 rounded-xl border border-slate-100 mt-1 italic line-clamp-2">
+                                                        "{chk.notes}"
+                                                    </p>
+                                                )}
+                                                <span className="text-[9px] text-slate-400 block pt-1 border-t border-slate-200/50">
+                                                    {new Date(chk.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                    <CheckSquare size={28} className="mx-auto text-slate-300 mb-2" />
+                                    <p className="text-xs text-slate-400 font-bold">Belum ada data ceklis kendaraan terkini.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -632,6 +909,94 @@ const VehicleDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* -------------------- BENTO ROW 4: Jadwal & Reservasi Bus Operasional -------------------- */}
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 mt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h3 className="text-base font-black text-slate-800 uppercase tracking-tight italic flex items-center gap-3">
+                            <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg"><Bus size={18} /></div> 
+                            Agenda Reservasi & Jadwal Bus Operasional
+                        </h3>
+                        <p className="text-xs text-slate-400 font-medium mt-0.5">Monitoring keberangkatan, tujuan, supir, dan unit pengguna armada bus.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 bg-purple-50 text-purple-700 font-black text-xs rounded-full border border-purple-200">
+                            {data?.upcomingBusBookings?.length || 0} Agenda Terjadwal
+                        </span>
+                        <button
+                            onClick={() => setActiveTab('reports')}
+                            className="text-xs font-black text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
+                        >
+                            Buka Laporan Lengkap <ArrowRight size={13} />
+                        </button>
+                    </div>
+                </div>
+
+                {data?.upcomingBusBookings?.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {data.upcomingBusBookings.map((bus, idx) => {
+                            const startStr = new Date(bus.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+                            const endStr = new Date(bus.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+                            const isDone = bus.status === 'COMPLETED';
+
+                            return (
+                                <div key={bus.id || idx} className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-purple-200 hover:shadow-md transition-all flex flex-col justify-between group">
+                                    <div>
+                                        <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200/60">
+                                            <span className="text-xs font-black text-slate-900 group-hover:text-purple-700 transition-colors flex items-center gap-1.5">
+                                                <Bus size={14} className="text-purple-600" />
+                                                {bus.vehicle?.name || 'Armada Bus'}
+                                            </span>
+                                            <span className="text-[10px] font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                {bus.vehicle?.plateNumber}
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-1.5 text-xs text-slate-600">
+                                            <div className="flex items-center gap-1.5 font-bold text-indigo-600">
+                                                <Calendar size={13} className="text-indigo-400 shrink-0" />
+                                                <span>{startStr} {startStr !== endStr ? `- ${endStr}` : ''}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                                                <MapPin size={13} className="text-slate-400 shrink-0" />
+                                                <span className="truncate" title={bus.destination}>{bus.destination}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-slate-500">
+                                                <User size={13} className="text-slate-400 shrink-0" />
+                                                <span className="truncate">{bus.requesterName || bus.user?.name || '-'} ({bus.unit || bus.user?.unit?.name || 'Umum'})</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                                                <span className="font-bold text-slate-400">Driver:</span>
+                                                <span className="font-semibold text-slate-700">{bus.driver?.name || 'Belum Ditugaskan'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
+                                        <span className={`px-2 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                                            isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'
+                                        }`}>
+                                            {bus.status}
+                                        </span>
+                                        <span className={`font-bold ${bus.isPaid ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                            {bus.isPaid ? 'Lunas' : 'Belum Bayar'}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <Bus size={32} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-slate-500 text-xs font-bold">Tidak ada agenda reservasi bus dalam waktu dekat.</p>
+                        <p className="text-slate-400 text-[11px] mt-0.5">Semua pemesanan armada bus yang masuk akan otomatis tampil di sini.</p>
+                    </div>
+                )}
+            </div>
+            </>
+            )}
 
             {/* Modal Konfirmasi Pembayaran Pajak */}
             {payModal && (

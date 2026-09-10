@@ -10,11 +10,13 @@ router.get('/public', vehicleController.getAllVehicles);
 // Protected Routes
 router.get('/', verifyToken, vehicleController.getAllVehicles);
 router.get('/dashboard', verifyToken, vehicleController.getVehicleDashboard);
+router.get('/reports/sanctions', verifyToken, vehicleController.getVehicleSanctionsReport);
+router.get('/reports/fuel', verifyToken, vehicleController.getVehicleFuelReport);
 router.post('/', verifyToken, handleUpload('photo', 'vehicles'), vehicleController.createVehicle);
 router.put('/:id', verifyToken, handleUpload('photo', 'vehicles'), vehicleController.updateVehicle);
 router.put('/:id/mark-paid', verifyToken, vehicleController.markVehicleAsPaid);
 router.delete('/:id', verifyToken, vehicleController.deleteVehicle);
-
+router.post('/ai/analyze', verifyToken, vehicleController.analyzeFleetWithAI);
 // Sanction Routes
 router.post('/sanctions/propose', verifyToken, vehicleController.proposeSanctionLift);
 router.post('/sanctions/review', verifyToken, vehicleController.reviewSanctionLift);

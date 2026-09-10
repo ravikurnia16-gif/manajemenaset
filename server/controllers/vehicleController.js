@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
+const aiService = require('../services/aiService');
 
 // Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
@@ -589,6 +590,7 @@ exports.getVehicleDashboard = async (req, res) => {
         // 4. Monthly Trends (Always 6 Months back from NOW)
         const bookingTrends = [];
         const mileageTrends = [];
+        const fuelTrends = [];
         for (let i = 5; i >= 0; i--) {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
@@ -601,7 +603,12 @@ exports.getVehicleDashboard = async (req, res) => {
 
             const completedForMonth = await prisma.vehicleBooking.findMany({
                 where: { status: 'COMPLETED', tripEndTime: { gte: mStart, lte: mEnd }, startKm: { not: null }, endKm: { not: null } },
-                select: { startKm: true, endKm: true, vehicle: { select: { name: true } } }
+                select: { startKm: true, endKm: true, fuelPrice: true, fuelLiters: true, vehicle: { select: { name: true } } }
+            });
+
+            const fuelLogForMonth = await prisma.vehicleFuelLog.aggregate({
+                _sum: { cost: true, liters: true },
+                where: { date: { gte: mStart, lte: mEnd } }
             });
 
             const monthName = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
@@ -609,8 +616,12 @@ exports.getVehicleDashboard = async (req, res) => {
             allVehicleNames.forEach(name => mileageObj[name] = 0);
             completedForMonth.forEach(b => { if (b.vehicle?.name) mileageObj[b.vehicle.name] += (b.endKm - b.startKm); });
 
+            const mFuelCost = (fuelLogForMonth._sum.cost || 0) + completedForMonth.reduce((acc, b) => acc + (b.fuelPrice || 0), 0);
+            const mFuelLiters = (fuelLogForMonth._sum.liters || 0) + completedForMonth.reduce((acc, b) => acc + (b.fuelLiters || 0), 0);
+
             bookingTrends.push({ name: monthName, value: bCount });
             mileageTrends.push(mileageObj);
+            fuelTrends.push({ name: monthName, cost: mFuelCost, liters: mFuelLiters });
         }
 
         // 5. Filtered Vehicle Matrix (vStats)
@@ -736,12 +747,55 @@ exports.getVehicleDashboard = async (req, res) => {
             }
         });
 
+        // 9. Upcoming & Recent Bus Bookings (Jadwal Reservasi Bus)
+        const upcomingBusBookings = await prisma.busBooking.findMany({
+            where: {
+                status: { not: 'CANCELLED' }
+            },
+            include: {
+                vehicle: { select: { id: true, name: true, plateNumber: true } },
+                user: { select: { id: true, name: true, unit: { select: { name: true } } } },
+                driver: { select: { id: true, name: true, phone: true } }
+            },
+            orderBy: { startDate: 'desc' },
+            take: 8
+        });
+
+        const activeBusBookingsCount = await prisma.busBooking.count({
+            where: {
+                endDate: { gte: now },
+                status: { not: 'CANCELLED' }
+            }
+        });
+
+        // 10. Pengguna yang Kena Sanksi Perjalanan (isSanctioned: true)
+        const sanctionedUsers = await prisma.user.findMany({
+            where: { isSanctioned: true },
+            select: {
+                id: true, name: true, phone: true, position: true,
+                sanctionProposedLift: true, sanctionLiftReason: true,
+                unit: { select: { name: true } }
+            }
+        });
+
+        // 11. Ceklis Kendaraan Terkini
+        const recentChecklists = await prisma.vehicleChecklist.findMany({
+            take: 6,
+            orderBy: { date: 'desc' },
+            include: {
+                vehicle: { select: { id: true, name: true, plateNumber: true } },
+                driver: { select: { id: true, name: true } }
+            }
+        });
+
         res.json({
             isSummary,
             period: month && year ? `${month}/${year}` : 'SUMMARY',
             stats: {
                 totalVehicles: allVehicles.length,
                 activeBookings: activeBookingsCount,
+                activeBusBookings: activeBusBookingsCount,
+                sanctionedUsersCount: sanctionedUsers.length,
                 needingService: urgentActions.filter(a => a.type === 'SERVICE').length,
                 taxWarnings: urgentActions.filter(a => ['TAX', 'STNK', 'KIR'].includes(a.type)).length,
                 fleetCostPerKm: totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0,
@@ -759,8 +813,12 @@ exports.getVehicleDashboard = async (req, res) => {
             vStats: vStats.sort((a, b) => b.totalKm - a.totalKm),
             bookingTrends,
             mileageTrends,
+            fuelTrends,
             allVehicleNames,
-            recentBookings
+            recentBookings,
+            upcomingBusBookings,
+            sanctionedUsers,
+            recentChecklists
         });
     } catch (error) {
         console.error('Vehicle Dashboard Error:', error);
@@ -772,3 +830,193 @@ exports.getVehicleDashboard = async (req, res) => {
 const personnelController = require('./personnelController');
 exports.proposeSanctionLift = personnelController.proposeSanctionLift;
 exports.reviewSanctionLift = personnelController.reviewSanctionLift;
+
+// --- AI FLEET ANALYSIS FOR BIDANG SARANA ---
+exports.analyzeFleetWithAI = async (req, res) => {
+    try {
+        const { period, stats, vStats, urgentActions, busSummary } = req.body;
+
+        const vehicleSummary = (vStats || []).map(v => 
+            `- ${v.name} (${v.plate}): Total Jarak: ${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM, Efisiensi: ${(v.kml || 0).toFixed(1)} KM/L, Cost/KM: Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}, Biaya BBM/KM: Rp ${Math.round(v.fuelCpkm || 0).toLocaleString('id-ID')}`
+        ).join('\n');
+
+        const urgentSummary = (urgentActions || []).map(a => 
+            `- ${a.vehicle} (${a.plate}): ${a.action} (${a.date ? new Date(a.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : (a.km ? 'Overdue KM > ' + a.km : '-')})`
+        ).join('\n') || 'Tidak ada peringatan mendesak.';
+
+        const prompt = `
+Anda adalah Konsultan Senior Fleet Management & Ahli Efisiensi Operasional Kendaraan untuk Bidang Sarana.
+Berikut adalah data kinerja operasional armada kendaraan periode: ${period || 'Semua Periode'}.
+
+Ringkasan KPI Armada:
+- Total Armada Aktif: ${stats?.totalVehicles || 0} unit
+- Total Pengeluaran BBM: Rp ${Math.round(stats?.totalFuelCost || 0).toLocaleString('id-ID')}
+- Total Biaya Servis / Perawatan Tahunan: Rp ${Math.round(stats?.totalServiceCostYearly || 0).toLocaleString('id-ID')}
+- Reservasi Bus Operasional: ${stats?.activeBusBookings || 0} agenda aktif
+
+Rincian Matriks Kendaraan:
+${vehicleSummary || 'Belum ada data perjalanan.'}
+
+Status Kepatuhan & Peringatan Mendesak (Pajak, STNK, Uji KIR, Servis):
+${urgentSummary}
+
+${busSummary ? `Ringkasan Reservasi & Jadwal Bus:\n${busSummary}\n` : ''}
+INSTRUKSI:
+Buatkan laporan analisis mendalam, tajam, bernas, dan bernada eksekutif untuk Kepala Bidang Sarana dalam format Markdown yang rapi:
+1. 📊 **Ringkasan Kondisi & Efisiensi Armada**: Evaluasi singkat kondisi umum operasional armada pada periode ini.
+2. ⚠️ **Temuan Kendaraan Boros & Potensi Anomali**: Sorot unit mana yang paling boros (Cost/KM tinggi atau rasio KM/L rendah) dan analisis kemungkinan penyebabnya.
+3. 🛠️ **Status Kepatuhan Pajak, KIR & Perawatan Berkala**: Evaluasi risiko kepatuhan hukum dan keselamatan armada.
+4. 🚌 **Evaluasi Jadwal & Utilisasi Bus Operasional**: Analisis pemanfaatan bus dan kesiapan driver serta rute.
+5. 💡 **Rekomendasi Strategis Bidang Sarana**: Berikan 3-4 aksi konkret untuk penghematan anggaran BBM, jadwal servis preventif, dan optimalisasi unit.
+
+Gunakan bahasa Indonesia baku, formal, dan profesional.`;
+
+        const result = await aiService.generateContentWithFallback(prompt);
+        const analysis = result?.response?.text() || 'Analisis AI tidak dapat dihasilkan.';
+
+        res.json({ analysis });
+    } catch (error) {
+        console.error('analyzeFleetWithAI error:', error);
+        res.status(500).json({ error: error.message || 'Gagal menghasilkan analisis AI armada.' });
+    }
+};
+
+// --- LAPORAN SANKSI & PELANGGARAN PERJALANAN ARMADA ---
+exports.getVehicleSanctionsReport = async (req, res) => {
+    try {
+        // 1. User yang saat ini aktif disanksi
+        const sanctionedUsers = await prisma.user.findMany({
+            where: { isSanctioned: true },
+            select: {
+                id: true,
+                name: true,
+                phone: true,
+                position: true,
+                unit: { select: { name: true } },
+                isSanctioned: true,
+                sanctionProposedLift: true,
+                sanctionLiftReason: true,
+                createdAt: true
+            }
+        });
+
+        // 2. Riwayat Pelanggaran Peminjaman
+        const violations = await prisma.driverViolation.findMany({
+            where: {
+                OR: [
+                    { category: 'Sanksi Peminjaman' },
+                    { description: { contains: 'perjalanan' } },
+                    { description: { contains: 'Armada' } }
+                ]
+            },
+            include: {
+                driver: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        position: true,
+                        unit: { select: { name: true } }
+                    }
+                }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        res.json({
+            sanctionedUsers,
+            violations
+        });
+    } catch (err) {
+        console.error('getVehicleSanctionsReport error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// --- LAPORAN PENGISIAN MINYAK & BBM ARMADA ---
+exports.getVehicleFuelReport = async (req, res) => {
+    try {
+        const { month, year, vehicleId } = req.query;
+        let dateFilter = {};
+
+        if (month && year) {
+            const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+            const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+            dateFilter = { gte: start, lte: end };
+        }
+
+        // 1. Log BBM Manual
+        const manualLogsWhere = {};
+        if (dateFilter.gte) manualLogsWhere.date = dateFilter;
+        if (vehicleId && vehicleId !== 'ALL') manualLogsWhere.vehicleId = parseInt(vehicleId);
+
+        const manualFuelLogs = await prisma.vehicleFuelLog.findMany({
+            where: manualLogsWhere,
+            include: {
+                vehicle: { select: { id: true, name: true, plateNumber: true, type: true } }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // 2. BBM dari Perjalanan (VehicleBooking)
+        const bookingLogsWhere = {
+            status: 'COMPLETED',
+            fuelPrice: { gt: 0 }
+        };
+        if (dateFilter.gte) bookingLogsWhere.tripEndTime = dateFilter;
+        if (vehicleId && vehicleId !== 'ALL') bookingLogsWhere.vehicleId = parseInt(vehicleId);
+
+        const bookingFuelLogs = await prisma.vehicleBooking.findMany({
+            where: bookingLogsWhere,
+            include: {
+                vehicle: { select: { id: true, name: true, plateNumber: true, type: true } },
+                user: { select: { id: true, name: true, phone: true, unit: { select: { name: true } } } }
+            },
+            orderBy: { tripEndTime: 'desc' }
+        });
+
+        // Format and merge transactions
+        const transactions = [
+            ...manualFuelLogs.map(l => ({
+                id: `manual-${l.id}`,
+                source: 'LOG_MANUAL',
+                date: l.date,
+                vehicle: l.vehicle,
+                driverName: 'Staff Armada',
+                unitName: 'Bidang Sarana',
+                liters: l.liters,
+                cost: l.cost,
+                odometer: l.odometer,
+                proofFile: l.proofFile
+            })),
+            ...bookingFuelLogs.map(b => ({
+                id: `booking-${b.id}`,
+                source: 'PERJALANAN_DINAS',
+                date: b.tripEndTime || b.startDate,
+                vehicle: b.vehicle,
+                driverName: b.user?.name || '-',
+                unitName: b.user?.unit?.name || 'Umum',
+                liters: b.fuelLiters || (b.fuelPrice > 0 ? (b.fuelPrice / 10000) : 0),
+                cost: b.fuelPrice || 0,
+                odometer: b.endKm || b.startKm || 0,
+                proofFile: b.fuelReceipt || null
+            }))
+        ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        const totalCost = transactions.reduce((acc, t) => acc + (t.cost || 0), 0);
+        const totalLiters = transactions.reduce((acc, t) => acc + (t.liters || 0), 0);
+
+        res.json({
+            transactions,
+            summary: {
+                totalTransactions: transactions.length,
+                totalCost,
+                totalLiters,
+                avgPricePerLiter: totalLiters > 0 ? (totalCost / totalLiters) : 0
+            }
+        });
+    } catch (err) {
+        console.error('getVehicleFuelReport error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};

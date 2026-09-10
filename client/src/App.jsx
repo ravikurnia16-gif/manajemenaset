@@ -53,6 +53,12 @@ import WorkshopOrderList from './pages/WorkshopOrderList';
 import WorkshopOrderForm from './pages/WorkshopOrderForm';
 import WorkshopOrderDetail from './pages/WorkshopOrderDetail';
 
+// Modul Baru: Manajemen Workshop Baru (Unit 21)
+import WorkshopBaruDashboard from './pages/WorkshopBaru/WorkshopBaruDashboard';
+import WorkshopBaruBoard from './pages/WorkshopBaru/WorkshopBaruBoard';
+import WorkshopBaruDetail from './pages/WorkshopBaru/WorkshopBaruDetail';
+import WorkshopBaruSettings from './pages/WorkshopBaru/WorkshopBaruSettings';
+
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleMaintenanceDetail from './pages/VehicleMaintenanceDetail';
@@ -243,11 +249,18 @@ function App() {
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="vendors" element={<VendorManagement />} />
 
-          {/* Modul Manajemen Workshop */}
+          {/* Modul Manajemen Workshop (Lama) */}
           <Route path="workshop/dashboard" element={<WorkshopDashboard />} />
           <Route path="workshop/orders" element={<WorkshopOrderList />} />
           <Route path="workshop/orders/new" element={<WorkshopOrderForm />} />
           <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
+
+          {/* Modul Baru: Manajemen Workshop Baru (Unit 21) */}
+          <Route path="workshop-baru/dashboard" element={<WorkshopBaruDashboard />} />
+          <Route path="workshop-baru/board" element={<WorkshopBaruBoard />} />
+          <Route path="workshop-baru/orders/:id" element={<WorkshopBaruDetail />} />
+          <Route path="workshop-baru/orders/new" element={<WorkshopOrderForm />} />
+          <Route path="workshop-baru/settings" element={<WorkshopBaruSettings />} />
 
           <Route path="settings" element={<Settings />} />
 

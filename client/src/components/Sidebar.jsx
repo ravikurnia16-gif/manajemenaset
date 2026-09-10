@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt } from 'lucide-react';
+import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -18,6 +18,7 @@ const Sidebar = ({ isOpen = true }) => {
         laporan: false,
         eoffice: false,
         workshop: false,
+        workshopBaru: location.pathname.startsWith('/workshop-baru'),
         survey: false,
         security: false
     });
@@ -208,7 +209,7 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* Manajemen Workshop */}
+                {/* Manajemen Workshop (Lama / Umum) */}
                 {renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
                     <>
                         <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
@@ -216,6 +217,24 @@ const Sidebar = ({ isOpen = true }) => {
                         </Link>
                         <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
                             <ClipboardList size={16} /> Pesanan Workshop
+                        </Link>
+                    </>
+                ))}
+
+                {/* Manajemen Workshop Baru (Unit 21) */}
+                {isWorkshopAdmin && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (
+                    <>
+                        <Link to="/workshop-baru/dashboard" className={subNavItemClass('/workshop-baru/dashboard')}>
+                            <LayoutDashboard size={16} /> Dashboard Unit 21
+                        </Link>
+                        <Link to="/workshop-baru/board" className={subNavItemClass('/workshop-baru/board')}>
+                            <Kanban size={16} /> Papan Kerja & Antrean
+                        </Link>
+                        <Link to="/workshop-baru/orders/new" className={subNavItemClass('/workshop-baru/orders/new')}>
+                            <Plus size={16} /> Buat Pesanan Baru
+                        </Link>
+                        <Link to="/workshop-baru/settings" className={subNavItemClass('/workshop-baru/settings')}>
+                            <Settings size={16} /> Pengaturan Workshop
                         </Link>
                     </>
                 ))}

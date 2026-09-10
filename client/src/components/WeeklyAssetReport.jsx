@@ -2,13 +2,31 @@ import { useState, useEffect, useMemo } from 'react';
 import {
     Box, ArrowLeftRight, Wrench, ClipboardCheck, Handshake, Trash2,
     Calendar, CalendarRange, Printer, RefreshCw, Eye, Download,
-    CheckCircle2, AlertCircle, Clock, Search, ChevronRight, Layers
+    CheckCircle2, AlertCircle, Clock, Search, ChevronRight, Layers,
+    Loader2, FileText
 } from 'lucide-react';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 
+/* ── jsPDF + autoTable CDN loader ── */
+function loadJsPDF() {
+    return new Promise((resolve) => {
+        if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => {
+            const s2 = document.createElement('script');
+            s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+            s2.onload = () => resolve(window.jspdf.jsPDF);
+            document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+    });
+}
+
 export default function WeeklyAssetReport({ currentUser }) {
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [data, setData] = useState(null);
     const [preset, setPreset] = useState('this_week'); // 'this_week' | 'last_week' | 'this_month' | 'custom'
     const [startDate, setStartDate] = useState('');
@@ -91,8 +109,265 @@ export default function WeeklyAssetReport({ currentUser }) {
         }
     };
 
+    const handleExportPDF = async () => {
+        if (!data) return;
+        setExporting(true);
+        try {
+            const jsPDF = await loadJsPDF();
+            const doc = new jsPDF('portrait', 'mm', 'a4');
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+
+            // 1. KOP SURAT RESMI
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('BIDANG SARANA', pageW / 2, 16, { align: 'center' });
+
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(79, 70, 229); // Indigo 600
+            doc.text('YAYASAN DAR EL-IMAN PADANG', pageW / 2, 22, { align: 'center' });
+
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Jl. Gunuang Juaro, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat', pageW / 2, 27, { align: 'center' });
+
+            // Garis pemisah kop
+            doc.setDrawColor(30, 41, 59);
+            doc.setLineWidth(0.6);
+            doc.line(14, 30, pageW - 14, 30);
+            doc.setLineWidth(0.2);
+            doc.line(14, 31, pageW - 14, 31);
+
+            // 2. JUDUL LAPORAN
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('LAPORAN OPERASIONAL & PERGERAKAN ASET MINGGUAN', pageW / 2, 38, { align: 'center' });
+
+            doc.setFontSize(8.5);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(71, 85, 105);
+            doc.text(`Periode: ${data?.period?.formattedPeriod || '-'}   |   Unit: ${data?.unit || 'Seluruh Unit'}`, pageW / 2, 43, { align: 'center' });
+
+            let currentY = 48;
+
+            // 3. TABEL I: RINGKASAN REKAPITULASI METRIK
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('I. Ringkasan Rekapitulasi Metrik Aset', 14, currentY);
+
+            const summaryRows = [
+                ['1', 'Aset Baru Masuk (Pengadaan / Registrasi)', `${summary.newAssetsCount} item`, `Rp ${summary.newAssetsValue.toLocaleString('id-ID')}`],
+                ['2', 'Mutasi & Perpindahan Ruangan/Unit', `${summary.movementsCount} transaksi`, 'Relokasi sarana'],
+                ['3', 'Pemeliharaan & Perbaikan Sarana', `${summary.maintenanceCount} tiket`, `Rp ${summary.maintenanceCost.toLocaleString('id-ID')}`],
+                ['4', 'Audit & Verifikasi Fisik Aset Lapangan', `${summary.auditCount} item`, 'Verifikasi kondisi fisik'],
+                ['5', 'Peminjaman Aset Antar Unit / Luar', `${summary.loansCount} transaksi`, 'Peminjaman fasilitas'],
+                ['6', 'Usulan Penghapusan (Disposal / Rusak Berat)', `${summary.disposalsCount} item`, 'Usulan lelang/pemusnahan'],
+            ];
+
+            doc.autoTable({
+                startY: currentY + 3,
+                head: [['No', 'Indikator Kinerja / Aktivitas', 'Jumlah', 'Keterangan / Estimasi Nilai']],
+                body: summaryRows,
+                theme: 'grid',
+                headStyles: { fillColor: [79, 70, 229], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+                bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
+                columnStyles: {
+                    0: { cellWidth: 10, halign: 'center' },
+                    1: { cellWidth: 85 },
+                    2: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
+                    3: { cellWidth: 55, halign: 'right' }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            currentY = doc.lastAutoTable.finalY + 8;
+
+            // 4. TABEL II: REKAPITULASI KUANTITAS ASET BARU MASUK (PENGADAAN)
+            if (groupedNewAssets.length > 0) {
+                if (currentY > pageH - 50) {
+                    doc.addPage();
+                    currentY = 16;
+                }
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(30, 41, 59);
+                doc.text('II. Rekapitulasi Kuantitas Aset Baru Masuk (Pengadaan)', 14, currentY);
+
+                const newAssetRows = groupedNewAssets.map((item, idx) => [
+                    idx + 1,
+                    item.name,
+                    item.category,
+                    item.unit,
+                    `${item.qty} unit`,
+                    `Rp ${(item.totalPrice || 0).toLocaleString('id-ID')}`
+                ]);
+
+                doc.autoTable({
+                    startY: currentY + 3,
+                    head: [['No', 'Nama Barang / Aset', 'Kategori', 'Unit Penerima', 'Qty', 'Total Nilai Perolehan']],
+                    body: newAssetRows,
+                    foot: [['', `Total Pengadaan (${groupedNewAssets.length} Jenis Barang)`, '', '', `${summary.newAssetsCount} unit`, `Rp ${summary.newAssetsValue.toLocaleString('id-ID')}`]],
+                    theme: 'striped',
+                    headStyles: { fillColor: [51, 65, 85], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+                    bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+                    footStyles: { fillColor: [241, 245, 249], fontSize: 7.5, fontStyle: 'bold', textColor: [15, 23, 42] },
+                    columnStyles: {
+                        0: { cellWidth: 8, halign: 'center' },
+                        1: { cellWidth: 62 },
+                        2: { cellWidth: 32 },
+                        3: { cellWidth: 32 },
+                        4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+                        5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 8;
+            }
+
+            // 5. TABEL III: DAFTAR MUTASI (Jika ada)
+            if (details.movements && details.movements.length > 0) {
+                if (currentY > pageH - 45) {
+                    doc.addPage();
+                    currentY = 16;
+                }
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(30, 41, 59);
+                doc.text('III. Daftar Mutasi & Perpindahan Aset', 14, currentY);
+
+                const movementRows = details.movements.map((item, idx) => [
+                    idx + 1,
+                    item.asset?.name || '-',
+                    item.fromLocation || '-',
+                    item.toLocation || '-',
+                    item.status || '-'
+                ]);
+
+                doc.autoTable({
+                    startY: currentY + 3,
+                    head: [['No', 'Nama Aset', 'Dari Lokasi', 'Menuju Lokasi', 'Status']],
+                    body: movementRows,
+                    theme: 'striped',
+                    headStyles: { fillColor: [37, 99, 235], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+                    bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+                    columnStyles: {
+                        0: { cellWidth: 8, halign: 'center' },
+                        1: { cellWidth: 64 },
+                        2: { cellWidth: 45 },
+                        3: { cellWidth: 45 },
+                        4: { cellWidth: 20, halign: 'center' }
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 8;
+            }
+
+            // 6. TABEL IV: DAFTAR PEMELIHARAAN (Jika ada)
+            if (details.maintenances && details.maintenances.length > 0) {
+                if (currentY > pageH - 45) {
+                    doc.addPage();
+                    currentY = 16;
+                }
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(30, 41, 59);
+                doc.text('IV. Daftar Pemeliharaan & Servis Sarana', 14, currentY);
+
+                const maintRows = details.maintenances.map((item, idx) => [
+                    idx + 1,
+                    item.title,
+                    item.unit?.name || '-',
+                    item.status || '-',
+                    `Rp ${(item.cost || 0).toLocaleString('id-ID')}`
+                ]);
+
+                doc.autoTable({
+                    startY: currentY + 3,
+                    head: [['No', 'Judul Pemeliharaan', 'Unit', 'Status', 'Biaya']],
+                    body: maintRows,
+                    theme: 'striped',
+                    headStyles: { fillColor: [249, 115, 22], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+                    bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+                    columnStyles: {
+                        0: { cellWidth: 8, halign: 'center' },
+                        1: { cellWidth: 84 },
+                        2: { cellWidth: 40 },
+                        3: { cellWidth: 22, halign: 'center' },
+                        4: { cellWidth: 28, halign: 'right' }
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 8;
+            }
+
+            // 7. KOLOM TANDA TANGAN RESMI
+            if (currentY > pageH - 48) {
+                doc.addPage();
+                currentY = 20;
+            } else {
+                currentY += 4;
+            }
+
+            const kabidName = data?.signers?.kabid?.name || 'Ravi Kurnia';
+            const kabidPos = 'Kepala Bidang Sarana';
+            const kabidNiy = data?.signers?.kabid?.niy || '-';
+
+            const kabidX = pageW - 55;
+
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(71, 85, 105);
+            doc.text('Mengetahui,', kabidX, currentY, { align: 'center' });
+
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text(kabidPos, kabidX, currentY + 5, { align: 'center' });
+
+            // Ruang Tanda Tangan
+            doc.setTextColor(15, 23, 42);
+            doc.setFontSize(9.5);
+            doc.text(kabidName.toUpperCase(), kabidX, currentY + 28, { align: 'center' });
+
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`NIY: ${kabidNiy}`, kabidX, currentY + 33, { align: 'center' });
+
+            // 8. FOOTER PENOMORAN HALAMAN
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                doc.setFontSize(7.5);
+                doc.setTextColor(148, 163, 184);
+                doc.text(`Halaman ${i} dari ${totalPages}  |  Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El-Iman`, pageW / 2, pageH - 8, { align: 'center' });
+            }
+
+            const dateSuffix = `${startDate || 'minggu'}_sd_${endDate || 'ini'}`;
+            doc.save(`Laporan_Mingguan_Aset_${dateSuffix}.pdf`);
+        } catch (err) {
+            console.error('Export Weekly PDF Error:', err);
+            alert('Gagal mengekspor PDF laporan mingguan: ' + err.message);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const handlePrint = () => {
-        window.print();
+        setShowPrintPreview(true);
+        setTimeout(() => {
+            window.print();
+        }, 300);
     };
 
     const summary = data?.summary || {
@@ -241,7 +516,7 @@ export default function WeeklyAssetReport({ currentUser }) {
 
                     <button
                         onClick={() => setShowPrintPreview(!showPrintPreview)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
                     >
                         <Eye size={15} />
                         {showPrintPreview ? 'Tutup Preview' : 'Preview Cetak'}
@@ -249,10 +524,21 @@ export default function WeeklyAssetReport({ currentUser }) {
 
                     <button
                         onClick={handlePrint}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 transition-all hover:scale-105"
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white shadow-sm transition-all"
+                        title="Cetak via Dialog Printer Browser"
                     >
                         <Printer size={15} />
-                        Cetak Laporan
+                        Cetak Printer
+                    </button>
+
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exporting || loading}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 transition-all hover:scale-105 disabled:opacity-50"
+                        title="Unduh Dokumen PDF Resmi"
+                    >
+                        {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                        {exporting ? 'Mengekspor PDF...' : 'Download PDF Resmi'}
                     </button>
                 </div>
             </div>
@@ -894,14 +1180,18 @@ export default function WeeklyAssetReport({ currentUser }) {
             </div>
 
             {/* 4. OFFICIAL PRINTABLE REPORT CONTAINER (VISIBLE IN PRINT OR PREVIEW MODE) */}
-            <div className={cn(
-                "bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto text-slate-800 print:border-none print:shadow-none print:p-0 print:block print:max-w-none print:w-full print:m-0",
-                showPrintPreview ? "block" : "hidden print:block"
-            )}>
+            <div 
+                id="printable-weekly-report"
+                className={cn(
+                    "bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto text-slate-800",
+                    "print:border-none print:shadow-none print:p-0 print:!block print:max-w-none print:w-full print:m-0",
+                    showPrintPreview ? "block" : "hidden print:!block"
+                )}
+            >
                 {/* KOP SURAT RESMI */}
                 <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
-                    <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">YAYASAN DAR EL-IMAN PADANG</h2>
-                    <h3 className="text-base font-black text-indigo-950 uppercase tracking-widest">BIDANG SARANA & PRASARANA</h3>
+                    <h2 className="text-2xl font-black tracking-wider text-slate-900 uppercase">BIDANG SARANA</h2>
+                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest">YAYASAN DAR EL-IMAN PADANG</h3>
                     <p className="text-[11px] text-slate-600">Jl. Gunuang Juaro, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat</p>
                 </div>
 
@@ -1090,19 +1380,13 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                 )}
 
-                {/* BLOK TANDA TANGAN RESMI */}
-                <div className="pt-6 grid grid-cols-2 gap-8 text-center text-xs">
-                    <div>
-                        <p className="font-semibold text-slate-600">Dibuat Oleh,</p>
-                        <p className="text-[11px] text-slate-500 mb-16">{data?.signers?.staff?.position || 'Staff Manajemen Aset'}</p>
-                        <p className="font-black text-slate-900 underline uppercase">{data?.signers?.staff?.name || 'Staff Manajemen Aset'}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">NIY: {data?.signers?.staff?.niy || '-'}</p>
-                    </div>
-                    <div>
+                {/* BLOK TANDA TANGAN RESMI (CUKUP KEPALA BIDANG SARANA) */}
+                <div className="pt-8 flex justify-end text-center text-xs">
+                    <div className="w-64">
                         <p className="font-semibold text-slate-600">Mengetahui,</p>
-                        <p className="text-[11px] text-slate-500 mb-16">Kepala Bidang Sarana & Prasarana</p>
-                        <p className="font-black text-slate-900 underline uppercase">{data?.signers?.kabid?.name || 'Ravi Kurnia'}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">NIY: {data?.signers?.kabid?.niy || '-'}</p>
+                        <p className="text-[11px] text-slate-800 font-bold mb-20 mt-0.5">Kepala Bidang Sarana</p>
+                        <p className="font-black text-slate-900 underline uppercase text-sm">{data?.signers?.kabid?.name || 'Ravi Kurnia'}</p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">NIY: {data?.signers?.kabid?.niy || '-'}</p>
                     </div>
                 </div>
 
@@ -1110,6 +1394,34 @@ export default function WeeklyAssetReport({ currentUser }) {
                     Dokumen dicetak otomatis melalui Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El-Iman Padang
                 </div>
             </div>
+
+            {/* ISOLATED PRINT STYLES FOR SAFE BROWSER PRINTING */}
+            <style>{`
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #printable-weekly-report, #printable-weekly-report * {
+                        visibility: visible !important;
+                    }
+                    #printable-weekly-report {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        display: block !important;
+                        padding: 10mm 12mm !important;
+                        margin: 0 !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                    }
+                    html, body, #root, .flex-1, main {
+                        height: auto !important;
+                        overflow: visible !important;
+                        background: white !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }

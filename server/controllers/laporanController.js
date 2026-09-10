@@ -18,9 +18,7 @@ const SARPRAS_KEYWORDS = [
     'gudang dan logistik',
     'kendaraan',
     'teknisi aset',
-    'teknisi',
     'keuangan dan administrasi',
-    'sarana dan prasarana',
     'infrastruktur it',
     'desainer'
 ];
