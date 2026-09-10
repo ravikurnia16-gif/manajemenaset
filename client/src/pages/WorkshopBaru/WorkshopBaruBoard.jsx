@@ -17,7 +17,9 @@ import {
     ChevronRight,
     AlertTriangle,
     SlidersHorizontal,
-    RefreshCw
+    RefreshCw,
+    Boxes,
+    FileSpreadsheet
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../lib/axios';
@@ -189,6 +191,22 @@ function WorkshopBaruBoard() {
                     >
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                     </button>
+
+                    <Link
+                        to="/workshop-baru/catalog"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-colors"
+                        title="Katalog Produk Workshop"
+                    >
+                        <Boxes size={15} /> Katalog
+                    </Link>
+
+                    <Link
+                        to="/workshop-baru/export"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-colors"
+                        title="Ekspor Pekerjaan ke PDF/Excel"
+                    >
+                        <FileSpreadsheet size={15} /> Ekspor
+                    </Link>
 
                     <Link
                         to="/workshop-baru/orders/new"

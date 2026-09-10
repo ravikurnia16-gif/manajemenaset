@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban } from 'lucide-react';
+import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -232,6 +232,12 @@ const Sidebar = ({ isOpen = true }) => {
                         </Link>
                         <Link to="/workshop-baru/orders/new" className={subNavItemClass('/workshop-baru/orders/new')}>
                             <Plus size={16} /> Buat Pesanan Baru
+                        </Link>
+                        <Link to="/workshop-baru/catalog" className={subNavItemClass('/workshop-baru/catalog')}>
+                            <Boxes size={16} /> Katalog Workshop
+                        </Link>
+                        <Link to="/workshop-baru/export" className={subNavItemClass('/workshop-baru/export')}>
+                            <FileSpreadsheet size={16} /> Ekspor Pekerjaan
                         </Link>
                         <Link to="/workshop-baru/settings" className={subNavItemClass('/workshop-baru/settings')}>
                             <Settings size={16} /> Pengaturan Workshop

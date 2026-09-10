@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 import {
     Users, Plus, Search, MapPin, Phone, Mail, Globe,
     MoreVertical, Edit2, Trash2, Package, CheckCircle,
-    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign
+    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign, HardHat
 } from 'lucide-react';
 
 const VendorManagement = () => {
@@ -279,7 +280,7 @@ const VendorManagement = () => {
         }
     };
 
-    const categories = ['ALL', 'IT', 'Alat Tulis', 'Meubel', 'Elektronik', 'Konstruksi', 'Lainnya'];
+    const categories = ['ALL', 'Workshop & Fabrikasi', 'IT', 'Alat Tulis', 'Meubel', 'Elektronik', 'Konstruksi', 'Lainnya'];
 
     return (
         <div className="p-6 pb-20 max-w-7xl mx-auto animate-fadeIn">
@@ -290,22 +291,32 @@ const VendorManagement = () => {
                     </h1>
                     <p className="text-slate-500 text-sm mt-1">Kelola data vendor, katalog produk, dan info spesifikasi secara mendalam.</p>
                 </div>
-                {canManageVendor && (
-                    <button
-                        onClick={() => {
-                            setCurrentVendor(null);
-                            setVendorForm({
-                                name: '', address: '', phone: '', email: '',
-                                website: '', description: '', category: '',
-                                photo: null, isVerified: false
-                            });
-                            setIsVendorModalOpen(true);
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
+                <div className="flex items-center gap-3">
+                    <Link
+                        to="/workshop-baru/catalog"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-2 text-sm font-bold transition-all transform hover:scale-105 active:scale-95"
+                        title="Buka Katalog Produk Workshop Unit 21"
                     >
-                        <Plus size={18} /> Tambah Vendor Baru
-                    </button>
-                )}
+                        <HardHat size={18} /> Katalog Workshop Unit 21
+                    </Link>
+
+                    {canManageVendor && (
+                        <button
+                            onClick={() => {
+                                setCurrentVendor(null);
+                                setVendorForm({
+                                    name: '', address: '', phone: '', email: '',
+                                    website: '', description: '', category: '',
+                                    photo: null, isVerified: false
+                                });
+                                setIsVendorModalOpen(true);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95 text-sm font-bold"
+                        >
+                            <Plus size={18} /> Tambah Vendor Baru
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Filters */}
@@ -492,11 +503,16 @@ const VendorManagement = () => {
                                 </div>
                                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                                     <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase truncate max-w-[100px]" title={prod.vendor?.name}>
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase truncate max-w-[120px]" title={prod.vendor?.name}>
                                                 {prod.vendor?.name}
                                             </span>
                                             {prod.vendor?.isVerified && <CheckCircle size={10} className="text-blue-600 shrink-0" />}
+                                            {(prod.vendor?.category === 'Workshop & Fabrikasi' || (prod.vendor?.name || '').toLowerCase().includes('workshop')) && (
+                                                <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                                                    🛠️ Workshop Unit 21
+                                                </span>
+                                            )}
                                         </div>
                                         <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
                                         <div className="flex items-center gap-2 mb-1">

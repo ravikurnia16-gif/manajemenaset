@@ -15,7 +15,9 @@ import {
     Users,
     ChevronRight,
     Sparkles,
-    ShieldAlert
+    ShieldAlert,
+    Boxes,
+    FileSpreadsheet
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
@@ -116,18 +118,30 @@ function WorkshopBaruDashboard() {
                         </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
                         <Link
                             to="/workshop-baru/board"
-                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold backdrop-blur-sm border border-white/10 transition-all shadow-sm"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-semibold backdrop-blur-sm border border-white/10 transition-all shadow-sm"
                         >
-                            <Kanban size={16} /> Papan Kerja Antrean
+                            <Kanban size={15} /> Papan Kerja
+                        </Link>
+                        <Link
+                            to="/workshop-baru/catalog"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-semibold backdrop-blur-sm border border-white/10 transition-all shadow-sm"
+                        >
+                            <Boxes size={15} /> Katalog Workshop
+                        </Link>
+                        <Link
+                            to="/workshop-baru/export"
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-semibold backdrop-blur-sm border border-white/10 transition-all shadow-sm"
+                        >
+                            <FileSpreadsheet size={15} /> Ekspor
                         </Link>
                         <Link
                             to="/workshop-baru/orders/new"
-                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-all shadow-md hover:shadow-emerald-500/30"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold transition-all shadow-md hover:shadow-emerald-500/30 hover:scale-105"
                         >
-                            <Plus size={16} /> Buat Pesanan Baru
+                            <Plus size={15} /> Pesanan Baru
                         </Link>
                     </div>
                 </div>

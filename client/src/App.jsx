@@ -57,6 +57,9 @@ import WorkshopOrderDetail from './pages/WorkshopOrderDetail';
 import WorkshopBaruDashboard from './pages/WorkshopBaru/WorkshopBaruDashboard';
 import WorkshopBaruBoard from './pages/WorkshopBaru/WorkshopBaruBoard';
 import WorkshopBaruDetail from './pages/WorkshopBaru/WorkshopBaruDetail';
+import WorkshopBaruOrderForm from './pages/WorkshopBaru/WorkshopBaruOrderForm';
+import WorkshopBaruCatalog from './pages/WorkshopBaru/WorkshopBaruCatalog';
+import WorkshopBaruExport from './pages/WorkshopBaru/WorkshopBaruExport';
 import WorkshopBaruSettings from './pages/WorkshopBaru/WorkshopBaruSettings';
 
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
@@ -259,7 +262,9 @@ function App() {
           <Route path="workshop-baru/dashboard" element={isKabidSarpras ? <WorkshopBaruDashboard /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/board" element={isKabidSarpras ? <WorkshopBaruBoard /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/orders/:id" element={isKabidSarpras ? <WorkshopBaruDetail /> : <Navigate to="/dashboard" replace />} />
-          <Route path="workshop-baru/orders/new" element={isKabidSarpras ? <WorkshopOrderForm /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/orders/new" element={isKabidSarpras ? <WorkshopBaruOrderForm /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/catalog" element={isKabidSarpras ? <WorkshopBaruCatalog /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/export" element={isKabidSarpras ? <WorkshopBaruExport /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/settings" element={isKabidSarpras ? <WorkshopBaruSettings /> : <Navigate to="/dashboard" replace />} />
 
           <Route path="settings" element={<Settings />} />

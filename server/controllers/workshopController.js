@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { uploadFile } = require('../services/minioService');
+const { uploadFile, deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 
@@ -646,4 +646,216 @@ exports.updateOrderDetails = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// Helper to get or auto-create internal Workshop Vendor in Vendor master
+const getOrCreateWorkshopVendor = async () => {
+    let vendor = await prisma.vendor.findFirst({
+        where: {
+            OR: [
+                { name: { contains: 'Workshop' } },
+                { category: 'Workshop & Fabrikasi' },
+                { category: 'Workshop' }
+            ]
+        }
+    });
+
+    if (!vendor) {
+        vendor = await prisma.vendor.create({
+            data: {
+                name: 'Workshop Unit 21 (Fabrikasi Sarana)',
+                category: 'Workshop & Fabrikasi',
+                phone: '08116600021',
+                email: 'workshop@dareliman.or.id',
+                address: 'Jl. Gunuang Juaro, Surau Gadang, Nanggalo, Padang (Unit Workshop 21)',
+                description: 'Unit Pelaksana Teknis Fabrikasi Mebel, Perkayuan, Pengelasan Besi, dan Konstruksi Internal Yayasan Dar El-Iman Padang.',
+                isVerified: true
+            }
+        });
+    }
+
+    return vendor;
+};
+
+// GET /api/workshop/catalog
+exports.getWorkshopCatalog = async (req, res) => {
+    try {
+        const vendor = await getOrCreateWorkshopVendor();
+        const products = await prisma.vendorProduct.findMany({
+            where: { vendorId: vendor.id },
+            include: {
+                priceHistory: {
+                    orderBy: { date: 'desc' }
+                },
+                vendor: {
+                    select: { id: true, name: true, category: true, isVerified: true }
+                }
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        res.json({
+            vendor,
+            products
+        });
+    } catch (error) {
+        console.error('Get Workshop Catalog Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// POST /api/workshop/catalog
+exports.addWorkshopProduct = async (req, res) => {
+    try {
+        const { name, price, specification, unit } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Nama produk wajib diisi' });
+        }
+
+        const vendor = await getOrCreateWorkshopVendor();
+        const numPrice = price ? parseFloat(price) : 0;
+        
+        let specString = specification || '';
+        if (unit && !specString.includes(`Satuan:`)) {
+            specString = `[Satuan: ${unit}] ${specString}`.trim();
+        }
+
+        const product = await prisma.vendorProduct.create({
+            data: {
+                vendorId: vendor.id,
+                name: name.trim(),
+                price: numPrice,
+                specification: specString,
+                image: req.fileUrl || req.body.image || null
+            }
+        });
+
+        if (numPrice > 0) {
+            await prisma.vendorPriceHistory.create({
+                data: {
+                    productId: product.id,
+                    price: numPrice
+                }
+            });
+        }
+
+        res.json(product);
+    } catch (error) {
+        console.error('Add Workshop Product Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// PUT /api/workshop/catalog/:id
+exports.updateWorkshopProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, price, specification, unit, image } = req.body;
+        const productId = parseInt(id);
+
+        const oldProduct = await prisma.vendorProduct.findUnique({
+            where: { id: productId }
+        });
+        if (!oldProduct) return res.status(404).json({ error: 'Produk tidak ditemukan' });
+
+        const numPrice = price !== undefined && price !== '' ? parseFloat(price) : oldProduct.price;
+        const priceChanged = numPrice !== oldProduct.price;
+
+        let specString = specification !== undefined ? specification : oldProduct.specification;
+        if (unit && specString && !specString.includes(`Satuan:`)) {
+            specString = `[Satuan: ${unit}] ${specString}`.trim();
+        }
+
+        const updatedProduct = await prisma.vendorProduct.update({
+            where: { id: productId },
+            data: {
+                name: name ? name.trim() : oldProduct.name,
+                price: numPrice,
+                specification: specString,
+                image: req.fileUrl || (image !== undefined ? image : oldProduct.image)
+            }
+        });
+
+        if (priceChanged && numPrice > 0) {
+            await prisma.vendorPriceHistory.create({
+                data: {
+                    productId: productId,
+                    price: numPrice
+                }
+            });
+        }
+
+        res.json(updatedProduct);
+    } catch (error) {
+        console.error('Update Workshop Product Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// DELETE /api/workshop/catalog/:id
+exports.deleteWorkshopProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const productId = parseInt(id);
+
+        const oldProduct = await prisma.vendorProduct.findUnique({ where: { id: productId } });
+        if (oldProduct?.image) {
+            deleteFile(oldProduct.image).catch(() => {});
+        }
+
+        await prisma.vendorProduct.delete({ where: { id: productId } });
+        res.json({ message: 'Produk berhasil dihapus' });
+    } catch (error) {
+        console.error('Delete Workshop Product Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// GET /api/workshop/settings-unit
+exports.getWorkshopSettingsAndUnit = async (req, res) => {
+    try {
+        const [settings, unit21] = await Promise.all([
+            prisma.setting.findUnique({ where: { id: 1 } }),
+            prisma.unit.findUnique({ where: { id: 21 } })
+        ]);
+
+        res.json({
+            settings: settings || {},
+            unit21: unit21 || {}
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// PUT /api/workshop/settings-unit
+exports.updateWorkshopSettingsAndUnit = async (req, res) => {
+    try {
+        const { workshopPicKayu, workshopPicBesi, headName, headNip, phone, description } = req.body;
+
+        const [settings, unit21] = await Promise.all([
+            prisma.setting.upsert({
+                where: { id: 1 },
+                update: { workshopPicKayu, workshopPicBesi },
+                create: { id: 1, workshopPicKayu, workshopPicBesi }
+            }),
+            prisma.unit.update({
+                where: { id: 21 },
+                data: {
+                    headName: headName !== undefined ? headName : undefined,
+                    headNip: headNip !== undefined ? headNip : undefined,
+                    phone: phone !== undefined ? phone : undefined,
+                    description: description !== undefined ? description : undefined
+                }
+            }).catch(e => {
+                console.warn('Unit 21 update warning (may not exist yet):', e.message);
+                return null;
+            })
+        ]);
+
+        res.json({ settings, unit21, message: 'Pengaturan dan Aturan Kepala Unit berhasil diperbarui' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 
