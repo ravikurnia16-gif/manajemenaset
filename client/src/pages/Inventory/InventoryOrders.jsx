@@ -5,7 +5,7 @@ import {
   Sparkles, Calendar, User, Building2, FileText, AlertCircle, RefreshCw, 
   Printer, ExternalLink, ArrowLeft, Clock, ShieldCheck, CheckCheck, 
   Tag, Info, AlertTriangle, Layers, ChevronRight, Copy, Warehouse, PenTool,
-  Receipt, FileCheck, CreditCard, Banknote, CalendarClock, DollarSign
+  Receipt, FileCheck, CreditCard, Banknote, CalendarClock, DollarSign, Edit3, UserCheck
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import Swal from 'sweetalert2';
@@ -30,6 +30,8 @@ export default function InventoryOrders() {
   const [invoiceModalOrder, setInvoiceModalOrder] = useState(null);
   const [docType, setDocType] = useState('nota'); // 'nota' | 'bast'
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [staffGudangUser, setStaffGudangUser] = useState(null);
+  const [kabidUser, setKabidUser] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [signatureModal, setSignatureModal] = useState({
     isOpen: false,
@@ -116,10 +118,11 @@ export default function InventoryOrders() {
 
   const fetchOptions = async () => {
     try {
-      const [resItems, resWh, resSettings] = await Promise.allSettled([
+      const [resItems, resWh, resSettings, resStaff] = await Promise.allSettled([
         api.get('/inventory/items'),
         api.get('/inventory/warehouses'),
-        api.get('/settings')
+        api.get('/settings'),
+        api.get('/inventory/staff-gudang')
       ]);
       if (resItems.status === 'fulfilled') {
         setItems(Array.isArray(resItems.value.data) ? resItems.value.data : (resItems.value.data?.data || []));
@@ -129,6 +132,10 @@ export default function InventoryOrders() {
       }
       if (resSettings.status === 'fulfilled') {
         setSettings(resSettings.value.data);
+      }
+      if (resStaff.status === 'fulfilled') {
+        setStaffGudangUser(resStaff.value.data?.defaultStaff || null);
+        setKabidUser(resStaff.value.data?.defaultKabid || null);
       }
     } catch (e) {
       console.error(e);
@@ -335,11 +342,16 @@ export default function InventoryOrders() {
   // Buka Modal Input Tanda Tangan
   const openSignatureModal = (type, order) => {
     let title = 'Tanda Tangan Pemohon Barang';
-    let defaultName = order.requesterName || '';
+    let defaultName = order.receiverName || order.requesterName || '';
+    if (type === 'requester') {
+      const userInfo = getLoggedInUserInfo();
+      defaultName = order.receiverName || userInfo.name || order.requesterName || '';
+    }
     if (type === 'deliverer') {
       title = 'Tanda Tangan Petugas Gudang (Yang Menyerahkan)';
       const userInfo = getLoggedInUserInfo();
-      defaultName = userInfo.name || 'Petugas Logistik DEI';
+      const isStaffGudang = (userInfo.position || '').toLowerCase().includes('staff gudang dan logistik');
+      defaultName = isStaffGudang ? (userInfo.name || '') : (staffGudangUser?.name || order.defaultDelivererName || 'Petugas Logistik DEI');
     }
     setSignatureModal({
       isOpen: true,
@@ -409,6 +421,92 @@ export default function InventoryOrders() {
       });
     } catch (err) {
       Swal.fire('Gagal', err.response?.data?.message || err.response?.data?.error || 'Gagal menghapus tanda tangan', 'error');
+    }
+  };
+
+  // Validasi izin mengubah nama penerima pesanan
+  const checkCanEditReceiver = (order) => {
+    if (!order) return false;
+    if (checkIsAdminAsetOrSuper()) return true;
+    if (checkCanSignDeliverer()) return true;
+    const userInfo = getLoggedInUserInfo();
+    if (order.createdById && userInfo.id === order.createdById) return true;
+    const userUnitId = userInfo.unitId;
+    const userUnitName = (userInfo.unitName || '').toLowerCase();
+    const reqUnit = (order.requesterUnit || '').toLowerCase();
+    if (userUnitId && order.createdBy?.unitId === userUnitId) return true;
+    if (userUnitName && reqUnit && reqUnit.includes(userUnitName)) return true;
+    return false;
+  };
+
+  // Fitur Edit Nama Penerima (Jika berbeda dari user pemesan)
+  const handleEditReceiverName = async (order) => {
+    if (!order) return;
+    const currentReceiver = order.receiverName || order.requesterName || '';
+    const currentPosition = order.receiverPosition || 'Pemohon / Penerima Barang';
+
+    const { value: formValues } = await Swal.fire({
+      title: 'Ubah Nama Penerima Barang',
+      html: `
+        <div class="text-left text-xs space-y-3 pt-2 text-slate-700">
+          <p class="text-slate-500 text-[11px] leading-relaxed">
+            Sesuaikan nama penerima jika orang yang mengambil/menerima barang berbeda dari user yang memesan (<b>${order.requesterName}</b>).
+          </p>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Nama Penerima Barang *</label>
+            <input 
+              id="swal-receiver-name" 
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+              placeholder="Contoh: Budi Santoso" 
+              value="${(currentReceiver || '').replace(/"/g, '&quot;')}" 
+            />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Jabatan / Keterangan Penerima</label>
+            <input 
+              id="swal-receiver-pos" 
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+              placeholder="Contoh: Staf TU / Perwakilan Unit" 
+              value="${(currentPosition || '').replace(/"/g, '&quot;')}" 
+            />
+          </div>
+        </div>
+      `,
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: 'Simpan Penerima',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+      focusConfirm: false,
+      preConfirm: () => {
+        const name = document.getElementById('swal-receiver-name')?.value?.trim();
+        const pos = document.getElementById('swal-receiver-pos')?.value?.trim();
+        if (!name) {
+          Swal.showValidationMessage('Nama penerima wajib diisi!');
+          return false;
+        }
+        return { receiverName: name, receiverPosition: pos };
+      }
+    });
+
+    if (!formValues) return;
+
+    try {
+      const res = await api.put(`/inventory/orders/${order.id}/receiver`, formValues);
+      const updated = res.data;
+      setInvoiceModalOrder(updated);
+      setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+      if (selectedOrder && selectedOrder.id === updated.id) setSelectedOrder(updated);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Nama Penerima Diperbarui',
+        text: `Penerima resmi tercatat sebagai "${formValues.receiverName}".`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.fire('Gagal Menyimpan', err.response?.data?.error || 'Terjadi kesalahan saat memperbarui nama penerima', 'error');
     }
   };
 
@@ -997,7 +1095,10 @@ export default function InventoryOrders() {
                         <div className="text-[11px] text-slate-500 font-mono font-bold mt-0.5">{order.code || '-'}</div>
                       </td>
                       <td className="p-3.5 font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => openProcessModal(order)} title="Klik untuk melihat detail pesanan">
-                        {order.requesterName || '-'}
+                        <div>{order.receiverName || order.requesterName || '-'}</div>
+                        {order.receiverName && order.receiverName !== order.requesterName && (
+                          <div className="text-[10px] text-slate-400 font-normal">Pemesan: {order.requesterName}</div>
+                        )}
                       </td>
                       <td className="p-3.5 cursor-pointer" onClick={() => openProcessModal(order)}>
                         <span className="text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-medium text-[11px]">
@@ -1640,8 +1741,23 @@ export default function InventoryOrders() {
               {/* 2. SUMMARY GRID: PEMOHON & KEPERLUAN */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Identitas Pemohon</span>
-                  <div className="font-extrabold text-slate-800 text-sm">{selectedOrder.requesterName || '-'}</div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Identitas Penerima</span>
+                    {checkCanEditReceiver(selectedOrder) && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleEditReceiverName(selectedOrder)}
+                        className="text-[10px] text-blue-600 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                        title="Ubah Nama Penerima"
+                      >
+                        <Edit3 size={11} /> Ubah
+                      </button>
+                    )}
+                  </div>
+                  <div className="font-extrabold text-slate-800 text-sm">{selectedOrder.receiverName || selectedOrder.requesterName || '-'}</div>
+                  {selectedOrder.receiverName && selectedOrder.receiverName !== selectedOrder.requesterName && (
+                    <div className="text-[10px] text-slate-500 mt-0.5 font-normal">Pemesan: {selectedOrder.requesterName}</div>
+                  )}
                   <div className="text-xs font-semibold text-blue-700 mt-0.5">{selectedOrder.requesterUnit || 'Unit Umum'}</div>
                 </div>
 
@@ -2226,7 +2342,7 @@ export default function InventoryOrders() {
                         {settings?.orgName || "YAYASAN DAR EL-IMAN PADANG"}
                       </h2>
                       <h3 className="text-xs font-extrabold text-blue-700 uppercase tracking-wide">
-                        BAGIAN SARANA & PRASARANA (LOGISTIK & PERGUDANGAN)
+                        BAGIAN GUDANG DAN LOGISTIK
                       </h3>
                       <p className="text-[10.5px] text-slate-500 mt-0.5 leading-snug">
                         Layanan Pengadaan & Pendistribusian Logistik Perlengkapan Unit Yayasan
@@ -2524,7 +2640,7 @@ export default function InventoryOrders() {
 
                           <div>
                             <div className="font-extrabold text-slate-800 uppercase underline text-[11px]">
-                              {signatures.requester?.name || invoiceModalOrder.requesterName || '( ..................................... )'}
+                              {signatures.requester?.name || invoiceModalOrder.receiverName || invoiceModalOrder.requesterName || '( ..................................... )'}
                             </div>
                             <div className="text-[10px] text-slate-500 mt-0.5">{invoiceModalOrder.requesterUnit || 'Pemohon'}</div>
                           </div>
@@ -2534,7 +2650,7 @@ export default function InventoryOrders() {
                         <div className="flex flex-col justify-between min-h-[140px] p-2 bg-slate-50/60 rounded-xl border border-slate-200">
                           <div>
                             <span className="font-bold text-slate-700 block text-[11px]">Kasir / Petugas Logistik,</span>
-                            <span className="text-[10px] text-slate-400">Bagian Sarana & Prasarana</span>
+                            <span className="text-[10px] text-slate-400">Bagian Gudang dan Logistik</span>
                           </div>
 
                           <div className="my-2 flex-1 flex flex-col items-center justify-center min-h-[60px]">
@@ -2583,9 +2699,9 @@ export default function InventoryOrders() {
 
                           <div>
                             <div className="font-extrabold text-slate-800 uppercase underline text-[11px]">
-                              {signatures.deliverer?.name || '( Petugas Logistik DEI )'}
+                              {signatures.deliverer?.name || staffGudangUser?.name || invoiceModalOrder.defaultDelivererName || '( Petugas Logistik DEI )'}
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-0.5">Staff Sarpras & Logistik</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">Staff Gudang dan Logistik</div>
                           </div>
                         </div>
 
@@ -2599,19 +2715,20 @@ export default function InventoryOrders() {
                 {/* ======================================================= */}
                 {docType === 'bast' && (
                   <div className="space-y-4">
-                    {/* TITLE DOKUMEN BAST */}
-                    <div className="text-center py-0.5">
-                      <h1 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-wide underline underline-offset-4">
+                    
+                    {/* JUDUL DOKUMEN BAST */}
+                    <div className="text-center py-2 border-b border-slate-200">
+                      <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-wide uppercase underline underline-offset-4">
                         BERITA ACARA SERAH TERIMA BARANG (BAST)
                       </h1>
-                      <p className="text-[11px] text-blue-800 font-mono font-bold mt-0.5">
-                        Nomor: BAST/{invoiceModalOrder.code}/{new Date(invoiceModalOrder.date || Date.now()).getFullYear()}
-                      </p>
+                      <div className="text-xs font-mono font-bold text-blue-700 mt-1">
+                        NOMOR: BAST/{invoiceModalOrder.code}/{new Date(invoiceModalOrder.date || Date.now()).getFullYear()}
+                      </div>
                     </div>
 
                     {/* KALIMAT PEMBUKA / PREAMBLE BAST RESMI */}
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs leading-relaxed text-slate-700">
-                      Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(invoiceModalOrder.date)}</span>, tanggal <span className="font-extrabold text-slate-900">{new Date(invoiceModalOrder.date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Sarana & Prasarana Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
+                      Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(invoiceModalOrder.date)}</span>, tanggal <span className="font-extrabold text-slate-900">{new Date(invoiceModalOrder.date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
                     </div>
 
                     {/* IDENTITAS PARA PIHAK (PIHAK I & PIHAK II) */}
@@ -2623,38 +2740,66 @@ export default function InventoryOrders() {
                         </span>
                         <div className="flex items-center gap-1.5 pt-0.5">
                           <span className="text-slate-500 w-16 shrink-0">Nama</span>
-                          <span className="font-extrabold text-slate-800">: {signatures.deliverer?.name || 'Petugas Logistik DEI'}</span>
+                          <span className="font-extrabold text-slate-800">: {signatures.deliverer?.name || staffGudangUser?.name || invoiceModalOrder.defaultDelivererName || 'Petugas Logistik DEI'}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500 w-16 shrink-0">Jabatan</span>
-                          <span className="text-slate-700 font-medium">: Staf Logistik & Pergudangan</span>
+                          <span className="text-slate-700 font-medium">: {staffGudangUser?.position || invoiceModalOrder.defaultDelivererPosition || 'Staff Gudang dan Logistik'}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500 w-16 shrink-0">Unit Kerja</span>
-                          <span className="text-slate-700 font-medium">: Bagian Sarana & Prasarana</span>
+                          <span className="text-slate-700 font-medium">: Bidang Sarana</span>
                         </div>
                         <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-50">
-                          Bertindak untuk dan atas nama Bagian Sarpras yang menyerahkan barang logistik.
+                          Bertindak untuk dan atas nama Bidang Sarana yang menyerahkan barang logistik.
                         </p>
                       </div>
 
                       {/* PIHAK KEDUA */}
                       <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1 shadow-2xs">
-                        <span className="font-black text-indigo-900 uppercase text-[9.5px] tracking-wider block border-b border-slate-100 pb-1">
-                          II. PIHAK KEDUA (Yang Menerima):
-                        </span>
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                          <span className="font-black text-indigo-900 uppercase text-[9.5px] tracking-wider block">
+                            II. PIHAK KEDUA (Yang Menerima):
+                          </span>
+                          {checkCanEditReceiver(invoiceModalOrder) && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditReceiverName(invoiceModalOrder)}
+                              className="text-[9.5px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer print:hidden hover:underline"
+                              title="Ubah Nama Penerima Barang jika berbeda dari pemesan"
+                            >
+                              <Edit3 size={11} />
+                              <span>Ubah Penerima</span>
+                            </button>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 pt-0.5">
                           <span className="text-slate-500 w-16 shrink-0">Nama</span>
-                          <span className="font-extrabold text-slate-800">: {signatures.requester?.name || invoiceModalOrder.requesterName || '-'}</span>
+                          <span className="font-extrabold text-slate-800">: {signatures.requester?.name || invoiceModalOrder.receiverName || invoiceModalOrder.requesterName || '-'}</span>
+                          {checkCanEditReceiver(invoiceModalOrder) && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditReceiverName(invoiceModalOrder)}
+                              className="text-slate-400 hover:text-blue-600 ml-1 print:hidden cursor-pointer"
+                              title="Edit Nama Penerima"
+                            >
+                              <Edit3 size={11} />
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500 w-16 shrink-0">Peran</span>
-                          <span className="text-slate-700 font-medium">: Pemohon Barang Logistik</span>
+                          <span className="text-slate-700 font-medium">: {invoiceModalOrder.receiverPosition || 'Pemohon Barang Logistik'}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500 w-16 shrink-0">Unit Kerja</span>
                           <span className="font-bold text-blue-800 bg-blue-50 px-1.5 py-0.2 rounded">: {invoiceModalOrder.requesterUnit || 'Unit Pemohon'}</span>
                         </div>
+                        {invoiceModalOrder.receiverName && invoiceModalOrder.receiverName !== invoiceModalOrder.requesterName && (
+                          <div className="text-[9px] text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mt-0.5 border border-amber-200">
+                            *Dipesan oleh: <b>{invoiceModalOrder.requesterName}</b>, diterima oleh: <b>{invoiceModalOrder.receiverName}</b>
+                          </div>
+                        )}
                         <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-50">
                           Bertindak untuk dan atas nama unit pemohon yang menerima dan memeriksa barang.
                         </p>
@@ -2802,7 +2947,7 @@ export default function InventoryOrders() {
 
                           <div>
                             <div className="font-extrabold text-slate-800 uppercase underline text-[11px]">
-                              {signatures.requester?.name || invoiceModalOrder.requesterName || '( ..................................... )'}
+                              {signatures.requester?.name || invoiceModalOrder.receiverName || invoiceModalOrder.requesterName || '( ..................................... )'}
                             </div>
                             <div className="text-[10px] text-slate-500 mt-0.5">{invoiceModalOrder.requesterUnit || 'Pemohon'}</div>
                           </div>
@@ -2861,9 +3006,9 @@ export default function InventoryOrders() {
 
                           <div>
                             <div className="font-extrabold text-slate-800 uppercase underline text-[11px]">
-                              {signatures.deliverer?.name || '( Petugas Logistik DEI )'}
+                              {signatures.deliverer?.name || staffGudangUser?.name || invoiceModalOrder.defaultDelivererName || '( Petugas Logistik DEI )'}
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-0.5">Staff Sarpras & Logistik</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">Staff Gudang dan Logistik</div>
                           </div>
                         </div>
 
@@ -2930,10 +3075,10 @@ export default function InventoryOrders() {
 
                           <div>
                             <div className="font-extrabold text-slate-800 uppercase underline text-[11px]">
-                              {signatures.kabid?.name || '( Kepala Bidang Sarana )'}
+                              {signatures.kabid?.name || kabidUser?.name || invoiceModalOrder.defaultKabidName || '( KEPALA BIDANG SARANA )'}
                             </div>
                             <div className="text-[10px] text-slate-500 mt-0.5">
-                              {signatures.kabid?.position || 'Kepala Bidang Sarana'}
+                              {signatures.kabid?.position || kabidUser?.position || invoiceModalOrder.defaultKabidPosition || 'Kepala Bidang Sarana'}
                             </div>
                           </div>
                         </div>

@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { 
   Printer, ArrowLeft, Building2, User, Calendar, 
   Package, CheckCircle2, Clock, XCircle, FileText, CheckCheck, Copy, Share2,
-  PenTool, ShieldCheck, X, Receipt, FileCheck, CreditCard, CalendarClock, AlertTriangle, CheckCircle
+  PenTool, ShieldCheck, X, Receipt, FileCheck, CreditCard, CalendarClock, AlertTriangle, CheckCircle, Edit3
 } from 'lucide-react';
 import SignaturePad from '../../components/SignaturePad';
 
@@ -219,10 +219,12 @@ export default function InventoryInvoicePublic() {
 
   const openSignatureModal = (type) => {
     let title = 'Tanda Tangan Pemohon Barang';
-    let defaultName = invoice.requesterName || '';
+    let defaultName = invoice.receiverName || invoice.requesterName || '';
     if (type === 'deliverer') {
       title = 'Tanda Tangan Petugas Gudang (Yang Menyerahkan)';
-      defaultName = 'Petugas Logistik DEI';
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const isStaffGudang = (u?.position || '').toLowerCase().includes('staff gudang dan logistik');
+      defaultName = isStaffGudang ? (u.name || '') : (invoice.defaultDelivererName || 'Petugas Logistik DEI');
     }
     setSignatureModal({
       isOpen: true,
@@ -230,6 +232,72 @@ export default function InventoryInvoicePublic() {
       title,
       signerName: defaultName
     });
+  };
+
+  const handleEditReceiverName = async () => {
+    if (!invoice) return;
+    const currentReceiver = invoice.receiverName || invoice.requesterName || '';
+    const currentPosition = invoice.receiverPosition || 'Pemohon / Penerima Barang';
+
+    const { value: formValues } = await Swal.fire({
+      title: 'Ubah Nama Penerima Barang',
+      html: `
+        <div class="text-left text-xs space-y-3 pt-2 text-slate-700">
+          <p class="text-slate-500 text-[11px] leading-relaxed">
+            Sesuaikan nama penerima jika orang yang mengambil/menerima barang berbeda dari user yang memesan (<b>${invoice.requesterName}</b>).
+          </p>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Nama Penerima Barang *</label>
+            <input 
+              id="swal-receiver-name-pub" 
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+              placeholder="Contoh: Budi Santoso" 
+              value="${(currentReceiver || '').replace(/"/g, '&quot;')}" 
+            />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Jabatan / Keterangan Penerima</label>
+            <input 
+              id="swal-receiver-pos-pub" 
+              class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+              placeholder="Contoh: Staf TU / Perwakilan Unit" 
+              value="${(currentPosition || '').replace(/"/g, '&quot;')}" 
+            />
+          </div>
+        </div>
+      `,
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: 'Simpan Penerima',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+      focusConfirm: false,
+      preConfirm: () => {
+        const name = document.getElementById('swal-receiver-name-pub')?.value?.trim();
+        const pos = document.getElementById('swal-receiver-pos-pub')?.value?.trim();
+        if (!name) {
+          Swal.showValidationMessage('Nama penerima wajib diisi!');
+          return false;
+        }
+        return { receiverName: name, receiverPosition: pos };
+      }
+    });
+
+    if (!formValues) return;
+
+    try {
+      const res = await api.put(`/inventory/orders/public/${invoice.id}/receiver`, formValues);
+      setInvoice(res.data);
+      Swal.fire({
+        icon: 'success',
+        title: 'Nama Penerima Diperbarui',
+        text: `Penerima resmi tercatat sebagai "${formValues.receiverName}".`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.fire('Gagal Menyimpan', err.response?.data?.error || 'Terjadi kesalahan saat memperbarui nama penerima', 'error');
+    }
   };
 
   const handleSaveSignature = async (dataUrl) => {
@@ -551,7 +619,7 @@ export default function InventoryInvoicePublic() {
                   {settings?.orgName || "YAYASAN DAR EL-IMAN PADANG"}
                 </h2>
                 <h3 className="text-xs sm:text-sm font-extrabold text-blue-700 uppercase tracking-wide">
-                  BAGIAN SARANA & PRASARANA (LOGISTIK & PERGUDANGAN)
+                  BAGIAN GUDANG DAN LOGISTIK
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
                   Layanan Pengadaan & Pendistribusian Logistik Perlengkapan Unit Yayasan
@@ -844,7 +912,7 @@ export default function InventoryInvoicePublic() {
 
                     <div>
                       <div className="font-extrabold text-slate-800 uppercase underline underline-offset-2">
-                        {signatures.requester?.name || invoice.requesterName || '( ..................................... )'}
+                        {signatures.requester?.name || invoice.receiverName || invoice.requesterName || '( ..................................... )'}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">{invoice.requesterUnit || 'Pemohon'}</div>
                     </div>
@@ -854,7 +922,7 @@ export default function InventoryInvoicePublic() {
                   <div className="flex flex-col justify-between min-h-[160px] p-3 bg-slate-50/60 rounded-2xl border border-slate-200">
                     <div>
                       <span className="font-bold text-slate-700 block text-xs">Kasir / Petugas Logistik,</span>
-                      <span className="text-[10px] text-slate-400">Bagian Sarana & Prasarana</span>
+                      <span className="text-[10px] text-slate-400">Bagian Gudang dan Logistik</span>
                     </div>
 
                     <div className="my-2 flex-1 flex flex-col items-center justify-center min-h-[70px]">
@@ -880,9 +948,9 @@ export default function InventoryInvoicePublic() {
 
                     <div>
                       <div className="font-extrabold text-slate-800 uppercase underline underline-offset-2">
-                        {signatures.deliverer?.name || '( Petugas Logistik DEI )'}
+                        {signatures.deliverer?.name || invoice.defaultDelivererName || '( Petugas Logistik DEI )'}
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Staff Sarpras & Logistik</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Staff Gudang dan Logistik</div>
                     </div>
                   </div>
 
@@ -908,7 +976,7 @@ export default function InventoryInvoicePublic() {
 
               {/* KALIMAT PEMBUKA / PREAMBLE BAST */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs leading-relaxed text-slate-700">
-                Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(invoice.date)}</span>, tanggal <span className="font-extrabold text-slate-900">{new Date(invoice.date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Sarana & Prasarana Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
+                Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(invoice.date)}</span>, tanggal <span className="font-extrabold text-slate-900">{new Date(invoice.date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
               </div>
 
               {/* IDENTITAS PARA PIHAK (PIHAK I & PIHAK II) */}
@@ -920,38 +988,62 @@ export default function InventoryInvoicePublic() {
                   </span>
                   <div className="flex items-center gap-2 pt-0.5">
                     <span className="text-slate-500 w-20 shrink-0">Nama</span>
-                    <span className="font-extrabold text-slate-800">: {signatures.deliverer?.name || 'Petugas Logistik DEI'}</span>
+                    <span className="font-extrabold text-slate-800">: {signatures.deliverer?.name || invoice.defaultDelivererName || 'Petugas Logistik DEI'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 w-20 shrink-0">Jabatan</span>
-                    <span className="text-slate-700 font-medium">: Staf Logistik & Pergudangan</span>
+                    <span className="text-slate-700 font-medium">: {invoice.defaultDelivererPosition || 'Staff Gudang dan Logistik'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 w-20 shrink-0">Unit Kerja</span>
-                    <span className="text-slate-700 font-medium">: Bagian Sarana & Prasarana</span>
+                    <span className="text-slate-700 font-medium">: Bidang Sarana</span>
                   </div>
                   <p className="text-[10.5px] text-slate-400 italic pt-1.5 border-t border-slate-50">
-                    Bertindak untuk dan atas nama Bagian Sarpras yang menyerahkan barang logistik.
+                    Bertindak untuk dan atas nama Bidang Sarana yang menyerahkan barang logistik.
                   </p>
                 </div>
 
                 {/* PIHAK KEDUA */}
                 <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-1.5 shadow-2xs">
-                  <span className="font-black text-indigo-900 uppercase text-[10px] tracking-wider block border-b border-slate-100 pb-1">
-                    II. PIHAK KEDUA (Yang Menerima):
-                  </span>
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                    <span className="font-black text-indigo-900 uppercase text-[10px] tracking-wider block">
+                      II. PIHAK KEDUA (Yang Menerima):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleEditReceiverName}
+                      className="text-[9.5px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer print:hidden hover:underline"
+                      title="Ubah Nama Penerima Barang jika berbeda dari pemesan"
+                    >
+                      <Edit3 size={11} />
+                      <span>Ubah Penerima</span>
+                    </button>
+                  </div>
                   <div className="flex items-center gap-2 pt-0.5">
                     <span className="text-slate-500 w-20 shrink-0">Nama</span>
-                    <span className="font-extrabold text-slate-800">: {signatures.requester?.name || invoice.requesterName || '-'}</span>
+                    <span className="font-extrabold text-slate-800">: {signatures.requester?.name || invoice.receiverName || invoice.requesterName || '-'}</span>
+                    <button
+                      type="button"
+                      onClick={handleEditReceiverName}
+                      className="text-slate-400 hover:text-blue-600 ml-1 print:hidden cursor-pointer"
+                      title="Edit Nama Penerima"
+                    >
+                      <Edit3 size={11} />
+                    </button>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 w-20 shrink-0">Peran</span>
-                    <span className="text-slate-700 font-medium">: Pemohon Barang Logistik</span>
+                    <span className="text-slate-700 font-medium">: {invoice.receiverPosition || 'Pemohon Barang Logistik'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 w-20 shrink-0">Unit Kerja</span>
                     <span className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">: {invoice.requesterUnit || 'Unit Pemohon'}</span>
                   </div>
+                  {invoice.receiverName && invoice.receiverName !== invoice.requesterName && (
+                    <div className="text-[9.5px] text-amber-700 bg-amber-50 rounded px-2 py-0.5 mt-0.5 border border-amber-200">
+                      *Dipesan oleh: <b>{invoice.requesterName}</b>, diterima oleh: <b>{invoice.receiverName}</b>
+                    </div>
+                  )}
                   <p className="text-[10.5px] text-slate-400 italic pt-1.5 border-t border-slate-50">
                     Bertindak untuk dan atas nama unit pemohon yang menerima dan memeriksa barang.
                   </p>
@@ -1091,7 +1183,7 @@ export default function InventoryInvoicePublic() {
 
                     <div>
                       <div className="font-extrabold text-slate-800 uppercase underline underline-offset-2">
-                        {signatures.requester?.name || invoice.requesterName || '( ..................................... )'}
+                        {signatures.requester?.name || invoice.receiverName || invoice.requesterName || '( ..................................... )'}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">{invoice.requesterUnit || 'Pemohon'}</div>
                     </div>
@@ -1127,9 +1219,9 @@ export default function InventoryInvoicePublic() {
 
                     <div>
                       <div className="font-extrabold text-slate-800 uppercase underline underline-offset-2">
-                        {signatures.deliverer?.name || '( Petugas Logistik DEI )'}
+                        {signatures.deliverer?.name || invoice.defaultDelivererName || '( Petugas Logistik DEI )'}
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Staff Sarpras & Logistik</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Staff Gudang dan Logistik</div>
                     </div>
                   </div>
 
@@ -1196,10 +1288,10 @@ export default function InventoryInvoicePublic() {
 
                     <div>
                       <div className="font-extrabold text-slate-800 uppercase underline underline-offset-2">
-                        {signatures.kabid?.name || '( Kepala Bidang Sarana )'}
+                        {signatures.kabid?.name || invoice.defaultKabidName || '( KEPALA BIDANG SARANA )'}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
-                        {signatures.kabid?.position || 'Kepala Bidang Sarana'}
+                        {signatures.kabid?.position || invoice.defaultKabidPosition || 'Kepala Bidang Sarana'}
                       </div>
                     </div>
                   </div>

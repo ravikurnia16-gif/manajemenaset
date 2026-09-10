@@ -750,12 +750,37 @@ const getStaffGudangDanLogistikUsers = async () => {
         const users = await prisma.user.findMany({
             select: { id: true, name: true, username: true, phone: true, position: true }
         });
-        return users.filter(u => 
-            u.position && u.position.trim().toLowerCase().includes('staff gudang dan logistik')
-        );
+        return users.filter(u => {
+            if (!u.position) return false;
+            const pos = u.position.trim().toLowerCase();
+            const normalized = pos.replace(/&/g, 'dan').replace(/\bstaf\b/g, 'staff').replace(/\s+/g, ' ');
+            return pos.includes('staff gudang dan logistik') || 
+                   normalized.includes('staff gudang dan logistik');
+        });
     } catch (e) {
         console.error('[Inventory Notif Error] getStaffGudangDanLogistikUsers:', e.message);
         return [];
+    }
+};
+
+// Helper: Cari user dengan posisi 'Kepala Bidang Sarana' (case-insensitive)
+const getKabidSaranaUser = async () => {
+    try {
+        const users = await prisma.user.findMany({
+            select: { id: true, name: true, username: true, phone: true, position: true, role: true }
+        });
+        return users.find(u => {
+            if (!u.position) return false;
+            const pos = u.position.trim().toLowerCase();
+            return pos.includes('kepala bidang sarana');
+        }) || users.find(u => {
+            if (!u.position) return false;
+            const pos = u.position.trim().toLowerCase();
+            return pos.includes('kabid sarana') || pos.includes('kabid sarpras');
+        }) || null;
+    } catch (e) {
+        console.error('[Inventory Error] getKabidSaranaUser:', e.message);
+        return null;
     }
 };
 
@@ -999,6 +1024,8 @@ const parseOrderSignatures = (order) => {
     let paymentMethod = null;
     let paymentNote = null;
     let paymentUpdatedBy = null;
+    let receiverName = null;
+    let receiverPosition = null;
     let signatures = {
         requester: null,
         deliverer: null,
@@ -1016,6 +1043,8 @@ const parseOrderSignatures = (order) => {
                 paymentMethod = parsed.paymentMethod || null;
                 paymentNote = parsed.paymentNote || null;
                 paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                receiverName = parsed.receiverName || null;
+                receiverPosition = parsed.receiverPosition || null;
                 signatures = {
                     requester: parsed.signatures?.requester || null,
                     deliverer: parsed.signatures?.deliverer || null,
@@ -1036,6 +1065,8 @@ const parseOrderSignatures = (order) => {
         paymentMethod,
         paymentNote,
         paymentUpdatedBy,
+        receiverName,
+        receiverPosition,
         signatures
     };
 };
@@ -1085,7 +1116,17 @@ exports.getOrders = async (req, res) => {
             orderBy: { date: 'desc' }
         });
 
-        let parsedOrders = orders.map(parseOrderSignatures);
+        const staffGudangList = await getStaffGudangDanLogistikUsers();
+        const staffGudangUser = staffGudangList[0] || null;
+        const kabidUser = await getKabidSaranaUser();
+        let parsedOrders = orders.map(ord => {
+            const p = parseOrderSignatures(ord);
+            p.defaultDelivererName = staffGudangUser?.name || null;
+            p.defaultDelivererPosition = staffGudangUser?.position || null;
+            p.defaultKabidName = kabidUser?.name || null;
+            p.defaultKabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+            return p;
+        });
         if (paymentStatus) {
             if (paymentStatus === 'OVERDUE') {
                 const now = new Date();
@@ -1096,6 +1137,21 @@ exports.getOrders = async (req, res) => {
         }
         res.json(parsedOrders);
     } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.getStaffGudang = async (req, res) => {
+    try {
+        const staffUsers = await getStaffGudangDanLogistikUsers();
+        const kabidUser = await getKabidSaranaUser();
+        res.json({
+            staff: staffUsers,
+            defaultStaff: staffUsers[0] || null,
+            kabid: kabidUser,
+            defaultKabid: kabidUser || null
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 };
 
 exports.getOrderById = async (req, res) => {
@@ -1149,7 +1205,16 @@ exports.getOrderById = async (req, res) => {
             notifyOrderClick(order, req.user);
         }
 
-        res.json(parseOrderSignatures(order));
+        const staffGudangList = await getStaffGudangDanLogistikUsers();
+        const staffGudangUser = staffGudangList[0] || null;
+        const kabidUser = await getKabidSaranaUser();
+        const parsed = parseOrderSignatures(order);
+        parsed.defaultDelivererName = staffGudangUser?.name || null;
+        parsed.defaultDelivererPosition = staffGudangUser?.position || null;
+        parsed.defaultKabidName = kabidUser?.name || null;
+        parsed.defaultKabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+
+        res.json(parsed);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
@@ -1478,7 +1543,16 @@ exports.updateOrderSignatures = async (req, res) => {
         // 3. Notifikasi update tanda tangan/ACC kepada user pemohon
         notifyOrderUpdate(order.id, 'SIGNATURE', { type, action, signerName });
 
-        res.json(parseOrderSignatures(updatedOrder));
+        const staffGudangList = await getStaffGudangDanLogistikUsers();
+        const staffGudangUser = staffGudangList[0] || null;
+        const kabidUser = await getKabidSaranaUser();
+        const parsed = parseOrderSignatures(updatedOrder);
+        parsed.defaultDelivererName = staffGudangUser?.name || null;
+        parsed.defaultDelivererPosition = staffGudangUser?.position || null;
+        parsed.defaultKabidName = kabidUser?.name || null;
+        parsed.defaultKabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+
+        res.json(parsed);
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: e.message });
@@ -1583,7 +1657,16 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
         // 3. Notifikasi update tanda tangan publik kepada user pemohon
         notifyOrderUpdate(order.id, 'SIGNATURE', { type, action, signerName });
 
-        res.json(parseOrderSignatures(updatedOrder));
+        const staffGudangList = await getStaffGudangDanLogistikUsers();
+        const staffGudangUser = staffGudangList[0] || null;
+        const kabidUser = await getKabidSaranaUser();
+        const parsed = parseOrderSignatures(updatedOrder);
+        parsed.defaultDelivererName = staffGudangUser?.name || null;
+        parsed.defaultDelivererPosition = staffGudangUser?.position || null;
+        parsed.defaultKabidName = kabidUser?.name || null;
+        parsed.defaultKabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+
+        res.json(parsed);
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: e.message });
@@ -1834,3 +1917,111 @@ exports.getDashboardSummary = async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 };
+
+// ==========================================
+// UBAH NAMA PENERIMA PESANAN (JIKA BERBEDA DARI PEMESAN)
+// ==========================================
+exports.updateOrderReceiver = async (req, res) => {
+    const { id } = req.params;
+    const { receiverName, receiverPosition } = req.body;
+    try {
+        if (!receiverName || !receiverName.trim()) {
+            return res.status(400).json({ error: 'Nama penerima barang wajib diisi.' });
+        }
+
+        const order = await prisma.invOrder.findFirst({
+            where: {
+                OR: [
+                    { id: isNaN(parseInt(id)) ? -1 : parseInt(id) },
+                    { code: id }
+                ]
+            },
+            include: {
+                items: { include: { item: { include: { category: true } } } },
+                createdBy: { select: { id: true, name: true, username: true, unitId: true } }
+            }
+        });
+        if (!order) return res.status(404).json({ error: 'Pesanan tidak ditemukan.' });
+
+        // Hak akses jika request terautentikasi
+        if (req.user) {
+            const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
+            const userPos = (req.user.position || '').toLowerCase();
+            const isStaffGudang = userPos.includes('staff gudang dan logistik') || 
+                                  userPos.replace(/&/g, 'dan').replace(/\bstaf\b/g, 'staff').includes('staff gudang dan logistik');
+            const isCreator = order.createdById === req.user.id;
+            const isSameUnit = req.user.unitId && order.createdBy?.unitId === req.user.unitId;
+
+            if (!isAdmin && !isStaffGudang && !isCreator && !isSameUnit) {
+                return res.status(403).json({ error: 'Akses Ditolak: Anda tidak memiliki izin untuk mengubah nama penerima pesanan ini.' });
+            }
+        }
+
+        let currentNoteText = order.note || '';
+        let dueDate = null;
+        let paymentStatus = 'UNPAID';
+        let paidAt = null;
+        let paymentMethod = null;
+        let paymentNote = null;
+        let paymentUpdatedBy = null;
+        let currentSignatures = { requester: null, deliverer: null, kabid: null };
+
+        if (order.note && typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+            try {
+                const parsed = JSON.parse(order.note);
+                currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
+                dueDate = parsed.dueDate || null;
+                paymentStatus = parsed.paymentStatus || 'UNPAID';
+                paidAt = parsed.paidAt || null;
+                paymentMethod = parsed.paymentMethod || null;
+                paymentNote = parsed.paymentNote || null;
+                paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                currentSignatures = parsed.signatures || currentSignatures;
+            } catch (e) {
+                currentNoteText = order.note;
+            }
+        }
+
+        // Jika tanda tangan pemohon/penerima sudah ada, sinkronkan nama penandatangan dengan receiverName baru
+        if (currentSignatures.requester) {
+            currentSignatures.requester.name = receiverName.trim();
+        }
+
+        const updatedNote = JSON.stringify({
+            note: currentNoteText,
+            dueDate,
+            paymentStatus,
+            paidAt,
+            paymentMethod,
+            paymentNote,
+            paymentUpdatedBy,
+            receiverName: receiverName.trim(),
+            receiverPosition: (receiverPosition || '').trim() || null,
+            signatures: currentSignatures
+        });
+
+        const updatedOrder = await prisma.invOrder.update({
+            where: { id: order.id },
+            data: { note: updatedNote },
+            include: {
+                items: { include: { item: { include: { category: true } } } },
+                createdBy: { select: { id: true, name: true, username: true, unitId: true } }
+            }
+        });
+
+        const staffGudangList = await getStaffGudangDanLogistikUsers();
+        const staffGudangUser = staffGudangList[0] || null;
+        const kabidUser = await getKabidSaranaUser();
+        const parsed = parseOrderSignatures(updatedOrder);
+        parsed.defaultDelivererName = staffGudangUser?.name || null;
+        parsed.defaultDelivererPosition = staffGudangUser?.position || null;
+        parsed.defaultKabidName = kabidUser?.name || null;
+        parsed.defaultKabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+
+        res.json(parsed);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
