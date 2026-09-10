@@ -160,11 +160,12 @@ class AIService {
      * @param {string} userMessage - The message from the user.
      * @param {string} groupName - Optional group name for context.
      * @param {string} senderPhone - Optional phone number of sender.
-     * @param {Array} chatHistory - Optional chat history array from WA.
+     * @param {Array} chatHistory - Optional chat history array from WA or DB.
      * @param {string} senderName - Optional name of the sender.
+     * @param {Object} quotedInfo - Optional quoted/replied message details { messageId, senderName, body }.
      * @returns {Promise<string|Object>}
      */
-    async generateChatResponse(userMessage, groupName = null, senderPhone = null, chatHistory = [], senderName = null) {
+    async generateChatResponse(userMessage, groupName = null, senderPhone = null, chatHistory = [], senderName = null, quotedInfo = null) {
         if (!this.model) {
             throw new Error("AI Service is not configured (missing API Key)");
         }
@@ -172,12 +173,28 @@ class AIService {
         const { PrismaClient } = require('@prisma/client');
         const prisma = new PrismaClient();
 
+        // Format quoted / referenced message context if available
+        let quotedContext = "";
+        if (quotedInfo && quotedInfo.body) {
+            quotedContext = `
+============================================================
+PESAN YANG SEDANG DI-REPLY / DIRUJUK LANGSUNG OLEH PENGIRIM:
+Pengirim Pesan yang Dirujuk: ${quotedInfo.senderName || "Seseorang di grup"}
+Isi Pesan yang Dirujuk: "${quotedInfo.body}"
+============================================================
+(PERHATIAN KHUSUS: Pengirim saat ini (${senderName || "User"}) sedang menanggapi / me-reply langsung pesan di atas.
+Tanggapi dan kaitkan jawaban Anda secara langsung dan akurat dengan konteks isi pesan yang dirujuk tersebut.
+Jika pesan yang dirujuk adalah pertanyaan, permohonan, atau keluhan fasilitas/aset, jadikan pesan itu sebagai subjek utama yang sedang dibicarakan.)
+`;
+        }
+
         // Format history context if provided
         let historyContext = "";
         if (Array.isArray(chatHistory) && chatHistory.length > 0) {
             const historyLines = chatHistory.map(h => {
                 const timeTag = h.timestamp ? `[${h.timestamp}] ` : "";
-                return `${timeTag}${h.sender}: ${h.body}`;
+                const replyTag = h.quoted ? ` (me-reply ${h.quoted.sender}: "${h.quoted.body && h.quoted.body.length > 50 ? h.quoted.body.slice(0, 50) + '...' : h.quoted.body}")` : "";
+                return `${timeTag}${h.sender}: ${h.body}${replyTag}`;
             });
             historyContext = `\nRIWAYAT CHAT TERAKHIR DI GRUP/PERCAKAPAN INI:\n${historyLines.join('\n')}\n--- (SANGAT PENTING: Gunakan riwayat chat di atas sebagai konteks percakapan sebelumnya. Pahami acuan/kata ganti dari percakapan sebelumnya, dan JANGAN mengulang-ulang informasi/jawaban yang sudah diberikan jika tidak diminta.)\n`;
         }
@@ -325,6 +342,7 @@ Selain mengelola database, Anda juga DIBEBASKAN untuk menjawab pertanyaan umum, 
 Anda bisa dan boleh bercanda agar suasana lebih akrab.
 Anda adalah AI yang bermanhaj Salaf. Dalam menjawab permasalahan agama atau memberikan nasihat, biasakan mengutip ustadz-ustadz bermanhaj Salaf sebagai referensi, seperti Ustadz Khalid Basalamah, Ustadz Syafiq Riza Basalamah, Ustadz Firanda Andirja, Ustadz Yazid bin Abdul Qadir Jawas, Ustadz Abdullah Roy, dan asatidzah salafiyyin lainnya. Biasakan juga berkata atau berhujjah dengan dalil yang shahih (Al-Qur'an dan As-Sunnah sesuai pemahaman Salafush Shalih).
 Anda sedang membalas pesan di ${groupName ? `grup WhatsApp "${groupName}"` : "obrolan pribadi WhatsApp"}.${senderName ? ` Pengirim pesan saat ini: ${senderName}.` : ""} Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
+${quotedContext}
 ${historyContext}
 AKSES DATABASE PENUH:
 Anda memiliki tool "query_database_bebas" untuk menarik data langsung dari backend jika perintah khusus tidak cukup.

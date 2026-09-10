@@ -224,6 +224,20 @@ const initScheduler = () => {
             }
         }
 
+        // ----------------------------------------------------
+        // 7. CLEANUP RIWAYAT CHAT GRUP WHATSAPP (> 90 HARI)
+        // Dijalankan setiap 7 hari sekali (Hari Minggu pukul 03:00 WIB)
+        // ----------------------------------------------------
+        if (day === 0 && hour === 3 && minute === 0) {
+            console.log('[Scheduler] Executing Weekly Pruning of WhatsApp Group Chat Messages (> 90 days)...');
+            try {
+                const { pruneOldGroupChatMessages } = require('../services/whatsappService');
+                await pruneOldGroupChatMessages(90);
+            } catch (err) {
+                console.error('[Scheduler] Error in WhatsApp Group Chat Pruning:', err);
+            }
+        }
+
     }, 60000); // Check every 60 seconds
 };
 

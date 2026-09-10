@@ -181,7 +181,75 @@ const initializeWhatsApp = () => {
 
             if (!isAllowed) return; // Not an allowed group or person
 
-            // Check trigger
+            // 1. Dapatkan nama tampilan pengirim
+            let senderDisplayName = "User";
+            try {
+                const contact = await msg.getContact();
+                senderDisplayName = contact.name || contact.pushname || contact.shortName || msg._data?.notifyName || msg.pushname || "User";
+            } catch (cErr) {
+                senderDisplayName = msg._data?.notifyName || msg.pushname || "User";
+            }
+
+            // 2. Deteksi pesan yang di-reply / dirujuk oleh user
+            let quotedInfo = null;
+            let isReplyingToBot = false;
+            if (msg.hasQuotedMsg) {
+                try {
+                    const qMsg = await msg.getQuotedMessage();
+                    if (qMsg) {
+                        let qSender = "User";
+                        if (qMsg.fromMe) {
+                            qSender = "Admin Sarpras (Bot)";
+                            isReplyingToBot = true;
+                        } else {
+                            try {
+                                const qContact = await qMsg.getContact();
+                                qSender = qContact.name || qContact.pushname || qMsg._data?.notifyName || "User";
+                            } catch (e) {
+                                qSender = qMsg._data?.notifyName || "User";
+                            }
+                        }
+                        quotedInfo = {
+                            messageId: qMsg.id?._serialized,
+                            senderName: qSender,
+                            body: qMsg.body || (qMsg.hasMedia ? "[Media/Lampiran]" : "")
+                        };
+                    }
+                } catch (qErr) {
+                    console.warn('[WhatsApp Local] Gagal mengambil quoted message via WA-Web:', qErr.message || qErr);
+                }
+            }
+
+            // 3. Simpan setiap pesan grup WhatsApp yang aktif ke database (Retensi 90 hari)
+            if (msg.from.endsWith('@g.us')) {
+                try {
+                    await prisma.groupChatMessage.upsert({
+                        where: { messageId: msg.id._serialized },
+                        update: {},
+                        create: {
+                            messageId: msg.id._serialized,
+                            groupId: msg.from,
+                            groupName: groupName,
+                            senderJid: msg.author || msg.from,
+                            senderName: senderDisplayName,
+                            message: msg.body || (msg.hasMedia ? "[Media/Lampiran]" : ""),
+                            isBot: false,
+                            hasQuotedMsg: !!quotedInfo,
+                            quotedMessageId: quotedInfo?.messageId || null,
+                            quotedSenderName: quotedInfo?.senderName || null,
+                            quotedBody: quotedInfo?.body || null,
+                            createdAt: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date()
+                        }
+                    });
+                } catch (saveErr) {
+                    // Abaikan jika tabel belum termigrasi di database remote
+                    if (saveErr.code !== 'P2021') {
+                        console.error('[WhatsApp Local] Error menyimpan pesan grup ke DB:', saveErr.message);
+                    }
+                }
+            }
+
+            // 4. Check trigger AI
             let shouldTrigger = false;
             let cleanMessage = msg.body;
 
@@ -189,8 +257,8 @@ const initializeWhatsApp = () => {
             const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
             const isCodeCommand = msg.body.startsWith('/') || msg.body.startsWith('#');
             
-            // Both Private and Group MUST use trigger word, mention, or code/command (e.g. /pinjam, #PINJAM)
-            if (triggerRegex.test(msg.body) || isMentioned || isCodeCommand) {
+            // Trigger aktif jika: memanggil admin, ditag @, format kode # / /, atau membalas pesan bot
+            if (triggerRegex.test(msg.body) || isMentioned || isCodeCommand || isReplyingToBot) {
                 shouldTrigger = true;
                 if (!isCodeCommand) {
                      cleanMessage = msg.body.replace(triggerRegex, '').trim();
@@ -208,56 +276,83 @@ const initializeWhatsApp = () => {
                     console.warn('[WhatsApp Local] sendStateTyping gagal (non-critical):', typingErr.message || typingErr);
                 }
 
-                // Fetch recent chat history from WhatsApp Chat
+                // 5. Ambil riwayat chat grup dari database (dalam rentang 90 hari)
                 let chatHistory = [];
-                let senderDisplayName = "User";
-                try {
-                    const chat = await msg.getChat();
-                    const fetchedMsgs = await chat.fetchMessages({ limit: 15 });
-                    
-                    if (fetchedMsgs && fetchedMsgs.length > 0) {
-                        chatHistory = await Promise.all(fetchedMsgs.map(async (m) => {
-                            let sName = "User";
-                            if (m.fromMe) {
-                                sName = "Admin Sarpras (Bot)";
-                            } else {
-                                sName = m._data?.notifyName || m.pushname || "";
-                                if (!sName) {
-                                    try {
-                                        const c = await m.getContact();
-                                        sName = c.name || c.pushname || c.shortName || c.number || "User";
-                                    } catch (e) {
-                                        sName = "User";
-                                    }
-                                }
-                            }
-                            
-                            const timeStr = m.timestamp 
-                                ? new Date(m.timestamp * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-                                : "";
+                if (msg.from.endsWith('@g.us')) {
+                    try {
+                        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+                        const dbMsgs = await prisma.groupChatMessage.findMany({
+                            where: {
+                                groupId: msg.from,
+                                createdAt: { gte: ninetyDaysAgo }
+                            },
+                            orderBy: { createdAt: 'desc' },
+                            take: 30
+                        });
 
-                            return {
-                                id: m.id?._serialized || null,
-                                sender: sName,
-                                body: m.body ? m.body.trim() : "",
-                                isBot: m.fromMe,
-                                timestamp: timeStr
-                            };
-                        }));
-
-                        // Filter out empty messages, commands like /idgrup
-                        chatHistory = chatHistory.filter(h => h.body && h.body !== '/idgrup');
+                        if (dbMsgs && dbMsgs.length > 0) {
+                            // Urutkan kronologis dari yang terlama ke terbaru
+                            chatHistory = dbMsgs.reverse().map(m => {
+                                const timeStr = m.createdAt 
+                                    ? new Date(m.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                                    : "";
+                                return {
+                                    id: m.messageId,
+                                    sender: m.isBot ? "Admin Sarpras (Bot)" : (m.senderName || "User"),
+                                    body: m.message,
+                                    isBot: m.isBot,
+                                    timestamp: timeStr,
+                                    quoted: m.hasQuotedMsg ? { sender: m.quotedSenderName, body: m.quotedBody } : null
+                                };
+                            });
+                        }
+                    } catch (histDbErr) {
+                        console.warn('[WhatsApp Local] Fallback DB chat history:', histDbErr.message);
                     }
-                } catch (histErr) {
-                    console.warn('[WhatsApp Local] Warning fetching chat history:', histErr.message || histErr);
                 }
 
-                // Get sender name for current message
-                try {
-                    const contact = await msg.getContact();
-                    senderDisplayName = contact.name || contact.pushname || contact.shortName || msg._data?.notifyName || msg.pushname || "User";
-                } catch (cErr) {
-                    senderDisplayName = msg._data?.notifyName || msg.pushname || "User";
+                // Fallback ke WhatsApp Web jika riwayat DB belum ada
+                if (chatHistory.length === 0) {
+                    try {
+                        const chat = await msg.getChat();
+                        const fetchedMsgs = await chat.fetchMessages({ limit: 15 });
+                        
+                        if (fetchedMsgs && fetchedMsgs.length > 0) {
+                            chatHistory = await Promise.all(fetchedMsgs.map(async (m) => {
+                                let sName = "User";
+                                if (m.fromMe) {
+                                    sName = "Admin Sarpras (Bot)";
+                                } else {
+                                    sName = m._data?.notifyName || m.pushname || "";
+                                    if (!sName) {
+                                        try {
+                                            const c = await m.getContact();
+                                            sName = c.name || c.pushname || c.shortName || c.number || "User";
+                                        } catch (e) {
+                                            sName = "User";
+                                        }
+                                    }
+                                }
+                                
+                                const timeStr = m.timestamp 
+                                    ? new Date(m.timestamp * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                                    : "";
+
+                                return {
+                                    id: m.id?._serialized || null,
+                                    sender: sName,
+                                    body: m.body ? m.body.trim() : "",
+                                    isBot: m.fromMe,
+                                    timestamp: timeStr
+                                };
+                            }));
+
+                            // Filter out empty messages, commands like /idgrup
+                            chatHistory = chatHistory.filter(h => h.body && h.body !== '/idgrup');
+                        }
+                    } catch (histErr) {
+                        console.warn('[WhatsApp Local] Warning fetching chat history from WA-Web:', histErr.message || histErr);
+                    }
                 }
 
                 const senderJid = msg.author || msg.from;
@@ -267,7 +362,8 @@ const initializeWhatsApp = () => {
                     isPrivate ? null : groupName, 
                     senderJid,
                     chatHistory,
-                    senderDisplayName
+                    senderDisplayName,
+                    quotedInfo
                 );
 
                 if (response && typeof response === 'object' && response.media) {
@@ -278,6 +374,35 @@ const initializeWhatsApp = () => {
                 } else {
                     exports.sendMessage(msg.from, response, { quotedMessageId: msg.id._serialized });
                     console.log(`[WhatsApp Local AI] Queued AI reply to ${msg.from}`);
+                }
+
+                // 6. Simpan respons balasan Bot ke database agar alur percakapan tersambung
+                if (msg.from.endsWith('@g.us')) {
+                    try {
+                        const botReplyText = typeof response === 'object' && response?.text ? response.text : (typeof response === 'string' ? response : '');
+                        if (botReplyText) {
+                            await prisma.groupChatMessage.create({
+                                data: {
+                                    messageId: `bot_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+                                    groupId: msg.from,
+                                    groupName: groupName,
+                                    senderJid: waClient?.info?.wid?._serialized || 'bot@c.us',
+                                    senderName: 'Admin Sarpras (Bot)',
+                                    message: botReplyText,
+                                    isBot: true,
+                                    hasQuotedMsg: true,
+                                    quotedMessageId: msg.id._serialized,
+                                    quotedSenderName: senderDisplayName,
+                                    quotedBody: msg.body || '',
+                                    createdAt: new Date()
+                                }
+                            });
+                        }
+                    } catch (botSaveErr) {
+                        if (botSaveErr.code !== 'P2021') {
+                            console.warn('[WhatsApp Local] Gagal menyimpan pesan bot ke DB:', botSaveErr.message);
+                        }
+                    }
                 }
                 
                 // Reset error counter on success
@@ -537,5 +662,31 @@ exports.triggerWaNotification = async (eventType, data = {}) => {
         } else {
             console.error('[WA Rule Engine] Error:', error.message);
         }
+    }
+};
+
+/**
+ * Membersihkan riwayat chat grup WhatsApp yang berumur lebih dari batas retensi (default 90 hari).
+ * Menjalankan rolling window: saat memasuki hari ke-91, pesan hari ke-1 akan terhapus.
+ * @param {number} retentionDays - Jumlah hari retensi (default: 90)
+ * @returns {Promise<number>} - Jumlah pesan yang dibersihkan
+ */
+exports.pruneOldGroupChatMessages = async (retentionDays = 90) => {
+    try {
+        const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+        const result = await prisma.groupChatMessage.deleteMany({
+            where: {
+                createdAt: { lt: cutoffDate }
+            }
+        });
+        console.log(`[WhatsApp Prune] Berhasil membersihkan ${result.count} pesan grup yang berumur > ${retentionDays} hari (sebelum ${cutoffDate.toISOString()}).`);
+        return result.count;
+    } catch (err) {
+        if (err.code === 'P2021' || (err.message && err.message.includes('does not exist'))) {
+            console.log('[WhatsApp Prune] Tabel GroupChatMessage belum tersedia di database.');
+            return 0;
+        }
+        console.error('[WhatsApp Prune] Gagal membersihkan pesan chat lama:', err.message);
+        return 0;
     }
 };

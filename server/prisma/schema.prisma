@@ -2433,4 +2433,24 @@ model InvVendorEvaluation {
   @@unique([projectId, vendorId])
 }
 
+// --- MODULE WHATSAPP GROUP CHAT (AI MEMORY & HISTORY) ---
+model GroupChatMessage {
+  id               Int      @id @default(autoincrement())
+  messageId        String   @unique // ID unik pesan WhatsApp (misal msg.id._serialized)
+  groupId          String   // JID grup WhatsApp (misal 120363xxx@g.us)
+  groupName        String?  // Nama grup WhatsApp
+  senderJid        String   // JID / Nomor pengirim
+  senderName       String?  // Nama tampilan pengirim
+  message          String   @db.Text // Isi pesan chat
+  isBot            Boolean  @default(false) // Apakah dikirim oleh bot / AI
+  hasQuotedMsg     Boolean  @default(false) // Apakah pesan me-reply pesan lain
+  quotedMessageId  String?  // ID pesan yang di-reply
+  quotedSenderName String?  // Nama pengirim pesan yang di-reply
+  quotedBody       String?  @db.Text // Isi teks pesan yang di-reply
+  createdAt        DateTime @default(now())
+
+  @@index([groupId, createdAt])
+  @@index([messageId])
+}
+
 
