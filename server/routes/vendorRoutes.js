@@ -9,6 +9,7 @@ router.use(verifyToken);
 
 // Vendor CRUD
 router.get('/', vendorController.getAllVendors);
+router.post('/sync-gudang', vendorController.syncFromGudang);
 router.get('/:id', vendorController.getVendorById);
 router.post('/', handleUpload('photo', 'vendors/profile'), vendorController.createVendor);
 router.put('/:id', handleUpload('photo', 'vendors/profile'), vendorController.updateVendor);

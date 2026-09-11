@@ -6,6 +6,11 @@ const { uploadFile, deleteFile } = require('../services/minioService');
 const { createNotification } = require('./notificationController');
 const { sendPushToUser } = require('../services/pushService');
 const whatsappService = require('../services/whatsappService');
+const {
+    syncInvItemToVendorProduct,
+    removeVendorProductForInvItem,
+    syncAllInventoryItemsToVendor
+} = require('../services/gudangVendorSyncService');
 
 const uploadBase64 = async (base64String, folder = 'inventory/items') => {
     if (!base64String || typeof base64String !== 'string' || !base64String.startsWith('data:')) return base64String;
@@ -178,6 +183,10 @@ exports.createItem = async (req, res) => {
                 image: imageUrl
             }
         });
+
+        // Auto sync to Vendor Product (Bidang Sarana)
+        syncInvItemToVendorProduct(data).catch(err => console.error('[GudangVendorSync] createItem error:', err));
+
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
@@ -298,6 +307,10 @@ exports.updateItem = async (req, res) => {
                 image: imageUrl
             }
         });
+
+        // Auto sync to Vendor Product (Bidang Sarana)
+        syncInvItemToVendorProduct(data).catch(err => console.error('[GudangVendorSync] updateItem error:', err));
+
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
@@ -330,6 +343,12 @@ exports.updateBulkPrice = async (req, res) => {
                 });
             });
             await prisma.$transaction(updates);
+
+            // Auto sync to Vendor Product (Bidang Sarana)
+            targetIds.forEach(id => {
+                syncInvItemToVendorProduct(parseInt(id)).catch(err => console.error('[GudangVendorSync] bulkPrice error:', err));
+            });
+
             return res.json({ success: true, count: updates.length });
         }
 
@@ -376,6 +395,12 @@ exports.updateBulkPrice = async (req, res) => {
             }
 
             await prisma.$transaction(updates);
+
+            // Auto sync to Vendor Product (Bidang Sarana)
+            targetItems.forEach(item => {
+                syncInvItemToVendorProduct(item.id).catch(err => console.error('[GudangVendorSync] bulkPrice error:', err));
+            });
+
             return res.json({ success: true, count: updates.length });
         }
 
@@ -393,9 +418,28 @@ exports.deleteItem = async (req, res) => {
         if (item?.image && item.image.startsWith('/api/media/')) {
             deleteFile(item.image).catch(console.error);
         }
+
+        // Auto remove from Vendor Product (Bidang Sarana)
+        await removeVendorProductForInvItem(itemId).catch(err => console.error('[GudangVendorSync] deleteItem sync error:', err));
+
         await prisma.invItem.delete({ where: { id: itemId } });
         res.json({ message: 'Item deleted' });
     } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
+exports.syncInventoryToVendor = async (req, res) => {
+    try {
+        const result = await syncAllInventoryItemsToVendor();
+        if (result?.error) {
+            return res.status(500).json({ error: result.error });
+        }
+        const synced = result.synced ?? 0;
+        const total = result.total ?? 0;
+        res.json({ success: true, count: synced, total, message: `Berhasil sinkronisasi ${synced} dari ${total} barang gudang ke Data Vendor Bidang Sarana` });
+    } catch (e) {
+        console.error('syncInventoryToVendor error:', e);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 // ==========================================

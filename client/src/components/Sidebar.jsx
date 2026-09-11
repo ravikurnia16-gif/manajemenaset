@@ -60,6 +60,19 @@ const Sidebar = ({ isOpen = true }) => {
         console.error("Failed to parse user from localStorage", e);
     }
 
+    const [unitWorkshopOrderCount, setUnitWorkshopOrderCount] = useState(0);
+    useEffect(() => {
+        if (user?.id) {
+            api.get('/workshop/orders')
+                .then(res => {
+                    if (Array.isArray(res.data)) {
+                        setUnitWorkshopOrderCount(res.data.length);
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [user?.id, user?.unitId]);
+
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const sarprasKeywords = [
@@ -237,8 +250,8 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/workshop-baru/board" className={subNavItemClass('/workshop-baru/board')}>
                             <Kanban size={16} /> Papan Kerja & Antrean
                         </Link>
-                        <Link to="/workshop-baru/orders/new" className={subNavItemClass('/workshop-baru/orders/new')}>
-                            <Plus size={16} /> Buat Pesanan Baru
+                        <Link to="/workshop-baru/board?view=byUnit" className={subNavItemClass('/workshop-baru/board?view=byUnit')}>
+                            <Building2 size={16} /> List Pekerjaan per Unit
                         </Link>
                         <Link to="/workshop-baru/catalog" className={subNavItemClass('/workshop-baru/catalog')}>
                             <Boxes size={16} /> Katalog Workshop
@@ -339,11 +352,42 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
                             <Shirt size={16} /> Pesanan Seragam
                         </Link>
-                        <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
-                            <Wrench size={16} /> Pesanan Workshop
-                        </Link>
+                        {unitWorkshopOrderCount > 0 && (
+                            <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
+                                <Wrench size={16} className="text-amber-400" />
+                                <span className="flex-1">Pekerjaan Workshop</span>
+                                <span className="px-1.5 py-0.2 text-[10px] font-bold bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30">
+                                    {unitWorkshopOrderCount}
+                                </span>
+                            </Link>
+                        )}
                     </>
                 ))}
+
+                {/* Menu Khusus Unit jika ada pesanan workshop di unit mereka */}
+                {unitWorkshopOrderCount > 0 && !isKabidSarpras && (
+                    <Link
+                        to="/workshop/orders"
+                        className={cn(
+                            navItemClass('/workshop/orders'),
+                            "border border-amber-500/40 bg-slate-800/80 hover:bg-slate-800 hover:border-amber-400 group flex items-center justify-between"
+                        )}
+                        title="Lihat list pekerjaan workshop untuk unit Anda"
+                    >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <Wrench size={18} className="text-amber-400 shrink-0 group-hover:rotate-12 transition-transform" />
+                            <span className={cn("transition-all duration-300 truncate font-semibold text-xs text-slate-200", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
+                                Pekerjaan Workshop Unit
+                            </span>
+                        </div>
+                        <span className={cn(
+                            "px-2 py-0.5 text-xs font-black bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/40 shrink-0",
+                            !isOpen ? "hidden" : "inline-block"
+                        )}>
+                            {unitWorkshopOrderCount}
+                        </span>
+                    </Link>
+                )}
 
 
 

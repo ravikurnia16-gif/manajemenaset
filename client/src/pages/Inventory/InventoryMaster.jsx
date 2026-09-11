@@ -72,6 +72,19 @@ const ItemsTab = () => {
     sellingPrice: ''
   });
   const [savingPrice, setSavingPrice] = useState(false);
+  const [syncingVendor, setSyncingVendor] = useState(false);
+
+  const handleSyncToVendor = async () => {
+    try {
+      setSyncingVendor(true);
+      const res = await api.post('/inventory/items/sync-vendor');
+      alert(res.data.message || 'Sinkronisasi ke Data Vendor berhasil!');
+    } catch (err) {
+      alert('Gagal sinkronisasi: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSyncingVendor(false);
+    }
+  };
 
   // Bulk Price Update Modal state
   const [isBulkPriceModalOpen, setIsBulkPriceModalOpen] = useState(false);
@@ -280,6 +293,18 @@ const ItemsTab = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Sync to Vendor Bidang Sarana Action */}
+          <button 
+            type="button"
+            disabled={syncingVendor}
+            onClick={handleSyncToVendor} 
+            className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-3.5 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+            title="Sinkronisasikan seluruh barang gudang ke Data Vendor (Bidang Sarana)"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncingVendor ? 'animate-spin text-amber-600' : 'text-amber-600'}`} />
+            <span>{syncingVendor ? 'Sinkronisasi...' : 'Sinkron ke Vendor'}</span>
+          </button>
+
           {/* Quick Bulk Price Action Trigger */}
           <button 
             type="button"

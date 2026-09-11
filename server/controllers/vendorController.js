@@ -1,11 +1,18 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
+const {
+    getOrCreateGudangSaranaVendor,
+    syncAllInventoryItemsToVendor
+} = require('../services/gudangVendorSyncService');
 
 // --- VENDOR CRUD ---
 
 exports.getAllVendors = async (req, res) => {
     try {
+        // Pastikan vendor Gudang & Logistik (Bidang Sarana) selalu terdaftar
+        await getOrCreateGudangSaranaVendor().catch(err => console.error('[GudangVendorSync] init vendor error:', err));
+
         const { search, category } = req.query;
         let where = {};
 
@@ -223,6 +230,16 @@ exports.updateProduct = async (req, res) => {
             });
         }
 
+        // Jika produk ini berasal dari Manajemen Gudang (Bidang Sarana), sinkronkan harga jual ke invItem
+        const invMatch = (specification || oldProduct?.specification || '').match(/\[GudangInv:(\d+)\]/);
+        if (invMatch && newPrice !== null) {
+            const invItemId = parseInt(invMatch[1]);
+            await prisma.invItem.update({
+                where: { id: invItemId },
+                data: { sellingPrice: newPrice }
+            }).catch(e => console.error('[VendorProduct] Sync price to invItem error:', e));
+        }
+
         // Cleanup old image if updated
         if (req.fileUrl && oldProduct?.image) {
             await deleteFile(oldProduct.image);
@@ -256,6 +273,16 @@ exports.updateProductPrice = async (req, res) => {
                     price: newPrice
                 }
             });
+        }
+
+        // Jika produk ini berasal dari Manajemen Gudang (Bidang Sarana), sinkronkan harga jual ke invItem
+        const invMatch = (oldProduct?.specification || '').match(/\[GudangInv:(\d+)\]/);
+        if (invMatch && newPrice !== null) {
+            const invItemId = parseInt(invMatch[1]);
+            await prisma.invItem.update({
+                where: { id: invItemId },
+                data: { sellingPrice: newPrice }
+            }).catch(e => console.error('[VendorProduct] Sync price to invItem error:', e));
         }
 
         res.json(product);
@@ -292,6 +319,22 @@ exports.getProductPriceHistory = async (req, res) => {
         });
         res.json(history);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- SYNC FROM GUDANG (BIDANG SARANA) ---
+exports.syncFromGudang = async (req, res) => {
+    try {
+        const result = await syncAllInventoryItemsToVendor();
+        if (result?.error) {
+            return res.status(500).json({ error: result.error });
+        }
+        const synced = result.synced ?? 0;
+        const total = result.total ?? 0;
+        res.json({ success: true, count: synced, total, message: `Berhasil sinkronisasi ${synced} dari ${total} barang dari Manajemen Gudang ke Data Vendor Bidang Sarana.` });
+    } catch (error) {
+        console.error('Error syncing from gudang:', error);
         res.status(500).json({ error: error.message });
     }
 };

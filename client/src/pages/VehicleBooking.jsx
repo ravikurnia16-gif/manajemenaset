@@ -33,8 +33,11 @@ const VehicleBooking = () => {
     const [vSearch, setVSearch] = useState('');
     const [vTypeFilter, setVTypeFilter] = useState('ALL');
 
+    const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [hideSanctionBanner, setHideSanctionBanner] = useState(false);
+    const [hideViolationsBanner, setHideViolationsBanner] = useState(false);
+    const [dismissedViolationIds, setDismissedViolationIds] = useState([]);
 
     useEffect(() => {
         if (currentUserProfile) {
@@ -50,6 +53,24 @@ const VehicleBooking = () => {
         }
     }, [currentUserProfile]);
 
+    useEffect(() => {
+        const uid = user?.id || currentUserProfile?.id;
+        if (uid) {
+            const isHidden = localStorage.getItem(`hideUserViolations_${uid}`);
+            if (isHidden === 'true') {
+                setHideViolationsBanner(true);
+            }
+            try {
+                const savedDismissed = JSON.parse(localStorage.getItem(`dismissedViolations_${uid}`) || '[]');
+                if (Array.isArray(savedDismissed)) {
+                    setDismissedViolationIds(savedDismissed);
+                }
+            } catch {
+                setDismissedViolationIds([]);
+            }
+        }
+    }, [currentUserProfile, user?.id]);
+
     // Driver States
     const [driverSubTab, setDriverSubTab] = useState('DATABASE');
     const [selectedDriverForEdit, setSelectedDriverForEdit] = useState(null);
@@ -60,6 +81,15 @@ const VehicleBooking = () => {
     const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
 
     const [driverViolations, setDriverViolations] = useState([]);
+
+    const myViolations = useMemo(() => {
+        const uid = user?.id || currentUserProfile?.id;
+        return driverViolations.filter(v => v.driverId === uid);
+    }, [driverViolations, user?.id, currentUserProfile?.id]);
+
+    const visibleViolations = useMemo(() => {
+        return myViolations.filter(v => !dismissedViolationIds.includes(v.id));
+    }, [myViolations, dismissedViolationIds]);
     const [sanctionedUsers, setSanctionedUsers] = useState([]);
     const [showViolationAddModal, setShowViolationAddModal] = useState(false);
     const [showSanctionProposeModal, setShowSanctionProposeModal] = useState(false);
@@ -126,7 +156,6 @@ const VehicleBooking = () => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [showDayModal, setShowDayModal] = useState(false);
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
 
@@ -1120,32 +1149,88 @@ const VehicleBooking = () => {
             )}
 
             {/* User Violations Banner */}
-            {driverViolations.filter(v => v.driverId === user.id).length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
+            {!hideViolationsBanner && visibleViolations.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm flex flex-col gap-3 relative animate-fadeIn">
+                    {/* Tombol Silang (X) untuk sembunyikan seluruh banner sanksi/pelanggaran dari layar awal */}
+                    <button 
+                        type="button"
+                        onClick={() => {
+                            setHideViolationsBanner(true);
+                            const uid = user?.id || currentUserProfile?.id;
+                            if (uid) {
+                                localStorage.setItem(`hideUserViolations_${uid}`, 'true');
+                                const allIds = myViolations.map(v => v.id);
+                                localStorage.setItem(`dismissedViolations_${uid}`, JSON.stringify(allIds));
+                                setDismissedViolationIds(allIds);
+                            }
+                            showToast('Notifikasi sanksi disembunyikan dari layar awal');
+                        }}
+                        className="absolute top-3 right-3 text-amber-500 hover:text-amber-800 bg-white hover:bg-amber-100 rounded-full p-1.5 transition-all shadow-xs border border-amber-200"
+                        title="Tutup sanksi & jangan tampilkan lagi di layar awal"
+                    >
+                        <X size={16} />
+                    </button>
+
+                    <div className="flex items-center gap-3 pr-10">
                         <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
                             <AlertCircle size={20} />
                         </div>
                         <div>
-                            <h4 className="text-sm font-bold text-amber-800">Catatan Pelanggaran Anda</h4>
+                            <h4 className="text-sm font-bold text-amber-800">Catatan Pelanggaran & Sanksi Anda</h4>
                             <p className="text-xs text-amber-600">
-                                Anda memiliki {driverViolations.filter(v => v.driverId === user.id).length} catatan pelanggaran yang perlu diperhatikan.
+                                Anda memiliki {visibleViolations.length} catatan sanksi/pelanggaran aktif. Klik silang (✕) di pojok kanan untuk menutup agar tidak ditampilkan lagi di layar awal.
                             </p>
                         </div>
                     </div>
-                    <div className="space-y-2 mt-2">
-                        {driverViolations.filter(v => v.driverId === user.id).map(violation => (
-                            <div key={violation.id} className="bg-white p-3 rounded-xl border border-amber-100 text-sm flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                                <div>
-                                    <span className="font-bold text-amber-900">{violation.category}</span>
-                                    <span className="text-slate-500 text-xs ml-2">{new Date(violation.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                    <p className="text-slate-600 text-xs mt-1">{violation.description}</p>
+
+                    <div className="space-y-2 mt-1">
+                        {visibleViolations.map(violation => (
+                            <div key={violation.id} className="bg-white p-3.5 rounded-xl border border-amber-100 text-sm flex flex-col sm:flex-row justify-between sm:items-center gap-2 shadow-2xs">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold text-amber-900">{violation.category}</span>
+                                        <span className="text-slate-500 text-xs">({new Date(violation.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})</span>
+                                    </div>
+                                    <p className="text-slate-600 text-xs mt-0.5">{violation.description}</p>
                                 </div>
-                                <div className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold text-center self-start sm:self-auto">
-                                    Sanksi: {violation.sanction}
+                                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                                    <div className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold text-center border border-amber-200">
+                                        Sanksi: {violation.sanction}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const next = [...new Set([...dismissedViolationIds, violation.id])];
+                                            setDismissedViolationIds(next);
+                                            const uid = user?.id || currentUserProfile?.id;
+                                            if (uid) {
+                                                localStorage.setItem(`dismissedViolations_${uid}`, JSON.stringify(next));
+                                                if (next.length >= myViolations.length) {
+                                                    setHideViolationsBanner(true);
+                                                    localStorage.setItem(`hideUserViolations_${uid}`, 'true');
+                                                }
+                                            }
+                                            showToast('Sanksi disembunyikan dari layar awal');
+                                        }}
+                                        className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                                        title="Sembunyikan sanksi ini dari layar awal"
+                                    >
+                                        <X size={14} />
+                                    </button>
                                 </div>
                             </div>
                         ))}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 text-[11px] text-amber-700 border-t border-amber-200/50">
+                        <span>Histori lengkap tetap dapat ditinjau kapan saja di tab <strong>Pelanggaran User</strong>.</span>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('USER_VIOLATIONS')}
+                            className="font-bold underline hover:text-amber-900 ml-2 whitespace-nowrap"
+                        >
+                            Buka Tab Pelanggaran &rarr;
+                        </button>
                     </div>
                 </div>
             )}
@@ -3077,14 +3162,35 @@ const VehicleBooking = () => {
                                         : 'Daftar pelanggaran disiplin penggunaan kendaraan Anda.'}
                                 </p>
                             </div>
-                            {(isSuperAdmin || isAdminAset) && (
-                                <button
-                                    onClick={() => setShowViolationAddModal(true)}
-                                    className="px-4 py-2.5 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-200 flex items-center gap-2 whitespace-nowrap active:scale-[0.98]"
-                                >
-                                    <Plus size={16} /> Tambah Pelanggaran
-                                </button>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {(hideViolationsBanner || dismissedViolationIds.length > 0) && myViolations.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const uid = user?.id || currentUserProfile?.id;
+                                            if (uid) {
+                                                localStorage.removeItem(`hideUserViolations_${uid}`);
+                                                localStorage.removeItem(`dismissedViolations_${uid}`);
+                                            }
+                                            setHideViolationsBanner(false);
+                                            setDismissedViolationIds([]);
+                                            showToast('Notifikasi sanksi diaktifkan kembali di layar awal');
+                                        }}
+                                        className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+                                        title="Tampilkan kembali banner sanksi di layar awal"
+                                    >
+                                        <AlertCircle size={14} className="text-amber-600" /> Tampilkan Kembali di Layar Awal
+                                    </button>
+                                )}
+                                {(isSuperAdmin || isAdminAset) && (
+                                    <button
+                                        onClick={() => setShowViolationAddModal(true)}
+                                        className="px-4 py-2.5 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-200 flex items-center gap-2 whitespace-nowrap active:scale-[0.98]"
+                                    >
+                                        <Plus size={16} /> Tambah Pelanggaran
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Statistics Section */}

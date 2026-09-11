@@ -5,7 +5,7 @@ import { getMediaUrl } from '../lib/media';
 import {
     Users, Plus, Search, MapPin, Phone, Mail, Globe,
     MoreVertical, Edit2, Trash2, Package, CheckCircle,
-    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign, HardHat
+    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign, HardHat, RefreshCw
 } from 'lucide-react';
 
 const VendorManagement = () => {
@@ -16,6 +16,7 @@ const VendorManagement = () => {
     const [viewMode, setViewMode] = useState('VENDORS'); // 'VENDORS' or 'PRODUCTS'
     const [allProducts, setAllProducts] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    const [isSyncingGudang, setIsSyncingGudang] = useState(false);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     const canManageVendor = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET';
@@ -101,6 +102,24 @@ const VendorManagement = () => {
         }
     };
 
+
+    const handleSyncGudang = async () => {
+        try {
+            setIsSyncingGudang(true);
+            const res = await axios.post('/vendors/sync-gudang');
+            alert(res.data.message || 'Sinkronisasi barang gudang berhasil!');
+            if (viewMode === 'VENDORS') {
+                fetchVendors();
+            } else {
+                fetchAllProducts();
+            }
+        } catch (error) {
+            console.error('Fetch sync error:', error);
+            alert(error.response?.data?.error || 'Gagal sinkronisasi data barang gudang');
+        } finally {
+            setIsSyncingGudang(false);
+        }
+    };
 
     const handleSaveVendor = async (e) => {
         e.preventDefault();
@@ -328,6 +347,18 @@ const VendorManagement = () => {
 
                     {canManageVendor && (
                         <button
+                            onClick={handleSyncGudang}
+                            disabled={isSyncingGudang}
+                            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl shadow-md shadow-amber-600/20 flex items-center gap-2 text-sm font-bold transition-all transform hover:scale-105 active:scale-95"
+                            title="Sinkronisasi seluruh barang Manajemen Gudang ke Data Vendor Bidang Sarana"
+                        >
+                            <RefreshCw size={16} className={isSyncingGudang ? "animate-spin" : ""} />
+                            {isSyncingGudang ? 'Sinkronisasi...' : 'Sinkron Barang Gudang'}
+                        </button>
+                    )}
+
+                    {canManageVendor && (
+                        <button
                             onClick={() => {
                                 setCurrentVendor(null);
                                 setVendorForm({
@@ -464,10 +495,15 @@ const VendorManagement = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="absolute bottom-3 left-3">
+                                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5 flex-wrap">
                                         <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-600 shadow-sm uppercase tracking-wider">
                                             {vendor.category || 'Vendor'}
                                         </span>
+                                        {((vendor.name || '').toLowerCase().includes('gudang') || (vendor.name || '').toLowerCase().includes('sarana')) && (
+                                            <span className="bg-amber-500 text-white px-2 py-0.5 rounded-full text-[10px] font-extrabold shadow-sm flex items-center gap-1">
+                                                📦 Bidang Sarana
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
@@ -539,6 +575,11 @@ const VendorManagement = () => {
                                                     🛠️ Workshop Unit 21
                                                 </span>
                                             )}
+                                            {((prod.vendor?.name || '').toLowerCase().includes('gudang') || (prod.specification || '').includes('[GudangInv:')) && (
+                                                <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-0.5">
+                                                    📦 Bidang Sarana (Gudang)
+                                                </span>
+                                            )}
                                         </div>
                                         <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
                                         <div className="flex items-center gap-2 mb-1">
@@ -551,7 +592,9 @@ const VendorManagement = () => {
                                                 <Clock size={14} />
                                             </button>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
+                                        <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
+                                            {(prod.specification || '-').replace(/\[GudangInv:\d+\]\s*/g, '')}
+                                        </p>
                                     </div>
                                     
                                     <div className="flex items-center justify-end gap-3 pt-3 mt-3 border-t border-slate-50">
@@ -948,7 +991,14 @@ const VendorManagement = () => {
                                                                 <Clock size={14} />
                                                             </button>
                                                         </div>
-                                                        <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
+                                                        <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
+                                                            {(prod.specification || '-').replace(/\[GudangInv:\d+\]\s*/g, '')}
+                                                        </p>
+                                                        {(prod.specification || '').includes('[GudangInv:') && (
+                                                            <span className="inline-block mt-1 text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                                                📦 Gudang Terintegrasi
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     {canManageVendor && (
                                                         <div className="flex items-center justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-all">
