@@ -228,8 +228,12 @@ const initializeWhatsApp = () => {
                             }
                         }
 
+                        const rawQId = typeof qMsg.id === 'string'
+                            ? qMsg.id
+                            : (qMsg.id?._serialized || qMsg.id?.id || qMsg._data?.id?._serialized || qMsg._data?.id?.id);
+
                         quotedInfo = {
-                            messageId: qMsg.id?._serialized,
+                            messageId: rawQId || null,
                             senderName: qSender,
                             body: qMsg.body || (isAudioVN ? "[Voice Note]" : (qMsg.hasMedia ? "[Media/Lampiran]" : "")),
                             isVoiceNote: isAudioVN,
@@ -243,12 +247,17 @@ const initializeWhatsApp = () => {
 
             // 3. Simpan setiap pesan grup WhatsApp yang aktif ke database (Retensi 90 hari)
             if (msg.from.endsWith('@g.us')) {
+                const rawMsgId = typeof msg.id === 'string' 
+                    ? msg.id 
+                    : (msg.id?._serialized || msg.id?.id || msg._data?.id?._serialized || msg._data?.id?.id);
+                const resolvedMessageId = rawMsgId || `${msg.from}_${msg.timestamp || Math.floor(Date.now() / 1000)}_${Math.random().toString(36).substring(2, 8)}`;
+
                 try {
                     await prisma.groupChatMessage.upsert({
-                        where: { messageId: msg.id._serialized },
+                        where: { messageId: resolvedMessageId },
                         update: {},
                         create: {
-                            messageId: msg.id._serialized,
+                            messageId: resolvedMessageId,
                             groupId: msg.from,
                             groupName: groupName,
                             senderJid: msg.author || msg.from,
@@ -419,7 +428,7 @@ const initializeWhatsApp = () => {
                                     message: botReplyText,
                                     isBot: true,
                                     hasQuotedMsg: true,
-                                    quotedMessageId: msg.id._serialized,
+                                    quotedMessageId: (typeof msg.id === 'string' ? msg.id : (msg.id?._serialized || msg.id?.id || null)),
                                     quotedSenderName: senderDisplayName,
                                     quotedBody: msg.body || '',
                                     createdAt: new Date()

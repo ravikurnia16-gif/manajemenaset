@@ -81,7 +81,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const isSuperAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user?.role);
     
-    const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    const isKabidSarpras = ['KABID_SARPRAS', 'SUPER_ADMIN'].includes(role) || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     
     const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
     const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'BIDANG_IT'].includes(role) || isWarehouseAdmin || isStaffSarpras;

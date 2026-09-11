@@ -4223,7 +4223,9 @@ exports.updateSalePayment = async (req, res) => {
 
         if (paidAmount !== undefined && paidAmount !== null) {
             finalPaidAmount = Math.max(0, parseFloat(paidAmount) || 0);
-            if (finalPaidAmount >= (sale.totalAmount || 0) && (sale.totalAmount || 0) > 0) {
+            if (finalPaidAmount > (sale.totalAmount || 0) && (sale.totalAmount || 0) > 0) {
+                finalStatus = 'OVERPAID';
+            } else if (finalPaidAmount >= (sale.totalAmount || 0) && (sale.totalAmount || 0) > 0) {
                 finalStatus = 'PAID';
             } else if (finalPaidAmount > 0) {
                 finalStatus = 'PARTIAL';
@@ -4231,7 +4233,7 @@ exports.updateSalePayment = async (req, res) => {
                 finalStatus = 'UNPAID';
             }
         } else if (paymentStatus) {
-            if (!['PAID', 'UNPAID', 'PARTIAL'].includes(paymentStatus)) {
+            if (!['PAID', 'UNPAID', 'PARTIAL', 'OVERPAID'].includes(paymentStatus)) {
                 return res.status(400).json({ error: 'Status pembayaran tidak valid' });
             }
             if (paymentStatus === 'PAID') {
@@ -4295,7 +4297,7 @@ exports.createExchange = async (req, res) => {
     const { 
         saleId, reason, note, warehouseId, fromWarehouseId, toWarehouseId, 
         exchanges, fromVariantId, toVariantId, qty, studentName, customerName,
-        isPaidDiff = true, paymentMethod = 'CASH'
+        isPaidDiff = false, isRefunded = false, paymentMethod = 'CASH'
     } = req.body;
 
     try {
@@ -4525,18 +4527,33 @@ exports.createExchange = async (req, res) => {
 
                 if (totalPriceDiff > 0) {
                     // Ada tambahan biaya / kurang bayar
-                    if (isPaidDiff) {
+                    if (isPaidDiff === true || isPaidDiff === 'true') {
                         newPaidAmount += totalPriceDiff;
                     }
                 } else if (totalPriceDiff < 0) {
                     // Ada kembalian / kelebihan bayar
-                    newPaidAmount = Math.min(newPaidAmount, newTotalAmount);
+                    if (isRefunded === true || isRefunded === 'true') {
+                        newPaidAmount = Math.min(newPaidAmount, newTotalAmount);
+                    }
+                    // Jika belum diserahkan refund tunai, newPaidAmount tetap nilai aslinya sehingga newPaidAmount > newTotalAmount
                 }
 
-                const newPaymentStatus = newPaidAmount >= newTotalAmount ? 'PAID' : (newPaidAmount > 0 ? 'PARTIAL' : 'UNPAID');
+                let newPaymentStatus = 'UNPAID';
+                if (newPaidAmount > newTotalAmount) {
+                    newPaymentStatus = 'OVERPAID';
+                } else if (newPaidAmount === newTotalAmount && newTotalAmount > 0) {
+                    newPaymentStatus = 'PAID';
+                } else if (newPaidAmount > 0) {
+                    newPaymentStatus = 'PARTIAL';
+                } else {
+                    newPaymentStatus = 'UNPAID';
+                }
 
                 const exchangeCodes = exchangeRecords.map(e => e.code).join(', ');
-                const exchangeNote = `[TUKAR_UKURAN: ${exchangeCodes} - Selisih: ${totalPriceDiff >= 0 ? '+' : ''}Rp ${totalPriceDiff.toLocaleString('id-ID')}]`;
+                const diffFormatted = totalPriceDiff > 0 
+                    ? `+Rp ${totalPriceDiff.toLocaleString('id-ID')} (Kurang Bayar - Status: ${newPaymentStatus})` 
+                    : (totalPriceDiff < 0 ? `-Rp ${Math.abs(totalPriceDiff).toLocaleString('id-ID')} (Kelebihan Bayar - Status: ${newPaymentStatus})` : 'Rp 0');
+                const exchangeNote = `[TUKAR_UKURAN: ${exchangeCodes} - Selisih: ${diffFormatted}]`;
                 const updatedNote = targetSale.note ? `${targetSale.note}\n${exchangeNote}` : exchangeNote;
 
                 const validItems = updatedItems.filter(i => i.status !== 'BATAL');

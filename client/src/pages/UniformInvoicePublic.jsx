@@ -89,6 +89,14 @@ const UniformInvoicePublic = () => {
                                 <div className="text-xl md:text-2xl font-black text-emerald-600 border-2 border-emerald-600 px-4 py-1.5 inline-block rounded-xl rotate-[-3deg] mb-4 shadow-sm print:text-lg print:mb-2 print:px-3 print:py-1">
                                     LUNAS
                                 </div>
+                            ) : invoice.paymentStatus === 'OVERPAID' ? (
+                                <div className="text-xl md:text-2xl font-black text-purple-600 border-2 border-purple-600 px-4 py-1.5 inline-block rounded-xl rotate-[-2deg] mb-4 shadow-sm print:text-lg print:mb-2 print:px-3 print:py-1">
+                                    LEBIH BAYAR
+                                </div>
+                            ) : invoice.paymentStatus === 'PARTIAL' ? (
+                                <div className="text-xl md:text-2xl font-black text-amber-600 border-2 border-amber-600 px-4 py-1.5 inline-block rounded-xl rotate-[2deg] mb-4 shadow-sm print:text-lg print:mb-2 print:px-3 print:py-1">
+                                    PARSIAL
+                                </div>
                             ) : (
                                 <div className="text-xl md:text-2xl font-black text-rose-500 border-2 border-rose-500 px-4 py-1.5 inline-block rounded-xl rotate-[3deg] mb-4 shadow-sm print:text-lg print:mb-2 print:px-3 print:py-1">
                                     BELUM LUNAS
@@ -264,12 +272,19 @@ const UniformInvoicePublic = () => {
                                         )}
                                         <div className="flex justify-between items-center text-sm print:text-[10px] text-slate-500 pt-2 border-t border-slate-200">
                                             <span>Total Telah Dibayar</span>
-                                            <span className="font-bold text-emerald-600">Rp {displayedPaidAmount.toLocaleString('id-ID')}</span>
+                                            <span className="font-bold text-emerald-600">Rp {(Number(invoice.paidAmount) || 0).toLocaleString('id-ID')}</span>
                                         </div>
-                                        <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-300">
-                                            <span className="font-black text-slate-800 text-xs print:text-[10px] tracking-wider uppercase">Total Tagihan Akhir</span>
-                                            <span className="font-black text-blue-700 text-xl print:text-base">Rp {remainingTagihan.toLocaleString('id-ID')}</span>
-                                        </div>
+                                        {overpayment > 0 ? (
+                                            <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-300">
+                                                <span className="font-black text-purple-800 text-xs print:text-[10px] tracking-wider uppercase">Kelebihan Bayar (Kembalian)</span>
+                                                <span className="font-black text-purple-700 text-xl print:text-base">Rp {overpayment.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-300">
+                                                <span className="font-black text-slate-800 text-xs print:text-[10px] tracking-wider uppercase">Sisa Tagihan</span>
+                                                <span className="font-black text-blue-700 text-xl print:text-base">Rp {remainingTagihan.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        )}
                                     </>
                                 );
                             })()}

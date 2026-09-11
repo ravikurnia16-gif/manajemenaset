@@ -197,19 +197,28 @@ exports.getAllOrders = async (req, res) => {
 exports.getOrderById = async (req, res) => {
     const { id } = req.params;
     try {
-        const order = await prisma.workshopOrder.findUnique({
-            where: { id: parseInt(id) },
+        const parsedId = parseInt(id, 10);
+        const whereClause = !isNaN(parsedId)
+            ? {
+                OR: [
+                    { id: parsedId },
+                    { code: id }
+                ]
+            }
+            : { code: id };
+
+        const order = await prisma.workshopOrder.findFirst({
+            where: whereClause,
             include: {
                 items: true,
                 progress: {
-                    select: { percentage: true, createdAt: true, message: true },
                     include: { user: { select: { id: true, name: true, username: true } } },
                     orderBy: { createdAt: 'desc' }
                 },
-                requestedBy: { select: { name: true, username: true, phone: true } },
-                unit: { select: { name: true } },
-                workshopUnit: { select: { name: true } },
-                procurement: { select: { code: true, title: true } },
+                requestedBy: { select: { id: true, name: true, username: true, phone: true } },
+                unit: { select: { id: true, name: true } },
+                workshopUnit: { select: { id: true, name: true } },
+                procurement: { select: { id: true, code: true, title: true } },
                 officeDocument: { select: { id: true, number: true, status: true, uuid: true } }
             }
         });

@@ -440,6 +440,7 @@ export const BatchInvoiceTab = ({
                                     const isSelected = selectedIds.has(sale.id);
                                     const isPaid = sale.paymentStatus === 'PAID';
                                     const isPartial = sale.paymentStatus === 'PARTIAL';
+                                    const isOverpaid = sale.paymentStatus === 'OVERPAID';
                                     const studentName = sale.customerName || sale.studentName || '-';
                                     const sisa = Math.max(0, (sale.totalAmount || 0) - (sale.paidAmount || 0));
 
@@ -524,7 +525,11 @@ export const BatchInvoiceTab = ({
                                                 <div className="font-black text-slate-900 font-mono">
                                                     Rp {(sale.totalAmount || 0).toLocaleString('id-ID')}
                                                 </div>
-                                                {sisa > 0 ? (
+                                                {isOverpaid ? (
+                                                    <div className="text-[10px] text-purple-700 font-bold">
+                                                        Lebih: Rp {((sale.paidAmount || 0) - (sale.totalAmount || 0)).toLocaleString('id-ID')}
+                                                    </div>
+                                                ) : sisa > 0 ? (
                                                     <div className="text-[10px] text-rose-600 font-bold">
                                                         Sisa: Rp {sisa.toLocaleString('id-ID')}
                                                     </div>
@@ -540,9 +545,9 @@ export const BatchInvoiceTab = ({
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black inline-block ${
                                                     isPaid 
                                                         ? 'bg-emerald-100 text-emerald-800' 
-                                                        : (isPartial ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')
+                                                        : (isOverpaid ? 'bg-purple-100 text-purple-800' : isPartial ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')
                                                 }`}>
-                                                    {isPaid ? 'LUNAS' : (isPartial ? 'PARSIAL' : 'BELUM')}
+                                                    {isPaid ? 'LUNAS' : (isOverpaid ? 'LEBIH BAYAR' : isPartial ? 'PARSIAL' : 'BELUM')}
                                                 </span>
                                                 {isPaid && (() => {
                                                     let paidDate = null;

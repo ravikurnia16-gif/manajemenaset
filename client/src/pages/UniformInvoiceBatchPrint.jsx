@@ -159,6 +159,7 @@ const UniformInvoiceBatchPrint = () => {
                                 const qrData = `${window.location.origin}/public/invoice-seragam/${invoice.id}`;
                                 const isPaid = invoice.paymentStatus === 'PAID';
                                 const isPartial = invoice.paymentStatus === 'PARTIAL';
+                                const isOverpaid = invoice.paymentStatus === 'OVERPAID';
                                 const studentName = invoice.customerName || invoice.studentName || 'Siswa';
                                 const unitName = invoice.targetUnit || 'Yayasan';
 
@@ -190,9 +191,9 @@ const UniformInvoiceBatchPrint = () => {
                                                 <span className={`${layout === 8 ? 'text-[7.5px] px-1 py-0.5' : 'text-[8px] px-1.5 py-0.5'} font-black rounded border inline-block ${
                                                     isPaid 
                                                         ? 'text-emerald-700 bg-emerald-50 border-emerald-300' 
-                                                        : (isPartial ? 'text-amber-700 bg-amber-50 border-amber-300' : 'text-rose-700 bg-rose-50 border-rose-300')
+                                                        : (isOverpaid ? 'text-purple-700 bg-purple-50 border-purple-300' : isPartial ? 'text-amber-700 bg-amber-50 border-amber-300' : 'text-rose-700 bg-rose-50 border-rose-300')
                                                 }`}>
-                                                    {isPaid ? 'LUNAS' : (isPartial ? 'PARSIAL' : 'BELUM BAYAR')}
+                                                    {isPaid ? 'LUNAS' : (isOverpaid ? 'LEBIH BAYAR' : isPartial ? 'PARSIAL' : 'BELUM BAYAR')}
                                                 </span>
                                                 <div className={`${layout === 8 ? 'text-[6.5px]' : 'text-[7px]'} text-slate-400 font-mono font-bold mt-0.5`}>
                                                     {invoice.code}
@@ -256,7 +257,7 @@ const UniformInvoiceBatchPrint = () => {
                                             </div>
                                             <div className="text-right">
                                                 <span className={`${layout === 8 ? 'text-[6.5px]' : 'text-[7px]'} text-slate-400 block leading-none`}>
-                                                    {isPaid ? 'Lunas: Kasir' : `Sisa: Rp ${Math.max(0, (invoice.totalAmount || 0) - (invoice.paidAmount || 0)).toLocaleString('id-ID')}`}
+                                                    {isPaid ? 'Lunas: Kasir' : isOverpaid ? `Lebih: Rp ${((invoice.paidAmount || 0) - (invoice.totalAmount || 0)).toLocaleString('id-ID')}` : `Sisa: Rp ${Math.max(0, (invoice.totalAmount || 0) - (invoice.paidAmount || 0)).toLocaleString('id-ID')}`}
                                                 </span>
                                                 <span className={`${layout === 8 ? 'text-[6.5px]' : 'text-[7px]'} font-bold text-emerald-700`}>
                                                     {invoice.status === 'SEDIA' ? '✓ Siap Diambil' : (invoice.status === 'DIAMBIL' ? '✓ Sudah Diterima' : 'Diproses')}

@@ -41,7 +41,8 @@ export const ExchangeForm = ({
     const [note, setNote] = useState('');
     
     // Financial difference states
-    const [isPaidDiff, setIsPaidDiff] = useState(true);
+    const [isPaidDiff, setIsPaidDiff] = useState(false);
+    const [isRefunded, setIsRefunded] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('CASH');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -220,8 +221,9 @@ export const ExchangeForm = ({
             customerName: customerName || selectedSale?.customerName || '',
             reason,
             note,
-            isPaidDiff,
-            paymentMethod: isPaidDiff ? paymentMethod : null,
+            isPaidDiff: financialSummary.priceDiff > 0 ? isPaidDiff : false,
+            isRefunded: financialSummary.priceDiff < 0 ? isRefunded : false,
+            paymentMethod: (isPaidDiff && financialSummary.priceDiff > 0) ? paymentMethod : null,
             exchanges: activeItems.map(item => {
                 const toV = variants.find(v => String(v.id) === String(item.toVariantId));
                 return {
@@ -309,9 +311,12 @@ export const ExchangeForm = ({
                                             <div className="text-right">
                                                 <div className="text-xs font-bold text-slate-700">Rp {s.totalAmount?.toLocaleString('id-ID')}</div>
                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                                    s.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                                                    s.paymentStatus === 'PAID' ? 'bg-green-100 text-green-700' :
+                                                    s.paymentStatus === 'OVERPAID' ? 'bg-purple-100 text-purple-700' :
+                                                    s.paymentStatus === 'PARTIAL' ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-rose-100 text-rose-700'
                                                 }`}>
-                                                    {s.paymentStatus}
+                                                    {s.paymentStatus === 'OVERPAID' ? 'LEBIH BAYAR' : s.paymentStatus}
                                                 </span>
                                             </div>
                                         </div>
@@ -332,7 +337,11 @@ export const ExchangeForm = ({
                                     Wali/Pemesan: <strong>{selectedSale.customerName}</strong> {selectedSale.studentName && `• Siswa: ${selectedSale.studentName}`}
                                 </div>
                                 <div className="text-[11px] text-slate-500">
-                                    Unit: {selectedSale.targetUnit || '-'} • Status Tagihan: <strong className={selectedSale.paymentStatus === 'PAID' ? 'text-green-700' : 'text-amber-700'}>{selectedSale.paymentStatus}</strong>
+                                    Unit: {selectedSale.targetUnit || '-'} • Status Tagihan: <strong className={
+                                        selectedSale.paymentStatus === 'PAID' ? 'text-green-700' :
+                                        selectedSale.paymentStatus === 'OVERPAID' ? 'text-purple-700' :
+                                        'text-amber-700'
+                                    }>{selectedSale.paymentStatus === 'OVERPAID' ? 'KELEBIHAN BAYAR' : selectedSale.paymentStatus}</strong>
                                 </div>
                             </div>
 
@@ -702,42 +711,52 @@ export const ExchangeForm = ({
                     {financialSummary.priceDiff > 0 && (
                         <div className="pt-2 border-t border-blue-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div>
-                                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                                    Pembayaran Selisih:
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                                    Status Pembayaran Selisih (Kurang Bayar):
                                 </label>
-                                <div className="flex items-center gap-3">
-                                    <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-800">
-                                        <input
-                                            type="radio"
-                                            name="isPaidDiff"
-                                            checked={isPaidDiff === true}
-                                            onChange={() => setIsPaidDiff(true)}
-                                            className="text-blue-600"
-                                        />
-                                        Bayar Sekarang (Lunas)
-                                    </label>
-                                    <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-600">
+                                <div className="space-y-1.5">
+                                    <label className={`flex items-center gap-2 cursor-pointer font-semibold text-slate-800 p-2 rounded-lg border transition ${
+                                        !isPaidDiff ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-400' : 'bg-white border-slate-200'
+                                    }`}>
                                         <input
                                             type="radio"
                                             name="isPaidDiff"
                                             checked={isPaidDiff === false}
                                             onChange={() => setIsPaidDiff(false)}
-                                            className="text-blue-600"
+                                            className="text-amber-600"
                                         />
-                                        Tagihkan ke Invoice
+                                        <div>
+                                            <div className="font-bold text-slate-800">Tagihkan ke Invoice</div>
+                                            <div className="text-[10px] text-amber-700 font-medium">Status invoice berubah jadi <strong className="text-amber-800">PARSIAL (Kurang Bayar)</strong></div>
+                                        </div>
+                                    </label>
+                                    <label className={`flex items-center gap-2 cursor-pointer font-semibold text-slate-800 p-2 rounded-lg border transition ${
+                                        isPaidDiff ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400' : 'bg-white border-slate-200'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="isPaidDiff"
+                                            checked={isPaidDiff === true}
+                                            onChange={() => setIsPaidDiff(true)}
+                                            className="text-emerald-600"
+                                        />
+                                        <div>
+                                            <div className="font-bold text-slate-800">Bayar Selisih Sekarang (Lunas)</div>
+                                            <div className="text-[10px] text-emerald-700 font-medium">Tambahan biaya langsung dilunasi tunai/transfer</div>
+                                        </div>
                                     </label>
                                 </div>
                             </div>
 
                             {isPaidDiff && (
-                                <div>
+                                <div className="space-y-1">
                                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
                                         Metode Pembayaran Selisih:
                                     </label>
                                     <select
                                         value={paymentMethod}
                                         onChange={(e) => setPaymentMethod(e.target.value)}
-                                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs font-bold text-slate-800 outline-none"
+                                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none"
                                     >
                                         <option value="CASH">Kas Tunai (Cash)</option>
                                         <option value="TRANSFER">Transfer Bank</option>
@@ -748,11 +767,44 @@ export const ExchangeForm = ({
                         </div>
                     )}
 
-                    {/* Notice for Price Difference < 0 */}
+                    {/* Notice & Options for Price Difference < 0 */}
                     {financialSummary.priceDiff < 0 && (
-                        <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-lg font-semibold flex items-center gap-1.5">
-                            <span>💵</span>
-                            <span>Dana sebesar <strong>Rp {Math.abs(financialSummary.priceDiff).toLocaleString('id-ID')}</strong> dikembalikan ke wali murid. Tagihan invoice otomatis berkurang.</span>
+                        <div className="pt-2 border-t border-blue-200/80 space-y-2 text-xs">
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                Status Kelebihan Uang / Kembalian (Rp {Math.abs(financialSummary.priceDiff).toLocaleString('id-ID')}):
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label className={`flex items-center gap-2 cursor-pointer font-semibold text-slate-800 p-2 rounded-lg border transition ${
+                                    !isRefunded ? 'bg-purple-50/80 border-purple-300 ring-1 ring-purple-400' : 'bg-white border-slate-200'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="isRefunded"
+                                        checked={isRefunded === false}
+                                        onChange={() => setIsRefunded(false)}
+                                        className="text-purple-600"
+                                    />
+                                    <div>
+                                        <div className="font-bold text-slate-800">Catat Kelebihan Bayar</div>
+                                        <div className="text-[10px] text-purple-700 font-medium">Status invoice menjadi <strong className="text-purple-800">KELEBIHAN BAYAR</strong></div>
+                                    </div>
+                                </label>
+                                <label className={`flex items-center gap-2 cursor-pointer font-semibold text-slate-800 p-2 rounded-lg border transition ${
+                                    isRefunded ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400' : 'bg-white border-slate-200'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="isRefunded"
+                                        checked={isRefunded === true}
+                                        onChange={() => setIsRefunded(true)}
+                                        className="text-emerald-600"
+                                    />
+                                    <div>
+                                        <div className="font-bold text-slate-800">Kembalian Sudah Diserahkan Langsung</div>
+                                        <div className="text-[10px] text-emerald-700 font-medium">Uang kembalian sudah diserahkan ke wali (Status: <strong className="text-emerald-800">LUNAS</strong>)</div>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
                     )}
                 </div>

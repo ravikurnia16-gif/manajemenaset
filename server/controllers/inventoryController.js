@@ -182,11 +182,92 @@ exports.createItem = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+// Helper to lock prices on existing orders for specified items before their prices change
+const lockExistingOrderPricesForItems = async (itemIds) => {
+    if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) return;
+    try {
+        const parsedItemIds = itemIds.map(id => parseInt(id)).filter(id => !isNaN(id) && id > 0);
+        if (parsedItemIds.length === 0) return;
+
+        // Find all orders containing these items
+        const orderItems = await prisma.invOrderItem.findMany({
+            where: { itemId: { in: parsedItemIds } },
+            select: { orderId: true },
+            distinct: ['orderId']
+        });
+
+        const orderIds = orderItems.map(oi => oi.orderId);
+        if (orderIds.length === 0) return;
+
+        const orders = await prisma.invOrder.findMany({
+            where: { id: { in: orderIds } },
+            include: {
+                items: {
+                    include: {
+                        item: {
+                            select: { id: true, price: true, sellingPrice: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        for (const order of orders) {
+            let noteObj = {};
+            if (order.note && typeof order.note === 'string' && order.note.trim().startsWith('{')) {
+                try {
+                    noteObj = JSON.parse(order.note);
+                } catch (e) {}
+            } else if (order.note) {
+                noteObj.note = order.note;
+            }
+
+            let existingItemPrices = { ...(noteObj.itemPrices || {}) };
+            let needsUpdate = false;
+
+            for (const ordItem of (order.items || [])) {
+                const iId = ordItem.itemId;
+                if (existingItemPrices[iId] === undefined || existingItemPrices[iId] === null) {
+                    const price = (ordItem.item?.sellingPrice !== null && ordItem.item?.sellingPrice !== undefined && Number(ordItem.item.sellingPrice) > 0)
+                        ? Number(ordItem.item.sellingPrice)
+                        : Number(ordItem.item?.price || 0);
+                    existingItemPrices[iId] = price;
+                    needsUpdate = true;
+                }
+            }
+
+            if (needsUpdate || !noteObj.itemPrices) {
+                noteObj.itemPrices = existingItemPrices;
+                if (noteObj.totalAmount === undefined || noteObj.totalAmount === null) {
+                    const grandTotal = (order.items || []).reduce((acc, it) => {
+                        const p = existingItemPrices[it.itemId] || 0;
+                        const q = it.qtyDelivered ?? (it.qtyApproved || it.qtyRequested || 0);
+                        return acc + (p * q);
+                    }, 0);
+                    noteObj.totalAmount = grandTotal;
+                }
+
+                await prisma.invOrder.update({
+                    where: { id: order.id },
+                    data: { note: JSON.stringify(noteObj) }
+                });
+            }
+        }
+    } catch (err) {
+        console.error('[Inventory Orders] lockExistingOrderPricesForItems error:', err.message);
+    }
+};
+
 exports.updateItem = async (req, res) => {
     try {
         const { id, category, stocks, totalStock, image, isAsset, ...rest } = req.body;
         const itemId = parseInt(req.params.id);
         const existingItem = await prisma.invItem.findUnique({ where: { id: itemId } });
+
+        // Kunci / snapshot harga pada pesanan yang sudah ada sebelum harga master barang diupdate
+        if (req.body.sellingPrice !== undefined || req.body.price !== undefined) {
+            await lockExistingOrderPricesForItems([itemId]);
+        }
 
         let imageUrl = undefined;
         if (image !== undefined) {
@@ -224,6 +305,14 @@ exports.updateItem = async (req, res) => {
 exports.updateBulkPrice = async (req, res) => {
     try {
         const { items, itemIds, adjustmentType, percentage } = req.body;
+
+        // Kunci / snapshot harga pada pesanan yang sudah ada sebelum update harga massal dijalankan
+        const targetIds = (Array.isArray(items) && items.length > 0)
+            ? items.map(i => i.id)
+            : (Array.isArray(itemIds) ? itemIds : []);
+        if (targetIds.length > 0) {
+            await lockExistingOrderPricesForItems(targetIds);
+        }
 
         // Case 1: Specific items array with individual prices [{ id, price, sellingPrice }]
         if (Array.isArray(items) && items.length > 0) {
@@ -1026,6 +1115,8 @@ const parseOrderSignatures = (order) => {
     let paymentUpdatedBy = null;
     let receiverName = null;
     let receiverPosition = null;
+    let itemPrices = null;
+    let totalAmount = null;
     let signatures = {
         requester: null,
         deliverer: null,
@@ -1045,6 +1136,8 @@ const parseOrderSignatures = (order) => {
                 paymentUpdatedBy = parsed.paymentUpdatedBy || null;
                 receiverName = parsed.receiverName || null;
                 receiverPosition = parsed.receiverPosition || null;
+                itemPrices = parsed.itemPrices || null;
+                totalAmount = parsed.totalAmount || null;
                 signatures = {
                     requester: parsed.signatures?.requester || null,
                     deliverer: parsed.signatures?.deliverer || null,
@@ -1054,6 +1147,20 @@ const parseOrderSignatures = (order) => {
         } catch (e) {
             displayNote = order.note;
         }
+    }
+
+    let items = order.items;
+    if (items && Array.isArray(items)) {
+        items = items.map(it => {
+            const snapPrice = (itemPrices && (itemPrices[it.itemId] !== undefined || itemPrices[it.id] !== undefined))
+                ? Number(itemPrices[it.itemId] !== undefined ? itemPrices[it.itemId] : itemPrices[it.id])
+                : null;
+            return {
+                ...it,
+                priceSnapshot: snapPrice,
+                sellingPriceSnapshot: snapPrice
+            };
+        });
     }
 
     return {
@@ -1067,7 +1174,10 @@ const parseOrderSignatures = (order) => {
         paymentUpdatedBy,
         receiverName,
         receiverPosition,
-        signatures
+        signatures,
+        itemPrices,
+        totalAmount,
+        items
     };
 };
 
@@ -1224,6 +1334,38 @@ exports.createOrder = async (req, res) => {
         if (!items || items.length === 0) return res.status(400).json({ error: 'Pilih minimal satu barang.' });
         
         const code = await generateOrderCode();
+
+        // Build snapshot of item prices at the time of order creation
+        const itemPricesMap = {};
+        if (req.body.itemPrices && typeof req.body.itemPrices === 'object') {
+            Object.assign(itemPricesMap, req.body.itemPrices);
+        }
+        for (const it of items) {
+            const itId = parseInt(it.itemId);
+            if (it.price !== undefined && it.price !== null && !isNaN(Number(it.price))) {
+                itemPricesMap[itId] = Number(it.price);
+            }
+        }
+        const missingIds = items.map(i => parseInt(i.itemId)).filter(id => itemPricesMap[id] === undefined);
+        if (missingIds.length > 0) {
+            const dbItems = await prisma.invItem.findMany({
+                where: { id: { in: missingIds } },
+                select: { id: true, price: true, sellingPrice: true }
+            });
+            for (const d of dbItems) {
+                itemPricesMap[d.id] = (d.sellingPrice !== null && d.sellingPrice !== undefined && Number(d.sellingPrice) > 0)
+                    ? Number(d.sellingPrice)
+                    : Number(d.price || 0);
+            }
+        }
+
+        const calculatedTotal = (req.body.totalAmount !== undefined && !isNaN(Number(req.body.totalAmount)))
+            ? Number(req.body.totalAmount)
+            : items.reduce((acc, it) => {
+                const p = itemPricesMap[parseInt(it.itemId)] || 0;
+                const q = parseInt(it.qtyRequested) || 0;
+                return acc + (p * q);
+            }, 0);
         
         const notePayload = JSON.stringify({
             note: typeof note === 'string' ? note : '',
@@ -1232,7 +1374,9 @@ exports.createOrder = async (req, res) => {
             paidAt: null,
             paymentMethod: null,
             paymentNote: null,
-            signatures: { requester: null, deliverer: null, kabid: null }
+            signatures: { requester: null, deliverer: null, kabid: null },
+            itemPrices: itemPricesMap,
+            totalAmount: calculatedTotal
         });
 
         const order = await prisma.invOrder.create({
@@ -1328,7 +1472,7 @@ exports.updateOrderStatus = async (req, res) => {
                 }
             }
             
-            // Preserve signatures and payment metadata in note if exists
+            // Preserve signatures, payment metadata, itemPrices, and totalAmount in note if exists
             let currentSignatures = {};
             let noteText = note;
             let dueDate = null;
@@ -1337,6 +1481,8 @@ exports.updateOrderStatus = async (req, res) => {
             let paymentMethod = null;
             let paymentNote = null;
             let paymentUpdatedBy = null;
+            let itemPrices = null;
+            let totalAmount = null;
 
             if (order.note && typeof order.note === 'string' && order.note.trim().startsWith('{')) {
                 try {
@@ -1348,6 +1494,8 @@ exports.updateOrderStatus = async (req, res) => {
                     paymentMethod = parsed.paymentMethod || null;
                     paymentNote = parsed.paymentNote || null;
                     paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                    itemPrices = parsed.itemPrices || null;
+                    totalAmount = parsed.totalAmount || null;
                     if (note === undefined || note === null) {
                         noteText = parsed.note;
                     }
@@ -1355,7 +1503,7 @@ exports.updateOrderStatus = async (req, res) => {
             }
 
             let finalNote = noteText !== undefined ? noteText : order.note;
-            if (Object.keys(currentSignatures).length > 0 || dueDate || paymentStatus || paidAt || paymentMethod || paymentNote) {
+            if (Object.keys(currentSignatures).length > 0 || dueDate || paymentStatus || paidAt || paymentMethod || paymentNote || itemPrices || totalAmount) {
                 finalNote = JSON.stringify({
                     note: noteText !== undefined ? noteText : (order.displayNote || ''),
                     dueDate,
@@ -1364,7 +1512,9 @@ exports.updateOrderStatus = async (req, res) => {
                     paymentMethod,
                     paymentNote,
                     paymentUpdatedBy,
-                    signatures: currentSignatures
+                    signatures: currentSignatures,
+                    itemPrices,
+                    totalAmount
                 });
             }
 
@@ -1413,11 +1563,13 @@ exports.updateOrderSignatures = async (req, res) => {
         let paymentMethod = null;
         let paymentNote = null;
         let paymentUpdatedBy = null;
+        let parsedMeta = {};
 
         if (order.note) {
             try {
                 if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
                     const parsed = JSON.parse(order.note);
+                    parsedMeta = parsed;
                     currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
                     currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
                     dueDate = parsed.dueDate || null;
@@ -1521,6 +1673,7 @@ exports.updateOrderSignatures = async (req, res) => {
         }
 
         const updatedNote = JSON.stringify({
+            ...parsedMeta,
             note: currentNoteText,
             dueDate,
             paymentStatus,
@@ -1589,11 +1742,13 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
         let paymentMethod = null;
         let paymentNote = null;
         let paymentUpdatedBy = null;
+        let parsedMeta = {};
 
         if (order.note) {
             try {
                 if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
                     const parsed = JSON.parse(order.note);
+                    parsedMeta = parsed;
                     currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
                     currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
                     dueDate = parsed.dueDate || null;
@@ -1635,6 +1790,7 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
         }
 
         const updatedNote = JSON.stringify({
+            ...parsedMeta,
             note: currentNoteText,
             dueDate,
             paymentStatus,
@@ -1709,11 +1865,13 @@ exports.updateOrderPayment = async (req, res) => {
         let currentPaymentMethod = null;
         let currentPaymentNote = null;
         let currentPaymentUpdatedBy = null;
+        let parsedMeta = {};
 
         if (order.note) {
             try {
                 if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
                     const parsed = JSON.parse(order.note);
+                    parsedMeta = parsed;
                     currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
                     currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
                     currentDueDate = parsed.dueDate || null;
@@ -1738,6 +1896,7 @@ exports.updateOrderPayment = async (req, res) => {
         const newPaymentUpdatedBy = req.user ? (req.user.name || req.user.username) : (currentPaymentUpdatedBy || 'Petugas');
 
         const updatedNote = JSON.stringify({
+            ...parsedMeta,
             note: currentNoteText,
             dueDate: newDueDate,
             paymentStatus: newPaymentStatus,
@@ -1965,10 +2124,12 @@ exports.updateOrderReceiver = async (req, res) => {
         let paymentNote = null;
         let paymentUpdatedBy = null;
         let currentSignatures = { requester: null, deliverer: null, kabid: null };
+        let parsedMeta = {};
 
         if (order.note && typeof order.note === 'string' && order.note.trim().startsWith('{')) {
             try {
                 const parsed = JSON.parse(order.note);
+                parsedMeta = parsed;
                 currentNoteText = parsed.note !== undefined ? parsed.note : (parsed.text || '');
                 dueDate = parsed.dueDate || null;
                 paymentStatus = parsed.paymentStatus || 'UNPAID';
@@ -1988,6 +2149,7 @@ exports.updateOrderReceiver = async (req, res) => {
         }
 
         const updatedNote = JSON.stringify({
+            ...parsedMeta,
             note: currentNoteText,
             dueDate,
             paymentStatus,

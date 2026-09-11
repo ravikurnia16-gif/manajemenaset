@@ -147,7 +147,19 @@ export default function InventoryInvoicePublic() {
     return convert(n).trim() + ' Rupiah';
   };
 
-  const getItemSellingPrice = (it) => {
+  const getItemSellingPrice = (it, ord = null) => {
+    if (!it) return 0;
+    if (it.sellingPriceSnapshot !== undefined && it.sellingPriceSnapshot !== null && !isNaN(Number(it.sellingPriceSnapshot))) {
+      return Number(it.sellingPriceSnapshot);
+    }
+    if (it.priceSnapshot !== undefined && it.priceSnapshot !== null && !isNaN(Number(it.priceSnapshot))) {
+      return Number(it.priceSnapshot);
+    }
+    const o = ord || invoice;
+    const itemId = it.itemId || it.item?.id || it.id;
+    if (o?.itemPrices && itemId && o.itemPrices[itemId] !== undefined && o.itemPrices[itemId] !== null) {
+      return Number(o.itemPrices[itemId]);
+    }
     if (it.item?.sellingPrice !== null && it.item?.sellingPrice !== undefined && Number(it.item.sellingPrice) > 0) {
       return Number(it.item.sellingPrice);
     }

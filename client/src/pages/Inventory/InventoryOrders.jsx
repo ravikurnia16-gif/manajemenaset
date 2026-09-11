@@ -151,12 +151,39 @@ export default function InventoryOrders() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
 
-  // Helper mendapatkan harga jual item (fallback ke modal/price)
-  const getItemSellingPrice = (it) => {
-    if (it?.sellingPrice !== null && it?.sellingPrice !== undefined && Number(it.sellingPrice) > 0) {
+  // Helper mendapatkan harga jual item (fallback ke modal/price, prioritaskan snapshot pesanan)
+  const getItemSellingPrice = (it, order = null) => {
+    if (!it) return 0;
+    // 1. Snapshot harga pada item pesanan
+    if (it.sellingPriceSnapshot !== undefined && it.sellingPriceSnapshot !== null && !isNaN(Number(it.sellingPriceSnapshot))) {
+      return Number(it.sellingPriceSnapshot);
+    }
+    if (it.priceSnapshot !== undefined && it.priceSnapshot !== null && !isNaN(Number(it.priceSnapshot))) {
+      return Number(it.priceSnapshot);
+    }
+    // 2. Snapshot mapping harga pada pesanan
+    const itemId = it.itemId || it.item?.id || it.id;
+    if (order?.itemPrices && itemId && order.itemPrices[itemId] !== undefined && order.itemPrices[itemId] !== null) {
+      return Number(order.itemPrices[itemId]);
+    }
+    // 3. Persistent localStorage snapshot untuk histori pesanan yang sudah ada di list
+    if (order && (order.code || order.id)) {
+      const orderKey = `inv_order_snap_${order.code || order.id}`;
+      try {
+        const cached = JSON.parse(localStorage.getItem(orderKey) || '{}');
+        if (cached.itemPrices && itemId && cached.itemPrices[itemId] !== undefined && cached.itemPrices[itemId] !== null) {
+          return Number(cached.itemPrices[itemId]);
+        }
+      } catch (e) {}
+    }
+    // 4. Harga jual master barang saat ini (fallback)
+    if (it.item?.sellingPrice !== null && it.item?.sellingPrice !== undefined && Number(it.item.sellingPrice) > 0) {
+      return Number(it.item.sellingPrice);
+    }
+    if (it.sellingPrice !== null && it.sellingPrice !== undefined && Number(it.sellingPrice) > 0) {
       return Number(it.sellingPrice);
     }
-    return Number(it?.price || 0);
+    return Number(it.item?.price || it.price || 0);
   };
 
   // Helper kuantitas efektif untuk invoice & subtotal
@@ -170,14 +197,53 @@ export default function InventoryOrders() {
     return it.qtyRequested || 0;
   };
 
-  // Helper kalkulasi total tagihan pesanan berdasarkan harga jual
+  // Helper kalkulasi total tagihan pesanan berdasarkan harga jual (terkunci / tidak berubah bila ada update harga master)
   const calculateOrderTotal = (order) => {
-    if (!order || !order.items) return 0;
-    return order.items.reduce((acc, it) => {
-      const price = getItemSellingPrice(it.item);
+    if (!order) return 0;
+
+    const orderKey = (order.code || order.id) ? `inv_order_snap_${order.code || order.id}` : null;
+    let cachedSnap = null;
+    if (orderKey) {
+      try {
+        cachedSnap = JSON.parse(localStorage.getItem(orderKey) || 'null');
+      } catch (e) {}
+    }
+
+    if (!order.items || order.items.length === 0) {
+      if (order.totalAmount !== undefined && order.totalAmount !== null && Number(order.totalAmount) > 0) {
+        return Number(order.totalAmount);
+      }
+      if (cachedSnap?.total) {
+        return Number(cachedSnap.total);
+      }
+      return 0;
+    }
+
+    const total = order.items.reduce((acc, it) => {
+      const price = getItemSellingPrice(it, order);
       const qty = getEffectiveQty(it, order.status);
       return acc + (price * (qty || 0));
     }, 0);
+
+    // Kunci total di localStorage agar pesanan yang sudah ada di list tidak terpengaruh update harga master barang
+    if (orderKey && total > 0 && !cachedSnap) {
+      try {
+        const snapPrices = {};
+        order.items.forEach(it => {
+          const iId = it.itemId || it.item?.id || it.id;
+          if (iId) {
+            snapPrices[iId] = getItemSellingPrice(it, order);
+          }
+        });
+        localStorage.setItem(orderKey, JSON.stringify({
+          total,
+          itemPrices: snapPrices,
+          savedAt: new Date().toISOString()
+        }));
+      } catch (e) {}
+    }
+
+    return total;
   };
 
   // Helper terbilang nominal mata uang rupiah
@@ -811,14 +877,26 @@ export default function InventoryOrders() {
     
     setSubmitting(true);
     try {
+      const itemPricesMap = {};
+      formData.items.forEach(i => {
+        const itm = (items || []).find(item => item.id === i.itemId);
+        itemPricesMap[i.itemId] = getItemSellingPrice(itm);
+      });
+
       await api.post('/inventory/orders', {
         ...formData,
         dueDate: formData.dueDate || null,
-        items: formData.items.map(i => ({
-          itemId: parseInt(i.itemId),
-          qtyRequested: parseInt(i.qtyRequested),
-          note: i.note
-        }))
+        items: formData.items.map(i => {
+          const itm = (items || []).find(item => item.id === i.itemId);
+          return {
+            itemId: parseInt(i.itemId),
+            qtyRequested: parseInt(i.qtyRequested),
+            price: getItemSellingPrice(itm),
+            note: i.note
+          };
+        }),
+        itemPrices: itemPricesMap,
+        totalAmount: totalEstimatedValue
       });
       setIsCreateModalOpen(false);
       fetchOrders();
@@ -973,7 +1051,7 @@ export default function InventoryOrders() {
   const totalRequestedInOrder = selectedOrder ? (selectedOrder.items || []).reduce((acc, i) => acc + (i.qtyRequested || 0), 0) : 0;
   const totalApprovedInOrder = selectedOrder ? (processData.approvedItems || []).reduce((acc, i) => acc + (parseInt(i.qtyApproved) || 0), 0) : 0;
   const totalOrderValueInModal = selectedOrder ? (selectedOrder.items || []).reduce((acc, it) => {
-    const sellPrice = getItemSellingPrice(it.item);
+    const sellPrice = getItemSellingPrice(it, selectedOrder);
     const approvedVal = (processData.approvedItems || []).find(ai => ai.orderItemId === it.id)?.qtyApproved ?? (it.qtyApproved ?? it.qtyRequested);
     const effectiveQty = selectedOrder.status === 'COMPLETED' ? (it.qtyDelivered ?? approvedVal) : approvedVal;
     return acc + (sellPrice * effectiveQty);
@@ -1791,12 +1869,12 @@ export default function InventoryOrders() {
                   <div className="text-[10px] text-blue-600 font-medium mt-0.5">Berdasarkan harga jual</div>
                 </div>
 
-                {selectedOrder.note && (
+                {Boolean(getOrderNoteText(selectedOrder)) && (
                   <div className="col-span-full bg-amber-50/60 p-3 rounded-xl border border-amber-200/80 text-xs">
                     <span className="font-bold text-amber-900 flex items-center gap-1.5 mb-0.5">
                       <Tag size={13} className="text-amber-600" /> Catatan / Keterangan Pemohon:
                     </span>
-                    <p className="text-amber-950 italic">{selectedOrder.note}</p>
+                    <p className="text-amber-950 italic">{getOrderNoteText(selectedOrder)}</p>
                   </div>
                 )}
               </div>
@@ -1941,7 +2019,7 @@ export default function InventoryOrders() {
                         const approvedQtyValue = (processData.approvedItems || []).find(ai => ai.orderItemId === item.id)?.qtyApproved ?? (item.qtyApproved ?? item.qtyRequested);
                         const currentWhStock = getItemStockInWh(item.itemId, processData.warehouseId);
                         const isExceedWhStock = processData.status === 'COMPLETED' && processData.warehouseId && approvedQtyValue > currentWhStock;
-                        const sellPrice = getItemSellingPrice(item.item);
+                        const sellPrice = getItemSellingPrice(item, selectedOrder);
                         const effectiveQty = selectedOrder.status === 'COMPLETED' ? (item.qtyDelivered ?? approvedQtyValue) : approvedQtyValue;
                         const subtotalVal = sellPrice * effectiveQty;
 
@@ -2147,10 +2225,10 @@ export default function InventoryOrders() {
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status Pemrosesan Logistik:</span>
                     <span className="font-extrabold text-xs text-slate-800">{selectedOrder.status}</span>
                   </div>
-                  {selectedOrder.note && (
+                  {Boolean(getOrderNoteText(selectedOrder)) && (
                     <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100 text-xs">
                       <span className="font-bold text-blue-900 block mb-0.5">Catatan / Respon Petugas:</span>
-                      <p className="text-slate-700 italic">{selectedOrder.note}</p>
+                      <p className="text-slate-700 italic">{getOrderNoteText(selectedOrder)}</p>
                     </div>
                   )}
                 </div>
@@ -2501,7 +2579,7 @@ export default function InventoryOrders() {
                         <tbody className="divide-y divide-slate-200">
                           {invoiceModalOrder.items && invoiceModalOrder.items.length > 0 ? (
                             invoiceModalOrder.items.map((it, idx) => {
-                              const sellingPrice = getItemSellingPrice(it.item);
+                              const sellingPrice = getItemSellingPrice(it, invoiceModalOrder);
                               const effectiveQty = getEffectiveQty(it, invoiceModalOrder.status);
                               const subtotal = sellingPrice * effectiveQty;
 

@@ -196,7 +196,7 @@ function App() {
   const pos = (user?.position || '').toLowerCase();
   const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => pos.includes(kw));
 
-  const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+  const isKabidSarpras = ['KABID_SARPRAS', 'SUPER_ADMIN'].includes(role) || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
   const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
   const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
   const canViewEOffice = isAdminAset || pos.includes('kepala bidang sarana');
@@ -263,8 +263,8 @@ function App() {
           {/* Modul Baru: Manajemen Workshop Baru (Unit 21) - Khusus Kepala Bidang Sarana */}
           <Route path="workshop-baru/dashboard" element={isKabidSarpras ? <WorkshopBaruDashboard /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/board" element={isKabidSarpras ? <WorkshopBaruBoard /> : <Navigate to="/dashboard" replace />} />
-          <Route path="workshop-baru/orders/:id" element={isKabidSarpras ? <WorkshopBaruDetail /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/orders/new" element={isKabidSarpras ? <WorkshopBaruOrderForm /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/orders/:id" element={isKabidSarpras ? <WorkshopBaruDetail /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/catalog" element={isKabidSarpras ? <WorkshopBaruCatalog /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/export" element={isKabidSarpras ? <WorkshopBaruExport /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/settings" element={isKabidSarpras ? <WorkshopBaruSettings /> : <Navigate to="/dashboard" replace />} />

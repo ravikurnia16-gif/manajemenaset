@@ -678,7 +678,9 @@ const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
   const sisaBayar = Math.max(0, totalAmount - numInputPaid);
 
   let previewStatus = 'UNPAID';
-  if (numInputPaid >= totalAmount && totalAmount > 0) {
+  if (numInputPaid > totalAmount && totalAmount > 0) {
+    previewStatus = 'OVERPAID';
+  } else if (numInputPaid >= totalAmount && totalAmount > 0) {
     previewStatus = 'PAID';
   } else if (numInputPaid > 0) {
     previewStatus = 'PARTIAL';
@@ -689,7 +691,7 @@ const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
     setIsSubmitting(true);
     try {
       await onSave(sale.id, {
-        paidAmount: Math.min(totalAmount, numInputPaid),
+        paidAmount: numInputPaid,
         paymentStatus: previewStatus,
         paymentMethod
       });
@@ -802,11 +804,12 @@ const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
             <label className="text-xs font-bold text-slate-700 flex justify-between items-center">
               <span>Total Uang yang Diterima (Rp):</span>
               <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
+                previewStatus === 'OVERPAID' ? 'bg-purple-100 text-purple-800' :
                 previewStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' :
                 previewStatus === 'PARTIAL' ? 'bg-amber-100 text-amber-800' :
                 'bg-rose-100 text-rose-800'
               }`}>
-                Status: {previewStatus === 'PAID' ? 'LUNAS' : previewStatus === 'PARTIAL' ? 'PARSIAL (SEBAGIAN)' : 'BELUM BAYAR'}
+                Status: {previewStatus === 'OVERPAID' ? 'KELEBIHAN BAYAR' : previewStatus === 'PAID' ? 'LUNAS' : previewStatus === 'PARTIAL' ? 'PARSIAL (SEBAGIAN)' : 'BELUM BAYAR'}
               </span>
             </label>
             <div className="relative">
@@ -1397,12 +1400,17 @@ export const SalesTab = ({
                     </div>
 
                     <div className="text-right flex flex-col items-end">
-                      <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
-                        {s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'PARTIAL' ? 'PARSIAL' : 'BELUM BAYAR'}
+                      <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'OVERPAID' ? 'purple' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
+                        {s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'OVERPAID' ? 'LEBIH BAYAR' : s.paymentStatus === 'PARTIAL' ? 'PARSIAL' : 'BELUM BAYAR'}
                       </Badge>
                       {s.paymentStatus === 'PAID' && (
                         <span className="text-[10px] font-bold text-emerald-700 font-mono mt-0.5">
                           Rp {(Number(s.paidAmount) || activeTotalAmount).toLocaleString('id-ID')}
+                        </span>
+                      )}
+                      {s.paymentStatus === 'OVERPAID' && (
+                        <span className="text-[10px] font-bold text-purple-700 font-mono mt-0.5">
+                          Lebih: Rp {Math.max(0, (Number(s.paidAmount) || 0) - activeTotalAmount).toLocaleString('id-ID')}
                         </span>
                       )}
                     </div>
@@ -1765,9 +1773,15 @@ export const SalesTab = ({
                     {/* Status Bayar */}
                     <td className="p-3 text-center">
                       <div className="flex flex-col items-center gap-1">
-                        <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
-                          {s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'PARTIAL' ? 'PARSIAL' : 'BELUM BAYAR'}
+                        <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'OVERPAID' ? 'purple' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>
+                          {s.paymentStatus === 'PAID' ? 'LUNAS' : s.paymentStatus === 'OVERPAID' ? 'LEBIH BAYAR' : s.paymentStatus === 'PARTIAL' ? 'PARSIAL' : 'BELUM BAYAR'}
                         </Badge>
+
+                        {s.paymentStatus === 'OVERPAID' && (
+                          <div className="text-[10px] font-bold text-purple-700 mt-0.5 text-center">
+                            Lebih: Rp {Math.max(0, (Number(s.paidAmount) || 0) - activeTotalAmount).toLocaleString('id-ID')}
+                          </div>
+                        )}
 
                         {s.paymentStatus === 'PARTIAL' && (
                           <div className="w-full max-w-[125px] space-y-0.5 mt-0.5">
