@@ -66,25 +66,28 @@ const Sidebar = ({ isOpen = true }) => {
         'sarana dan prasarana',
         'manajemen aset',
         'gudang dan logistik',
+        'gudang',
         'teknisi',
         'keuangan dan administrasi',
         'kendaraan',
         'infrastruktur it',
-        'desainer'
+        'desainer',
+        'staff it'
     ];
-    const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
+    const pos = (user?.position || '').toLowerCase();
+    const role = user?.role || '';
+    const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => pos.includes(kw));
 
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const isSuperAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user?.role);
     
-    const pos = (user?.position || '').toLowerCase();
-    const role = user?.role || '';
     const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     
-    const isAdminAset = role === 'ADMIN_ASET';
-    const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(role) || isWarehouseAdmin;
+    const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
+    const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'BIDANG_IT'].includes(role) || isWarehouseAdmin || isStaffSarpras;
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || role === 'AUDITOR';
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(role) || isKabidSarpras;
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR', 'BIDANG_IT'].includes(role) || isKabidSarpras || isStaffSarpras;
+    const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(role) || pos.includes('kepala bidang pembangunan') || pos.includes('staff pembangunan');
     
@@ -346,7 +349,7 @@ const Sidebar = ({ isOpen = true }) => {
 
 
                 {/* 4. Menu Laporan Terpadu - Hanya untuk Kepala Bidang Sarana dan Admin Aset */}
-                {(isKabidSarpras || isAdminAset) && (
+                {canViewLaporan && (
                     <Link to="/laporan" className={navItemClass('/laporan')}>
                         <FileText size={18} />
                         <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
@@ -385,7 +388,11 @@ const Sidebar = ({ isOpen = true }) => {
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
                     <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>
-                    <Link to="/laporan" className={navItemClass('/laporan')}><FileText size={18} /> Laporan</Link>
+                    {isAdmin && (
+                        <Link to="/laporan-aset-keuangan" className={navItemClass('/laporan-aset-keuangan')}>
+                            <FileSpreadsheet size={18} /> Laporan Rekap Aset
+                        </Link>
+                    )}
                     {isAdmin && (
                         <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
                     )}

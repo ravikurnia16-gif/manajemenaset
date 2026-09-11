@@ -69,8 +69,12 @@ export default function SalesPage() {
             } else if (activeTab === 'packages') {
                 setPackages(commonRes[4].data);
             } else if (activeTab === 'exchanges') {
-                const r = await api.get('/uniforms/exchanges');
-                setExchanges(r.data);
+                const [rExc, rSales] = await Promise.all([
+                    api.get('/uniforms/exchanges'),
+                    api.get('/uniforms/sales')
+                ]);
+                setExchanges(rExc.data);
+                setSales(rSales.data);
             }
         } catch (err) {
             console.error('Fetch error:', err);
@@ -146,10 +150,14 @@ export default function SalesPage() {
 
     const handleSaveExchange = async (formData) => {
         try {
-            await api.post('/uniforms/exchanges', formData);
+            const res = await api.post('/uniforms/exchanges', formData);
+            const codes = res.data?.codes?.join(', ') || res.data?.code || '';
+            alert(`Berhasil memproses tukar ukuran! ${codes ? `(Nomor: ${codes})` : ''}`);
             closeModal();
             fetchData();
-        } catch (err) { alert(err.response?.data?.error || 'Gagal memproses tukar ukuran'); }
+        } catch (err) { 
+            alert(err.response?.data?.error || 'Gagal memproses tukar ukuran'); 
+        }
     };
 
     return (

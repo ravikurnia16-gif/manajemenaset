@@ -6,7 +6,8 @@ import {
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
     Warehouse, Box, Wrench, Truck, FileSignature, ArrowRight, Share2, Layers,
-    Copy, Check, Trash2, Edit2, RotateCcw, BookOpen, Bell, BellRing
+    Copy, Check, Trash2, Edit2, RotateCcw, BookOpen, Bell, BellRing,
+    Server, Palette
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -24,6 +25,8 @@ const DIVISION_TAGS = [
     { key: 'TEKNISI', label: 'Teknisi & Maintenance', icon: Wrench, color: 'bg-emerald-500' },
     { key: 'KENDARAAN', label: 'Armada Kendaraan', icon: Truck, color: 'bg-indigo-500' },
     { key: 'KEUANGAN', label: 'Staff Keuangan & Administrasi', icon: FileSignature, color: 'bg-violet-500' },
+    { key: 'IT', label: 'Staff Infrastruktur IT', icon: Server, color: 'bg-cyan-500' },
+    { key: 'DESAINER', label: 'Staff Desainer', icon: Palette, color: 'bg-rose-500' },
     { key: 'UMUM', label: 'Operasional Umum', icon: Layers, color: 'bg-slate-500' }
 ];
 
@@ -33,10 +36,12 @@ const ROUTINE_TEMPLATES = {
     TEKNISI: [],
     KENDARAAN: [],
     KEUANGAN: [],
+    IT: [],
+    DESAINER: [],
     UMUM: []
 };
 
-const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
+const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4', '#f43f5e'];
 
 const LaporanStaff = () => {
     const { tab } = useParams();
@@ -64,6 +69,8 @@ const LaporanStaff = () => {
         if (pos.includes('kendaraan') || pos.includes('driver') || pos.includes('supir') || pos.includes('transport') || pos.includes('armada')) return 'KENDARAAN';
         if (pos.includes('gudang') || pos.includes('logistik') || pos.includes('warehouse')) return 'GUDANG';
         if (pos.includes('teknisi') || pos.includes('maintenance') || pos.includes('listrik') || pos.includes('bangunan') || pos.includes('ac')) return 'TEKNISI';
+        if (pos.includes('infrastruktur it') || pos.includes('staff it') || pos.includes('it') || pos.includes('programming') || role.includes('it')) return 'IT';
+        if (pos.includes('desainer') || pos.includes('desain')) return 'DESAINER';
         if (pos.includes('manajemen aset') || pos.includes('aset') || pos.includes('inventaris') || pos.includes('asset') || role.includes('aset')) return 'ASET';
         return 'UMUM';
     }, [user.position, user.role]);

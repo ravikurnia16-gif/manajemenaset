@@ -16,16 +16,22 @@ const SARPRAS_KEYWORDS = [
     'staff manajemen aset',
     'admin aset',
     'gudang dan logistik',
+    'gudang',
     'kendaraan',
     'teknisi aset',
+    'teknisi',
     'keuangan dan administrasi',
     'infrastruktur it',
-    'desainer'
+    'desainer',
+    'staff it'
 ];
 
-// Strict filter for staff users: ONLY role ADMIN_ASET (Exclude Kabid, Admin Unit, and non-asset roles)
+// Filter for staff users: Role ADMIN_ASET or position matches Sarpras keywords (Exclude Kabid, Admin Unit, and non-asset roles)
 const STAFF_USER_WHERE = {
-    role: 'ADMIN_ASET',
+    OR: [
+        { role: 'ADMIN_ASET' },
+        ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
+    ],
     NOT: [
         { role: 'KABID_SARPRAS' },
         { position: { contains: 'Kepala Bidang' } }
@@ -107,7 +113,7 @@ exports.getReports = async (req, res) => {
             whereClause.userId = reqUserId;
         } else {
             whereClause.OR = [
-                { user: { role: 'ADMIN_ASET' } },
+                { user: STAFF_USER_WHERE },
                 { userId: reqUserId }
             ];
         }
@@ -154,10 +160,11 @@ exports.getReports = async (req, res) => {
             }
         }
 
-        // For Kabid, filter only ADMIN_ASET and exclude auto logs; for Non-Kabid always keep own report
+        // For Kabid, filter staff matching STAFF_USER_WHERE and exclude auto logs; for Non-Kabid always keep own report
         let reports = Object.values(userReportsMap).filter(r => {
             if (!isUserKabid && r.userId === reqUserId) return true;
-            if (r.user?.role !== 'ADMIN_ASET') return false;
+            const isStaff = r.user?.role === 'ADMIN_ASET' || SARPRAS_KEYWORDS.some(kw => (r.user?.position || '').toLowerCase().includes(kw));
+            if (!isStaff) return false;
             const hasManual = isReportSubmitted(r);
             const hasRealManualContent = r.content && !r.content.includes('(Otomatis)');
             return hasManual || hasRealManualContent;
@@ -412,19 +419,19 @@ exports.getDashboardAnalytics = async (req, res) => {
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        // 1. Get all staff users (strictly Role ADMIN_ASET, exclude Kabid)
+        // 1. Get all staff users (Role ADMIN_ASET or Sarpras position, exclude Kabid)
         const staffUsers = await prisma.user.findMany({
             where: STAFF_USER_WHERE,
             select: { id: true, name: true, position: true, role: true, phone: true }
         });
 
-        // 2. Fetch today's reports for Role ADMIN_ASET
+        // 2. Fetch today's reports for Staff users
         const todayReports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             },
             include: {
                 user: { select: { id: true, name: true, position: true, role: true } }
@@ -444,6 +451,8 @@ exports.getDashboardAnalytics = async (req, res) => {
             TEKNISI: 0,
             KENDARAAN: 0,
             KEUANGAN: 0,
+            IT: 0,
+            DESAINER: 0,
             UMUM: 0
         };
 
@@ -512,7 +521,7 @@ exports.getDashboardAnalytics = async (req, res) => {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOf2WorkDays, lte: endOf2WorkDays },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             }
         });
 
@@ -550,7 +559,7 @@ exports.getDashboardAnalytics = async (req, res) => {
                     type: 'DAILY', 
                     NOT: { content: 'SETORAN_HAFALAN' },
                     date: { gte: dStart, lte: dEnd },
-                    user: { role: 'ADMIN_ASET' }
+                    user: STAFF_USER_WHERE
                 }
             });
 
@@ -586,7 +595,7 @@ exports.getDashboardAnalytics = async (req, res) => {
                 type: 'DAILY', 
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: monthStart, lte: endOfDay },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             }
         });
 
@@ -665,7 +674,7 @@ exports.getWeeklySummary = async (req, res) => {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: dStart, lte: dEnd },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             },
             include: {
                 user: { select: { id: true, name: true, position: true } }
@@ -1327,7 +1336,7 @@ exports.sendReportReminders = async () => {
                 type: 'DAILY', 
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             }
         });
 
@@ -1420,7 +1429,7 @@ exports.remindStaffMissingReport = async (req, res) => {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             }
         });
 
@@ -1559,7 +1568,7 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOf2WorkDays, lte: endOf2WorkDays },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             }
         });
 
@@ -1644,7 +1653,7 @@ exports.getKabidSummary = async (req, res) => {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfDay, lte: endOfDay },
-                user: { role: 'ADMIN_ASET' }
+                user: STAFF_USER_WHERE
             }
         });
 

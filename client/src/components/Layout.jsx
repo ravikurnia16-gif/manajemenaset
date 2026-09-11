@@ -45,9 +45,22 @@ const Layout = () => {
             const pos = (user?.position || '').toLowerCase();
             const role = user?.role || '';
             const isKabid = role === 'KABID_SARPRAS' || pos.includes('kepala bidang');
-            const isAdminAset = role === 'ADMIN_ASET';
+            const sarprasKeywords = [
+                'sarana dan prasarana',
+                'manajemen aset',
+                'gudang dan logistik',
+                'gudang',
+                'teknisi',
+                'keuangan dan administrasi',
+                'kendaraan',
+                'infrastruktur it',
+                'desainer',
+                'staff it'
+            ];
+            const isStaffSarpras = sarprasKeywords.some(kw => pos.includes(kw));
+            const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
             
-            // Hanya Role ADMIN_ASET yang memiliki kewajiban mengisi laporan harian
+            // Hanya Role ADMIN_ASET / Staff Sarpras yang memiliki kewajiban mengisi laporan harian
             if (isKabid || !isAdminAset) {
                 setHasReported(true);
                 return;

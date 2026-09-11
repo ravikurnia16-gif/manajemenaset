@@ -482,6 +482,43 @@ export const ExchangeForm = ({
                                         {(mode === 'MANUAL' || exc.selected) && (
                                             <div className="space-y-3 pt-3 border-t border-slate-100">
                                                 
+                                                {/* Pilihan Barang Lama jika Mode Bebas (MANUAL) */}
+                                                {mode === 'MANUAL' && (
+                                                    <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                        <div className="sm:col-span-2">
+                                                            <label className="block text-xs font-bold text-amber-900 mb-1">
+                                                                Seragam & Ukuran yang Dikembalikan *
+                                                            </label>
+                                                            <select
+                                                                value={exc.fromVariantId}
+                                                                onChange={(e) => updateExchangeRow(index, 'fromVariantId', e.target.value)}
+                                                                required
+                                                                className="w-full bg-white border border-amber-300 rounded-xl p-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none shadow-xs"
+                                                            >
+                                                                <option value="">-- Pilih Seragam & Ukuran Lama --</option>
+                                                                {variants.map(v => (
+                                                                    <option key={v.id} value={v.id}>
+                                                                        {v.item?.name || 'Seragam'} - Ukuran {v.sizeName} (Rp {(v.sellPrice || v.item?.basePrice || 0).toLocaleString('id-ID')})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-amber-900 mb-1">
+                                                                Jumlah (Qty) *
+                                                            </label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={exc.qty || 1}
+                                                                onChange={(e) => updateExchangeRow(index, 'qty', Math.max(1, parseInt(e.target.value) || 1))}
+                                                                required
+                                                                className="w-full bg-white border border-amber-300 rounded-xl p-2.5 text-xs sm:text-sm font-bold text-slate-800 outline-none shadow-xs text-center"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {/* 1. Pilih Ukuran Pengganti Baru */}
                                                 <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-200">
                                                     <label className="block text-xs font-bold text-blue-800 mb-1">
@@ -584,33 +621,48 @@ export const ExchangeForm = ({
 
                                                 </div>
 
-                                                {/* Pilihan Status Penyerahan jika barang belum diambil (SEDIA / INDENT) */}
-                                                {mode === 'INVOICE' && (isReady || isIndent) && (
-                                                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                        <span className="text-xs font-bold text-emerald-900">
+                                                {/* Pilihan Status Penyerahan Seragam Baru */}
+                                                {mode === 'INVOICE' && (
+                                                    <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                        <span className="text-xs font-bold text-slate-700">
                                                             Status Seragam Baru Setelah Ditukar:
                                                         </span>
-                                                        <div className="flex items-center gap-3 text-xs">
-                                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-300 shadow-xs">
-                                                                <input
-                                                                    type="radio"
-                                                                    name={`newStatus_${index}`}
-                                                                    checked={exc.newStatus === 'SEDIA'}
-                                                                    onChange={() => updateExchangeRow(index, 'newStatus', 'SEDIA')}
-                                                                    className="text-emerald-600"
-                                                                />
-                                                                📦 Tetap Sedia (Disimpan untuk dijemput nanti)
-                                                            </label>
-                                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-blue-800 bg-white px-2.5 py-1 rounded-lg border border-blue-300 shadow-xs">
-                                                                <input
-                                                                    type="radio"
-                                                                    name={`newStatus_${index}`}
-                                                                    checked={exc.newStatus === 'DIAMBIL'}
-                                                                    onChange={() => updateExchangeRow(index, 'newStatus', 'DIAMBIL')}
-                                                                    className="text-blue-600"
-                                                                    />
-                                                                ✓ Langsung Diserahkan Sekarang
-                                                            </label>
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => updateExchangeRow(index, 'newStatus', 'DIAMBIL')}
+                                                                className={`px-3 py-1.5 rounded-lg font-bold border transition text-xs ${
+                                                                    exc.newStatus === 'DIAMBIL' 
+                                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                                }`}
+                                                            >
+                                                                ✓ Langsung Diserahkan (Diambil)
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => updateExchangeRow(index, 'newStatus', 'SEDIA')}
+                                                                className={`px-3 py-1.5 rounded-lg font-bold border transition text-xs ${
+                                                                    exc.newStatus === 'SEDIA' 
+                                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
+                                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                                }`}
+                                                            >
+                                                                📦 Sedia di Gudang (Dijemput Nanti)
+                                                            </button>
+                                                            {!hasStock && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => updateExchangeRow(index, 'newStatus', 'INDENT')}
+                                                                    className={`px-3 py-1.5 rounded-lg font-bold border transition text-xs ${
+                                                                        exc.newStatus === 'INDENT' 
+                                                                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm' 
+                                                                            : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'
+                                                                    }`}
+                                                                >
+                                                                    ⏳ Indent (Stok Kosong)
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}

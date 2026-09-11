@@ -4489,16 +4489,21 @@ exports.createExchange = async (req, res) => {
 
                 // 4. Update UniformSaleItem jika terhubung dengan pesanan
                 if (item.saleItemId && targetSale) {
+                    const resolvedPickupWhId = (itemTransitWhId && itemTransitWhId > 0) 
+                        ? itemTransitWhId 
+                        : ((itemToWhId && itemToWhId > 0) ? itemToWhId : undefined);
+
                     await tx.uniformSaleItem.update({
                         where: { id: parseInt(item.saleItemId) },
                         data: {
                             variantId: tVId,
-                            itemName: toVariant.item.name,
+                            itemName: toVariant.item?.name || 'Seragam',
                             size: toVariant.sizeName,
                             unitPrice: newUnitPrice,
                             totalPrice: newUnitPrice * quantity,
                             status: finalStatus,
-                            ...(finalStatus === 'DIAMBIL' ? { qtyDelivered: quantity, deliveredAt: new Date() } : {})
+                            qtyDelivered: finalStatus === 'DIAMBIL' ? quantity : 0,
+                            ...(resolvedPickupWhId ? { pickupWarehouseId: resolvedPickupWhId } : {})
                         }
                     });
                 }
@@ -4534,6 +4539,11 @@ exports.createExchange = async (req, res) => {
                 const exchangeNote = `[TUKAR_UKURAN: ${exchangeCodes} - Selisih: ${totalPriceDiff >= 0 ? '+' : ''}Rp ${totalPriceDiff.toLocaleString('id-ID')}]`;
                 const updatedNote = targetSale.note ? `${targetSale.note}\n${exchangeNote}` : exchangeNote;
 
+                const validItems = updatedItems.filter(i => i.status !== 'BATAL');
+                const allDelivered = validItems.length > 0 && validItems.every(i => (i.qtyDelivered >= i.qty) || i.status === 'DIAMBIL');
+                const anyDelivered = validItems.some(i => (i.qtyDelivered > 0) || i.status === 'DIAMBIL');
+                const newSaleStatus = allDelivered ? 'COMPLETED' : (anyDelivered ? 'PARTIAL_DELIVERED' : 'PENDING');
+
                 await tx.uniformSale.update({
                     where: { id: targetSale.id },
                     data: {
@@ -4542,6 +4552,8 @@ exports.createExchange = async (req, res) => {
                         paidAmount: newPaidAmount,
                         paymentStatus: newPaymentStatus,
                         paymentMethod: isPaidDiff && totalPriceDiff > 0 ? paymentMethod : targetSale.paymentMethod,
+                        status: newSaleStatus,
+                        completedAt: allDelivered ? (targetSale.completedAt || new Date()) : null,
                         note: updatedNote
                     }
                 });

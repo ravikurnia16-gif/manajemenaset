@@ -184,20 +184,22 @@ function App() {
     'sarana dan prasarana',
     'manajemen aset',
     'gudang dan logistik',
+    'gudang',
     'teknisi',
     'keuangan dan administrasi',
     'kendaraan',
     'infrastruktur it',
-    'desainer'
+    'desainer',
+    'staff it'
   ];
-  const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
-
   const role = user?.role || '';
   const pos = (user?.position || '').toLowerCase();
+  const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => pos.includes(kw));
+
   const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
-  const isAdminAset = role === 'ADMIN_ASET' || pos.includes('admin aset');
-  const canViewLaporan = isKabidSarpras || isAdminAset;
-  const canViewEOffice = role === 'ADMIN_ASET' || pos.includes('kepala bidang sarana');
+  const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
+  const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
+  const canViewEOffice = isAdminAset || pos.includes('kepala bidang sarana');
 
   return (
     <BrowserRouter>
