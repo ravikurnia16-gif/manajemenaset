@@ -40,18 +40,19 @@ const VehicleBooking = () => {
     const [dismissedViolationIds, setDismissedViolationIds] = useState([]);
 
     useEffect(() => {
-        if (currentUserProfile) {
-            if (!currentUserProfile.isSanctioned) {
-                localStorage.removeItem(`hideSanction_${currentUserProfile.id}`);
+        const profile = currentUserProfile || user;
+        if (profile?.id) {
+            if (!profile.isSanctioned) {
+                localStorage.removeItem(`hideSanction_${profile.id}`);
                 setHideSanctionBanner(false);
             } else {
-                const isHidden = localStorage.getItem(`hideSanction_${currentUserProfile.id}`);
+                const isHidden = localStorage.getItem(`hideSanction_${profile.id}`);
                 if (isHidden === 'true') {
                     setHideSanctionBanner(true);
                 }
             }
         }
-    }, [currentUserProfile]);
+    }, [currentUserProfile, user?.id, user?.isSanctioned]);
 
     useEffect(() => {
         const uid = user?.id || currentUserProfile?.id;
@@ -918,8 +919,16 @@ const VehicleBooking = () => {
             await api.post('/personnel/sanctions/propose', { reason: sanctionProposeReason });
             showToast('Usulan pencabutan sanksi berhasil dikirim', 'success');
             setShowSanctionProposeModal(false);
+            const submittedReason = sanctionProposeReason;
             setSanctionProposeReason('');
+            setCurrentUserProfile(prev => prev ? ({ ...prev, sanctionProposedLift: true, sanctionLiftReason: submittedReason }) : prev);
+            const uid = user?.id || currentUserProfile?.id;
+            if (uid) localStorage.removeItem(`hideSanction_${uid}`);
+            setHideSanctionBanner(false);
             fetchCurrentUser();
+            if (isSuperAdmin || isAdminAset) {
+                fetchSanctionedUsers();
+            }
         } catch (err) {
             showToast('Gagal mengirim usulan: ' + (err.response?.data?.error || err.message), 'error');
         } finally {
@@ -1083,45 +1092,79 @@ const VehicleBooking = () => {
             </div>
 
             {/* Sanction Banner */}
-            {(currentUserProfile?.isSanctioned && !hideSanctionBanner) && (
-                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 justify-between relative">
-                    <button 
-                        onClick={() => {
-                            setHideSanctionBanner(true);
-                            localStorage.setItem(`hideSanction_${currentUserProfile.id}`, 'true');
-                        }}
-                        className="absolute top-2 right-2 text-red-400 hover:text-red-600 bg-white hover:bg-red-100 rounded-full p-1 transition-all"
-                        title="Tutup Peringatan"
-                    >
-                        <X size={16} />
-                    </button>
-                    <div className="flex items-center gap-3 pr-8">
-                        <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                            <AlertCircle size={20} />
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-bold text-red-800">Akun Anda Sedang Disanksi</h4>
-                            <p className="text-xs text-red-600">
-                                Anda telah melakukan pelanggaran (tidak memulai/mengakhiri perjalanan lebih dari 10 kali). 
-                                Anda tidak dapat melakukan peminjaman kendaraan sampai sanksi dicabut.
-                            </p>
-                        </div>
-                    </div>
-                    <div>
-                        {currentUserProfile?.sanctionProposedLift ? (
-                            <div className="px-4 py-2 bg-red-100 text-red-700 rounded-xl text-xs font-bold text-center border border-red-200">
-                                Usulan Pencabutan Sedang Direviu
+            {(currentUserProfile?.isSanctioned || user?.isSanctioned) && (
+                !hideSanctionBanner ? (
+                    <div className="bg-red-50 border border-red-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 justify-between relative animate-fadeIn">
+                        <button 
+                            onClick={() => {
+                                setHideSanctionBanner(true);
+                                const uid = currentUserProfile?.id || user?.id;
+                                if (uid) localStorage.setItem(`hideSanction_${uid}`, 'true');
+                            }}
+                            className="absolute top-2 right-2 text-red-400 hover:text-red-600 bg-white hover:bg-red-100 rounded-full p-1 transition-all"
+                            title="Tutup Peringatan Penuh (Beralih ke Tampilan Ringkas)"
+                        >
+                            <X size={16} />
+                        </button>
+                        <div className="flex items-center gap-3 pr-8">
+                            <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                                <AlertCircle size={20} />
                             </div>
-                        ) : (
-                            <button
-                                onClick={() => setShowSanctionProposeModal(true)}
-                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-200 whitespace-nowrap"
-                            >
-                                Usulkan Pencabutan Sanksi
-                            </button>
-                        )}
+                            <div>
+                                <h4 className="text-sm font-bold text-red-800">Akun Anda Sedang Disanksi</h4>
+                                <p className="text-xs text-red-600">
+                                    Anda telah melakukan pelanggaran operasional perjalanan. 
+                                    Anda tidak dapat melakukan peminjaman kendaraan operasional sampai sanksi dicabut.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {currentUserProfile?.sanctionProposedLift ? (
+                                <div className="px-4 py-2 bg-amber-100 text-amber-800 rounded-xl text-xs font-bold text-center border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                                    <Clock size={14} className="text-amber-600 animate-pulse" /> Usulan Pencabutan Sedang Direviu
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setShowSanctionProposeModal(true)}
+                                    className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-200 whitespace-nowrap flex items-center gap-1.5 active:scale-95"
+                                >
+                                    <Plus size={14} /> Usulkan Pencabutan Sanksi
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="bg-red-50 border border-red-200 px-4 py-2.5 rounded-2xl shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs animate-fadeIn">
+                        <div className="flex items-center gap-2 text-red-800 font-medium">
+                            <AlertCircle size={15} className="text-red-600 shrink-0" />
+                            <span><strong>Peringatan Sanksi:</strong> Akun Anda sedang disanksi peminjaman kendaraan.</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {currentUserProfile?.sanctionProposedLift ? (
+                                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold border border-amber-200 flex items-center gap-1">
+                                    <Clock size={12} className="text-amber-600" /> Usulan Direviu
+                                </span>
+                            ) : (
+                                <button
+                                    onClick={() => setShowSanctionProposeModal(true)}
+                                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-bold transition-all shadow-xs flex items-center gap-1 active:scale-95"
+                                >
+                                    <Plus size={12} /> Usulkan Pencabutan Sanksi
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    setHideSanctionBanner(false);
+                                    const uid = currentUserProfile?.id || user?.id;
+                                    if (uid) localStorage.removeItem(`hideSanction_${uid}`);
+                                }}
+                                className="text-red-600 hover:text-red-800 underline font-bold text-[11px] ml-1"
+                            >
+                                Buka Detail
+                            </button>
+                        </div>
+                    </div>
+                )
             )}
 
             {/* Unchecked Vehicles Banner (Staff Kendaraan Only) */}
@@ -1193,10 +1236,19 @@ const VehicleBooking = () => {
                                     </div>
                                     <p className="text-slate-600 text-xs mt-0.5">{violation.description}</p>
                                 </div>
-                                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
                                     <div className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold text-center border border-amber-200">
                                         Sanksi: {violation.sanction}
                                     </div>
+                                    {(currentUserProfile?.isSanctioned || user?.isSanctioned) && !currentUserProfile?.sanctionProposedLift && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSanctionProposeModal(true)}
+                                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1 active:scale-95"
+                                        >
+                                            <Plus size={12} /> Usulkan Cabut
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -1478,10 +1530,15 @@ const VehicleBooking = () => {
 
                                             {v.status === 'ACTIVE' || v.status === 'INACTIVE' ? (
                                                 <button
-                                                    disabled={submitting || v.isBorrowed || v.status !== 'ACTIVE' || currentUserProfile?.isSanctioned}
+                                                    disabled={submitting || v.isBorrowed || v.status !== 'ACTIVE'}
                                                     onClick={() => {
-                                                        if (currentUserProfile?.isSanctioned) {
-                                                            showToast('Akun Anda sedang disanksi. Tidak dapat melakukan peminjaman.', 'error');
+                                                        if (currentUserProfile?.isSanctioned || user?.isSanctioned) {
+                                                            if (currentUserProfile?.sanctionProposedLift) {
+                                                                showToast('Akun Anda sedang disanksi. Usulan pencabutan sanksi sedang dalam proses reviu admin.', 'info');
+                                                            } else {
+                                                                showToast('Akun Anda sedang disanksi. Silakan kirim usulan pencabutan sanksi.', 'info');
+                                                                setShowSanctionProposeModal(true);
+                                                            }
                                                             return;
                                                         }
                                                         setSelectedVehicle(v);
@@ -1495,8 +1552,8 @@ const VehicleBooking = () => {
                                                         setShowBorrowModal(true);
                                                     }}
                                                     className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${
-                                                        currentUserProfile?.isSanctioned 
-                                                        ? 'bg-red-50 text-red-500 cursor-not-allowed border border-red-100'
+                                                        (currentUserProfile?.isSanctioned || user?.isSanctioned)
+                                                        ? 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer shadow-xs'
                                                         : v.isBorrowed
                                                         ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
                                                         : v.status !== 'ACTIVE'
@@ -1504,10 +1561,10 @@ const VehicleBooking = () => {
                                                             : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
                                                         }`}
                                                 >
-                                                    {currentUserProfile?.isSanctioned ? (
+                                                    {(currentUserProfile?.isSanctioned || user?.isSanctioned) ? (
                                                         <>
                                                             <AlertCircle size={16} />
-                                                            Akun Disanksi
+                                                            {currentUserProfile?.sanctionProposedLift ? 'Akun Disanksi (Direviu)' : 'Akun Disanksi (Ajukan Cabut)'}
                                                         </>
                                                     ) : v.isBorrowed ? (
                                                         <>
@@ -3162,8 +3219,8 @@ const VehicleBooking = () => {
                                         : 'Daftar pelanggaran disiplin penggunaan kendaraan Anda.'}
                                 </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                {(hideViolationsBanner || dismissedViolationIds.length > 0) && myViolations.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {(hideViolationsBanner || dismissedViolationIds.length > 0 || hideSanctionBanner) && (
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -3171,8 +3228,10 @@ const VehicleBooking = () => {
                                             if (uid) {
                                                 localStorage.removeItem(`hideUserViolations_${uid}`);
                                                 localStorage.removeItem(`dismissedViolations_${uid}`);
+                                                localStorage.removeItem(`hideSanction_${uid}`);
                                             }
                                             setHideViolationsBanner(false);
+                                            setHideSanctionBanner(false);
                                             setDismissedViolationIds([]);
                                             showToast('Notifikasi sanksi diaktifkan kembali di layar awal');
                                         }}
@@ -3181,6 +3240,21 @@ const VehicleBooking = () => {
                                     >
                                         <AlertCircle size={14} className="text-amber-600" /> Tampilkan Kembali di Layar Awal
                                     </button>
+                                )}
+                                {(currentUserProfile?.isSanctioned || user?.isSanctioned) && (
+                                    currentUserProfile?.sanctionProposedLift ? (
+                                        <span className="px-3.5 py-2 bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs">
+                                            <Clock size={14} className="text-amber-600 animate-pulse" /> Usulan Pencabutan Sedang Direviu
+                                        </span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSanctionProposeModal(true)}
+                                            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-red-200 flex items-center gap-1.5 active:scale-95"
+                                        >
+                                            <Plus size={15} /> Usulkan Pencabutan Sanksi
+                                        </button>
+                                    )
                                 )}
                                 {(isSuperAdmin || isAdminAset) && (
                                     <button
@@ -3192,6 +3266,57 @@ const VehicleBooking = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Status Sanksi & Pengusulan Pencabutan (Untuk User yang sedang disanksi) */}
+                        {(currentUserProfile?.isSanctioned || user?.isSanctioned) && (
+                            <div className="bg-gradient-to-r from-red-50 via-rose-50 to-amber-50/60 border-2 border-red-200 rounded-3xl p-6 shadow-sm space-y-4 animate-fadeIn">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-red-200">
+                                            <AlertCircle size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h4 className="text-base font-bold text-red-900">Status Sanksi Akun: Peminjaman Dibatasi</h4>
+                                                <span className="px-2.5 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                                    Sanksi Aktif
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-red-700 mt-1 max-w-2xl leading-relaxed">
+                                                Akun Anda sedang dalam masa sanksi dan dibatasi untuk melakukan peminjaman armada operasional. 
+                                                Silakan ajukan usulan pencabutan sanksi agar hak akses peminjaman dapat ditinjau dan diaktifkan kembali oleh Admin / Kepala Bidang Sarana.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0 flex items-center gap-3">
+                                        {currentUserProfile?.sanctionProposedLift ? (
+                                            <div className="bg-amber-100 border border-amber-300 text-amber-800 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-xs">
+                                                <Clock size={16} className="text-amber-600 animate-pulse" />
+                                                <span>Usulan Sedang Direviu Admin</span>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowSanctionProposeModal(true)}
+                                                className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-2xl transition-all shadow-lg shadow-red-200 flex items-center gap-2 active:scale-95 whitespace-nowrap"
+                                            >
+                                                <Plus size={16} /> Usulkan Pencabutan Sanksi
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                {currentUserProfile?.sanctionProposedLift && (
+                                    <div className="bg-white/85 border border-amber-200 rounded-2xl p-4 text-xs text-slate-700 space-y-1">
+                                        <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                                            <Clock size={12} /> Usulan Pencabutan yang Sedang Diproses:
+                                        </div>
+                                        <p className="italic text-slate-600">
+                                            {currentUserProfile?.sanctionLiftReason ? `"${currentUserProfile.sanctionLiftReason}"` : 'Permohonan telah diajukan dan sedang menunggu keputusan review admin.'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Statistics Section */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -3505,12 +3630,20 @@ const VehicleBooking = () => {
                                                                 )}
                                                             </td>
                                                             <td className="p-4 pr-6 text-right">
-                                                                {su.sanctionProposedLift && (
+                                                                {su.sanctionProposedLift ? (
                                                                     <button
                                                                         onClick={() => setShowSanctionReviewModal(su)}
                                                                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
                                                                     >
                                                                         Reviu
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => setShowSanctionReviewModal({ ...su, sanctionLiftReason: 'Pencabutan langsung oleh Administrator / Tim Kendaraan' })}
+                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                                                                        title="Cabut sanksi user ini secara langsung"
+                                                                    >
+                                                                        Cabut Sanksi
                                                                     </button>
                                                                 )}
                                                             </td>

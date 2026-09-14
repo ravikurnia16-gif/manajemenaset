@@ -4,7 +4,8 @@ import {
     CheckCircle, XCircle, FileText, Upload, DollarSign, Store,
     ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera,
     Image, MapPin, ChevronRight, AlertCircle, Package, QrCode,
-    MessageSquare, Clock, Save, Send, Loader2
+    MessageSquare, Clock, Save, Send, Loader2, ChevronDown, ChevronUp,
+    Building2, ExternalLink, Eye, ClipboardCheck, Sparkles, Check, Layers
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -186,40 +187,50 @@ const StatusBadge = ({ status }) => {
 /* ─────────────────────────────────────────────
    STEPPER
 ───────────────────────────────────────────── */
-const STEPS = [
-    { step: 1, label: 'Verifikasi', icon: FileText },
-    { step: 2, label: 'Penugasan', icon: UserCheck },
-    { step: 3, label: 'Pemilihan Vendor', icon: Store },
-    { step: 4, label: 'Finalisasi', icon: DollarSign },
-    { step: 5, label: 'Serah Terima', icon: Package },
-];
+const getSteps = (type) => {
+    const list = [
+        { step: 1, label: 'Verifikasi', sub: 'Tinjau & Setujui', icon: FileText },
+        { step: 2, label: 'Penugasan', sub: 'Petugas Internal', icon: UserCheck },
+        { step: 3, label: 'Pemilihan Vendor', sub: 'Kandidat Vendor', icon: Store },
+        { step: 4, label: 'Finalisasi', sub: 'Harga & Rekanan', icon: DollarSign },
+        { step: 5, label: 'Serah Terima (BAST)', sub: 'Fisik & Dokumen', icon: Package },
+    ];
+    if (type === 'ASSET') {
+        list.push({ step: 6, label: 'Pemilihan Ruangan', sub: 'Alokasi & Aset', icon: MapPin });
+    }
+    return list;
+};
 
 const Stepper = ({ active, req, onSwitch, loading }) => {
+    const steps = getSteps(req?.type);
+
     const isDone = (step) => {
-        if (step === 1) return ['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status);
-        if (step === 2) return ['PROCESS', 'COMPLETED'].includes(req.status);
-        if (step === 3) return ['PROCESS', 'COMPLETED'].includes(req.status);
-        if (step === 4) return ['PROCESS', 'COMPLETED'].includes(req.status);
-        if (step === 5) return req.status === 'COMPLETED';
+        if (step === 1) return ['APPROVED', 'PROCESS', 'COMPLETED'].includes(req?.status);
+        if (step === 2) return ['PROCESS', 'COMPLETED'].includes(req?.status);
+        if (step === 3) return ['PROCESS', 'COMPLETED'].includes(req?.status);
+        if (step === 4) return ['PROCESS', 'COMPLETED'].includes(req?.status);
+        if (step === 5) return req?.status === 'COMPLETED';
+        if (step === 6) return req?.status === 'COMPLETED';
         return false;
     };
     const isDisabled = (step) => {
-        if (req.status === 'REJECTED' && step >= 2) return true;
-        if (step >= 2 && req.status === 'SUBMITTED') return true;
-        if (step >= 4 && req.status === 'APPROVED') return true;
-        if (step === 5 && req.status === 'APPROVED') return true;
+        if (req?.status === 'REJECTED' && step >= 2) return true;
+        if (step >= 2 && req?.status === 'SUBMITTED') return true;
+        if (step >= 4 && req?.status === 'APPROVED') return true;
+        if ((step === 5 || step === 6) && req?.status === 'APPROVED') return true;
+        if (step === 6 && req?.type !== 'ASSET') return true;
         return false;
     };
 
     return (
         <div style={{
             display: 'flex', alignItems: 'stretch',
-            background: T.white, borderRadius: 14,
+            background: T.white, borderRadius: 16,
             border: `1px solid ${T.border}`,
-            boxShadow: '0 2px 12px rgba(15,31,61,0.05)',
+            boxShadow: '0 4px 20px rgba(15,31,61,0.06)',
             overflow: 'hidden'
         }}>
-            {STEPS.map((s, i) => {
+            {steps.map((s, i) => {
                 const done = isDone(s.step);
                 const dis = isDisabled(s.step);
                 const isActive = active === s.step;
@@ -231,40 +242,57 @@ const Stepper = ({ active, req, onSwitch, loading }) => {
                         disabled={dis}
                         onClick={() => !dis && onSwitch(s.step)}
                         style={{
-                            flex: 1, padding: '16px 8px',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                            border: 'none', borderRight: i < 4 ? `1px solid ${T.creamDk}` : 'none',
+                            flex: 1, padding: '16px 10px',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                            border: 'none', borderRight: i < steps.length - 1 ? `1px solid ${T.creamDk}` : 'none',
                             borderBottom: isActive ? `3px solid ${T.gold}` : '3px solid transparent',
-                            background: isActive ? `linear-gradient(to bottom, ${T.goldSoft}, ${T.white})` : T.white,
+                            background: isActive
+                                ? `linear-gradient(to bottom, ${T.goldSoft}40, ${T.white})`
+                                : done ? '#fafcfb' : T.white,
                             cursor: dis ? 'not-allowed' : 'pointer',
-                            opacity: dis ? 0.35 : 1,
-                            transition: 'all .2s',
+                            opacity: dis ? 0.38 : 1,
+                            transition: 'all .25s ease',
                             position: 'relative'
                         }}
                     >
                         <div style={{
-                            width: 36, height: 36, borderRadius: '50%',
+                            width: 38, height: 38, borderRadius: '50%',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: done ? T.success : isActive ? T.navy : T.creamDk,
-                            boxShadow: isActive ? `0 4px 12px rgba(15,31,61,0.25)` : 'none',
+                            background: done
+                                ? T.success
+                                : isActive
+                                    ? `linear-gradient(135deg, ${T.navy}, ${T.navyMid})`
+                                    : T.creamDk,
+                            boxShadow: isActive
+                                ? `0 4px 14px rgba(15,31,61,0.28)`
+                                : done ? '0 2px 8px rgba(45,122,95,0.2)' : 'none',
+                            transform: isActive ? 'scale(1.06)' : 'none',
                             transition: 'all .25s',
                         }}>
                             {done
-                                ? <CheckCircle size={16} color={T.white} />
-                                : <Icon size={14} color={isActive ? T.gold : T.slate} />
+                                ? <CheckCircle size={18} color={T.white} />
+                                : <Icon size={16} color={isActive ? T.gold : T.slate} />
                             }
                         </div>
-                        <span style={{
-                            fontSize: 11, fontWeight: isActive ? 700 : 500,
-                            color: isActive ? T.navy : done ? T.success : T.slate,
-                            letterSpacing: '0.02em', textAlign: 'center', lineHeight: 1.3
-                        }}>
-                            {s.label}
-                        </span>
-                        {i < 4 && (
-                            <ChevronRight size={12} color={T.border} style={{
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{
+                                fontSize: 11.5, fontWeight: isActive ? 700 : 600,
+                                color: isActive ? T.navy : done ? T.success : '#475569',
+                                letterSpacing: '0.01em', lineHeight: 1.3
+                            }}>
+                                {s.label}
+                            </div>
+                            <div style={{
+                                fontSize: 9.5, color: isActive ? T.gold : T.slate,
+                                fontWeight: 500, marginTop: 2
+                            }}>
+                                {s.sub}
+                            </div>
+                        </div>
+                        {i < steps.length - 1 && (
+                            <ChevronRight size={13} color={T.border} style={{
                                 position: 'absolute', right: -7, top: '50%',
-                                transform: 'translateY(-50%)', zIndex: 1
+                                transform: 'translateY(-50%)', zIndex: 2
                             }} />
                         )}
                     </button>
@@ -378,6 +406,8 @@ const ProcurementDetail = () => {
     const [notifying, setNotifying] = useState(false);
     const [selectedUnits, setSelectedUnits] = useState({});
     const [activeTab, setActiveTab] = useState(1);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [draftSavedToast, setDraftSavedToast] = useState(false);
     const [savingItems, setSavingItems] = useState({}); // { itemId: boolean }
     const [progressLogs, setProgressLogs] = useState([]);
     const [newProgressMessage, setNewProgressMessage] = useState('');
@@ -400,6 +430,22 @@ const ProcurementDetail = () => {
     const [warehouseFulfillments, setWarehouseFulfillments] = useState({});
     const [invItems, setInvItems] = useState([]);          // All InvItems with stocks
     const [invWarehouses, setInvWarehouses] = useState([]); // All warehouses
+
+    const updateWarehouseFulfillment = (itemId, updates) => {
+        setWarehouseFulfillments(prev => {
+            const next = {
+                ...prev,
+                [itemId]: {
+                    ...prev[itemId],
+                    ...updates
+                }
+            };
+            try {
+                localStorage.setItem(`wh_fulfillments_${id}`, JSON.stringify(next));
+            } catch (e) {}
+            return next;
+        });
+    };
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
@@ -530,8 +576,34 @@ const ProcurementDetail = () => {
                 });
                 setAssetDetails(initDetails);
             }
+
+            // Restore warehouse fulfillments draft
+            const savedWhStr = localStorage.getItem(`wh_fulfillments_${id}`);
+            let initialWh = {};
+            if (savedWhStr) {
+                try { initialWh = JSON.parse(savedWhStr) || {}; } catch (e) {}
+            }
+            (data.items || []).forEach(it => {
+                if (it.vendorId === 'GUDANG' || it.vendorName === 'Gudang Sarpras (Internal)') {
+                    if (!initialWh[it.id]) {
+                        initialWh[it.id] = { enabled: true, quantity: it.qty };
+                    }
+                }
+            });
+            setWarehouseFulfillments(initialWh);
+
             if (data.progress) {
                 setProgressLogs(data.progress);
+            }
+            // Smart activeTab default based on procurement status
+            if (data.status === 'COMPLETED') {
+                setActiveTab(5);
+            } else if (data.status === 'PROCESS') {
+                const allFinalized = (data.items || []).every(i => (i.vendorId || i.vendorName) && i.finalPrice);
+                setActiveTab(allFinalized ? 5 : 4);
+            } else if (data.status === 'APPROVED') {
+                const allAssigned = (data.items || []).every(i => i.assignedToId);
+                setActiveTab(allAssigned ? 3 : 2);
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
@@ -603,7 +675,8 @@ const ProcurementDetail = () => {
         const draft = draftStr ? JSON.parse(draftStr) : {};
         draft[itemId] = assetDetails[itemId];
         localStorage.setItem(`bast_draft_${id}`, JSON.stringify(draft));
-        alert('Detail item berhasil disimpan sebagai draft.');
+        setDraftSavedToast('Detail alokasi item berhasil disimpan sebagai draft.');
+        setTimeout(() => setDraftSavedToast(false), 3000);
     };
 
     const handleSaveDraftAll = () => {
@@ -611,7 +684,8 @@ const ProcurementDetail = () => {
         const draft = draftStr ? JSON.parse(draftStr) : {};
         const updatedDraft = { ...draft, ...assetDetails };
         localStorage.setItem(`bast_draft_${id}`, JSON.stringify(updatedDraft));
-        alert('Semua detail berhasil disimpan sebagai draft.');
+        setDraftSavedToast('Semua detail alokasi ruangan berhasil disimpan sebagai draft.');
+        setTimeout(() => setDraftSavedToast(false), 3000);
     };
 
     const handleBAST = async () => {
@@ -666,6 +740,7 @@ const ProcurementDetail = () => {
             });
 
             localStorage.removeItem(`bast_draft_${id}`); // Bersihkan draft jika BAST sukses
+            localStorage.removeItem(`wh_fulfillments_${id}`);
 
             const hasWarehouseFulfillment = fulfillmentList.length > 0;
             alert(hasWarehouseFulfillment
@@ -948,103 +1023,168 @@ const ProcurementDetail = () => {
                         }
                         if (activeTab === 4 && targetStep > 4) {
                             const incomplete = req.items.find(i => {
-                                if (i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled) return false;
+                                const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
+                                if (isWh) {
+                                    const f = warehouseFulfillments[i.id];
+                                    return !f?.enabled || !f?.invItemId || !f?.warehouseId || !f?.quantity;
+                                }
                                 return (!i.vendorId && !i.vendorName) || !i.finalPrice;
                             });
-                            if (incomplete) return alert(`Lengkapi Vendor & Harga untuk: ${incomplete.name}`);
+                            if (incomplete) {
+                                const isWh = incomplete.vendorId === 'GUDANG' || incomplete.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[incomplete.id]?.enabled;
+                                if (isWh) return alert(`Lengkapi data barang gudang & lokasi gudang untuk: ${incomplete.name}`);
+                                return alert(`Lengkapi Vendor & Harga untuk: ${incomplete.name}`);
+                            }
                             setLoading(true);
                             try { for (const item of req.items) await handleSaveItem(item, true); }
                             catch { setLoading(false); return alert('Gagal simpan otomatis.'); }
                             setLoading(false);
+                        }
+                        if (targetStep === 6 && !bastDate) {
+                            return alert('Harap tentukan tanggal BAST (Serah Terima) terlebih dahulu di Tahap 5.');
                         }
                         setActiveTab(targetStep);
                     }}
                 />
             </div>
 
-            {/* ── DISKUSI / CHAT ── */}
+            {/* ── DISKUSI / CHAT (Collapsible) ── */}
             {req.status !== 'REJECTED' && (
                 <div style={{ marginBottom: 24 }}>
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[500px] overflow-hidden">
-                        <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
-                            <MessageSquare className="text-blue-600" size={18} />
-                            <h3 className="text-sm font-semibold text-slate-700 m-0">Diskusi Pengadaan</h3>
-                        </div>
-                        
-                        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                            {progressLogs.length > 0 ? (
-                                progressLogs.slice().reverse().map((msg, idx) => {
-                                    const isMine = msg.userId === user?.id;
-                                    const isStaff = msg.user?.role !== 'USER' && msg.user?.role !== 'ADMIN_UNIT';
-                                    
-                                    return (
-                                        <div key={msg.id || idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isStaff ? 'text-orange-600' : 'text-slate-500')}`}>
-                                                    {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isStaff && !isMine && '(Admin/Petugas)'}
-                                                </span>
-                                                <span className="text-[9px] text-slate-400">
-                                                    {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
-                                                </span>
-                                            </div>
-                                            <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
-                                                isMine 
-                                                    ? 'bg-blue-600 text-white rounded-tr-sm' 
-                                                    : (isStaff ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
-                                            }`}>
-                                                <p className="whitespace-pre-wrap m-0">{renderChatMessage(msg.message)}</p>
-                                                {msg.stage && (
-                                                    <div className="mt-2 inline-block px-2 py-0.5 bg-white/20 rounded text-[10px] font-semibold opacity-80">
-                                                        Tahap {msg.stage}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-center py-6 text-sm text-slate-400 italic flex items-center justify-center h-full">
-                                    Belum ada pesan diskusi.
+                    <div style={{
+                        background: T.white,
+                        borderRadius: 14,
+                        border: `1px solid ${T.border}`,
+                        boxShadow: '0 2px 10px rgba(15,31,61,0.04)',
+                        overflow: 'hidden'
+                    }}>
+                        {/* Header Bar with Toggle */}
+                        <div
+                            onClick={() => setIsChatOpen(!isChatOpen)}
+                            style={{
+                                padding: '14px 20px',
+                                background: isChatOpen ? T.cream : T.white,
+                                borderBottom: isChatOpen ? `1px solid ${T.border}` : 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                transition: 'background .2s'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{
+                                    width: 32, height: 32, borderRadius: 8,
+                                    background: isChatOpen ? T.navy : '#eef3fc',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    <MessageSquare size={16} color={isChatOpen ? T.gold : '#2563eb'} />
                                 </div>
-                            )}
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 13.5, fontWeight: 700, color: T.navy }}>Diskusi &amp; Catatan Pengadaan</span>
+                                        <span style={{
+                                            fontSize: 11, fontWeight: 700,
+                                            padding: '2px 8px', borderRadius: 12,
+                                            background: progressLogs.length > 0 ? '#e0e7ff' : T.creamDk,
+                                            color: progressLogs.length > 0 ? '#3730a3' : T.slate
+                                        }}>
+                                            {progressLogs.length} pesan
+                                        </span>
+                                    </div>
+                                    {!isChatOpen && progressLogs.length > 0 && (
+                                        <div style={{ fontSize: 11.5, color: T.slate, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 600 }}>
+                                            Terakhir: <b>{progressLogs[0]?.user?.name || progressLogs[0]?.user?.username}</b>: "{progressLogs[0]?.message?.slice(0, 70)}..."
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.slate, fontSize: 12, fontWeight: 600 }}>
+                                <span>{isChatOpen ? 'Tutup Diskusi' : 'Buka Diskusi'}</span>
+                                {isChatOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </div>
                         </div>
 
-                        {req.status !== 'COMPLETED' && (
-                            <div className="p-4 bg-white border-t flex items-end gap-2 relative">
-                                {showMentionList && (
-                                    <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
-                                        {users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
-                                            <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
-                                        ) : (
-                                            users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
-                                                <button
-                                                    key={u.id}
-                                                    onClick={() => handleSelectMention(u.mentionName)}
-                                                    className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
-                                                >
-                                                    <div className="font-bold text-slate-800">{u.name}</div>
-                                                    <div className="text-[10px] text-slate-500">{u.username}</div>
-                                                </button>
-                                            ))
+                        {/* Collapsible Content */}
+                        {isChatOpen && (
+                            <div className="flex flex-col h-[400px]">
+                                <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                                    {progressLogs.length > 0 ? (
+                                        progressLogs.slice().reverse().map((msg, idx) => {
+                                            const isMine = msg.userId === user?.id;
+                                            const isStaff = msg.user?.role !== 'USER' && msg.user?.role !== 'ADMIN_UNIT';
+                                            
+                                            return (
+                                                <div key={msg.id || idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isStaff ? 'text-orange-600' : 'text-slate-500')}`}>
+                                                            {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isStaff && !isMine && '(Admin/Petugas)'}
+                                                        </span>
+                                                        <span className="text-[9px] text-slate-400">
+                                                            {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                                        </span>
+                                                    </div>
+                                                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
+                                                        isMine 
+                                                            ? 'bg-blue-600 text-white rounded-tr-sm' 
+                                                            : (isStaff ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
+                                                    }`}>
+                                                        <p className="whitespace-pre-wrap m-0">{renderChatMessage(msg.message)}</p>
+                                                        {msg.stage && (
+                                                            <div className="mt-2 inline-block px-2 py-0.5 bg-white/20 rounded text-[10px] font-semibold opacity-80">
+                                                                Tahap {msg.stage}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="text-center py-6 text-sm text-slate-400 italic flex items-center justify-center h-full">
+                                            Belum ada pesan diskusi.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {req.status !== 'COMPLETED' && (
+                                    <div className="p-4 bg-white border-t flex items-end gap-2 relative">
+                                        {showMentionList && (
+                                            <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
+                                                {users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
+                                                    <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
+                                                ) : (
+                                                    users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
+                                                        <button
+                                                            key={u.id}
+                                                            onClick={() => handleSelectMention(u.mentionName)}
+                                                            className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
+                                                        >
+                                                            <div className="font-bold text-slate-800">{u.name}</div>
+                                                            <div className="text-[10px] text-slate-500">{u.username}</div>
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
                                         )}
+                                        <textarea
+                                            id="chat-input-proc"
+                                            value={newProgressMessage}
+                                            onChange={handleChatChange}
+                                            onKeyDown={handleChatKeyDown}
+                                            placeholder="Ketik pesan... (@username untuk mention)"
+                                            rows={1}
+                                            className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        />
+                                        <button
+                                            onClick={handleAddProgress}
+                                            disabled={isSubmittingProgress || !newProgressMessage.trim()}
+                                            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
+                                        >
+                                            {isSubmittingProgress ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                        </button>
                                     </div>
                                 )}
-                                <textarea
-                                    id="chat-input-proc"
-                                    value={newProgressMessage}
-                                    onChange={handleChatChange}
-                                    onKeyDown={handleChatKeyDown}
-                                    placeholder="Ketik pesan... (@username untuk mention)"
-                                    rows={1}
-                                    className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                />
-                                <button
-                                    onClick={handleAddProgress}
-                                    disabled={isSubmittingProgress || !newProgressMessage.trim()}
-                                    className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
-                                >
-                                    {isSubmittingProgress ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                                </button>
                             </div>
                         )}
                     </div>
@@ -1487,10 +1627,18 @@ const ProcurementDetail = () => {
                             <Btn variant="primary"
                                 onClick={async () => {
                                     const inc = req.items.find(i => {
-                                        if (i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled) return false;
+                                        const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
+                                        if (isWh) {
+                                            const f = warehouseFulfillments[i.id];
+                                            return !f?.enabled || !f?.invItemId || !f?.warehouseId || !f?.quantity;
+                                        }
                                         return (!i.vendorId && !i.vendorName) || !i.finalPrice;
                                     });
-                                    if (inc) return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
+                                    if (inc) {
+                                        const isWh = inc.vendorId === 'GUDANG' || inc.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[inc.id]?.enabled;
+                                        if (isWh) return alert(`Lengkapi data barang gudang & lokasi gudang untuk: ${inc.name}`);
+                                        return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
+                                    }
                                     setLoading(true);
                                     try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(5); }
                                     catch { alert('Gagal menyimpan.'); }
@@ -1504,13 +1652,28 @@ const ProcurementDetail = () => {
                     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
                         {req.items.map((item, index) => {
                             const disabled = req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item));
+                            const isWarehouseFulfilled = warehouseFulfillments[item.id]?.enabled || item.vendorId === 'GUDANG';
                             return (
                                 <div key={item.id} style={{
-                                    border: `1px solid ${T.border}`,
+                                    border: `1.5px solid ${isWarehouseFulfilled ? '#a3d9c0' : ((item.vendorName || item.vendorId) && item.finalPrice ? '#bbf7d0' : T.border)}`,
                                     borderRadius: 12, padding: '20px',
-                                    background: (item.vendorName || item.vendorId) && item.finalPrice ? `linear-gradient(to right, ${T.successBg}50, ${T.white})` : T.cream
+                                    background: isWarehouseFulfilled
+                                        ? 'linear-gradient(to right, #f0fdf4, #ffffff)'
+                                        : ((item.vendorName || item.vendorId) && item.finalPrice ? `linear-gradient(to right, ${T.successBg}50, ${T.white})` : T.cream)
                                 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 14, color: T.navy, marginBottom: 4 }}>{item.name}</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                                        <div style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{item.name}</div>
+                                        {isWarehouseFulfilled && (
+                                            <span style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                padding: '3px 10px', borderRadius: 20,
+                                                background: '#dcfce7', color: '#166534',
+                                                fontSize: 11, fontWeight: 700
+                                            }}>
+                                                <Package size={12} /> Dari Stok Gudang
+                                            </span>
+                                        )}
+                                    </div>
                                     <div style={{ fontSize: 11.5, color: T.slate, marginBottom: item.notes ? 6 : 16 }}>{item.spec || '—'}</div>
                                     {item.notes && (
                                         <div style={{
@@ -1530,6 +1693,144 @@ const ProcurementDetail = () => {
                                         </div>
                                     )}
 
+                                    {/* ── PEMENUHAN DARI STOK GUDANG (Tahap 4) ── */}
+                                    <div style={{
+                                        marginBottom: 16, padding: 14, borderRadius: 10,
+                                        background: isWarehouseFulfilled
+                                            ? 'linear-gradient(135deg, #edf7f2, #d9f0e8)'
+                                            : '#f8fafc',
+                                        border: `1.5px solid ${isWarehouseFulfilled ? '#a3d9c0' : '#e2e8f0'}`,
+                                        transition: 'all 0.3s ease'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{
+                                                    width: 32, height: 32, borderRadius: 8,
+                                                    background: isWarehouseFulfilled ? T.success : T.navy,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    flexShrink: 0
+                                                }}>
+                                                    <Package size={16} color="#fff" />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>
+                                                        Penuhi dari Stok Gudang Sarpras (Internal)
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>
+                                                        Ambil barang dari inventaris gudang yang ada, otomatis potong stok gudang saat BAST
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Switch Button */}
+                                            <button
+                                                type="button"
+                                                disabled={disabled}
+                                                onClick={() => {
+                                                    const nextEnabled = !isWarehouseFulfilled;
+                                                    updateWarehouseFulfillment(item.id, {
+                                                        enabled: nextEnabled,
+                                                        quantity: warehouseFulfillments[item.id]?.quantity || item.qty
+                                                    });
+                                                    if (nextEnabled) {
+                                                        handleItemChange(index, 'vendorId', 'GUDANG');
+                                                        handleItemChange(index, 'vendorName', 'Gudang Sarpras (Internal)');
+                                                        if (!item.finalPrice) handleItemChange(index, 'finalPrice', 0);
+                                                    } else {
+                                                        if (item.vendorId === 'GUDANG') {
+                                                            handleItemChange(index, 'vendorId', '');
+                                                            handleItemChange(index, 'vendorName', '');
+                                                        }
+                                                    }
+                                                }}
+                                                style={{
+                                                    width: 46, height: 24, borderRadius: 12,
+                                                    background: isWarehouseFulfilled ? T.success : T.border,
+                                                    border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', position: 'relative',
+                                                    transition: 'background 0.25s', flexShrink: 0
+                                                }}
+                                            >
+                                                <div style={{
+                                                    position: 'absolute', top: 2,
+                                                    left: isWarehouseFulfilled ? 24 : 2,
+                                                    width: 20, height: 20, borderRadius: '50%',
+                                                    background: '#fff', transition: 'left 0.25s',
+                                                    boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
+                                                }} />
+                                            </button>
+                                        </div>
+
+                                        {/* Warehouse Fulfillment Subform */}
+                                        {isWarehouseFulfilled && (
+                                            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #a3d9c0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                                                <div>
+                                                    <Label>Pilih Barang di Gudang *</Label>
+                                                    <select
+                                                        disabled={disabled}
+                                                        value={warehouseFulfillments[item.id]?.invItemId || ''}
+                                                        onChange={e => {
+                                                            const newInvId = e.target.value;
+                                                            updateWarehouseFulfillment(item.id, { invItemId: newInvId, warehouseId: '' });
+                                                        }}
+                                                        style={{
+                                                            width: '100%', padding: '9px 10px',
+                                                            border: `1.5px solid ${warehouseFulfillments[item.id]?.invItemId ? '#86efac' : T.border}`,
+                                                            borderRadius: 8, fontSize: 12.5, background: disabled ? T.creamDk : '#fff', color: T.text,
+                                                            cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif"
+                                                        }}
+                                                    >
+                                                        <option value="">— Pilih Barang Gudang —</option>
+                                                        {invItems.filter(inv => req?.type === 'ASSET' ? !!inv.isAsset : true).map(inv => {
+                                                            const totalStock = (inv.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
+                                                            return (
+                                                                <option key={inv.id} value={inv.id}>
+                                                                    {inv.name} (Stok: {totalStock} {inv.unit}) {inv.isAsset ? '🏷️ [Aset]' : ''}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <Label>Pilih Lokasi Gudang *</Label>
+                                                    <select
+                                                        disabled={disabled}
+                                                        value={warehouseFulfillments[item.id]?.warehouseId || ''}
+                                                        onChange={e => updateWarehouseFulfillment(item.id, { warehouseId: e.target.value })}
+                                                        style={{
+                                                            width: '100%', padding: '9px 10px',
+                                                            border: `1.5px solid ${warehouseFulfillments[item.id]?.warehouseId ? '#86efac' : T.border}`,
+                                                            borderRadius: 8, fontSize: 12.5, background: disabled ? T.creamDk : '#fff', color: T.text,
+                                                            cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif"
+                                                        }}
+                                                    >
+                                                        <option value="">— Pilih Gudang —</option>
+                                                        {invWarehouses.map(w => (
+                                                            <option key={w.id} value={w.id}>{w.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <Label>Jumlah Diambil dari Gudang *</Label>
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        disabled={disabled}
+                                                        value={warehouseFulfillments[item.id]?.quantity || item.qty}
+                                                        onChange={e => updateWarehouseFulfillment(item.id, { quantity: e.target.value })}
+                                                        style={{
+                                                            width: '100%', padding: '9px 10px',
+                                                            border: `1.5px solid ${T.border}`, borderRadius: 8,
+                                                            fontSize: 12.5, background: disabled ? T.creamDk : '#fff', color: T.text,
+                                                            fontFamily: "'DM Sans', sans-serif"
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
                                         {/* Vendor */}
                                         <div style={{ gridColumn: 'span 2' }}>
@@ -1539,7 +1840,16 @@ const ProcurementDetail = () => {
                                                     const val = e.target.value;
                                                     handleItemChange(index, 'vendorId', val);
                                                     if (val === 'GUDANG') {
-                                                        if (!item.finalPrice) handleItemChange(index, 'finalPrice', item.estPrice || 0);
+                                                        updateWarehouseFulfillment(item.id, {
+                                                            enabled: true,
+                                                            quantity: warehouseFulfillments[item.id]?.quantity || item.qty
+                                                        });
+                                                        handleItemChange(index, 'vendorName', 'Gudang Sarpras (Internal)');
+                                                        if (!item.finalPrice) handleItemChange(index, 'finalPrice', 0);
+                                                    } else {
+                                                        if (warehouseFulfillments[item.id]?.enabled) {
+                                                            updateWarehouseFulfillment(item.id, { enabled: false });
+                                                        }
                                                     }
                                                 }}>
                                                 <option value="">— Pilih Vendor —</option>
@@ -1641,78 +1951,519 @@ const ProcurementDetail = () => {
             )}
 
             {/* ════════════════════════════════════════
-                STAGE 5 – SERAH TERIMA
+                STAGE 5 – SERAH TERIMA (BAST)
             ════════════════════════════════════════ */}
             {activeTab === 5 && (
-                <Card>
-                    <CardHeader icon={Package} title="Tahap 5 — Berita Acara Serah Terima" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <Card>
+                        <CardHeader icon={Package} title="Tahap 5 — Berita Acara Serah Terima (BAST)">
+                            {req.status === 'COMPLETED' ? (
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '6px 14px', borderRadius: 20, background: T.successBg,
+                                    color: T.success, fontSize: 12, fontWeight: 700
+                                }}>
+                                    <CheckCircle size={15} /> Serah Terima Selesai
+                                </span>
+                            ) : req.type === 'ASSET' ? (
+                                <Btn variant="primary" onClick={() => {
+                                    if (!bastDate) return alert('Pilih tanggal serah terima (BAST) terlebih dahulu');
+                                    setActiveTab(6);
+                                }}>
+                                    Lanjut ke Pemilihan Ruangan <ChevronRight size={14} />
+                                </Btn>
+                            ) : (
+                                <Btn variant="success" onClick={handleBAST} disabled={loading}>
+                                    {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                    Selesaikan Pengadaan
+                                </Btn>
+                            )}
+                        </CardHeader>
 
-                    <div style={{ padding: '28px' }}>
-                        {req.status !== 'COMPLETED' ? (
-                            <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <div style={{ padding: '24px 28px' }}>
+                            {req.status !== 'COMPLETED' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                    {/* Notice banner */}
+                                    <Notice type="info">
+                                        <strong>Penerimaan Fisik &amp; Dokumen BAST:</strong> Pastikan fisik barang telah diterima dari rekanan/gudang dan sesuai dengan pesanan. Tentukan tanggal kedatangan, unggah bukti fisik serah terima, dan kelola dokumen BAST resmi melalui modul E-Office.
+                                    </Notice>
 
-                                {/* Date */}
-                                <div>
-                                    <Label>Tanggal Serah Terima</Label>
-                                    <Input type="date" disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)} value={bastDate} onChange={e => setBastDate(e.target.value)} />
-                                </div>
-
-                                {/* Photo Upload */}
-                                <div>
-                                    <Label>Foto Bukti Serah Terima</Label>
-                                    <div style={{
-                                        border: `2px dashed ${handoverPhoto ? T.success : T.border}`,
-                                        borderRadius: 14, padding: handoverPhoto ? 12 : 40,
-                                        background: handoverPhoto ? T.successBg : T.cream,
-                                        textAlign: 'center', position: 'relative',
-                                        cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer', transition: 'all .2s'
-                                    }}>
-                                        {handoverPhoto ? (
-                                            <div style={{ position: 'relative', display: 'inline-block' }}>
-                                                <img src={getMediaUrl(handoverPhoto)} alt="Bukti"
-                                                    style={{ maxHeight: 240, borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', opacity: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 0.7 : 1 }} />
-                                                {!(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) && (
-                                                    <button onClick={e => { e.stopPropagation(); setHandoverPhoto(null); }}
-                                                        style={{
-                                                            position: 'absolute', top: -10, right: -10,
-                                                            width: 28, height: 28, borderRadius: '50%',
-                                                            background: T.danger, color: T.white, border: 'none',
-                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                                        }}>
-                                                        <XCircle size={18} />
-                                                    </button>
-                                                )}
+                                    {/* 2-Column Grid */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 24 }}>
+                                        {/* Column 1: Formulir Serah Terima Fisik */}
+                                        <div style={{
+                                            background: T.white, borderRadius: 14,
+                                            border: `1.5px solid ${T.border}`, padding: 22,
+                                            display: 'flex', flexDirection: 'column', gap: 18,
+                                            boxShadow: '0 2px 10px rgba(15,31,61,0.03)'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottom: `1px solid ${T.creamDk}` }}>
+                                                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#eef3fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <ClipboardCheck size={16} color="#2563eb" />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: T.navy }}>Bukti Serah Terima Fisik</div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>Tanggal kedatangan &amp; bukti foto/scan serah terima</div>
+                                                </div>
                                             </div>
+
+                                            {/* Tanggal BAST */}
+                                            <div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                    <Label style={{ marginBottom: 0 }}>Tanggal Serah Terima (BAST) *</Label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setBastDate(new Date().toISOString().split('T')[0])}
+                                                        style={{
+                                                            background: 'none', border: 'none', color: T.gold,
+                                                            fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0
+                                                        }}
+                                                    >
+                                                        Gunakan Hari Ini
+                                                    </button>
+                                                </div>
+                                                <Input
+                                                    type="date"
+                                                    disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)}
+                                                    value={bastDate}
+                                                    onChange={e => setBastDate(e.target.value)}
+                                                />
+                                            </div>
+
+                                            {/* Photo / File Upload */}
+                                            <div>
+                                                <Label>Foto Bukti / Scan Berkas Serah Terima</Label>
+                                                <div style={{
+                                                    border: `2px dashed ${handoverPhoto ? T.success : T.border}`,
+                                                    borderRadius: 12, padding: handoverPhoto ? 14 : 32,
+                                                    background: handoverPhoto ? T.successBg : T.cream,
+                                                    textAlign: 'center', position: 'relative',
+                                                    cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer',
+                                                    transition: 'all .25s'
+                                                }}>
+                                                    {handoverPhoto ? (
+                                                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                                                            <img
+                                                                src={getMediaUrl(handoverPhoto)}
+                                                                alt="Bukti Serah Terima"
+                                                                style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.1)' }}
+                                                            />
+                                                            {!(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.stopPropagation(); setHandoverPhoto(null); setHandoverFile(null); }}
+                                                                    style={{
+                                                                        position: 'absolute', top: -10, right: -10,
+                                                                        width: 26, height: 26, borderRadius: '50%',
+                                                                        background: T.danger, color: T.white, border: 'none',
+                                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                                                    }}
+                                                                    title="Hapus foto"
+                                                                >
+                                                                    <XCircle size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <Camera size={36} color={T.slate} style={{ marginBottom: 8 }} />
+                                                            <p style={{ color: T.text, fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>
+                                                                Unggah Foto Bukti atau Scan BAST
+                                                            </p>
+                                                            <p style={{ color: T.slate, fontSize: 11, margin: 0 }}>
+                                                                Klik atau seret file gambar ke area ini (Maks. 5MB)
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)}
+                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer' }}
+                                                        onChange={e => {
+                                                            const f = e.target.files[0];
+                                                            if (f) {
+                                                                setHandoverFile(f);
+                                                                const r = new FileReader();
+                                                                r.onloadend = () => setHandoverPhoto(r.result);
+                                                                r.readAsDataURL(f);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Status Checklist Serah Terima */}
+                                            <div style={{
+                                                background: T.cream, borderRadius: 10, padding: '12px 16px',
+                                                border: `1px solid ${T.creamDk}`, display: 'flex', flexDirection: 'column', gap: 8
+                                            }}>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: T.slate, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Kelayakan Serah Terima
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                    {bastDate ? <CheckCircle size={15} color={T.success} /> : <AlertCircle size={15} color={T.warn} />}
+                                                    <span style={{ color: bastDate ? T.text : T.warn, fontWeight: bastDate ? 600 : 700 }}>
+                                                        {bastDate ? `Tanggal BAST: ${new Date(bastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : 'Tanggal BAST belum ditentukan'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                    {handoverPhoto ? <CheckCircle size={15} color={T.success} /> : <Clock size={15} color={T.slate} />}
+                                                    <span style={{ color: handoverPhoto ? T.text : T.slate }}>
+                                                        {handoverPhoto ? 'Foto/berkas bukti fisik telah diunggah' : 'Foto bukti fisik belum diunggah (bisa menyusul)'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Column 2: Verifikasi Barang & Dokumen E-Office */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                            {/* Card Verifikasi Barang */}
+                                            <div style={{
+                                                background: T.white, borderRadius: 14,
+                                                border: `1.5px solid ${T.border}`, padding: 22,
+                                                boxShadow: '0 2px 10px rgba(15,31,61,0.03)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${T.creamDk}` }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <ShoppingCart size={16} color="#b45309" />
+                                                        </div>
+                                                        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.navy }}>Barang yang Diserahterimakan</div>
+                                                    </div>
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color: T.slate }}>
+                                                        {req.items.length} Item
+                                                    </span>
+                                                </div>
+
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflowY: 'auto' }}>
+                                                    {req.items.map((item, idx) => (
+                                                        <div key={item.id} style={{
+                                                            padding: '10px 14px', borderRadius: 8,
+                                                            background: T.cream, border: `1px solid ${T.creamDk}`,
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
+                                                        }}>
+                                                            <div>
+                                                                <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>
+                                                                    {idx + 1}. {item.name}
+                                                                </div>
+                                                                <div style={{ fontSize: 11, color: T.slate }}>
+                                                                    {item.qty} {item.unit} {item.brand ? `· ${item.brand}` : ''} · {item.vendorName || (item.vendorId === 'GUDANG' ? 'Gudang Sarpras' : 'Vendor Terpilih')}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                                                <div style={{ fontSize: 12, fontWeight: 700, color: T.navy, fontFamily: "'DM Mono', monospace" }}>
+                                                                    Rp {((item.finalPrice || item.estPrice || 0) * item.qty).toLocaleString('id-ID')}
+                                                                </div>
+                                                                <span style={{
+                                                                    display: 'inline-block', fontSize: 10, fontWeight: 700,
+                                                                    padding: '2px 6px', borderRadius: 4,
+                                                                    background: '#dcfce7', color: '#15803d'
+                                                                }}>
+                                                                    Siap Diterima
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div style={{
+                                                    marginTop: 14, paddingTop: 12, borderTop: `1px dashed ${T.border}`,
+                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                                }}>
+                                                    <span style={{ fontSize: 12, color: T.slate, fontWeight: 600 }}>Total Realisasi Nilai:</span>
+                                                    <span style={{ fontSize: 14, fontWeight: 800, color: T.navy, fontFamily: "'DM Mono', monospace" }}>
+                                                        Rp {req.items.reduce((s, it) => s + (it.qty || 0) * (it.finalPrice || it.estPrice || 0), 0).toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Card Dokumen Resmi E-Office */}
+                                            <div style={{
+                                                background: `linear-gradient(135deg, #f8fafc, #f1f5f9)`,
+                                                borderRadius: 14, border: `1.5px solid #cbd5e1`,
+                                                padding: 20, display: 'flex', flexDirection: 'column', gap: 10
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div style={{ width: 28, height: 28, borderRadius: 8, background: T.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <QrCode size={15} color={T.gold} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>Dokumen BAST Resmi (E-Office)</div>
+                                                        <div style={{ fontSize: 11, color: T.slate }}>Penerbitan surat serah terima digital resmi</div>
+                                                    </div>
+                                                </div>
+                                                <p style={{ fontSize: 11.5, color: '#475569', margin: '2px 0 6px', lineHeight: 1.5 }}>
+                                                    Buat dokumen Berita Acara Serah Terima (BAST) resmi secara otomatis di modul E-Office dengan pihak penerima dan rincian barang yang telah terisi.
+                                                </p>
+                                                <Btn
+                                                    variant="ghost"
+                                                    style={{ width: '100%', justifyContent: 'center', background: T.white, borderColor: '#cbd5e1' }}
+                                                    onClick={() => {
+                                                        const bastItems = req.items.map(it => ({
+                                                            name: it.name,
+                                                            qty: it.qty,
+                                                            condition: 'Baik'
+                                                        }));
+                                                        navigate('/e-office/surat-keluar', {
+                                                            state: {
+                                                                autoCreate: true,
+                                                                type: 'SURAT_KELUAR',
+                                                                category: 'Serah Terima Barang',
+                                                                subject: `BAST Pengadaan: ${req.title}`,
+                                                                party1Name: 'Kepala Bidang Sarana Prasarana',
+                                                                party1Title: 'Pemberi',
+                                                                party2Name: req.items?.[0]?.vendorName || '',
+                                                                party2Title: 'Penerima',
+                                                                bastItems
+                                                            }
+                                                        });
+                                                    }}
+                                                >
+                                                    <FileText size={14} /> Terbitkan / Kelola BAST di E-Office
+                                                </Btn>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Banner to Step 6 */}
+                                    <div style={{
+                                        marginTop: 8, padding: '18px 24px', borderRadius: 14,
+                                        background: `linear-gradient(135deg, ${T.navy}, ${T.navyMid})`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        flexWrap: 'wrap', gap: 14, color: T.white,
+                                        boxShadow: '0 4px 16px rgba(15,31,61,0.18)'
+                                    }}>
+                                        <div style={{ flex: '1 1 300px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                <Sparkles size={16} color={T.gold} />
+                                                <span style={{ fontWeight: 700, fontSize: 14, color: T.white }}>
+                                                    {req.type === 'ASSET' ? 'Lanjut ke Tahap 6: Pemilihan Ruangan' : 'Selesaikan Pengadaan'}
+                                                </span>
+                                            </div>
+                                            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: 0, lineHeight: 1.5 }}>
+                                                {req.type === 'ASSET'
+                                                    ? 'Setelah tanggal BAST diverifikasi, tentukan lokasi penempatan ruangan, PIC, dan kode inventaris untuk masing-masing unit aset.'
+                                                    : 'Barang non-aset/jasa tidak dialokasikan ke ruangan. Anda dapat langsung menyelesaikan pengadaan ini.'}
+                                            </p>
+                                        </div>
+
+                                        {req.type === 'ASSET' ? (
+                                            <Btn
+                                                variant="gold"
+                                                style={{ padding: '12px 24px', fontSize: 13.5, flexShrink: 0 }}
+                                                onClick={() => {
+                                                    if (!bastDate) return alert('Pilih tanggal serah terima (BAST) terlebih dahulu');
+                                                    setActiveTab(6);
+                                                }}
+                                            >
+                                                Lanjut ke Pemilihan Ruangan <ChevronRight size={16} />
+                                            </Btn>
                                         ) : (
-                                            <>
-                                                <Camera size={40} color={T.border} style={{ marginBottom: 10 }} />
-                                                <p style={{ color: T.slate, fontSize: 13 }}>Klik atau seret foto ke sini</p>
-                                                <p style={{ color: T.border, fontSize: 11, marginTop: 4 }}>JPG, PNG, WEBP (max 5MB)</p>
-                                            </>
+                                            <Btn
+                                                variant="success"
+                                                style={{ padding: '12px 24px', fontSize: 13.5, flexShrink: 0 }}
+                                                onClick={handleBAST}
+                                                disabled={loading}
+                                            >
+                                                {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                                                Selesaikan Pengadaan (BAST)
+                                            </Btn>
                                         )}
-                                        <input type="file" accept="image/*"
-                                            disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)}
-                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer' }}
-                                            onChange={e => {
-                                                const f = e.target.files[0];
-                                                if (f) {
-                                                    setHandoverFile(f);
-                                                    const r = new FileReader();
-                                                    r.onloadend = () => setHandoverPhoto(r.result);
-                                                    r.readAsDataURL(f);
-                                                }
-                                            }}
-                                        />
                                     </div>
                                 </div>
-
-                                {/* Asset Item Details (Card Per Item) */}
-                                {req.type === 'ASSET' && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                            <Package size={16} color={T.gold} />
-                                            <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>Detail Aset per Item</span>
+                            ) : (
+                                /* COMPLETED STATE IN STAGE 5 */
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                    <div style={{
+                                        background: T.successBg, borderRadius: 14,
+                                        border: `1px solid #a3d9c0`, padding: '36px 28px',
+                                        textAlign: 'center'
+                                    }}>
+                                        <div style={{
+                                            width: 60, height: 60, borderRadius: '50%',
+                                            background: `linear-gradient(135deg, ${T.success}, #3a9a72)`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            margin: '0 auto 14px',
+                                            boxShadow: '0 6px 20px rgba(45,122,95,0.25)'
+                                        }}>
+                                            <CheckCircle size={28} color={T.white} />
                                         </div>
+                                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: T.success, margin: '0 0 6px' }}>
+                                            Berita Acara Serah Terima Selesai
+                                        </h3>
+                                        <p style={{ color: '#3a7a5c', fontSize: 13.5, margin: 0 }}>
+                                            Proses serah terima fisik barang telah berhasil diverifikasi dan dicatat.
+                                        </p>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                                        <div style={{ background: T.cream, borderRadius: 12, border: `1px solid ${T.border}`, padding: 20 }}>
+                                            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.slate, marginBottom: 12 }}>
+                                                Detail Serah Terima
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                                    <span style={{ color: T.slate }}>Tanggal BAST</span>
+                                                    <span style={{ fontWeight: 700, color: T.navy }}>
+                                                        {req.bastDate ? new Date(req.bastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                                    <span style={{ color: T.slate }}>Status</span>
+                                                    <StatusBadge status="COMPLETED" />
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                                    <span style={{ color: T.slate }}>Total Nilai Pengadaan</span>
+                                                    <span style={{ fontWeight: 700, color: T.navy, fontFamily: "'DM Mono', monospace" }}>
+                                                        Rp {req.items.reduce((s, it) => s + (it.qty || 0) * (it.finalPrice || it.estPrice || 0), 0).toLocaleString('id-ID')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ background: T.cream, borderRadius: 12, border: `1px solid ${T.border}`, padding: 20 }}>
+                                            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.slate, marginBottom: 12 }}>
+                                                Bukti Foto / Berkas Serah Terima
+                                            </div>
+                                            {req.bastFile ? (
+                                                <img
+                                                    src={getMediaUrl(req.bastFile)}
+                                                    alt="Bukti BAST"
+                                                    style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}` }}
+                                                />
+                                            ) : (
+                                                <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.creamDk, borderRadius: 8, color: T.slate, fontSize: 12, fontStyle: 'italic' }}>
+                                                    Tidak ada foto bukti.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                        <Btn
+                                            variant="ghost"
+                                            style={{ flex: 1, justifyContent: 'center', minWidth: 220 }}
+                                            onClick={() => {
+                                                const bastItems = req.items.map(it => ({
+                                                    name: it.name,
+                                                    qty: it.qty,
+                                                    condition: 'Baik'
+                                                }));
+                                                navigate('/e-office/surat-keluar', {
+                                                    state: {
+                                                        autoCreate: true,
+                                                        type: 'SURAT_KELUAR',
+                                                        category: 'Serah Terima Barang',
+                                                        subject: `BAST Pengadaan: ${req.title}`,
+                                                        party1Name: 'Kepala Bidang Sarana Prasarana',
+                                                        party1Title: 'Pemberi',
+                                                        party2Name: req.items?.[0]?.vendorName || '',
+                                                        party2Title: 'Penerima',
+                                                        bastItems
+                                                    }
+                                                });
+                                            }}
+                                        >
+                                            <QrCode size={15} /> Buat Ulang / Lihat BAST Resmi di E-Office
+                                        </Btn>
+                                        {req.type === 'ASSET' && (
+                                            <Btn
+                                                variant="primary"
+                                                style={{ flex: 1, justifyContent: 'center', minWidth: 220 }}
+                                                onClick={() => setActiveTab(6)}
+                                            >
+                                                Lihat Penempatan Ruangan Aset (Tahap 6) <ChevronRight size={15} />
+                                            </Btn>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* ════════════════════════════════════════
+                STAGE 6 – PEMILIHAN RUANGAN & ALOKASI ASET
+            ════════════════════════════════════════ */}
+            {activeTab === 6 && req.type === 'ASSET' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <Card>
+                        <CardHeader icon={MapPin} title="Tahap 6 — Pemilihan Ruangan &amp; Alokasi Aset">
+                            {req.status === 'COMPLETED' ? (
+                                <Btn variant="ghost" onClick={() => setActiveTab(5)}>
+                                    <ArrowLeft size={14} /> Lihat Berita Acara (BAST)
+                                </Btn>
+                            ) : (
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                    <Btn variant="ghost" onClick={() => setActiveTab(5)}>
+                                        <ArrowLeft size={14} /> Kembali ke BAST
+                                    </Btn>
+                                    <Btn
+                                        variant="success"
+                                        onClick={handleBAST}
+                                        disabled={loading || !(isAdmin || isAssignedToAny || isRequester)}
+                                    >
+                                        {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                        Selesaikan &amp; Buat Aset
+                                    </Btn>
+                                </div>
+                            )}
+                        </CardHeader>
+
+                        <div style={{ padding: '24px 28px' }}>
+                            {req.status !== 'COMPLETED' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                    {/* Notice / Guidance */}
+                                    <Notice type="info">
+                                        <strong>Alokasi Penempatan Aset:</strong> Tentukan ruangan penempatan dan PIC penanggung jawab untuk setiap aset. Sistem akan secara otomatis menerbitkan nomor kode aset resmi berbasis unit dan kategori, lalu mendaftarkannya ke modul Inventaris Aset.
+                                    </Notice>
+
+                                    {/* Status bar: berapa item yang sudah dialokasikan */}
+                                    <div style={{
+                                        background: T.cream, borderRadius: 12, border: `1px solid ${T.border}`,
+                                        padding: '14px 20px', display: 'flex', alignItems: 'center',
+                                        justifyContent: 'space-between', flexWrap: 'wrap', gap: 12
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{ width: 32, height: 32, borderRadius: 8, background: T.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Layers size={16} color={T.gold} />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>Status Alokasi Ruangan</div>
+                                                <div style={{ fontSize: 11, color: T.slate }}>
+                                                    {(() => {
+                                                        const allocatedCount = req.items.filter(it => {
+                                                            const det = assetDetails[it.id] || {};
+                                                            if (det.allocationType === 'SAME') return !!det.roomId;
+                                                            return (det.units || []).length > 0 && (det.units || []).every(u => !!u.roomId);
+                                                        }).length;
+                                                        return `${allocatedCount} dari ${req.items.length} item telah ditentukan ruangannya`;
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveDraftAll}
+                                            disabled={loading || !(isAdmin || isAssignedToAny || isRequester)}
+                                            style={{
+                                                padding: '8px 16px', borderRadius: 8,
+                                                background: T.white, border: `1.5px solid ${T.border}`,
+                                                color: T.navy, fontSize: 12, fontWeight: 700,
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                            }}
+                                        >
+                                            <Save size={14} color={T.gold} /> Simpan Draft Semua Item
+                                        </button>
+                                    </div>
+
+                                    {/* Items List for Room Allocation */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                                         {req.items.map((it, idx) => {
                                             const itemDisabled = req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(it) || isRequester);
                                             const det = assetDetails[it.id] || {};
@@ -1723,305 +2474,177 @@ const ProcurementDetail = () => {
                                                     [it.id]: { ...p[it.id], [field]: val }
                                                 }));
                                             };
+
+                                            const isWarehouseFulfilled = warehouseFulfillments[it.id]?.enabled;
+                                            const isRoomReady = det.allocationType === 'SAME' ? !!det.roomId : (det.units || []).length > 0 && (det.units || []).every(u => !!u.roomId);
+
                                             return (
                                                 <div key={it.id} style={{
-                                                    background: T.white, borderRadius: 12, padding: 20,
-                                                    border: `1px solid ${T.border}`,
-                                                    boxShadow: '0 2px 8px rgba(15,31,61,0.04)'
+                                                    background: T.white, borderRadius: 14,
+                                                    border: `1.5px solid ${isRoomReady ? '#bbf7d0' : T.border}`,
+                                                    overflow: 'hidden',
+                                                    boxShadow: '0 2px 10px rgba(15,31,61,0.04)',
+                                                    transition: 'border-color .2s'
                                                 }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: it.notes ? 8 : 16, paddingBottom: 12, borderBottom: `1px dashed ${T.creamDk}` }}>
-                                                        <div style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{idx + 1}. {it.name}</div>
-                                                        <div style={{ fontSize: 11, color: T.slate, background: T.cream, padding: '4px 8px', borderRadius: 6 }}>Qty: {it.qty} {it.unit}</div>
-                                                    </div>
-                                                    {it.notes && (
-                                                        <div style={{
-                                                            marginBottom: 16,
-                                                            fontSize: 11,
-                                                            color: '#8a6519',
-                                                            background: '#fef9ed',
-                                                            padding: '3px 8px',
-                                                            borderRadius: 6,
-                                                            border: '1px solid #f2e2ba',
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: 4
-                                                        }}>
-                                                            <span style={{ fontWeight: 700 }}>Catatan Pemohon:</span>
-                                                            <span>{it.notes}</span>
+                                                    {/* Item Header */}
+                                                    <div style={{
+                                                        padding: '16px 22px', background: isRoomReady ? '#f8fdfa' : T.cream,
+                                                        borderBottom: `1px solid ${T.border}`,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                        flexWrap: 'wrap', gap: 12
+                                                    }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                            <span style={{
+                                                                width: 28, height: 28, borderRadius: 8,
+                                                                background: isRoomReady ? T.success : T.navy,
+                                                                color: T.white, display: 'flex', alignItems: 'center',
+                                                                justifyContent: 'center', fontSize: 12, fontWeight: 700
+                                                            }}>
+                                                                {idx + 1}
+                                                            </span>
+                                                            <div>
+                                                                <div style={{ fontSize: 14, fontWeight: 700, color: T.navy }}>{it.name}</div>
+                                                                <div style={{ fontSize: 11.5, color: T.slate }}>
+                                                                    {it.spec ? `${it.spec} · ` : ''}{it.qty} {it.unit} · Realisasi: Rp {(it.finalPrice || it.estPrice || 0).toLocaleString('id-ID')}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    )}
 
-                                                    {/* ═══ WAREHOUSE FULFILLMENT TOGGLE ═══ */}
-                                                    {!itemDisabled && (
-                                                        <div style={{
-                                                            marginBottom: 16, padding: 14, borderRadius: 10,
-                                                            background: warehouseFulfillments[it.id]?.enabled
-                                                                ? 'linear-gradient(135deg, #edf7f2, #d9f0e8)'
-                                                                : '#f7f5f0',
-                                                            border: `1.5px solid ${warehouseFulfillments[it.id]?.enabled ? '#a3d9c0' : T.border}`,
-                                                            transition: 'all 0.3s ease'
-                                                        }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                    <div style={{
-                                                                        width: 32, height: 32, borderRadius: 8,
-                                                                        background: warehouseFulfillments[it.id]?.enabled ? T.success : T.navy,
-                                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                        transition: 'background 0.2s'
-                                                                    }}>
-                                                                        <Package size={15} color="#fff" />
+                                                        {/* Status Chip */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            {isWarehouseFulfilled && (
+                                                                <span style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                                    padding: '4px 10px', borderRadius: 12,
+                                                                    background: '#eff6ff', color: '#1d4ed8',
+                                                                    fontSize: 11, fontWeight: 700
+                                                                }}>
+                                                                    📦 Dari Gudang
+                                                                </span>
+                                                            )}
+                                                            {isRoomReady ? (
+                                                                <span style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                                    padding: '4px 10px', borderRadius: 12,
+                                                                    background: T.successBg, color: T.success,
+                                                                    fontSize: 11, fontWeight: 700
+                                                                }}>
+                                                                    <CheckCircle size={13} /> Ruangan Siap
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                                    padding: '4px 10px', borderRadius: 12,
+                                                                    background: T.warnBg, color: T.warn,
+                                                                    fontSize: 11, fontWeight: 700
+                                                                }}>
+                                                                    <AlertCircle size={13} /> Belum Pilih Ruangan
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                                                        {/* Warehouse fulfillment info banner in Stage 6 */}
+                                                        {isWarehouseFulfilled && (
+                                                            <div style={{
+                                                                padding: '12px 16px', borderRadius: 10,
+                                                                background: '#edf7f2', border: '1px solid #a3d9c0',
+                                                                display: 'flex', alignItems: 'center', gap: 10
+                                                            }}>
+                                                                <div style={{
+                                                                    width: 28, height: 28, borderRadius: 8,
+                                                                    background: T.success, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    flexShrink: 0
+                                                                }}>
+                                                                    <Package size={15} color="#fff" />
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#166534' }}>
+                                                                        Dipenuhi dari Stok Gudang ({warehouseFulfillments[it.id]?.quantity || it.qty} {it.unit})
                                                                     </div>
-                                                                    <div>
-                                                                        <div style={{ fontWeight: 700, fontSize: 12.5, color: T.navy }}>
-                                                                            Penuhi dari Stok Gudang
-                                                                        </div>
-                                                                        <div style={{ fontSize: 11, color: T.slate }}>
-                                                                            Ambil barang yang sudah ada di gudang, stok berkurang otomatis saat BAST
-                                                                        </div>
+                                                                    <div style={{ fontSize: 11, color: '#15803d' }}>
+                                                                        Barang telah dialokasikan dari stok gudang di Tahap 4. Silakan tentukan ruangan penempatan di bawah ini:
                                                                     </div>
                                                                 </div>
-                                                                {/* Toggle Switch */}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setWarehouseFulfillments(prev => ({
-                                                                            ...prev,
-                                                                            [it.id]: {
-                                                                                ...prev[it.id],
-                                                                                enabled: !prev[it.id]?.enabled,
-                                                                                quantity: prev[it.id]?.quantity || it.qty
-                                                                            }
-                                                                        }));
-                                                                    }}
-                                                                    style={{
-                                                                        width: 48, height: 26, borderRadius: 13,
-                                                                        background: warehouseFulfillments[it.id]?.enabled ? T.success : T.border,
-                                                                        border: 'none', cursor: 'pointer', position: 'relative',
-                                                                        transition: 'background 0.25s', flexShrink: 0
-                                                                    }}
-                                                                >
-                                                                    <div style={{
-                                                                        position: 'absolute', top: 3,
-                                                                        left: warehouseFulfillments[it.id]?.enabled ? 25 : 3,
-                                                                        width: 20, height: 20, borderRadius: '50%',
-                                                                        background: '#fff', transition: 'left 0.25s',
-                                                                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
-                                                                    }} />
-                                                                </button>
                                                             </div>
-
-                                                            {/* Fulfillment Details Panel */}
-                                                            {warehouseFulfillments[it.id]?.enabled && (
-                                                                <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                                                                    {/* Select InvItem */}
+                                                        )}
+                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                                                                    {/* Kategori Aset */}
                                                                     <div>
                                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                                                            <Label style={{ marginBottom: 0 }}>Barang Gudang (Khusus Aset) *</Label>
-                                                                            <span style={{ fontSize: 10, color: T.gold, fontWeight: 700 }}>Filter: Aset Saja</span>
+                                                                            <Label style={{ marginBottom: 0 }}>Kategori Aset *</Label>
+                                                                            {(det.categoryId || it.categoryId) && (
+                                                                                <span style={{ fontSize: 10, color: T.gold, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                                                                    <CheckCircle size={11} /> Terpilih
+                                                                                </span>
+                                                                            )}
                                                                         </div>
-                                                                        {(() => {
-                                                                            const assetOnlyItems = invItems.filter(inv => req?.type === 'ASSET' ? !!inv.isAsset : true);
-                                                                            return (
-                                                                                <>
-                                                                                    <select
-                                                                                        value={warehouseFulfillments[it.id]?.invItemId || ''}
-                                                                                        onChange={e => setWarehouseFulfillments(prev => ({
-                                                                                            ...prev,
-                                                                                            [it.id]: { ...prev[it.id], invItemId: e.target.value, warehouseId: '' }
-                                                                                        }))}
-                                                                                        style={{
-                                                                                            width: '100%', padding: '9px 10px',
-                                                                                            border: `1.5px solid ${T.border}`, borderRadius: 8,
-                                                                                            fontSize: 12.5, background: '#fff', color: T.text,
-                                                                                            cursor: 'pointer', fontFamily: "'DM Sans', sans-serif"
-                                                                                        }}
-                                                                                    >
-                                                                                        <option value="">— Pilih Barang Aset di Gudang —</option>
-                                                                                        {assetOnlyItems.map(inv => {
-                                                                                            const totalStock = (inv.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
-                                                                                            return (
-                                                                                                <option key={inv.id} value={inv.id}>
-                                                                                                    {inv.name} (Stok: {totalStock} {inv.unit}) {inv.isAsset ? '🏷️ [Aset]' : ''}
-                                                                                                </option>
-                                                                                            );
-                                                                                        })}
-                                                                                    </select>
-                                                                                    {assetOnlyItems.length === 0 && (
-                                                                                        <div style={{ marginTop: 4, fontSize: 11, color: T.warn, lineHeight: 1.4 }}>
-                                                                                            ⚠️ Belum ada barang di Manajemen Gudang yang ditandai sebagai <b>Aset</b>. Silakan atur klasifikasi barang di <i>Master Data Gudang</i> terlebih dahulu.
-                                                                                        </div>
-                                                                                    )}
-                                                                                </>
-                                                                            );
-                                                                        })()}
-                                                                    </div>
-
-                                                                    {/* Select Warehouse */}
-                                                                    <div>
-                                                                        <Label>Pilih Gudang *</Label>
-                                                                        <select
-                                                                            value={warehouseFulfillments[it.id]?.warehouseId || ''}
-                                                                            onChange={e => setWarehouseFulfillments(prev => ({
-                                                                                ...prev,
-                                                                                [it.id]: { ...prev[it.id], warehouseId: e.target.value }
-                                                                            }))}
-                                                                            style={{
-                                                                                width: '100%', padding: '9px 10px',
-                                                                                border: `1.5px solid ${T.border}`, borderRadius: 8,
-                                                                                fontSize: 12.5, background: '#fff', color: T.text,
-                                                                                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif"
+                                                                        <Select
+                                                                            disabled={itemDisabled}
+                                                                            value={det.categoryId || it.categoryId || ''}
+                                                                            onChange={e => {
+                                                                                const newCat = e.target.value;
+                                                                                updateDet('categoryId', newCat);
+                                                                                setReq(prev => ({
+                                                                                    ...prev,
+                                                                                    items: prev.items.map(itItem => itItem.id === it.id ? { ...itItem, categoryId: newCat ? parseInt(newCat) : null } : itItem)
+                                                                                }));
                                                                             }}
                                                                         >
-                                                                            <option value="">— Pilih Gudang —</option>
-                                                                            {(() => {
-                                                                                const selectedInvItem = invItems.find(i => String(i.id) === String(warehouseFulfillments[it.id]?.invItemId));
-                                                                                const availableStocks = selectedInvItem?.stocks?.filter(s => s.quantity > 0) || [];
-                                                                                return availableStocks.length > 0
-                                                                                    ? availableStocks.map(s => (
-                                                                                        <option key={s.warehouseId} value={s.warehouseId}>
-                                                                                            {invWarehouses.find(w => w.id === s.warehouseId)?.name || `Gudang #${s.warehouseId}`} — Stok: {s.quantity}
-                                                                                        </option>
-                                                                                    ))
-                                                                                    : invWarehouses.map(w => (
-                                                                                        <option key={w.id} value={w.id}>{w.name}</option>
-                                                                                    ));
-                                                                            })()}
-                                                                        </select>
-                                                                        {/* Stock Indicator */}
-                                                                        {warehouseFulfillments[it.id]?.invItemId && warehouseFulfillments[it.id]?.warehouseId && (() => {
-                                                                            const selItem = invItems.find(i => String(i.id) === String(warehouseFulfillments[it.id]?.invItemId));
-                                                                            const selStock = selItem?.stocks?.find(s => String(s.warehouseId) === String(warehouseFulfillments[it.id]?.warehouseId));
-                                                                            const qty = selStock?.quantity || 0;
-                                                                            return (
-                                                                                <div style={{
-                                                                                    marginTop: 5, padding: '4px 8px', borderRadius: 6,
-                                                                                    background: qty > 0 ? T.successBg : T.dangerBg,
-                                                                                    color: qty > 0 ? T.success : T.danger,
-                                                                                    fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4
-                                                                                }}>
-                                                                                    {qty > 0 ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                                                                                    {qty > 0 ? `Stok tersedia: ${qty} unit` : 'Stok kosong di gudang ini'}
-                                                                                </div>
-                                                                            );
-                                                                        })()}
+                                                                            <option value="">— Pilih Kategori Aset —</option>
+                                                                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                                        </Select>
+                                                                        {(det.categoryId || it.categoryId) && (
+                                                                            <div style={{
+                                                                                marginTop: 6, fontSize: 10, color: T.gold,
+                                                                                fontWeight: 700, fontFamily: "'DM Mono', monospace",
+                                                                                background: T.cream, padding: '3px 8px', borderRadius: 6,
+                                                                                border: `1px solid ${T.creamDk}`, display: 'inline-block'
+                                                                            }}>
+                                                                                KODE: {getPreviewCode(det.categoryId || it.categoryId)}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
 
-                                                                    {/* Quantity */}
+                                                                    {/* Kondisi Awal */}
                                                                     <div>
-                                                                        <Label>Jumlah Diambil *</Label>
-                                                                        <input
-                                                                            type="number"
-                                                                            min={1}
-                                                                            value={warehouseFulfillments[it.id]?.quantity || it.qty}
-                                                                            onChange={e => setWarehouseFulfillments(prev => ({
-                                                                                ...prev,
-                                                                                [it.id]: { ...prev[it.id], quantity: e.target.value }
-                                                                            }))}
-                                                                            style={{
-                                                                                width: '100%', padding: '9px 10px',
-                                                                                border: `1.5px solid ${T.border}`, borderRadius: 8,
-                                                                                fontSize: 12.5, background: '#fff', color: T.text,
-                                                                                fontFamily: "'DM Sans', sans-serif"
-                                                                            }}
-                                                                        />
+                                                                        <Label>Kondisi Awal Fisik</Label>
+                                                                        <Select
+                                                                            disabled={itemDisabled}
+                                                                            value={det.condition || 'BAIK'}
+                                                                            onChange={e => updateDet('condition', e.target.value)}
+                                                                        >
+                                                                            <option value="BAIK">Baik (Siap Pakai)</option>
+                                                                            <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                                                                            <option value="RUSAK_BERAT">Rusak Berat</option>
+                                                                        </Select>
                                                                     </div>
                                                                 </div>
-                                                            )}
-                                                            {warehouseFulfillments[it.id]?.enabled && (
-                                                                <div style={{
-                                                                    marginTop: 10, padding: '8px 12px', borderRadius: 8,
-                                                                    background: 'rgba(45,122,95,0.08)', fontSize: 11.5, color: T.success,
-                                                                    display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600
-                                                                }}>
-                                                                    <CheckCircle size={13} />
-                                                                    Detail aset di bawah tidak diperlukan saat menggunakan pemenuhan gudang
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
 
-
-                                                    {/* Asset detail form – hidden when using warehouse fulfillment */}
-                                                    {!warehouseFulfillments[it.id]?.enabled && (
-                                                        <>
-                                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                                                                {/* Kategori */}
-                                                                <div>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                                                        <Label style={{ marginBottom: 0 }}>Kategori Aset *</Label>
-                                                                        {(() => {
-                                                                            const currentCatId = det.categoryId || it.categoryId;
-                                                                            const isChanged = det.categoryId && it.categoryId && parseInt(det.categoryId) !== parseInt(it.categoryId);
-                                                                            if (isChanged) {
-                                                                                return (
-                                                                                    <span style={{ fontSize: 10, color: T.warn, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                                                        <AlertCircle size={11} /> Kategori Diedit
-                                                                                    </span>
-                                                                                );
-                                                                            }
-                                                                            if (currentCatId) {
-                                                                                return (
-                                                                                    <span style={{ fontSize: 10, color: T.gold, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                                                        <CheckCircle size={11} /> {it.categoryId ? 'Dari Pengadaan' : 'Terpilih'}
-                                                                                    </span>
-                                                                                );
-                                                                            }
-                                                                            return null;
-                                                                        })()}
-                                                                    </div>
-                                                                    <Select 
-                                                                        disabled={itemDisabled} 
-                                                                        value={det.categoryId || it.categoryId || ''} 
-                                                                        onChange={e => {
-                                                                            const newCat = e.target.value;
-                                                                            updateDet('categoryId', newCat);
-                                                                            setReq(prev => ({
-                                                                                ...prev,
-                                                                                items: prev.items.map(itItem => itItem.id === it.id ? { ...itItem, categoryId: newCat ? parseInt(newCat) : null } : itItem)
-                                                                            }));
-                                                                        }}
-                                                                        style={{
-                                                                            borderColor: (det.categoryId || it.categoryId) ? '#bbf7d0' : T.border,
-                                                                            background: (det.categoryId || it.categoryId) ? '#f8fdf9' : '#fff'
-                                                                        }}
-                                                                    >
-                                                                        <option value="">— Pilih Kategori (Koreksi) —</option>
-                                                                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                                                    </Select>
-                                                                    {(det.categoryId || it.categoryId) && (
-                                                                        <div style={{ marginTop: 4, fontSize: 10, color: T.gold, fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>
-                                                                            PREVIEW KODE: {getPreviewCode(det.categoryId || it.categoryId)}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {/* Kondisi Awal */}
-                                                                <div>
-                                                                    <Label>Kondisi Awal</Label>
-                                                                    <Select disabled={itemDisabled} value={det.condition || 'BAIK'} onChange={e => updateDet('condition', e.target.value)}>
-                                                                        <option value="BAIK">Baik</option>
-                                                                        <option value="RUSAK_RINGAN">Rusak Ringan</option>
-                                                                        <option value="RUSAK_BERAT">Rusak Berat</option>
-                                                                    </Select>
-                                                                </div>
-
-                                                                {/* Alokasi Ruangan Type Selector (if qty > 1) */}
+                                                                {/* Metode Alokasi Ruangan (if qty > 1) */}
                                                                 {it.qty > 1 && (
-                                                                    <div style={{ gridColumn: 'span 2' }}>
-                                                                        <Label>Metode Alokasi Ruangan</Label>
-                                                                        <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                                                                            {[['SAME', 'Sama untuk Semua Unit'], ['INDIVIDUAL', 'Berbeda per Unit']].map(([val, label]) => (
-                                                                                <button key={val}
+                                                                    <div>
+                                                                        <Label>Metode Penempatan Ruangan ({it.qty} {it.unit})</Label>
+                                                                        <div style={{ display: 'flex', gap: 10, maxWidth: 440 }}>
+                                                                            {[
+                                                                                ['SAME', 'Sama untuk Semua Unit'],
+                                                                                ['INDIVIDUAL', 'Berbeda per Unit (Distribusi Pecah)']
+                                                                            ].map(([val, label]) => (
+                                                                                <button
+                                                                                    key={val}
                                                                                     type="button"
                                                                                     disabled={itemDisabled}
                                                                                     onClick={() => updateDet('allocationType', val)}
                                                                                     style={{
-                                                                                        flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                                                                                        flex: 1, padding: '9px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 700,
                                                                                         border: `1.5px solid ${det.allocationType === val ? T.navy : T.border}`,
                                                                                         background: det.allocationType === val ? T.navy : (itemDisabled ? T.creamDk : T.white),
                                                                                         color: det.allocationType === val ? T.white : T.slate,
-                                                                                        cursor: itemDisabled ? 'not-allowed' : 'pointer'
-                                                                                    }}>
+                                                                                        cursor: itemDisabled ? 'not-allowed' : 'pointer',
+                                                                                        transition: 'all .2s'
+                                                                                    }}
+                                                                                >
                                                                                     {label}
                                                                                 </button>
                                                                             ))}
@@ -2029,14 +2652,17 @@ const ProcurementDetail = () => {
                                                                     </div>
                                                                 )}
 
-                                                                {/* ── SAME ALLOCATION MODE ── */}
+                                                                {/* SAME ALLOCATION MODE */}
                                                                 {det.allocationType === 'SAME' ? (
-                                                                    <div style={{ gridColumn: it.qty > 1 ? 'span 2' : 'auto', background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                                                                    <div style={{
+                                                                        background: '#f8fafc', padding: 18,
+                                                                        borderRadius: 12, border: '1.5px solid #e2e8f0',
+                                                                        display: 'flex', flexDirection: 'column', gap: 14
+                                                                    }}>
+                                                                        {/* Pill Switch: Unit Pemohon vs Titip di Unit Lain */}
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                                                                             <Label style={{ marginBottom: 0, color: '#1e293b' }}>Lokasi Penempatan Ruangan *</Label>
-                                                                            
-                                                                            {/* Pill Switch: Unit Pemohon vs Titip di Unit Lain */}
-                                                                            <div style={{ display: 'inline-flex', background: '#e2e8f0', borderRadius: 8, padding: 2 }}>
+                                                                            <div style={{ display: 'inline-flex', background: '#e2e8f0', borderRadius: 8, padding: 3 }}>
                                                                                 <button
                                                                                     type="button"
                                                                                     disabled={itemDisabled}
@@ -2046,7 +2672,7 @@ const ProcurementDetail = () => {
                                                                                         updateDet('roomId', '');
                                                                                     }}
                                                                                     style={{
-                                                                                        padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none',
+                                                                                        padding: '5px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none',
                                                                                         background: !det.isEntrusted ? '#fff' : 'transparent',
                                                                                         color: !det.isEntrusted ? T.navy : T.slate,
                                                                                         boxShadow: !det.isEntrusted ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
@@ -2063,7 +2689,7 @@ const ProcurementDetail = () => {
                                                                                         updateDet('roomId', '');
                                                                                     }}
                                                                                     style={{
-                                                                                        padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none',
+                                                                                        padding: '5px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none',
                                                                                         background: det.isEntrusted ? T.warn : 'transparent',
                                                                                         color: det.isEntrusted ? '#fff' : T.slate,
                                                                                         boxShadow: det.isEntrusted ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
@@ -2077,7 +2703,7 @@ const ProcurementDetail = () => {
 
                                                                         {/* Target Unit Dropdown (if entrusted) */}
                                                                         {det.isEntrusted && (
-                                                                            <div style={{ marginBottom: 10 }}>
+                                                                            <div>
                                                                                 <Label>Pilih Unit Tujuan Penitipan *</Label>
                                                                                 <Select
                                                                                     disabled={itemDisabled}
@@ -2089,14 +2715,11 @@ const ProcurementDetail = () => {
                                                                                     style={{ background: '#fff', border: `1.5px solid ${T.warn}` }}
                                                                                 >
                                                                                     <option value="">— Pilih Unit Lain —</option>
-                                                                                    {units
-                                                                                        .filter(u => u.id !== req.unitId)
-                                                                                        .map(u => (
-                                                                                            <option key={u.id} value={u.id}>
-                                                                                                {u.name} ({u.code})
-                                                                                            </option>
-                                                                                        ))
-                                                                                    }
+                                                                                    {units.filter(u => u.id !== req.unitId).map(u => (
+                                                                                        <option key={u.id} value={u.id}>
+                                                                                            {u.name} ({u.code})
+                                                                                        </option>
+                                                                                    ))}
                                                                                 </Select>
                                                                             </div>
                                                                         )}
@@ -2108,34 +2731,68 @@ const ProcurementDetail = () => {
                                                                             const activeUnitName = units.find(u => u.id === activeUnitId)?.name || (activeUnitId === req.unitId ? req.unit?.name : 'Unit Terpilih');
 
                                                                             return (
-                                                                                <div>
-                                                                                    <Label>Pilih Ruangan di {activeUnitName} *</Label>
-                                                                                    <Select
-                                                                                        disabled={itemDisabled}
-                                                                                        value={det.roomId || ''}
-                                                                                        onChange={e => updateDet('roomId', e.target.value)}
-                                                                                        style={{ background: '#fff' }}
-                                                                                    >
-                                                                                        <option value="">— Pilih Ruangan —</option>
-                                                                                        {availableRooms.map(r => (
-                                                                                            <option key={r.id} value={r.id}>
-                                                                                                {r.name} {r.building ? `— ${r.building}` : ''} {r.floor ? `(Lt. ${r.floor})` : ''}
-                                                                                            </option>
-                                                                                        ))}
-                                                                                    </Select>
-                                                                                    {availableRooms.length === 0 && (
-                                                                                        <div style={{ marginTop: 6, fontSize: 11, color: T.warn, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                                            <AlertCircle size={12} />
-                                                                                            Belum ada data ruangan terdaftar untuk <b>{activeUnitName}</b> di Master Data.
-                                                                                        </div>
-                                                                                    )}
+                                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                                                                                    <div>
+                                                                                        <Label>Pilih Ruangan di {activeUnitName} *</Label>
+                                                                                        <Select
+                                                                                            disabled={itemDisabled}
+                                                                                            value={det.roomId || ''}
+                                                                                            onChange={e => updateDet('roomId', e.target.value)}
+                                                                                            style={{
+                                                                                                background: '#fff',
+                                                                                                borderColor: det.roomId ? '#86efac' : T.border
+                                                                                            }}
+                                                                                        >
+                                                                                            <option value="">— Pilih Ruangan —</option>
+                                                                                            {availableRooms.map(r => (
+                                                                                                <option key={r.id} value={r.id}>
+                                                                                                    {r.name} {r.building ? `— ${r.building}` : ''} {r.floor ? `(Lt. ${r.floor})` : ''}
+                                                                                                </option>
+                                                                                            ))}
+                                                                                        </Select>
+                                                                                        {availableRooms.length === 0 && (
+                                                                                            <div style={{ marginTop: 6, fontSize: 11, color: T.warn, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                                                <AlertCircle size={12} />
+                                                                                                Belum ada data ruangan terdaftar untuk <b>{activeUnitName}</b> di Master Data.
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    {/* PIC Selection */}
+                                                                                    <div>
+                                                                                        <Label>Penanggung Jawab / PIC Ruangan</Label>
+                                                                                        <Select
+                                                                                            disabled={itemDisabled}
+                                                                                            value={det.picId || ''}
+                                                                                            onChange={e => updateDet('picId', e.target.value)}
+                                                                                            style={{ background: '#fff' }}
+                                                                                        >
+                                                                                            <option value="">— Tidak Ada / Umum —</option>
+                                                                                            {users.map(u => (
+                                                                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                                                                            ))}
+                                                                                        </Select>
+                                                                                    </div>
                                                                                 </div>
                                                                             );
                                                                         })()}
+
+                                                                        {/* Foto Aset (SAME ALLOCATION) */}
+                                                                        <div>
+                                                                            <AssetImageUpload
+                                                                                disabled={itemDisabled}
+                                                                                value={det.image}
+                                                                                onChange={val => updateDet('image', val)}
+                                                                                label="Foto Aset Fisik (Sama untuk semua unit item ini)"
+                                                                            />
+                                                                        </div>
                                                                     </div>
                                                                 ) : (
-                                                                    /* ── INDIVIDUAL ALLOCATION MODE ── */
-                                                                    <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, background: T.cream, padding: 14, borderRadius: 10 }}>
+                                                                    /* INDIVIDUAL ALLOCATION MODE */
+                                                                    <div style={{
+                                                                        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                                                                        gap: 14, background: T.cream, padding: 16, borderRadius: 12
+                                                                    }}>
                                                                         {det.units.map((u, uIdx) => {
                                                                             const updateUnit = (field, val) => {
                                                                                 if (itemDisabled) return;
@@ -2148,9 +2805,13 @@ const ProcurementDetail = () => {
                                                                             const activeUnitName = units.find(u => u.id === activeUnitId)?.name || (activeUnitId === req.unitId ? req.unit?.name : 'Unit Terpilih');
 
                                                                             return (
-                                                                                <div key={uIdx} style={{ background: T.white, padding: 12, borderRadius: 10, border: `1px solid ${T.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+                                                                                <div key={uIdx} style={{
+                                                                                    background: T.white, padding: 14, borderRadius: 10,
+                                                                                    border: `1px solid ${u.roomId ? '#86efac' : T.border}`,
+                                                                                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
+                                                                                }}>
                                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                                                                        <Label style={{ fontWeight: 800, marginBottom: 0 }}>Unit #{uIdx + 1}</Label>
+                                                                                        <Label style={{ fontWeight: 800, marginBottom: 0, color: T.navy }}>Unit #{uIdx + 1}</Label>
                                                                                         <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: 6, padding: 1 }}>
                                                                                             <button
                                                                                                 type="button"
@@ -2161,13 +2822,13 @@ const ProcurementDetail = () => {
                                                                                                     updateUnit('roomId', '');
                                                                                                 }}
                                                                                                 style={{
-                                                                                                    padding: '2px 6px', fontSize: 9.5, fontWeight: 700, borderRadius: 5, border: 'none',
+                                                                                                    padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 5, border: 'none',
                                                                                                     background: !u.isEntrusted ? '#fff' : 'transparent',
                                                                                                     color: !u.isEntrusted ? T.navy : T.slate,
                                                                                                     cursor: itemDisabled ? 'not-allowed' : 'pointer'
                                                                                                 }}
                                                                                             >
-                                                                                                Unit Sendiri
+                                                                                                Sendiri
                                                                                             </button>
                                                                                             <button
                                                                                                 type="button"
@@ -2177,19 +2838,19 @@ const ProcurementDetail = () => {
                                                                                                     updateUnit('roomId', '');
                                                                                                 }}
                                                                                                 style={{
-                                                                                                    padding: '2px 6px', fontSize: 9.5, fontWeight: 700, borderRadius: 5, border: 'none',
+                                                                                                    padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 5, border: 'none',
                                                                                                     background: u.isEntrusted ? T.warn : 'transparent',
                                                                                                     color: u.isEntrusted ? '#fff' : T.slate,
                                                                                                     cursor: itemDisabled ? 'not-allowed' : 'pointer'
                                                                                                 }}
                                                                                             >
-                                                                                                Titip Unit Lain
+                                                                                                Titip
                                                                                             </button>
                                                                                         </div>
                                                                                     </div>
 
                                                                                     {u.isEntrusted && (
-                                                                                        <div style={{ marginBottom: 6 }}>
+                                                                                        <div style={{ marginBottom: 8 }}>
                                                                                             <Select
                                                                                                 disabled={itemDisabled}
                                                                                                 value={u.targetUnitId || ''}
@@ -2197,9 +2858,9 @@ const ProcurementDetail = () => {
                                                                                                     updateUnit('targetUnitId', parseInt(e.target.value));
                                                                                                     updateUnit('roomId', '');
                                                                                                 }}
-                                                                                                style={{ fontSize: 11, padding: '5px 8px', border: `1px solid ${T.warn}` }}
+                                                                                                style={{ fontSize: 11, padding: '6px 8px', border: `1px solid ${T.warn}` }}
                                                                                             >
-                                                                                                <option value="">— Pilih Unit Lain —</option>
+                                                                                                <option value="">— Pilih Unit —</option>
                                                                                                 {units.filter(un => un.id !== req.unitId).map(un => (
                                                                                                     <option key={un.id} value={un.id}>{un.name}</option>
                                                                                                 ))}
@@ -2211,12 +2872,12 @@ const ProcurementDetail = () => {
                                                                                         disabled={itemDisabled}
                                                                                         value={u.roomId || ''}
                                                                                         onChange={e => updateUnit('roomId', e.target.value)}
-                                                                                        style={{ fontSize: 11, padding: '6px 10px', marginBottom: 8 }}
+                                                                                        style={{ fontSize: 11, padding: '7px 10px', marginBottom: 10, borderColor: u.roomId ? '#86efac' : T.border }}
                                                                                     >
                                                                                         <option value="">— Pilih Ruangan ({activeUnitName}) —</option>
                                                                                         {availableRooms.map(r => (
                                                                                             <option key={r.id} value={r.id}>
-                                                                                                {r.name} {r.building ? `— ${r.building}` : ''} {r.floor ? `(Lt. ${r.floor})` : ''}
+                                                                                                {r.name} {r.building ? `— ${r.building}` : ''}
                                                                                             </option>
                                                                                         ))}
                                                                                     </Select>
@@ -2225,7 +2886,7 @@ const ProcurementDetail = () => {
                                                                                         disabled={itemDisabled}
                                                                                         value={u.image}
                                                                                         onChange={val => updateUnit('image', val)}
-                                                                                        label="Foto Unit"
+                                                                                        label={`Foto Unit #${uIdx + 1}`}
                                                                                     />
                                                                                 </div>
                                                                             );
@@ -2233,265 +2894,212 @@ const ProcurementDetail = () => {
                                                                     </div>
                                                                 )}
 
-                                                                {/* PIC */}
-                                                                <div>
-                                                                    <Label>PIC (Opsional)</Label>
-                                                                    <Select disabled={itemDisabled} value={det.picId || ''} onChange={e => updateDet('picId', e.target.value)}>
-                                                                        <option value="">— Tidak ada —</option>
-                                                                        {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                                                    </Select>
-                                                                </div>
-
-                                                                {/* Foto Aset (SAME ALLOCATION) */}
-                                                                {det.allocationType === 'SAME' && (
-                                                                    <div>
-                                                                        <AssetImageUpload
-                                                                            disabled={itemDisabled}
-                                                                            value={det.image}
-                                                                            onChange={val => updateDet('image', val)}
-                                                                            label="Foto Aset (Sama untuk semua)"
-                                                                        />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        disabled={itemDisabled}
-                                                                        id={`lendable-${it.id}`}
-                                                                        checked={det.isLendable || false}
-                                                                        onChange={e => updateDet('isLendable', e.target.checked)}
-                                                                        style={{ cursor: itemDisabled ? 'not-allowed' : 'pointer', width: 16, height: 16 }}
-                                                                    />
-                                                                    <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: itemDisabled ? 'not-allowed' : 'pointer', userSelect: 'none' }}>
-                                                                        Aset ini bisa dipinjam oleh unit lain
-                                                                    </label>
-                                                                </div>
-
-                                                                <div style={{ background: '#eef3fc', padding: '14px', borderRadius: 10, border: '1px solid #bfd0f5' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: det.needsRoutineMaintenance ? 12 : 0 }}>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: det.needsRoutineMaintenance ? '#2c5fc4' : T.border }} />
-                                                                            <label htmlFor={`maint-${it.id}`} style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', cursor: itemDisabled ? 'not-allowed' : 'pointer' }}>
-                                                                                Pemeliharaan Rutin?
-                                                                            </label>
-                                                                        </div>
+                                                                {/* Advanced Settings: Lendable & Routine Maintenance */}
+                                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+                                                                    <div style={{
+                                                                        display: 'flex', alignItems: 'center', gap: 10,
+                                                                        background: T.cream, padding: '12px 16px', borderRadius: 10,
+                                                                        border: `1px solid ${T.creamDk}`
+                                                                    }}>
                                                                         <input
                                                                             type="checkbox"
                                                                             disabled={itemDisabled}
-                                                                            id={`maint-${it.id}`}
-                                                                            checked={det.needsRoutineMaintenance || false}
-                                                                            onChange={e => updateDet('needsRoutineMaintenance', e.target.checked)}
+                                                                            id={`lendable-${it.id}`}
+                                                                            checked={det.isLendable || false}
+                                                                            onChange={e => updateDet('isLendable', e.target.checked)}
                                                                             style={{ cursor: itemDisabled ? 'not-allowed' : 'pointer', width: 16, height: 16 }}
                                                                         />
+                                                                        <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: itemDisabled ? 'not-allowed' : 'pointer', userSelect: 'none' }}>
+                                                                            Aset ini dapat dipinjam oleh unit lain
+                                                                        </label>
                                                                     </div>
-                                                                    {det.needsRoutineMaintenance && (
-                                                                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                                                            <div style={{ flex: 1 }}>
-                                                                                <Label>Interval</Label>
-                                                                                <Input
-                                                                                    type="number"
-                                                                                    disabled={itemDisabled}
-                                                                                    value={det.maintenanceInterval || 3}
-                                                                                    onChange={e => updateDet('maintenanceInterval', e.target.value)}
-                                                                                    style={{ padding: '6px 10px', fontSize: 12 }}
-                                                                                />
-                                                                            </div>
-                                                                            <div style={{ flex: 1 }}>
-                                                                                <Label>Satuan</Label>
-                                                                                <Select
-                                                                                    disabled={itemDisabled}
-                                                                                    value={det.intervalUnit || 'MONTHS'}
-                                                                                    onChange={e => updateDet('intervalUnit', e.target.value)}
-                                                                                    style={{ padding: '6px 10px', fontSize: 12 }}
-                                                                                >
-                                                                                    <option value="MONTHS">Bulan</option>
-                                                                                    <option value="DAYS">Hari</option>
-                                                                                </Select>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
 
-                                                            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', paddingTop: 16, borderTop: `1px solid ${T.creamDk}` }}>
-                                                                <button
-                                                                    onClick={() => handleSaveDraftItem(it.id)}
-                                                                    disabled={itemDisabled}
-                                                                    style={{
-                                                                        padding: '10px 16px', borderRadius: 8, background: itemDisabled ? T.creamDk : T.goldSoft, color: itemDisabled ? T.slate : T.warn,
-                                                                        fontWeight: 700, border: 'none', cursor: itemDisabled ? 'not-allowed' : 'pointer',
-                                                                        display: 'flex', alignItems: 'center', gap: 8, fontSize: 13
-                                                                    }}
-                                                                >
-                                                                    <Save size={16} />
-                                                                    Simpan Draft Item
-                                                                </button>
-                                                            </div>
-                                                        </>
-                                                    )}
+                                                                    <div style={{
+                                                                        background: '#eef3fc', padding: '12px 16px',
+                                                                        borderRadius: 10, border: '1px solid #bfd0f5'
+                                                                    }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: det.needsRoutineMaintenance ? 10 : 0 }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: det.needsRoutineMaintenance ? '#2c5fc4' : T.border }} />
+                                                                                <label htmlFor={`maint-${it.id}`} style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', cursor: itemDisabled ? 'not-allowed' : 'pointer' }}>
+                                                                                    Perlu Pemeliharaan Rutin?
+                                                                                </label>
+                                                                            </div>
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                disabled={itemDisabled}
+                                                                                id={`maint-${it.id}`}
+                                                                                checked={det.needsRoutineMaintenance || false}
+                                                                                onChange={e => updateDet('needsRoutineMaintenance', e.target.checked)}
+                                                                                style={{ cursor: itemDisabled ? 'not-allowed' : 'pointer', width: 16, height: 16 }}
+                                                                            />
+                                                                        </div>
+                                                                        {det.needsRoutineMaintenance && (
+                                                                            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                                                                <div style={{ flex: 1 }}>
+                                                                                    <Label>Interval</Label>
+                                                                                    <Input
+                                                                                        type="number"
+                                                                                        disabled={itemDisabled}
+                                                                                        value={det.maintenanceInterval || 3}
+                                                                                        onChange={e => updateDet('maintenanceInterval', e.target.value)}
+                                                                                        style={{ padding: '6px 10px', fontSize: 12 }}
+                                                                                    />
+                                                                                </div>
+                                                                                <div style={{ flex: 1 }}>
+                                                                                    <Label>Satuan</Label>
+                                                                                    <Select
+                                                                                        disabled={itemDisabled}
+                                                                                        value={det.intervalUnit || 'MONTHS'}
+                                                                                        onChange={e => updateDet('intervalUnit', e.target.value)}
+                                                                                        style={{ padding: '6px 10px', fontSize: 12 }}
+                                                                                    >
+                                                                                        <option value="MONTHS">Bulan</option>
+                                                                                        <option value="DAYS">Hari</option>
+                                                                                    </Select>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Item Draft Save */}
+                                                                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 10, borderTop: `1px dashed ${T.creamDk}` }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSaveDraftItem(it.id)}
+                                                                        disabled={itemDisabled}
+                                                                        style={{
+                                                                            padding: '8px 14px', borderRadius: 8,
+                                                                            background: itemDisabled ? T.creamDk : T.goldSoft,
+                                                                            color: itemDisabled ? T.slate : T.warn,
+                                                                            fontWeight: 700, border: 'none',
+                                                                            cursor: itemDisabled ? 'not-allowed' : 'pointer',
+                                                                            display: 'flex', alignItems: 'center', gap: 6, fontSize: 12
+                                                                        }}
+                                                                    >
+                                                                        <Save size={14} /> Simpan Draft Item Ini
+                                                                    </button>
+                                                                </div>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                )}
 
-                                {req.items.length > 0 && (
-                                    <button
-                                        onClick={handleSaveDraftAll}
-                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)}
-                                        style={{
-                                            width: '100%', padding: '16px', marginBottom: 12,
-                                            borderRadius: 12, fontFamily: "'DM Sans', sans-serif",
-                                            fontSize: 15, fontWeight: 700, border: `2px solid ${T.goldSoft}`,
-                                            background: T.white,
-                                            color: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? T.slate : T.warn,
-                                            cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer',
-                                            transition: 'all .25s',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
-                                        }}>
-                                        <Save size={18} /> Simpan Draft Semua
-                                    </button>
-                                )}
-
-                                <button
-                                    disabled={!bastDate || (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))}
-                                    onClick={handleBAST}
-                                    style={{
-                                        width: '100%', padding: '16px',
-                                        borderRadius: 12, fontFamily: "'DM Sans', sans-serif",
-                                        fontSize: 15, fontWeight: 700, border: 'none',
-                                        background: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)))
-                                            ? `linear-gradient(135deg, ${T.success}, #3a9a72)`
-                                            : T.creamDk,
-                                        color: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))) ? T.white : T.slate,
-                                        cursor: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))) ? 'pointer' : 'not-allowed',
-                                        boxShadow: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))) ? '0 6px 20px rgba(45,122,95,0.3)' : 'none',
-                                        transition: 'all .25s',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
-                                    }}>
-                                    <CheckCircle size={18} />
-                                    Selesaikan Pengadaan &amp; Buat Aset
-                                </button>
-
-                                <div style={{
-                                    padding: '16px', borderRadius: 12, border: `1.5px solid ${T.border}`,
-                                    background: T.white, display: 'flex', flexDirection: 'column', gap: 10
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <FileText size={16} color={T.navy} />
-                                        <span style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>Dokumen E-Office</span>
-                                    </div>
-                                    <p style={{ fontSize: 11.5, color: T.slate, margin: 0 }}>
-                                        Buat dokumen Berita Acara Serah Terima (BAST) resmi di modul E-Office untuk penandatanganan digital.
-                                    </p>
-                                    <Btn variant="ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => {
-                                        const bastItems = req.items.map(it => ({
-                                            name: it.name,
-                                            qty: it.qty,
-                                            condition: 'Baik'
-                                        }));
-                                        navigate('/e-office/surat-keluar', {
-                                            state: {
-                                                autoCreate: true,
-                                                type: 'SURAT_KELUAR',
-                                                category: 'Serah Terima Barang',
-                                                subject: `BAST Pengadaan: ${req.title}`,
-                                                party1Name: 'Ravi Kurnia',
-                                                party1Title: 'Pemberi',
-                                                party2Name: req.items?.[0]?.vendorName || '',
-                                                party2Title: 'Penerima',
-                                                bastItems
-                                            }
-                                        });
-                                    }}>
-                                        <QrCode size={14} /> Buat BAST Resmi di E-Office
-                                    </Btn>
-                                </div>
-                            </div>
-                        ) : (
-                            /* COMPLETED STATE */
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                                <div style={{
-                                    background: T.successBg, borderRadius: 14,
-                                    border: `1px solid #a3d9c0`, padding: '40px 28px',
-                                    textAlign: 'center'
-                                }}>
+                                    {/* Bottom Sticky Action Bar */}
                                     <div style={{
-                                        width: 64, height: 64, borderRadius: '50%',
-                                        background: `linear-gradient(135deg, ${T.success}, #3a9a72)`,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        margin: '0 auto 16px',
-                                        boxShadow: '0 8px 24px rgba(45,122,95,0.3)'
+                                        position: 'sticky', bottom: 16, zIndex: 10,
+                                        background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)',
+                                        border: `1.5px solid ${T.border}`, borderRadius: 16,
+                                        padding: '16px 24px', boxShadow: '0 8px 30px rgba(15,31,61,0.12)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        flexWrap: 'wrap', gap: 14
                                     }}>
-                                        <CheckCircle size={30} color={T.white} />
-                                    </div>
-                                    <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: T.success, marginBottom: 8 }}>
-                                        Pengadaan Selesai
-                                    </h3>
-                                    <p style={{ color: '#4a9a72', fontSize: 14 }}>Seluruh proses pengadaan telah berhasil diselesaikan.</p>
-                                </div>
+                                        <Btn variant="ghost" onClick={() => setActiveTab(5)} style={{ padding: '12px 20px' }}>
+                                            <ArrowLeft size={16} /> Kembali ke Tahap BAST
+                                        </Btn>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                                    <div style={{ background: T.cream, borderRadius: 12, border: `1px solid ${T.border}`, padding: 20 }}>
-                                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.slate, marginBottom: 12 }}>
-                                            Info Serah Terima
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            <Btn
+                                                variant="ghost"
+                                                onClick={handleSaveDraftAll}
+                                                disabled={loading || !(isAdmin || isAssignedToAny || isRequester)}
+                                                style={{ padding: '12px 18px', borderColor: T.gold, color: T.warn }}
+                                            >
+                                                <Save size={16} color={T.gold} /> Simpan Draft Semua
+                                            </Btn>
+                                            <Btn
+                                                variant="success"
+                                                onClick={handleBAST}
+                                                disabled={loading || !(isAdmin || isAssignedToAny || isRequester)}
+                                                style={{ padding: '12px 28px', fontSize: 14, fontWeight: 700 }}
+                                            >
+                                                {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                                                Selesaikan Pengadaan &amp; Daftarkan Aset
+                                            </Btn>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                                                <span style={{ color: T.slate }}>Tanggal BAST</span>
-                                                <span style={{ fontWeight: 600, color: T.navy }}>
-                                                    {new Date(req.bastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                                </span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                                                <span style={{ color: T.slate }}>Status</span>
-                                                <StatusBadge status="COMPLETED" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ background: T.cream, borderRadius: 12, border: `1px solid ${T.border}`, padding: 20 }}>
-                                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.slate, marginBottom: 12 }}>
-                                            Bukti Foto
-                                        </div>
-                                        {req.bastFile
-                                            ? <img src={getMediaUrl(req.bastFile)} alt="Bukti BAST" style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8 }} />
-                                            : <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.creamDk, borderRadius: 8, color: T.slate, fontSize: 12, fontStyle: 'italic' }}>
-                                                Tidak ada foto bukti.
-                                            </div>
-                                        }
                                     </div>
                                 </div>
+                            ) : (
+                                /* COMPLETED STATE IN STAGE 6 */
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                    <div style={{
+                                        background: T.cream, borderRadius: 14,
+                                        border: `1px solid ${T.border}`, padding: '28px',
+                                        display: 'flex', flexDirection: 'column', gap: 16
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{ width: 36, height: 36, borderRadius: 10, background: T.success, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <CheckCircle size={20} color={T.white} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.navy }}>
+                                                    Aset Telah Berhasil Ditempatkan ke Ruangan
+                                                </h4>
+                                                <p style={{ margin: 0, fontSize: 12, color: T.slate }}>
+                                                    Seluruh aset dari pengadaan ini telah terdaftar di sistem inventaris dengan kode aset resmi.
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                <Btn variant="ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => {
-                                    const bastItems = req.items.map(it => ({
-                                        name: it.name,
-                                        qty: it.qty,
-                                        condition: 'Baik'
-                                    }));
-                                    navigate('/e-office/surat-keluar', {
-                                        state: {
-                                            autoCreate: true,
-                                            type: 'SURAT_KELUAR',
-                                            category: 'Serah Terima Barang',
-                                            subject: `BAST Pengadaan: ${req.title}`,
-                                            party1Name: 'Kepala Bidang Sarana Prasarana',
-                                            party1Title: 'Pemberi',
-                                            party2Name: req.items?.[0]?.vendorName || '',
-                                            party2Title: 'Penerima',
-                                            bastItems
-                                        }
-                                    });
-                                }}>
-                                    <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
-                                </Btn>
-                            </div>
-                        )}
-                    </div>
-                </Card>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                <thead>
+                                                    <tr style={{ background: T.white, borderBottom: `1px solid ${T.border}` }}>
+                                                        {['No', 'Nama Barang', 'Jumlah', 'Unit Tujuan', 'Status Alokasi'].map(h => (
+                                                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: T.slate, textAlign: 'left', textTransform: 'uppercase' }}>
+                                                                {h}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {req.items.map((it, idx) => (
+                                                        <tr key={it.id} style={{ borderBottom: `1px solid ${T.creamDk}` }}>
+                                                            <td style={{ padding: '12px 14px', fontSize: 12, color: T.slate }}>{idx + 1}</td>
+                                                            <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 600, color: T.navy }}>{it.name}</td>
+                                                            <td style={{ padding: '12px 14px', fontSize: 12, fontWeight: 700 }}>{it.qty} {it.unit}</td>
+                                                            <td style={{ padding: '12px 14px', fontSize: 12, color: T.navy }}>{req.unit?.name || 'Unit Pemohon'}</td>
+                                                            <td style={{ padding: '12px 14px', fontSize: 12 }}>
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: T.success, fontWeight: 700 }}>
+                                                                    <CheckCircle size={13} /> Terdaftar di Inventaris
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                        <Btn variant="ghost" onClick={() => setActiveTab(5)} style={{ flex: 1, justifyContent: 'center' }}>
+                                            <ArrowLeft size={15} /> Lihat Kembali Bukti BAST (Tahap 5)
+                                        </Btn>
+                                        <Btn variant="primary" onClick={() => navigate('/assets')} style={{ flex: 1, justifyContent: 'center' }}>
+                                            <ExternalLink size={15} /> Buka Modul Data Aset (Inventaris)
+                                        </Btn>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Floating Toast Notification when Draft is Saved */}
+            {draftSavedToast && (
+                <div style={{
+                    position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+                    background: T.navy, color: T.white, padding: '12px 20px',
+                    borderRadius: 10, boxShadow: '0 6px 20px rgba(15,31,61,0.25)',
+                    display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600,
+                    animation: 'fadeIn 0.25s ease-out'
+                }}>
+                    <CheckCircle size={18} color={T.gold} />
+                    <span>{draftSavedToast}</span>
+                </div>
             )}
 
             {/* Modal Kirim ke Workshop */}
@@ -2576,4 +3184,3 @@ const ProcurementDetail = () => {
 };
 
 export default ProcurementDetail;
-// Append something to test

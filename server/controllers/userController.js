@@ -130,7 +130,8 @@ exports.getProfile = async (req, res) => {
                 unitId: true,
                 unit: { select: { name: true } },
                 isSanctioned: true,
-                sanctionProposedLift: true
+                sanctionProposedLift: true,
+                sanctionLiftReason: true
             }
         });
         if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
