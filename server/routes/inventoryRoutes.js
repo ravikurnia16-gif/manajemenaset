@@ -5,7 +5,7 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
-const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT']);
+const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT', 'ADMIN_PBG']);
 const isSuperAdminOrIT = authorizeRole(['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS']);
 
 // Public Invoice & Bukti Transaksi Endpoints
@@ -60,6 +60,7 @@ router.put('/orders/:id/payment', isAdmin, invCtrl.updateOrderPayment);
 
 
 // VENDORS
+router.get('/vendors/sync-ratings', invCtrl.syncAllVendorRatings);
 router.get('/vendors', invCtrl.getVendors);
 router.post('/vendors', isAdmin, invCtrl.createVendor);
 router.put('/vendors/:id', isAdmin, invCtrl.updateVendor);

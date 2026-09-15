@@ -149,7 +149,16 @@ exports.deleteProcurement = async (req, res) => {
     try {
         const procurement = await prisma.procurement.findUnique({ where: { id: parseInt(id) } });
         if (procurement && procurement.bastFile) {
-            await deleteFile(procurement.bastFile);
+            let fileToDelete = procurement.bastFile;
+            if (typeof fileToDelete === 'string' && fileToDelete.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(fileToDelete);
+                    fileToDelete = parsed.fileUrl;
+                } catch (e) { fileToDelete = null; }
+            }
+            if (fileToDelete && !fileToDelete.startsWith('data:')) {
+                await deleteFile(fileToDelete);
+            }
         }
 
         await prisma.procurementItem.deleteMany({ where: { procurementId: parseInt(id) } });
@@ -198,7 +207,7 @@ exports.getProcurementById = async (req, res) => {
                 },
                 offers: true,
                 unit: true,
-                user: { select: { username: true, email: true } },
+                user: { select: { id: true, name: true, username: true, email: true } },
                 progress: {
                     include: { user: { select: { id: true, name: true, username: true } } },
                     orderBy: { createdAt: 'desc' }
@@ -229,10 +238,18 @@ exports.getProcurementById = async (req, res) => {
             ? noteProgress.message.replace('📝 [Catatan Pemohon untuk Admin Aset]:\n', '').trim()
             : (formattedItems[0]?.notes || null);
 
+        let bastSignatures = null;
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try {
+                bastSignatures = JSON.parse(procurement.bastFile);
+            } catch (e) {}
+        }
+
         res.json({
             ...procurement,
             items: formattedItems,
-            notes: topNotes
+            notes: topNotes,
+            bastSignatures
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -909,10 +926,57 @@ exports.addVendorOffer = async (req, res) => {
     }
 };
 
+// Update BAST Signatures & Metadata (supports updating anytime or after COMPLETED)
+exports.updateBASTSignatures = async (req, res) => {
+    const { id } = req.params;
+    const { receiverName, staffName, receiverSignature, staffSignature, bastNotes, bastDate, photoUrl } = req.body;
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) }
+        });
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan' });
+
+        let existing = {};
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try { existing = JSON.parse(procurement.bastFile); } catch (e) {}
+        } else if (procurement.bastFile) {
+            existing.fileUrl = procurement.bastFile;
+        }
+
+        const updated = {
+            ...existing,
+            fileUrl: photoUrl !== undefined ? photoUrl : (existing.fileUrl || null),
+            receiverName: receiverName !== undefined ? receiverName : (existing.receiverName || null),
+            staffName: staffName !== undefined ? staffName : (existing.staffName || null),
+            receiverSignature: receiverSignature !== undefined ? receiverSignature : (existing.receiverSignature || null),
+            staffSignature: staffSignature !== undefined ? staffSignature : (existing.staffSignature || null),
+            notes: bastNotes !== undefined ? bastNotes : (existing.notes || null),
+            bastDate: bastDate || existing.bastDate || (procurement.bastDate ? procurement.bastDate.toISOString() : null)
+        };
+
+        const updateData = {
+            bastFile: JSON.stringify(updated)
+        };
+        if (bastDate) {
+            updateData.bastDate = new Date(bastDate);
+        }
+
+        await prisma.procurement.update({
+            where: { id: parseInt(id) },
+            data: updateData
+        });
+
+        res.json({ message: 'Tanda tangan BAST berhasil disimpan', bastSignatures: updated });
+    } catch (e) {
+        console.error('Update BAST Signatures Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    let { bastDate, bastFile, assetDetails, warehouseFulfillments } = req.body;
+    let { bastDate, bastFile, assetDetails, warehouseFulfillments, receiverName, staffName, receiverSignature, staffSignature, bastSignatures, bastPhotoUrl, bastNotes } = req.body;
 
     if (typeof assetDetails === 'string') {
         try { assetDetails = JSON.parse(assetDetails); } catch (e) { }
@@ -951,6 +1015,35 @@ exports.processBAST = async (req, res) => {
         if (!procurement) return res.status(404).json({ error: 'Request not found' });
         if (procurement.status === 'COMPLETED') return res.status(400).json({ error: 'Already completed' });
 
+        let parsedSigs = {};
+        if (typeof bastSignatures === 'string') {
+            try { parsedSigs = JSON.parse(bastSignatures); } catch (e) {}
+        } else if (typeof bastSignatures === 'object' && bastSignatures !== null) {
+            parsedSigs = bastSignatures;
+        }
+
+        const finalReceiverName = receiverName || parsedSigs.receiverName || null;
+        const finalStaffName = staffName || parsedSigs.staffName || null;
+        const finalReceiverSignature = receiverSignature || parsedSigs.receiverSignature || null;
+        const finalStaffSignature = staffSignature || parsedSigs.staffSignature || null;
+        const finalNotes = bastNotes || parsedSigs.notes || null;
+        const finalPhotoUrl = req.fileUrl || bastPhotoUrl || (typeof bastFile === 'string' && !bastFile.startsWith('{') && !bastFile.startsWith('data:') ? bastFile : null);
+
+        let bastPayload = null;
+        if (finalReceiverName || finalStaffName || finalReceiverSignature || finalStaffSignature || finalNotes) {
+            bastPayload = JSON.stringify({
+                fileUrl: finalPhotoUrl || null,
+                receiverName: finalReceiverName,
+                staffName: finalStaffName,
+                receiverSignature: finalReceiverSignature,
+                staffSignature: finalStaffSignature,
+                notes: finalNotes,
+                bastDate: bastDate
+            });
+        } else {
+            bastPayload = finalPhotoUrl || bastFile || null;
+        }
+
         await prisma.$transaction(async (prisma) => {
             // 1. Update Procurement Status
             await prisma.procurement.update({
@@ -958,7 +1051,7 @@ exports.processBAST = async (req, res) => {
                 data: {
                     status: 'COMPLETED',
                     bastDate: new Date(bastDate),
-                    bastFile: req.fileUrl || bastFile || null
+                    bastFile: bastPayload
                 }
             });
 

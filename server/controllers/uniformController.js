@@ -4435,6 +4435,9 @@ exports.createExchange = async (req, res) => {
                     const trxInCode = `TRX/SRG/${year}/${nextTrxSeq.toString().padStart(3, '0')}`;
                     nextTrxSeq++;
                     
+                    const personName = studentName || targetSale?.studentName || customerName || targetSale?.customerName || 'Pelanggan';
+                    const autoNoteIn = `Tukar Ukuran (${code}): Terima kembali ${fromVariant.item?.name || 'Seragam'} (${fromVariant.sizeName}) ditukar ke (${toVariant.sizeName}) [${personName}]${targetSale ? ` [Invoice: ${targetSale.code}]` : ''}${note ? ` - Catatan: ${note}` : ''}`;
+
                     await tx.uniformStockTransaction.create({
                         data: {
                             code: trxInCode,
@@ -4444,7 +4447,8 @@ exports.createExchange = async (req, res) => {
                             quantity: quantity,
                             referenceType: 'EXCHANGE',
                             referenceId: exchange.id,
-                            reason: `Pengembalian/Tukar Ukuran (${code}) [Status Lama: ${targetItem?.status || 'DIAMBIL'}] dari ${studentName || targetSale?.studentName || 'Pelanggan'}`,
+                            reason: `Pengembalian/Tukar Ukuran (${code}) [Status Lama: ${targetItem?.status || 'DIAMBIL'}] dari ${personName}`,
+                            note: autoNoteIn,
                             createdById: req.user?.id || null
                         }
                     });
@@ -4473,6 +4477,9 @@ exports.createExchange = async (req, res) => {
                         const trxOutCode = `TRX/SRG/${year}/${nextTrxSeq.toString().padStart(3, '0')}`;
                         nextTrxSeq++;
                         
+                        const personName = studentName || targetSale?.studentName || customerName || targetSale?.customerName || 'Pelanggan';
+                        const autoNoteOut = `Tukar Ukuran (${code}): Penyerahan pengganti ${toVariant.item?.name || 'Seragam'} (${toVariant.sizeName}) ganti dari (${fromVariant.sizeName}) [${personName}]${targetSale ? ` [Invoice: ${targetSale.code}]` : ''}${note ? ` - Catatan: ${note}` : ''}`;
+
                         await tx.uniformStockTransaction.create({
                             data: {
                                 code: trxOutCode,
@@ -4482,7 +4489,8 @@ exports.createExchange = async (req, res) => {
                                 quantity: -quantity,
                                 referenceType: 'EXCHANGE',
                                 referenceId: exchange.id,
-                                reason: `Penyerahan/Alokasi Tukar Ukuran (${code}) [Status Baru: ${finalStatus}] untuk ${studentName || targetSale?.studentName || 'Pelanggan'}`,
+                                reason: `Penyerahan/Alokasi Tukar Ukuran (${code}) [Status Baru: ${finalStatus}] untuk ${personName}`,
+                                note: autoNoteOut,
                                 createdById: req.user?.id || null
                             }
                         });

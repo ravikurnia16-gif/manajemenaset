@@ -40,16 +40,18 @@ export const InvVendorsTab = ({ vendors, openModal, onRefresh }) => {
                         <p className="text-xs text-slate-500 mb-2">{v.phone || '-'} • {v.contactPerson || '-'}</p>
                         
                         <div className="space-y-1 mb-4 text-xs text-slate-600">
-                            {(v.address || v.mapsUrl) && (
+                            {(v.address || v.mapsUrl || v.description) && (
                                 <div className="flex items-start gap-1.5">
                                     <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
                                     <div>
                                         <span className="block">{v.address || 'Alamat tidak tersedia'}</span>
-                                        {v.mapsUrl && (
-                                            <a href={v.mapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
+                                        {(v.mapsUrl || (v.description && v.description.startsWith('http'))) ? (
+                                            <a href={v.mapsUrl || v.description} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
                                                 Lihat di Maps <ExternalLink size={10} />
                                             </a>
-                                        )}
+                                        ) : v.description ? (
+                                            <span className="block text-slate-400 italic text-[11px] mt-0.5">{v.description}</span>
+                                        ) : null}
                                     </div>
                                 </div>
                             )}

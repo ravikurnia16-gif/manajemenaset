@@ -5,11 +5,13 @@ import {
     ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera,
     Image, MapPin, ChevronRight, AlertCircle, Package, QrCode,
     MessageSquare, Clock, Save, Send, Loader2, ChevronDown, ChevronUp,
-    Building2, ExternalLink, Eye, ClipboardCheck, Sparkles, Check, Layers
+    Building2, ExternalLink, Eye, ClipboardCheck, Sparkles, Check, Layers,
+    PenTool, Printer, RotateCcw, User, ShieldCheck, CheckSquare, X
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 import SearchableSelect from '../components/SearchableSelect';
+import SignaturePad from '../components/SignaturePad';
 
 /* ─────────────────────────────────────────────
    DESIGN TOKENS  (inline style helpers)
@@ -398,6 +400,16 @@ const ProcurementDetail = () => {
     const [units, setUnits] = useState([]);
     const [handoverPhoto, setHandoverPhoto] = useState(null);
     const [handoverFile, setHandoverFile] = useState(null);
+
+    // BAST Signatures & Receiver States
+    const [receiverName, setReceiverName] = useState('');
+    const [receiverSignature, setReceiverSignature] = useState(null);
+    const [staffName, setStaffName] = useState('');
+    const [staffSignature, setStaffSignature] = useState(null);
+    const [bastNotes, setBastNotes] = useState('');
+    const [sigModal, setSigModal] = useState({ open: false, type: null, title: '' });
+    const [showBastDocModal, setShowBastDocModal] = useState(false);
+    const [isSavingSignatures, setIsSavingSignatures] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [allRooms, setAllRooms] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -595,6 +607,34 @@ const ProcurementDetail = () => {
             if (data.progress) {
                 setProgressLogs(data.progress);
             }
+
+            // Hydrate BAST Fields & Signatures
+            if (data.bastDate) {
+                setBastDate(data.bastDate.split('T')[0]);
+            }
+            const parsedSigs = data.bastSignatures || (() => {
+                if (typeof data.bastFile === 'string' && data.bastFile.trim().startsWith('{')) {
+                    try { return JSON.parse(data.bastFile); } catch (e) { return null; }
+                }
+                return null;
+            })();
+
+            const defaultReceiver = data.user?.name || data.user?.username || '';
+            const defaultStaff = user?.name || user?.username || 'Staff Manajemen Aset';
+
+            if (parsedSigs) {
+                if (parsedSigs.fileUrl) setHandoverPhoto(parsedSigs.fileUrl);
+                setReceiverName(parsedSigs.receiverName || defaultReceiver);
+                setStaffName(parsedSigs.staffName || defaultStaff);
+                if (parsedSigs.receiverSignature) setReceiverSignature(parsedSigs.receiverSignature);
+                if (parsedSigs.staffSignature) setStaffSignature(parsedSigs.staffSignature);
+                if (parsedSigs.notes) setBastNotes(parsedSigs.notes);
+            } else {
+                if (data.bastFile) setHandoverPhoto(data.bastFile);
+                setReceiverName(defaultReceiver);
+                setStaffName(defaultStaff);
+            }
+
             // Smart activeTab default based on procurement status
             if (data.status === 'COMPLETED') {
                 setActiveTab(5);
@@ -733,7 +773,23 @@ const ProcurementDetail = () => {
 
             if (handoverFile) {
                 formData.append('bastFile', handoverFile);
+            } else if (handoverPhoto && typeof handoverPhoto === 'string' && !handoverPhoto.startsWith('data:')) {
+                formData.append('bastPhotoUrl', handoverPhoto);
             }
+
+            formData.append('receiverName', receiverName || '');
+            formData.append('staffName', staffName || '');
+            if (receiverSignature) formData.append('receiverSignature', receiverSignature);
+            if (staffSignature) formData.append('staffSignature', staffSignature);
+            if (bastNotes) formData.append('bastNotes', bastNotes);
+            formData.append('bastSignatures', JSON.stringify({
+                receiverName: receiverName || '',
+                staffName: staffName || '',
+                receiverSignature: receiverSignature || null,
+                staffSignature: staffSignature || null,
+                notes: bastNotes || '',
+                fileUrl: typeof handoverPhoto === 'string' && !handoverPhoto.startsWith('data:') ? handoverPhoto : null
+            }));
 
             await api.post(`/procurements/${id}/bast`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -753,6 +809,40 @@ const ProcurementDetail = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSaveSignaturesOnly = async () => {
+        try {
+            setIsSavingSignatures(true);
+            const payload = {
+                receiverName: receiverName || '',
+                staffName: staffName || '',
+                receiverSignature: receiverSignature || null,
+                staffSignature: staffSignature || null,
+                bastNotes: bastNotes || '',
+                bastDate: bastDate || null,
+                photoUrl: typeof handoverPhoto === 'string' && !handoverPhoto.startsWith('data:') ? handoverPhoto : null
+            };
+            await api.put(`/procurements/${id}/bast-signatures`, payload);
+            alert('Tanda tangan dan data penerima BAST berhasil disimpan!');
+        } catch (e) {
+            console.error('Error saving signatures:', e);
+            alert(e.response?.data?.error || e.message || 'Gagal menyimpan tanda tangan.');
+        } finally {
+            setIsSavingSignatures(false);
+        }
+    };
+
+    const formatIndonesianDate = (dateStr) => {
+        if (!dateStr) return { dayName: '', dateNum: '', monthName: '', year: '', full: '—' };
+        const d = new Date(dateStr);
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const dayName = days[d.getDay()] || '';
+        const dateNum = d.getDate();
+        const monthName = months[d.getMonth()] || '';
+        const year = d.getFullYear();
+        return { dayName, dateNum, monthName, year, full: `${dayName}, ${dateNum} ${monthName} ${year}` };
     };
 
     const getPreviewCode = (categoryId) => {
@@ -2109,6 +2199,18 @@ const ProcurementDetail = () => {
                                                     </span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                    {staffSignature ? <CheckCircle size={15} color={T.success} /> : <AlertCircle size={15} color={T.warn} />}
+                                                    <span style={{ color: staffSignature ? T.text : T.warn, fontWeight: staffSignature ? 600 : 700 }}>
+                                                        {staffSignature ? `TTD Staff Aset: (${staffName || 'Staff'})` : 'TTD Staff Manajemen Aset belum ada'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                    {receiverSignature ? <CheckCircle size={15} color={T.success} /> : <AlertCircle size={15} color={T.warn} />}
+                                                    <span style={{ color: receiverSignature ? T.text : T.warn, fontWeight: receiverSignature ? 600 : 700 }}>
+                                                        {receiverSignature ? `TTD Penerima: (${receiverName || 'Penerima'})` : 'TTD Penerima Barang belum ada'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                                                     {handoverPhoto ? <CheckCircle size={15} color={T.success} /> : <Clock size={15} color={T.slate} />}
                                                     <span style={{ color: handoverPhoto ? T.text : T.slate }}>
                                                         {handoverPhoto ? 'Foto/berkas bukti fisik telah diunggah' : 'Foto bukti fisik belum diunggah (bisa menyusul)'}
@@ -2179,7 +2281,7 @@ const ProcurementDetail = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Card Dokumen Resmi E-Office */}
+                                            {/* Card Dokumen Resmi BAST */}
                                             <div style={{
                                                 background: `linear-gradient(135deg, #f8fafc, #f1f5f9)`,
                                                 borderRadius: 14, border: `1.5px solid #cbd5e1`,
@@ -2187,42 +2289,309 @@ const ProcurementDetail = () => {
                                             }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                     <div style={{ width: 28, height: 28, borderRadius: 8, background: T.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <QrCode size={15} color={T.gold} />
+                                                        <FileText size={15} color={T.gold} />
                                                     </div>
                                                     <div>
-                                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>Dokumen BAST Resmi (E-Office)</div>
-                                                        <div style={{ fontSize: 11, color: T.slate }}>Penerbitan surat serah terima digital resmi</div>
+                                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>Dokumen BAST Resmi</div>
+                                                        <div style={{ fontSize: 11, color: T.slate }}>Pratinjau, cetak langsung, atau kelola di E-Office</div>
                                                     </div>
                                                 </div>
                                                 <p style={{ fontSize: 11.5, color: '#475569', margin: '2px 0 6px', lineHeight: 1.5 }}>
-                                                    Buat dokumen Berita Acara Serah Terima (BAST) resmi secara otomatis di modul E-Office dengan pihak penerima dan rincian barang yang telah terisi.
+                                                    Dokumen Berita Acara Serah Terima (BAST) otomatis memuat rincian barang, tanggal serah terima, dan tanda tangan sah kedua belah pihak.
                                                 </p>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    <Btn
+                                                        variant="primary"
+                                                        style={{ width: '100%', justifyContent: 'center', fontSize: 12.5 }}
+                                                        onClick={() => setShowBastDocModal(true)}
+                                                    >
+                                                        <Printer size={14} /> Lihat &amp; Cetak Dokumen BAST Resmi
+                                                    </Btn>
+                                                    <Btn
+                                                        variant="ghost"
+                                                        style={{ width: '100%', justifyContent: 'center', background: T.white, borderColor: '#cbd5e1', fontSize: 12 }}
+                                                        onClick={() => {
+                                                            const bastItems = req.items.map(it => ({
+                                                                name: it.name,
+                                                                qty: it.qty,
+                                                                condition: 'Baik'
+                                                            }));
+                                                            navigate('/e-office/surat-keluar', {
+                                                                state: {
+                                                                    autoCreate: true,
+                                                                    type: 'SURAT_KELUAR',
+                                                                    category: 'Serah Terima Barang',
+                                                                    subject: `BAST Pengadaan: ${req.title || req.code}`,
+                                                                    party1Name: staffName || 'Staff Manajemen Aset',
+                                                                    party1Title: 'Pemberi',
+                                                                    party2Name: receiverName || req.user?.name || req.user?.username || 'Penerima Barang',
+                                                                    party2Title: 'Penerima',
+                                                                    bastItems
+                                                                }
+                                                            });
+                                                        }}
+                                                    >
+                                                        <QrCode size={14} /> Terbitkan / Kelola di E-Office
+                                                    </Btn>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* ─── AREA TANDA TANGAN DIGITAL BAST ─── */}
+                                    <div style={{
+                                        background: T.white, borderRadius: 14,
+                                        border: `1.5px solid ${T.border}`, padding: '24px 26px',
+                                        boxShadow: '0 2px 12px rgba(15,31,61,0.04)',
+                                        display: 'flex', flexDirection: 'column', gap: 18
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingBottom: 14, borderBottom: `1px solid ${T.creamDk}` }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <PenTool size={18} color="#b45309" />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 14, fontWeight: 800, color: T.navy }}>Tanda Tangan Berita Acara (BAST)</div>
+                                                    <div style={{ fontSize: 11.5, color: T.slate }}>
+                                                        Tanda tangan digital antara Staff Manajemen Aset dan Penerima Barang (nama penerima dapat diganti/disesuaikan jika diwakilkan)
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                 <Btn
+                                                    type="button"
                                                     variant="ghost"
-                                                    style={{ width: '100%', justifyContent: 'center', background: T.white, borderColor: '#cbd5e1' }}
-                                                    onClick={() => {
-                                                        const bastItems = req.items.map(it => ({
-                                                            name: it.name,
-                                                            qty: it.qty,
-                                                            condition: 'Baik'
-                                                        }));
-                                                        navigate('/e-office/surat-keluar', {
-                                                            state: {
-                                                                autoCreate: true,
-                                                                type: 'SURAT_KELUAR',
-                                                                category: 'Serah Terima Barang',
-                                                                subject: `BAST Pengadaan: ${req.title}`,
-                                                                party1Name: 'Kepala Bidang Sarana Prasarana',
-                                                                party1Title: 'Pemberi',
-                                                                party2Name: req.items?.[0]?.vendorName || '',
-                                                                party2Title: 'Penerima',
-                                                                bastItems
-                                                            }
-                                                        });
-                                                    }}
+                                                    onClick={() => setShowBastDocModal(true)}
+                                                    style={{ fontSize: 12, padding: '7px 14px' }}
                                                 >
-                                                    <FileText size={14} /> Terbitkan / Kelola BAST di E-Office
+                                                    <Printer size={14} /> Pratinjau Dokumen BAST
                                                 </Btn>
+                                                <Btn
+                                                    type="button"
+                                                    variant="secondary"
+                                                    disabled={isSavingSignatures || !(isAdmin || isAssignedToAny || isRequester)}
+                                                    onClick={handleSaveSignaturesOnly}
+                                                    style={{ fontSize: 12, padding: '7px 14px' }}
+                                                >
+                                                    {isSavingSignatures ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                                                    Simpan TTD
+                                                </Btn>
+                                            </div>
+                                        </div>
+
+                                        {/* 2 Kolom: Pihak Pertama (Staff Aset) & Pihak Kedua (Penerima) */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+                                            {/* KARTU 1: PIHAK PERTAMA (STAFF MANAJEMEN ASET) */}
+                                            <div style={{
+                                                background: T.cream, borderRadius: 12,
+                                                border: `1.5px solid ${staffSignature ? '#a3d9c0' : T.border}`,
+                                                padding: 18, display: 'flex', flexDirection: 'column', gap: 12
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.navy }}>
+                                                        Pihak Pertama (Yang Menyerahkan)
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+                                                        background: staffSignature ? '#dcfce7' : '#fef3c7',
+                                                        color: staffSignature ? '#15803d' : '#b45309',
+                                                        display: 'flex', alignItems: 'center', gap: 4
+                                                    }}>
+                                                        {staffSignature ? <Check size={11} /> : <Clock size={11} />}
+                                                        {staffSignature ? 'Sudah TTD' : 'Belum TTD'}
+                                                    </span>
+                                                </div>
+
+                                                <div>
+                                                    <Label style={{ marginBottom: 4 }}>Nama Staff Manajemen Aset</Label>
+                                                    <Input
+                                                        value={staffName}
+                                                        onChange={e => setStaffName(e.target.value)}
+                                                        placeholder="Nama Staff Manajemen Aset..."
+                                                        disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny)}
+                                                    />
+                                                    <span style={{ fontSize: 10.5, color: T.slate, marginTop: 4, display: 'block' }}>
+                                                        Jabatan: Staff Manajemen Aset / Sarana Prasarana
+                                                    </span>
+                                                </div>
+
+                                                {/* Kotak Tanda Tangan Staff */}
+                                                <div>
+                                                    <Label style={{ marginBottom: 6 }}>Goresan Tanda Tangan Staff</Label>
+                                                    {staffSignature ? (
+                                                        <div style={{
+                                                            background: T.white, borderRadius: 10,
+                                                            border: '1.5px solid #a3d9c0', padding: 12,
+                                                            textAlign: 'center', position: 'relative'
+                                                        }}>
+                                                            <img
+                                                                src={staffSignature}
+                                                                alt="TTD Staff"
+                                                                style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }}
+                                                            />
+                                                            <div style={{ borderTop: `1px solid ${T.creamDk}`, marginTop: 8, paddingTop: 6, fontSize: 12, fontWeight: 700, color: T.navy }}>
+                                                                {staffName || 'Staff Manajemen Aset'}
+                                                            </div>
+                                                            {(req.status !== 'COMPLETED' || (isAdmin || isAssignedToAny)) && (
+                                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Tanda Tangan Staff Manajemen Aset' })}
+                                                                        style={{
+                                                                            background: 'none', border: `1px solid ${T.border}`, borderRadius: 6,
+                                                                            padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.navy, cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        Ubah TTD
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setStaffSignature(null)}
+                                                                        style={{
+                                                                            background: 'none', border: 'none', fontSize: 11,
+                                                                            color: T.danger, cursor: 'pointer', padding: '4px 8px'
+                                                                        }}
+                                                                    >
+                                                                        Hapus
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{
+                                                            border: `2px dashed ${T.border}`, borderRadius: 10,
+                                                            padding: '20px 16px', textAlign: 'center', background: T.white
+                                                        }}>
+                                                            <PenTool size={26} color={T.slate} style={{ margin: '0 auto 6px', opacity: 0.7 }} />
+                                                            <div style={{ fontSize: 11.5, color: T.slate, marginBottom: 8 }}>
+                                                                Belum ada tanda tangan Staff Manajemen Aset
+                                                            </div>
+                                                            <Btn
+                                                                type="button"
+                                                                variant="secondary"
+                                                                style={{ margin: '0 auto', fontSize: 12, padding: '5px 12px' }}
+                                                                disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny)}
+                                                                onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Tanda Tangan Staff Manajemen Aset' })}
+                                                            >
+                                                                <PenTool size={12} /> Goreskan TTD Staff
+                                                            </Btn>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* KARTU 2: PIHAK KEDUA (PENERIMA BARANG) */}
+                                            <div style={{
+                                                background: T.cream, borderRadius: 12,
+                                                border: `1.5px solid ${receiverSignature ? '#a3d9c0' : T.border}`,
+                                                padding: 18, display: 'flex', flexDirection: 'column', gap: 12
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.navy }}>
+                                                        Pihak Kedua (Yang Menerima)
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
+                                                        background: receiverSignature ? '#dcfce7' : '#fef3c7',
+                                                        color: receiverSignature ? '#15803d' : '#b45309',
+                                                        display: 'flex', alignItems: 'center', gap: 4
+                                                    }}>
+                                                        {receiverSignature ? <Check size={11} /> : <Clock size={11} />}
+                                                        {receiverSignature ? 'Sudah TTD' : 'Belum TTD'}
+                                                    </span>
+                                                </div>
+
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                        <Label style={{ marginBottom: 0 }}>Nama Penerima Barang *</Label>
+                                                        {req?.user?.name && receiverName !== req.user.name && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setReceiverName(req.user.name || req.user.username)}
+                                                                style={{
+                                                                    background: 'none', border: 'none', color: T.gold,
+                                                                    fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0
+                                                                }}
+                                                                title="Kembalikan ke nama pemohon asli"
+                                                            >
+                                                                Gunakan Pemohon ({req.user.name})
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <Input
+                                                        value={receiverName}
+                                                        onChange={e => setReceiverName(e.target.value)}
+                                                        placeholder="Nama lengkap penerima barang (bisa diganti jika diwakilkan)..."
+                                                        disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny || isRequester)}
+                                                    />
+                                                    <span style={{ fontSize: 10.5, color: T.slate, marginTop: 4, display: 'block' }}>
+                                                        Unit: {req?.unit?.name || 'Unit Pemohon'} · Diambil dari nama user pemohon, bisa diubah jika diwakilkan
+                                                    </span>
+                                                </div>
+
+                                                {/* Kotak Tanda Tangan Penerima */}
+                                                <div>
+                                                    <Label style={{ marginBottom: 6 }}>Goresan Tanda Tangan Penerima</Label>
+                                                    {receiverSignature ? (
+                                                        <div style={{
+                                                            background: T.white, borderRadius: 10,
+                                                            border: '1.5px solid #a3d9c0', padding: 12,
+                                                            textAlign: 'center', position: 'relative'
+                                                        }}>
+                                                            <img
+                                                                src={receiverSignature}
+                                                                alt="TTD Penerima"
+                                                                style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }}
+                                                            />
+                                                            <div style={{ borderTop: `1px solid ${T.creamDk}`, marginTop: 8, paddingTop: 6, fontSize: 12, fontWeight: 700, color: T.navy }}>
+                                                                {receiverName || req?.user?.name || req?.user?.username || 'Penerima Barang'}
+                                                            </div>
+                                                            {(req.status !== 'COMPLETED' || (isAdmin || isAssignedToAny || isRequester)) && (
+                                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSigModal({ open: true, type: 'RECEIVER', title: 'Tanda Tangan Penerima Barang' })}
+                                                                        style={{
+                                                                            background: 'none', border: `1px solid ${T.border}`, borderRadius: 6,
+                                                                            padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.navy, cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        Ubah TTD
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setReceiverSignature(null)}
+                                                                        style={{
+                                                                            background: 'none', border: 'none', fontSize: 11,
+                                                                            color: T.danger, cursor: 'pointer', padding: '4px 8px'
+                                                                        }}
+                                                                    >
+                                                                        Hapus
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{
+                                                            border: `2px dashed ${T.border}`, borderRadius: 10,
+                                                            padding: '20px 16px', textAlign: 'center', background: T.white
+                                                        }}>
+                                                            <PenTool size={26} color={T.slate} style={{ margin: '0 auto 6px', opacity: 0.7 }} />
+                                                            <div style={{ fontSize: 11.5, color: T.slate, marginBottom: 8 }}>
+                                                                Belum ada tanda tangan Penerima Barang
+                                                            </div>
+                                                            <Btn
+                                                                type="button"
+                                                                variant="secondary"
+                                                                style={{ margin: '0 auto', fontSize: 12, padding: '5px 12px' }}
+                                                                disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny || isRequester)}
+                                                                onClick={() => setSigModal({ open: true, type: 'RECEIVER', title: 'Tanda Tangan Penerima Barang' })}
+                                                            >
+                                                                <PenTool size={12} /> Goreskan TTD Penerima
+                                                            </Btn>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -2327,9 +2696,9 @@ const ProcurementDetail = () => {
                                             <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.slate, marginBottom: 12 }}>
                                                 Bukti Foto / Berkas Serah Terima
                                             </div>
-                                            {req.bastFile ? (
+                                            {handoverPhoto ? (
                                                 <img
-                                                    src={getMediaUrl(req.bastFile)}
+                                                    src={getMediaUrl(handoverPhoto)}
                                                     alt="Bukti BAST"
                                                     style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}` }}
                                                 />
@@ -2341,7 +2710,111 @@ const ProcurementDetail = () => {
                                         </div>
                                     </div>
 
+                                    {/* Card Tanda Tangan Sah BAST (Completed) */}
+                                    <div style={{
+                                        background: T.white, borderRadius: 12,
+                                        border: `1.5px solid ${T.border}`, padding: '20px 24px',
+                                        boxShadow: '0 2px 10px rgba(15,31,61,0.03)'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${T.creamDk}` }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#eef3fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <PenTool size={15} color="#2563eb" />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: T.navy }}>Tanda Tangan Pengesahan BAST</div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>Tanda tangan digital sah Pihak Pertama (Staff) dan Pihak Kedua (Penerima)</div>
+                                                </div>
+                                            </div>
+                                            {(isAdmin || isAssignedToAny || isRequester) && (
+                                                <Btn
+                                                    type="button"
+                                                    variant="secondary"
+                                                    style={{ fontSize: 11, padding: '5px 12px' }}
+                                                    onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Perbarui Tanda Tangan Staff' })}
+                                                >
+                                                    <PenTool size={12} /> Ubah TTD Staff
+                                                </Btn>
+                                            )}
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                                            {/* Box Staff */}
+                                            <div style={{
+                                                background: T.cream, borderRadius: 10, border: `1px solid ${T.creamDk}`,
+                                                padding: '16px 18px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center'
+                                            }}>
+                                                <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: T.slate, marginBottom: 8, letterSpacing: '0.06em' }}>
+                                                    PIHAK PERTAMA (STAFF MANAJEMEN ASET)
+                                                </span>
+                                                <div style={{ height: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                                                    {staffSignature ? (
+                                                        <img src={staffSignature} alt="TTD Staff" style={{ maxHeight: 75, maxWidth: '85%', objectFit: 'contain' }} />
+                                                    ) : (
+                                                        <span style={{ fontSize: 11.5, color: T.slate, fontStyle: 'italic' }}>Belum Ditandatangani</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ borderTop: `1px solid ${T.border}`, width: '100%', paddingTop: 8, marginTop: 4 }}>
+                                                    <div style={{ fontSize: 13, fontWeight: 800, color: T.navy }}>
+                                                        {staffName || 'Staff Manajemen Aset'}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>Staff Manajemen Aset</div>
+                                                </div>
+                                                {(isAdmin || isAssignedToAny) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Tanda Tangan Staff Manajemen Aset' })}
+                                                        style={{ marginTop: 8, background: 'none', border: 'none', color: T.navyMid, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        {staffSignature ? 'Ubah TTD Staff' : '+ Bubuhkan TTD Staff'}
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Box Penerima */}
+                                            <div style={{
+                                                background: T.cream, borderRadius: 10, border: `1px solid ${T.creamDk}`,
+                                                padding: '16px 18px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                                    <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: T.slate, letterSpacing: '0.06em' }}>
+                                                        PIHAK KEDUA (PENERIMA BARANG)
+                                                    </span>
+                                                </div>
+                                                <div style={{ height: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                                                    {receiverSignature ? (
+                                                        <img src={receiverSignature} alt="TTD Penerima" style={{ maxHeight: 75, maxWidth: '85%', objectFit: 'contain' }} />
+                                                    ) : (
+                                                        <span style={{ fontSize: 11.5, color: T.slate, fontStyle: 'italic' }}>Belum Ditandatangani</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ borderTop: `1px solid ${T.border}`, width: '100%', paddingTop: 8, marginTop: 4 }}>
+                                                    <div style={{ fontSize: 13, fontWeight: 800, color: T.navy }}>
+                                                        {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>{req.unit?.name || 'Unit Pemohon'}</div>
+                                                </div>
+                                                {(isAdmin || isAssignedToAny || isRequester) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSigModal({ open: true, type: 'RECEIVER', title: 'Tanda Tangan Penerima Barang' })}
+                                                        style={{ marginTop: 8, background: 'none', border: 'none', color: T.navyMid, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        {receiverSignature ? 'Ubah TTD Penerima' : '+ Bubuhkan TTD Penerima'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                        <Btn
+                                            variant="gold"
+                                            style={{ flex: 1, justifyContent: 'center', minWidth: 220 }}
+                                            onClick={() => setShowBastDocModal(true)}
+                                        >
+                                            <Printer size={15} /> Cetak / Lihat Dokumen BAST Resmi
+                                        </Btn>
                                         <Btn
                                             variant="ghost"
                                             style={{ flex: 1, justifyContent: 'center', minWidth: 220 }}
@@ -2356,17 +2829,17 @@ const ProcurementDetail = () => {
                                                         autoCreate: true,
                                                         type: 'SURAT_KELUAR',
                                                         category: 'Serah Terima Barang',
-                                                        subject: `BAST Pengadaan: ${req.title}`,
-                                                        party1Name: 'Kepala Bidang Sarana Prasarana',
+                                                        subject: `BAST Pengadaan: ${req.title || req.code}`,
+                                                        party1Name: staffName || 'Staff Manajemen Aset',
                                                         party1Title: 'Pemberi',
-                                                        party2Name: req.items?.[0]?.vendorName || '',
+                                                        party2Name: receiverName || req.user?.name || req.user?.username || 'Penerima Barang',
                                                         party2Title: 'Penerima',
                                                         bastItems
                                                     }
                                                 });
                                             }}
                                         >
-                                            <QrCode size={15} /> Buat Ulang / Lihat BAST Resmi di E-Office
+                                            <QrCode size={15} /> Buat Ulang / Kelola di E-Office
                                         </Btn>
                                         {req.type === 'ASSET' && (
                                             <Btn
@@ -3179,6 +3652,288 @@ const ProcurementDetail = () => {
                     </div>
                 </div>
             )}
+
+            {/* ══════════════════════════════════════════════════════════════════
+                MODAL TANDA TANGAN DIGITAL (CANVAS SIGNATURE PAD)
+            ══════════════════════════════════════════════════════════════════ */}
+            {sigModal.open && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 10000,
+                    background: 'rgba(15,31,61,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 16
+                }}>
+                    <div style={{ width: '100%', maxWidth: 440 }}>
+                        <SignaturePad
+                            title={sigModal.title}
+                            onCancel={() => setSigModal({ open: false, type: null, title: '' })}
+                            onSave={(dataUrl) => {
+                                if (sigModal.type === 'STAFF') {
+                                    setStaffSignature(dataUrl);
+                                } else if (sigModal.type === 'RECEIVER') {
+                                    setReceiverSignature(dataUrl);
+                                }
+                                setSigModal({ open: false, type: null, title: '' });
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════════
+                MODAL DOKUMEN CETAK BAST RESMI
+            ══════════════════════════════════════════════════════════════════ */}
+            {showBastDocModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(15,31,61,0.7)', backdropFilter: 'blur(5px)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    padding: '20px 10px', overflowY: 'auto'
+                }}>
+                    {/* Action Bar (hidden when printing) */}
+                    <div className="no-print" style={{
+                        width: '100%', maxWidth: 850,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        marginBottom: 16, background: T.white, padding: '12px 20px',
+                        borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <FileText size={20} color={T.navy} />
+                            <span style={{ fontWeight: 800, fontSize: 15, color: T.navy }}>
+                                Pratinjau Berita Acara Serah Terima (BAST)
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <Btn
+                                variant="primary"
+                                onClick={() => window.print()}
+                                style={{ padding: '8px 18px', fontSize: 13 }}
+                            >
+                                <Printer size={15} /> Cetak Dokumen / Simpan PDF
+                            </Btn>
+                            <Btn
+                                variant="ghost"
+                                onClick={() => setShowBastDocModal(false)}
+                                style={{ padding: '8px 14px', fontSize: 13 }}
+                            >
+                                <X size={16} /> Tutup
+                            </Btn>
+                        </div>
+                    </div>
+
+                    {/* Printable Paper */}
+                    <div id="bast-print-sheet" style={{
+                        width: '100%', maxWidth: 850,
+                        background: '#ffffff', color: '#111827',
+                        padding: '44px 50px', borderRadius: 4,
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+                        fontFamily: "'Times New Roman', Times, serif",
+                        lineHeight: 1.6, fontSize: 13.5
+                    }}>
+                        {/* Header / Kop Surat */}
+                        <div style={{ textAlign: 'center', borderBottom: '2.5px solid #111827', paddingBottom: 14, marginBottom: 20 }}>
+                            <div style={{ fontSize: 18, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                YAYASAN DARELIMAN
+                            </div>
+                            <div style={{ fontSize: 15, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                BAGIAN SARANA DAN PRASARANA (MANAJEMEN ASET)
+                            </div>
+                            <div style={{ fontSize: 11, fontStyle: 'italic', color: '#4b5563', marginTop: 2 }}>
+                                Sistem Informasi Manajemen Sarana &amp; Prasarana (SIMAS)
+                            </div>
+                        </div>
+
+                        {/* Document Title */}
+                        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                            <div style={{ fontSize: 16, fontWeight: 900, textDecoration: 'underline', textTransform: 'uppercase' }}>
+                                BERITA ACARA SERAH TERIMA BARANG (BAST)
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4 }}>
+                                Nomor Pengadaan: {req.code}
+                            </div>
+                            {req.title && (
+                                <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#374151' }}>
+                                    Perihal: {req.title}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Pembuka */}
+                        <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 14px' }}>
+                            Pada hari ini, <strong>{formatIndonesianDate(bastDate).dayName || '—'}</strong> tanggal <strong>{formatIndonesianDate(bastDate).dateNum || '—'}</strong> bulan <strong>{formatIndonesianDate(bastDate).monthName || '—'}</strong> tahun <strong>{formatIndonesianDate(bastDate).year || '—'}</strong> ({new Date(bastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}), kami yang bertanda tangan di bawah ini:
+                        </p>
+
+                        {/* Pihak 1 & Pihak 2 List */}
+                        <div style={{ marginLeft: 20, marginBottom: 16 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                <tbody>
+                                    <tr>
+                                        <td style={{ width: 24, verticalAlign: 'top', fontWeight: 'bold' }}>1.</td>
+                                        <td style={{ width: 150, verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
+                                        <td style={{ width: 12, verticalAlign: 'top' }}>:</td>
+                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{staffName || 'Staff Manajemen Aset'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style={{ verticalAlign: 'top' }}>Jabatan</td>
+                                        <td style={{ verticalAlign: 'top' }}>:</td>
+                                        <td style={{ verticalAlign: 'top' }}>Staff Manajemen Aset / Sarana Prasarana</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style={{ verticalAlign: 'top' }}>Unit Kerja</td>
+                                        <td style={{ verticalAlign: 'top' }}>:</td>
+                                        <td style={{ verticalAlign: 'top' }}>Bagian Sarana dan Prasarana Yayasan</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 3, paddingBottom: 10 }}>
+                                            Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong> (Yang Menyerahkan).
+                                        </td>
+                                    </tr>
+
+                                    <tr>
+                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>2.</td>
+                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
+                                        <td style={{ verticalAlign: 'top' }}>:</td>
+                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style={{ verticalAlign: 'top' }}>Jabatan / Status</td>
+                                        <td style={{ verticalAlign: 'top' }}>:</td>
+                                        <td style={{ verticalAlign: 'top' }}>Penerima / Pemohon Barang</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style={{ verticalAlign: 'top' }}>Unit Kerja / Divisi</td>
+                                        <td style={{ verticalAlign: 'top' }}>:</td>
+                                        <td style={{ verticalAlign: 'top' }}>{req.unit?.name || '—'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 3 }}>
+                                            Selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong> (Yang Menerima).
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <p style={{ textAlign: 'justify', margin: '0 0 14px' }}>
+                            Dengan ini menyatakan bahwa <strong>PIHAK PERTAMA</strong> telah menyerahkan barang pengadaan kepada <strong>PIHAK KEDUA</strong>, dan <strong>PIHAK KEDUA</strong> telah memeriksa serta menerima barang tersebut dalam keadaan baik, lengkap, dan sesuai spesifikasi dengan rincian sebagai berikut:
+                        </p>
+
+                        {/* Tabel Rincian Barang */}
+                        <table style={{
+                            width: '100%', borderCollapse: 'collapse', marginBottom: 18,
+                            fontSize: 12.5, border: '1px solid #111827'
+                        }}>
+                            <thead>
+                                <tr style={{ background: '#f3f4f6' }}>
+                                    <th style={{ border: '1px solid #111827', padding: '6px 8px', width: 36, textAlign: 'center' }}>No</th>
+                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'left' }}>Nama Barang</th>
+                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'left' }}>Spesifikasi / Merk</th>
+                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', width: 60, textAlign: 'center' }}>Qty</th>
+                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', width: 65, textAlign: 'center' }}>Satuan</th>
+                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', width: 85, textAlign: 'center' }}>Kondisi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {req.items.map((it, idx) => (
+                                    <tr key={it.id}>
+                                        <td style={{ border: '1px solid #111827', padding: '6px 8px', textAlign: 'center' }}>{idx + 1}</td>
+                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', fontWeight: 'bold' }}>{it.name}</td>
+                                        <td style={{ border: '1px solid #111827', padding: '6px 10px' }}>
+                                            {it.spec || '—'} {it.brand ? `(${it.brand})` : ''}
+                                        </td>
+                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'center' }}>{it.qty}</td>
+                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'center' }}>{it.unit}</td>
+                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'center', color: '#15803d', fontWeight: 600 }}>Baik</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* Penutup */}
+                        <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 32px' }}>
+                            Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh kedua belah pihak dengan sebenar-benarnya tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.
+                        </p>
+
+                        {/* Kolom Tanda Tangan */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pageBreakInside: 'avoid' }}>
+                            {/* Pihak Pertama */}
+                            <div style={{ width: '45%', textAlign: 'center' }}>
+                                <div style={{ fontWeight: 'bold' }}>PIHAK PERTAMA</div>
+                                <div style={{ fontSize: 12, color: '#374151' }}>Yang Menyerahkan,</div>
+                                <div style={{
+                                    height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    margin: '6px 0'
+                                }}>
+                                    {staffSignature ? (
+                                        <img src={staffSignature} alt="TTD Staff" style={{ maxHeight: 85, maxWidth: '90%', objectFit: 'contain' }} />
+                                    ) : (
+                                        <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
+                                            (Belum Ditandatangani)
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13.5 }}>
+                                    {staffName || 'Staff Manajemen Aset'}
+                                </div>
+                                <div style={{ fontSize: 11.5, color: '#4b5563' }}>Staff Manajemen Aset</div>
+                            </div>
+
+                            {/* Pihak Kedua */}
+                            <div style={{ width: '45%', textAlign: 'center' }}>
+                                <div style={{ fontWeight: 'bold' }}>PIHAK KEDUA</div>
+                                <div style={{ fontSize: 12, color: '#374151' }}>Yang Menerima,</div>
+                                <div style={{
+                                    height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    margin: '6px 0'
+                                }}>
+                                    {receiverSignature ? (
+                                        <img src={receiverSignature} alt="TTD Penerima" style={{ maxHeight: 85, maxWidth: '90%', objectFit: 'contain' }} />
+                                    ) : (
+                                        <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
+                                            (Belum Ditandatangani)
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13.5 }}>
+                                    {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
+                                </div>
+                                <div style={{ fontSize: 11.5, color: '#4b5563' }}>{req.unit?.name || 'Penerima Barang'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Print CSS Styles */}
+            <style>{`
+                @media print {
+                    body * {
+                        visibility: hidden !important;
+                    }
+                    #bast-print-sheet, #bast-print-sheet * {
+                        visibility: visible !important;
+                    }
+                    #bast-print-sheet {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        padding: 20px 25px !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 };

@@ -1980,33 +1980,111 @@ exports.updateOrderPayment = async (req, res) => {
 // ==========================================
 exports.getVendors = async (req, res) => {
     try {
-        const data = await prisma.invVendor.findMany({ orderBy: { name: 'asc' } });
+        const data = await prisma.invVendor.findMany({ 
+            where: { isActive: true },
+            orderBy: { name: 'asc' } 
+        });
         res.json(data);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 exports.createVendor = async (req, res) => {
     try {
-        const data = await prisma.invVendor.create({ data: req.body });
+        const { name, phone, contactPerson, email, address, description, mapsUrl, isActive } = req.body;
+        if (!name || !String(name).trim()) {
+            return res.status(400).json({ error: 'Nama vendor wajib diisi' });
+        }
+        const data = await prisma.invVendor.create({
+            data: {
+                name: String(name).trim(),
+                phone: phone ? String(phone).trim() : null,
+                contactPerson: contactPerson ? String(contactPerson).trim() : null,
+                email: email ? String(email).trim() : null,
+                address: address ? String(address).trim() : null,
+                description: description || mapsUrl || null,
+                isActive: isActive !== undefined ? Boolean(isActive) : true
+            }
+        });
         res.json(data);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        console.error('createVendor error:', e);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 exports.updateVendor = async (req, res) => {
     try {
+        const { name, phone, contactPerson, email, address, description, mapsUrl, isActive } = req.body;
+        const updateData = {};
+        if (name !== undefined) updateData.name = String(name).trim();
+        if (phone !== undefined) updateData.phone = phone ? String(phone).trim() : null;
+        if (contactPerson !== undefined) updateData.contactPerson = contactPerson ? String(contactPerson).trim() : null;
+        if (email !== undefined) updateData.email = email ? String(email).trim() : null;
+        if (address !== undefined) updateData.address = address ? String(address).trim() : null;
+        if (description !== undefined) updateData.description = description || null;
+        else if (mapsUrl !== undefined) updateData.description = mapsUrl || null;
+        if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+
         const data = await prisma.invVendor.update({
             where: { id: parseInt(req.params.id) },
-            data: req.body
+            data: updateData
         });
         res.json(data);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        console.error('updateVendor error:', e);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 exports.deleteVendor = async (req, res) => {
     try {
-        await prisma.invVendor.delete({ where: { id: parseInt(req.params.id) } });
-        res.json({ message: 'Vendor deleted' });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        const id = parseInt(req.params.id);
+        try {
+            await prisma.invVendor.delete({ where: { id } });
+        } catch (delErr) {
+            // Soft delete jika terdapat relasi proyek / pesanan
+            await prisma.invVendor.update({
+                where: { id },
+                data: { isActive: false }
+            });
+        }
+        res.json({ message: 'Vendor berhasil dihapus' });
+    } catch (e) {
+        console.error('deleteVendor error:', e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
+exports.syncAllVendorRatings = async (req, res) => {
+    try {
+        const vendors = await prisma.invVendor.findMany();
+        for (const v of vendors) {
+            const evals = await prisma.invVendorEvaluation.findMany({ where: { vendorId: v.id } });
+            if (evals.length === 0) {
+                await prisma.invVendor.update({
+                    where: { id: v.id },
+                    data: { rating: 0, onTimeRate: 0, rejectRate: 0, totalOrders: 0 }
+                });
+            } else {
+                const avgRating = evals.reduce((sum, e) => sum + (parseFloat(e.rating) || 0), 0) / evals.length;
+                const avgOnTime = evals.reduce((sum, e) => sum + (parseFloat(e.onTimeRate) || 0), 0) / evals.length;
+                const avgReject = evals.reduce((sum, e) => sum + (parseFloat(e.rejectRate) || 0), 0) / evals.length;
+                await prisma.invVendor.update({
+                    where: { id: v.id },
+                    data: {
+                        rating: avgRating,
+                        onTimeRate: avgOnTime,
+                        rejectRate: avgReject,
+                        totalOrders: evals.length
+                    }
+                });
+            }
+        }
+        res.json({ message: 'Sync complete' });
+    } catch (error) {
+        console.error('syncAllVendorRatings error:', error);
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // ==========================================

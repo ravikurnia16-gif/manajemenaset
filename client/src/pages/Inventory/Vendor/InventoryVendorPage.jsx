@@ -48,11 +48,27 @@ export default function InventoryVendorPage() {
 
     const handleSaveVendor = async (formData) => {
         try {
-            if (formData.id) await api.put(`/inventory/vendors/${formData.id}`, formData);
-            else await api.post('/inventory/vendors', formData);
+            const payload = {
+                name: formData.name,
+                phone: formData.phone || '',
+                contactPerson: formData.contactPerson || '',
+                email: formData.email || '',
+                address: formData.address || '',
+                mapsUrl: formData.mapsUrl || '',
+                description: formData.description || formData.mapsUrl || ''
+            };
+
+            if (formData.id) {
+                await api.put(`/inventory/vendors/${formData.id}`, payload);
+            } else {
+                await api.post('/inventory/vendors', payload);
+            }
             closeModal();
             fetchData();
-        } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan vendor'); }
+        } catch (err) {
+            console.error('Error saving vendor:', err);
+            alert(err.response?.data?.error || 'Gagal menyimpan vendor');
+        }
     };
 
     const handleSaveProject = async (formData) => {
@@ -150,14 +166,15 @@ export default function InventoryVendorPage() {
                 {modal.type === 'vendor' && (
                     <SimpleForm
                         fields={[
-                            { name: 'name', label: 'Nama Vendor', type: 'text', required: true },
-                            { name: 'phone', label: 'No. HP / WA', type: 'text' },
-                            { name: 'contactPerson', label: 'Nama Kontak (CP)', type: 'text' },
-                            { name: 'email', label: 'Email', type: 'email' },
-                            { name: 'address', label: 'Alamat Lengkap', type: 'textarea' },
-                            { name: 'mapsUrl', label: 'Link Google Maps', type: 'text' }
+                            { name: 'name', label: 'Nama Vendor', type: 'text', required: true, placeholder: 'Contoh: PT ATK Nusantara' },
+                            { name: 'phone', label: 'No. HP / WA', type: 'text', placeholder: 'Contoh: 08123456789' },
+                            { name: 'contactPerson', label: 'Nama Kontak (CP)', type: 'text', placeholder: 'Contoh: Bpk. Kurnia' },
+                            { name: 'email', label: 'Email', type: 'email', placeholder: 'vendor@example.com' },
+                            { name: 'address', label: 'Alamat Lengkap', type: 'textarea', placeholder: 'Alamat kantor / gudang vendor' },
+                            { name: 'mapsUrl', label: 'Link Google Maps', type: 'text', placeholder: 'https://maps.google.com/...' }
                         ]}
                         initialData={modal.data}
+                        onSave={handleSaveVendor}
                         onSubmit={handleSaveVendor}
                         onCancel={closeModal}
                     />

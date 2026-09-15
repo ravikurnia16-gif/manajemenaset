@@ -3,15 +3,53 @@ import { Plus, X, FileSpreadsheet } from 'lucide-react';
 import api from '../../lib/axios';
 import { InputField, SelectField } from './UIComponents';
 
-export const SimpleForm = ({ fields, initialData, onSave }) => {
+export const SimpleForm = ({ fields, initialData, onSave, onSubmit, onCancel }) => {
     const [form, setForm] = useState(initialData || {});
+
+    useEffect(() => {
+        setForm(initialData || {});
+    }, [initialData]);
+
+    const handleSave = onSave || onSubmit;
+
+    const handleSubmit = (e) => {
+        if (e) e.preventDefault();
+        if (handleSave) {
+            handleSave(form);
+        }
+    };
+
     return (
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
             {fields.map(f => (
-                <InputField key={f.name} label={f.label} value={form[f.name] || ''} onChange={e => setForm({ ...form, [f.name]: e.target.value })} placeholder={f.placeholder} required={f.required} />
+                <InputField 
+                    key={f.name} 
+                    label={f.label} 
+                    type={f.type || 'text'}
+                    value={form[f.name] || ''} 
+                    onChange={e => setForm({ ...form, [f.name]: e.target.value })} 
+                    placeholder={f.placeholder} 
+                    required={f.required} 
+                />
             ))}
-            <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition-all">Simpan</button>
-        </div>
+            <div className="flex gap-2 pt-2">
+                {onCancel && (
+                    <button 
+                        type="button" 
+                        onClick={onCancel} 
+                        className="w-1/3 border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
+                    >
+                        Batal
+                    </button>
+                )}
+                <button 
+                    type="submit" 
+                    className={`${onCancel ? 'w-2/3' : 'w-full'} bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition-all`}
+                >
+                    Simpan
+                </button>
+            </div>
+        </form>
     );
 };
 
