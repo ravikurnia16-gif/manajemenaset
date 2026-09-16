@@ -1317,7 +1317,7 @@ exports.uploadReportPhoto = async (req, res) => {
 /**
  * Cron Job: Send daily report reminders to Admin Aset staff only.
  * Morning trigger: 13:30 WIB
- * Afternoon trigger: 16:16 WIB
+ * Afternoon trigger: 19:00 WIB
  * Skipped on Saturdays, Sundays, and National Holidays.
  */
 exports.sendReportReminders = async () => {

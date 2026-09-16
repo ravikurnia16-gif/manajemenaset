@@ -79,6 +79,16 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
     // Detail Modal State
     const [selectedChecklist, setSelectedChecklist] = useState(null);
 
+    // Current logged in user & PIC info
+    const activeUser = currentUserProfile || {};
+    const currentUserId = activeUser.id;
+    const myPicVehicles = useMemo(() => {
+        if (!currentUserId) return [];
+        return vehicles.filter(v => v.pics?.some(p => p.id === currentUserId));
+    }, [vehicles, currentUserId]);
+    const isPIC = myPicVehicles.length > 0;
+    const [readinessFilter, setReadinessFilter] = useState('ALL'); // 'ALL' | 'MY_PIC'
+
     // Form State
     const [formVehicleId, setFormVehicleId] = useState('');
     const [formType, setFormType] = useState('DAILY');
@@ -130,6 +140,16 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
     const handleOpenFormForVehicle = (vehicleId, defaultType = 'DAILY') => {
         setFormVehicleId(vehicleId.toString());
         setFormType(defaultType);
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleOpenForm = () => {
+        if (!formVehicleId && myPicVehicles.length > 0) {
+            setFormVehicleId(myPicVehicles[0].id.toString());
+        } else if (!formVehicleId) {
+            setFormVehicleId('');
+        }
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -245,8 +265,11 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                 readiness = 'READY';
             }
 
+            const isMyPicVehicle = Boolean(v.pics?.some(p => p.id === currentUserId));
+
             return {
                 vehicle: v,
+                isMyPicVehicle,
                 latestDaily,
                 isDailyDoneToday,
                 latestWeekly,
@@ -258,7 +281,15 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                 readiness
             };
         });
-    }, [vehicles, checklists]);
+    }, [vehicles, checklists, currentUserId]);
+
+    // Filtered readiness board based on PIC toggle
+    const filteredFleetReadiness = useMemo(() => {
+        if (readinessFilter === 'MY_PIC') {
+            return fleetReadiness.filter(f => f.isMyPicVehicle);
+        }
+        return fleetReadiness;
+    }, [fleetReadiness, readinessFilter]);
 
     // KPI Summary
     const stats = useMemo(() => {
@@ -334,13 +365,10 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                             </button>
                         )}
                         <button 
-                            onClick={() => {
-                                setFormVehicleId('');
-                                setShowForm(true);
-                            }}
+                            onClick={handleOpenForm}
                             className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md"
                         >
-                            <Plus size={16} /> Isi Laporan Ceklis
+                            <Plus size={16} /> Isi Laporan Ceklis {isPIC ? '(PIC)' : ''}
                         </button>
                     </div>
                 )}
@@ -471,9 +499,16 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
-                                    Pilih Kendaraan <span className="text-red-500">*</span>
-                                </label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                        Pilih Kendaraan <span className="text-red-500">*</span>
+                                    </label>
+                                    {isPIC && (
+                                        <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 flex items-center gap-1">
+                                            <Sparkles size={11} /> Anda PIC {myPicVehicles.length} Armada
+                                        </span>
+                                    )}
+                                </div>
                                 <select 
                                     className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-semibold text-slate-700 text-sm"
                                     value={formVehicleId}
@@ -481,10 +516,62 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                     required
                                 >
                                     <option value="">-- Pilih Armada Kendaraan --</option>
-                                    {vehicles.filter(v => v.status === 'ACTIVE').map(v => (
-                                        <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
-                                    ))}
+                                    {isPIC && myPicVehicles.length > 0 && (
+                                        <optgroup label="⭐ Armada Tanggung Jawab Anda (PIC)">
+                                            {myPicVehicles.filter(v => v.status === 'ACTIVE').map(v => (
+                                                <option key={v.id} value={v.id}>⭐ {v.name} ({v.plateNumber}) - Tanggung Jawab Saya</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    <optgroup label={isPIC ? "Armada Lainnya" : "Semua Armada Kendaraan"}>
+                                        {vehicles.filter(v => v.status === 'ACTIVE' && (!isPIC || !myPicVehicles.some(mv => mv.id === v.id))).map(v => (
+                                            <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                                        ))}
+                                    </optgroup>
                                 </select>
+
+                                {/* PIC status notification for selected vehicle */}
+                                {formVehicleId && (() => {
+                                    const selV = vehicles.find(v => v.id.toString() === formVehicleId);
+                                    if (!selV) return null;
+                                    const isUserPicForSel = selV.pics?.some(p => p.id === currentUserId);
+                                    return (
+                                        <div className={`mt-2.5 p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
+                                            isUserPicForSel 
+                                                ? 'bg-indigo-50/80 border-indigo-200 text-indigo-900' 
+                                                : 'bg-slate-50 border-slate-200 text-slate-700'
+                                        }`}>
+                                            <div className="flex items-center gap-2">
+                                                {isUserPicForSel ? (
+                                                    <Sparkles size={16} className="text-indigo-600 shrink-0" />
+                                                ) : (
+                                                    <UserCheck size={16} className="text-slate-500 shrink-0" />
+                                                )}
+                                                <div>
+                                                    {isUserPicForSel ? (
+                                                        <span>
+                                                            Anda mengisi ceklis ini sebagai <strong>Penanggung Jawab (PIC)</strong> dari <strong>{selV.name}</strong>.
+                                                        </span>
+                                                    ) : (
+                                                        <span>
+                                                            Pengisi: <strong>{activeUser.name || 'Petugas'}</strong> ({activeUser.position || 'Staff'})
+                                                            {selV.pics?.length > 0 && (
+                                                                <span className="text-slate-500 block sm:inline sm:ml-1">
+                                                                    • PIC Terdaftar: {selV.pics.map(p => p.name).join(', ')}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {isUserPicForSel && (
+                                                <span className="bg-indigo-600 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 self-start sm:self-auto">
+                                                    PIC Terverifikasi
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
 
@@ -617,14 +704,40 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
             ) : activeView === 'READINESS' ? (
                 /* ── TAB 1: FLEET READINESS BOARD (Clean, Grouped per Vehicle) ── */
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="p-4 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
                         <div>
                             <h3 className="font-bold text-slate-800 text-sm">Status Kesiapan Armada Hari Ini</h3>
                             <p className="text-[11px] text-slate-500">Satu baris per kendaraan untuk memantau status ceklis terkini.</p>
                         </div>
-                        <span className="text-xs font-semibold text-slate-500">
-                            Total: <strong>{fleetReadiness.length} Armada</strong>
-                        </span>
+                        <div className="flex items-center gap-3">
+                            {isPIC && (
+                                <div className="inline-flex bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs">
+                                    <button
+                                        onClick={() => setReadinessFilter('ALL')}
+                                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                            readinessFilter === 'ALL' 
+                                                ? 'bg-slate-800 text-white shadow-xs' 
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Semua ({fleetReadiness.length})
+                                    </button>
+                                    <button
+                                        onClick={() => setReadinessFilter('MY_PIC')}
+                                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                                            readinessFilter === 'MY_PIC' 
+                                                ? 'bg-indigo-600 text-white shadow-xs' 
+                                                : 'text-indigo-700 hover:bg-indigo-50'
+                                        }`}
+                                    >
+                                        <Sparkles size={12} /> Armada Saya ({myPicVehicles.length})
+                                    </button>
+                                </div>
+                            )}
+                            <span className="text-xs font-semibold text-slate-500">
+                                Total: <strong>{filteredFleetReadiness.length} Armada</strong>
+                            </span>
+                        </div>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -640,12 +753,19 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {fleetReadiness.map(({ vehicle, latestDaily, isDailyDoneToday, latestWeekly, isWeeklyDone, mostRecent, missingTypes, readiness }) => {
+                                {filteredFleetReadiness.map(({ vehicle, isMyPicVehicle, latestDaily, isDailyDoneToday, latestWeekly, isWeeklyDone, mostRecent, missingTypes, readiness }) => {
                                     return (
-                                        <tr key={vehicle.id} className="hover:bg-slate-50/80 transition-colors">
+                                        <tr key={vehicle.id} className={`transition-colors ${isMyPicVehicle ? 'bg-indigo-50/25 hover:bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}>
                                             {/* Vehicle name & Plate */}
                                             <td className="p-3.5 pl-4">
-                                                <div className="font-bold text-slate-800 text-sm">{vehicle.name}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="font-bold text-slate-800 text-sm">{vehicle.name}</div>
+                                                    {isMyPicVehicle && (
+                                                        <span className="bg-indigo-100 text-indigo-800 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-indigo-200 inline-flex items-center gap-0.5">
+                                                            <Sparkles size={10} /> PIC Anda
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold inline-block mt-0.5">
                                                     {vehicle.plateNumber}
                                                 </span>
@@ -654,9 +774,17 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                             {/* Responsible Person */}
                                             <td className="p-3.5 text-slate-600">
                                                 <div className="flex items-center gap-1.5">
-                                                    <UserCheck size={14} className="text-slate-400 shrink-0" />
-                                                    <span className="font-medium truncate max-w-[150px]">
-                                                        {vehicle.pics?.map(p => p.name).join(', ') || <span className="text-slate-400 italic">Belum Ditentukan</span>}
+                                                    <UserCheck size={14} className={isMyPicVehicle ? "text-indigo-600 shrink-0" : "text-slate-400 shrink-0"} />
+                                                    <span className="font-medium truncate max-w-[160px]">
+                                                        {vehicle.pics && vehicle.pics.length > 0 ? (
+                                                            vehicle.pics.map(p => (
+                                                                <span key={p.id} className={p.id === currentUserId ? 'text-indigo-700 font-bold' : ''}>
+                                                                    {p.id === currentUserId ? '⭐ Anda (PIC)' : p.name}
+                                                                </span>
+                                                            )).reduce((prev, curr) => [prev, ', ', curr])
+                                                        ) : (
+                                                            <span className="text-slate-400 italic">Belum Ditentukan</span>
+                                                        )}
                                                     </span>
                                                 </div>
                                             </td>
@@ -732,10 +860,14 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     <button
                                                         onClick={() => handleOpenFormForVehicle(vehicle.id, 'DAILY')}
-                                                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg text-xs transition-colors inline-flex items-center gap-1"
-                                                        title="Isi Ceklis Harian"
+                                                        className={`px-3 py-1.5 font-bold rounded-lg text-xs transition-colors inline-flex items-center gap-1.5 shadow-2xs ${
+                                                            isMyPicVehicle 
+                                                                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200' 
+                                                                : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                                                        }`}
+                                                        title={isMyPicVehicle ? "Isi Ceklis Kelaikan sebagai PIC" : "Isi Ceklis Harian"}
                                                     >
-                                                        <Plus size={13} /> Isi Ceklis
+                                                        <Plus size={13} /> {isMyPicVehicle ? 'Isi Ceklis (PIC)' : 'Isi Ceklis'}
                                                     </button>
                                                     {mostRecent && (
                                                         <button
@@ -887,7 +1019,7 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                                 <th className="p-3.5">Status Kelayakan</th>
                                                 <th className="p-3.5">Hasil Pemeriksaan</th>
                                                 <th className="p-3.5">Catatan Masalah</th>
-                                                <th className="p-3.5">Driver / Petugas</th>
+                                                <th className="p-3.5">Pemeriksa (PIC / Driver)</th>
                                                 <th className="p-3.5 text-right pr-4">Detail</th>
                                             </tr>
                                         </thead>
@@ -957,9 +1089,18 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                                             )}
                                                         </td>
 
-                                                        {/* Driver */}
+                                                        {/* Driver / Pemeriksa */}
                                                         <td className="p-3.5 text-slate-700 font-medium whitespace-nowrap">
-                                                            {c.driver?.name || c.user?.name || 'Petugas'}
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-semibold text-slate-800">
+                                                                    {c.driver?.name || c.user?.name || 'Petugas'}
+                                                                </span>
+                                                                {c.vehicle?.pics?.some(p => p.id === (c.driverId || c.driver?.id)) && (
+                                                                    <span className="text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-full" title="Pemeriksa adalah Penanggung Jawab (PIC) armada ini">
+                                                                        PIC
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
 
                                                         {/* Action */}
@@ -1048,10 +1189,17 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                     </p>
                                 </div>
                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Pelapor / Driver</p>
-                                    <p className="font-bold text-xs text-slate-800 truncate">
-                                        {selectedChecklist.driver?.name || selectedChecklist.user?.name || 'Petugas'}
-                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Pemeriksa / Pelapor</p>
+                                    <div className="flex items-center gap-1.5">
+                                        <p className="font-bold text-xs text-slate-800 truncate">
+                                            {selectedChecklist.driver?.name || selectedChecklist.user?.name || 'Petugas'}
+                                        </p>
+                                        {selectedChecklist.vehicle?.pics?.some(p => p.id === (selectedChecklist.driverId || selectedChecklist.driver?.id)) && (
+                                            <span className="text-[9px] font-black bg-indigo-100 text-indigo-800 border border-indigo-200 px-1.5 py-0.2 rounded-full shrink-0">
+                                                PIC
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 

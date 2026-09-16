@@ -1024,7 +1024,7 @@ const VehicleBooking = () => {
         { id: 'CALENDAR', label: 'Kalender', icon: <Calendar size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
-        ...((isSuperAdmin || isAdminAset || isPIC) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
+        ...((isSuperAdmin || isAdminAset || isPIC || isStaffKendaraan) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
         ...((canApprove || isStaffKendaraan) ? [{ id: 'DISCREPANCIES', label: 'Audit & Diskrepansi KM', icon: <Gauge size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
@@ -1033,15 +1033,15 @@ const VehicleBooking = () => {
     ];
 
     useEffect(() => {
-        if (isStaffKendaraan) {
+        if (isStaffKendaraan || isPIC || isSuperAdmin || isAdminAset) {
             api.get('/vehicle-checklists')
                 .then(res => setChecklists(res.data))
                 .catch(err => console.error('Error fetching checklists:', err));
         }
-    }, [isStaffKendaraan]);
+    }, [isStaffKendaraan, isPIC, isSuperAdmin, isAdminAset]);
 
     const uncheckedVehicles = useMemo(() => {
-        if (!isStaffKendaraan || vehicles.length === 0) return [];
+        if ((!isStaffKendaraan && !isPIC && !isSuperAdmin && !isAdminAset) || vehicles.length === 0) return [];
         const today = new Date().toISOString().split('T')[0];
         const todayChecklists = checklists.filter(c => {
             if (c.type !== 'DAILY') return false;
@@ -1049,8 +1049,14 @@ const VehicleBooking = () => {
             return today === checkDate;
         });
         const checkedVehicleIds = todayChecklists.map(c => c.vehicleId);
-        return vehicles.filter(v => v.status === 'ACTIVE' && v.requireDailyChecklist !== false && !checkedVehicleIds.includes(v.id));
-    }, [isStaffKendaraan, vehicles, checklists]);
+
+        // If user is PIC (and not admin/staff), only filter their assigned vehicles
+        const relevantVehicles = (isStaffKendaraan || isSuperAdmin || isAdminAset)
+            ? vehicles
+            : vehicles.filter(v => v.pics?.some(p => p.id === (user?.id || currentUserProfile?.id)));
+
+        return relevantVehicles.filter(v => v.status === 'ACTIVE' && v.requireDailyChecklist !== false && !checkedVehicleIds.includes(v.id));
+    }, [isStaffKendaraan, isPIC, isSuperAdmin, isAdminAset, vehicles, checklists, user?.id, currentUserProfile?.id]);
 
     const getRentalPrice = () => {
         if (!selectedVehicle || !formData.isRented) return 0;
@@ -1167,15 +1173,17 @@ const VehicleBooking = () => {
                 )
             )}
 
-            {/* Unchecked Vehicles Banner (Staff Kendaraan Only) */}
-            {isStaffKendaraan && uncheckedVehicles.length > 0 && (
+            {/* Unchecked Vehicles Banner (Staff Kendaraan & PIC) */}
+            {(isStaffKendaraan || isPIC) && uncheckedVehicles.length > 0 && (
                 <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 justify-between relative">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
                             <CheckCircle size={20} />
                         </div>
                         <div>
-                            <h4 className="text-sm font-bold text-orange-800">Pengecekan Kendaraan Harian</h4>
+                            <h4 className="text-sm font-bold text-orange-800">
+                                {isPIC && !isStaffKendaraan ? 'Pengecekan Armada Tanggung Jawab Anda (PIC)' : 'Pengecekan Kendaraan Harian'}
+                            </h4>
                             <p className="text-xs text-orange-600">
                                 Terdapat {uncheckedVehicles.length} kendaraan aktif yang belum dilakukan ceklis harian hari ini. 
                                 ({uncheckedVehicles.map(v => v.name).join(', ')})
@@ -1329,7 +1337,7 @@ const VehicleBooking = () => {
             {/* Tab Contents */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
                 {activeTab === 'TRACKING_MAP' && <LiveTrackingMap />}
-                {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile} isAdmin={isAdminAset || isSuperAdmin} />}
+                {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile || user} isAdmin={isAdminAset || isSuperAdmin} />}
                 {activeTab === 'DISCREPANCIES' && <VehicleDiscrepancyTab currentUserProfile={currentUserProfile} isAdmin={canApprove} />}
                 {activeTab === 'CURRENT_FLEET' && (
                     <div className="p-6">

@@ -4,6 +4,12 @@ const whatsappService = require('../services/whatsappService');
 const { sendPushToUser, sendPushToKabid } = require('../services/pushService');
 const { createNotification } = require('./notificationController');
 const aiService = require('../services/aiService');
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // Helper to check if user belongs to 'Sarana dan Prasarana' unit
 const isSarprasUnit = async (unitId) => {
@@ -1571,38 +1577,64 @@ exports.getKPILeaderboard = async (req, res) => {
 
 /**
  * DAILY SUMMARY OF REPORTS
- * Triggered daily at 20:00
+ * Triggered daily at 20:00 (or callable on demand via API)
  */
-exports.sendDailyPersonnelSummary = async () => {
+exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
     console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel] Sending Daily Summary...`);
-    const today = new Date();
-    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+    const today = dayjs().tz('Asia/Jakarta');
+    const startOfToday = today.startOf('day').toDate();
+    const endOfToday = today.endOf('day').toDate();
 
     try {
+        const SARPRAS_KEYWORDS = [
+            'manajemen aset',
+            'staff manajemen aset',
+            'admin aset',
+            'gudang dan logistik',
+            'gudang',
+            'kendaraan',
+            'teknisi aset',
+            'teknisi',
+            'keuangan dan administrasi',
+            'infrastruktur it',
+            'desainer',
+            'staff it'
+        ];
+
         const allowedPositions = [
             'Staff Manajemen Aset',
             'Staff Gudang dan Logistik',
             'Staff Kendaraan',
             'Staff Teknisi Aset',
-            'Staff Keuangan dan Administrasi (Sarpras)'
+            'Staff Keuangan dan Administrasi (Sarpras)',
+            'Staff Infrastruktur IT',
+            'Staff Desainer'
         ];
 
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
                 date: { gte: startOfToday, lte: endOfToday },
                 user: {
-                    position: {
-                        in: allowedPositions
-                    }
+                    OR: [
+                        { role: 'ADMIN_ASET' },
+                        { position: { in: allowedPositions } },
+                        ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
+                    ],
+                    NOT: [
+                        { role: 'KABID_SARPRAS' },
+                        { position: { contains: 'Kepala Bidang' } }
+                    ]
                 }
             },
-            include: { user: true }
+            include: { user: true },
+            orderBy: { createdAt: 'asc' }
         });
 
         if (reports.length === 0) {
             console.log('[Personnel] No daily reports found for today.');
+            if (res) return res.json({ success: true, message: 'Tidak ada laporan harian staf untuk hari ini.' });
             return;
         }
 
@@ -1611,12 +1643,36 @@ exports.sendDailyPersonnelSummary = async () => {
                 OR: [
                     { position: 'Kepala Bidang Sarana' },
                     { role: 'KEPALA_BIDANG' },
-                    { position: { contains: 'Kepala Bidang Sarana' } }
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KABID_SARPRAS' }
                 ]
             }
         });
 
-        if (!kabid?.phone) return;
+        if (!kabid?.phone) {
+            console.log('[Personnel] Kabid phone not found.');
+            if (res) return res.status(400).json({ error: 'Nomor WhatsApp Kabid tidak ditemukan.' });
+            return;
+        }
+
+        // Helper format satu butir point laporan
+        const formatPoint = (p, idx) => {
+            if (typeof p === 'string') return `${idx + 1}. ${p.trim()}`;
+            const text = (p.text || 'Dokumentasi Foto').trim();
+            const tag = p.categoryTag ? `[${p.categoryTag}] ` : '';
+            let statusLabel = '✅ Selesai';
+            if (p.status === 'OBSTACLE') {
+                statusLabel = `⚠️ Kendala${p.obstacleNote ? `: ${p.obstacleNote.trim()}` : ''}`;
+            } else if (p.status === 'IN_PROGRESS') {
+                statusLabel = '⏳ Proses';
+            } else if (p.status === 'COMPLETED' || p.status === 'SELESAI') {
+                statusLabel = '✅ Selesai';
+            } else if (p.status) {
+                statusLabel = p.status;
+            }
+            const photoBadge = (p.photos && p.photos.length > 0) ? ' 📷' : '';
+            return `${idx + 1}. ${tag}${text} (${statusLabel})${photoBadge}`;
+        };
 
         // Group by user
         const summary = reports.reduce((acc, r) => {
@@ -1628,28 +1684,80 @@ exports.sendDailyPersonnelSummary = async () => {
 
         let summaryText = '';
         for (const [name, userReports] of Object.entries(summary)) {
-            summaryText += `👤 *${name}*:\n`;
+            const userObj = userReports[0]?.user;
+            const positionStr = userObj?.position ? ` (${userObj.position})` : '';
+            summaryText += `👤 *${name}*${positionStr}:\n`;
+
+            let allMorning = [];
+            let allAfternoon = [];
+            let fallbackLines = [];
+
             userReports.forEach(r => {
-                const items = r.metadata?.items || [];
-                let totalCount = 0;
-                let completedCount = 0;
+                const pts = r.metadata?.manualPoints;
+                const m = (pts?.morning || pts?.morningPoints || []).filter(p => 
+                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
+                );
+                const a = (pts?.afternoon || pts?.afternoonPoints || []).filter(p => 
+                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
+                );
 
-                if (Array.isArray(items) && items.length > 0) {
-                    totalCount = items.length;
-                    completedCount = items.filter(i => i.status === 'SELESAI' || i.percentage === 100).length;
-                } else if (r.content && r.content.trim()) {
-                    const lines = r.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                    totalCount = lines.length;
-                    completedCount = lines.length; // Count non-empty content lines as completed activities
+                if (m.length > 0) allMorning.push(...m);
+                if (a.length > 0) allAfternoon.push(...a);
+
+                if (m.length === 0 && a.length === 0) {
+                    if (Array.isArray(r.metadata?.items) && r.metadata.items.length > 0) {
+                        r.metadata.items.forEach(it => {
+                            const itText = it.activity || it.text || it.name || '';
+                            const itStatus = it.status === 'SELESAI' || it.percentage === 100 ? '✅ Selesai' : '⏳ Proses';
+                            fallbackLines.push(`${itText} (${itStatus})`);
+                        });
+                    } else if (r.content && r.content.trim()) {
+                        const lines = r.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                        fallbackLines.push(...lines);
+                    }
                 }
-
-                summaryText += `- ${r.category}: ${totalCount} aktivitas (${completedCount} selesai)\n`;
             });
+
+            if (allMorning.length > 0 || allAfternoon.length > 0) {
+                if (allMorning.length > 0) {
+                    summaryText += `☀️ *Sesi Pagi:*\n`;
+                    allMorning.forEach((p, idx) => {
+                        summaryText += `${formatPoint(p, idx)}\n`;
+                    });
+                }
+                if (allAfternoon.length > 0) {
+                    if (allMorning.length > 0) summaryText += `\n`;
+                    summaryText += `🌙 *Sesi Siang:*\n`;
+                    allAfternoon.forEach((p, idx) => {
+                        summaryText += `${formatPoint(p, idx)}\n`;
+                    });
+                }
+            } else if (fallbackLines.length > 0) {
+                fallbackLines.forEach(line => {
+                    if (line.toUpperCase().includes('[SESI PAGI]')) {
+                        summaryText += `☀️ *Sesi Pagi:*\n`;
+                    } else if (line.toUpperCase().includes('[SESI SIANG]')) {
+                        summaryText += `🌙 *Sesi Siang:*\n`;
+                    } else {
+                        let formattedLine = line
+                            .replace(/\[COMPLETED\]/gi, '(✅ Selesai)')
+                            .replace(/\[SELESAI\]/gi, '(✅ Selesai)')
+                            .replace(/\[IN_PROGRESS\]/gi, '(⏳ Proses)')
+                            .replace(/\[PROSES\]/gi, '(⏳ Proses)')
+                            .replace(/\[OBSTACLE\]/gi, '(⚠️ Kendala)');
+                        summaryText += `${formattedLine}\n`;
+                    }
+                });
+            } else {
+                summaryText += `- _(Belum ada butir kegiatan)_\n`;
+            }
+
             summaryText += `\n`;
         }
 
+        const dateStr = today.toDate().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
         let msg = `📊 *RANGKUMAN LAPORAN HARIAN STAF*\n` +
-            `📅 *Tanggal* : ${today.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n\n` +
+            `📅 *Tanggal* : ${dateStr}\n\n` +
             summaryText +
             `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
 
@@ -1673,8 +1781,11 @@ exports.sendDailyPersonnelSummary = async () => {
                 '/personalia'
             );
         }
+
+        if (res) return res.json({ success: true, message: 'Rangkuman laporan harian berhasil dikirim ke WhatsApp Kabid.', recipient: kabid.name, totalStaff: Object.keys(summary).length });
     } catch (err) {
         console.error('[Personnel] Daily Summary Error:', err.message);
+        if (res) return res.status(500).json({ error: err.message });
     }
 };
 

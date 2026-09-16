@@ -83,8 +83,8 @@ const Layout = () => {
                     warningType = 'Pagi';
                 }
 
-                // Laporan Siang: check if missing after 16:16 WIB (16 + 16/60 = 16.266)
-                if (currentTime >= 16.266 && !res.data.hasAfternoon) {
+                // Laporan Siang: check if missing after 19:00 WIB
+                if (currentTime >= 19.0 && !res.data.hasAfternoon) {
                     shouldWarn = true;
                     warningType = warningType ? 'Pagi & Siang' : 'Siang';
                 }

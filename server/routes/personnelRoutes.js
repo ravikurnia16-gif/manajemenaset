@@ -20,8 +20,9 @@ router.put('/assignments/:id/status', personnelController.updateAssignmentStatus
 router.post('/assignments/:id/request-extension', personnelController.requestExtension);
 router.post('/assignments/:id/handle-extension', personnelController.handleExtension);
 
-// AI Summary
+// AI Summary & Daily WA Summary
 router.get('/ai-summary', personnelController.getPersonnelAISummary);
+router.post('/send-daily-summary', personnelController.sendDailyPersonnelSummary);
 
 // Dashboard
 router.get('/dashboard', verifyToken, personnelController.getPersonnelDashboard);

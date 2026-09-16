@@ -100,7 +100,13 @@ const REPORT_TYPES = [
     }
 ];
 
-export default function VehicleReportTab({ dashboardData, availableMonths = [], initialReportType = 'PERFORMANCE' }) {
+export default function VehicleReportTab({ 
+    dashboardData, 
+    availableMonths = [], 
+    initialReportType = 'PERFORMANCE',
+    currentMonth = 'summary',
+    onPeriodChange
+}) {
     const [reportType, setReportType] = useState(initialReportType || 'PERFORMANCE');
 
     useEffect(() => {
@@ -109,7 +115,13 @@ export default function VehicleReportTab({ dashboardData, availableMonths = [], 
         }
     }, [initialReportType]);
 
-    const [selectedMonth, setSelectedMonth] = useState('summary'); // 'summary' or 'YYYY-MM'
+    const [selectedMonth, setSelectedMonth] = useState(currentMonth || 'summary'); // 'summary' or 'YYYY-MM'
+
+    useEffect(() => {
+        if (currentMonth) {
+            setSelectedMonth(currentMonth);
+        }
+    }, [currentMonth]);
     const [selectedVehicle, setSelectedVehicle] = useState('ALL');
 
     // Data states
@@ -416,14 +428,14 @@ export default function VehicleReportTab({ dashboardData, availableMonths = [], 
                     v.name,
                     v.plate,
                     `${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM`,
-                    `${(v.kml || 0).toFixed(1)} KM/L`,
+                    v.kml && v.kml > 0 ? `${v.kml.toFixed(1)} KM/L` : '-',
                     `${(v.utilization || 0).toFixed(0)}%`,
                     `Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}`,
-                    `Rp ${Math.round((v.fuelCpkm || 0) * (v.totalKm || 0)).toLocaleString('id-ID')}`
+                    `Rp ${Math.round(v.fuelCost !== undefined ? v.fuelCost : ((v.fuelCpkm || 0) * (v.totalKm || 0))).toLocaleString('id-ID')}`
                 ]);
 
                 const totalKm = filteredPerformance.reduce((acc, v) => acc + (v.totalKm || 0), 0);
-                const totalFuelCost = filteredPerformance.reduce((acc, v) => acc + ((v.fuelCpkm || 0) * (v.totalKm || 0)), 0);
+                const totalFuelCost = filteredPerformance.reduce((acc, v) => acc + (v.fuelCost !== undefined ? v.fuelCost : ((v.fuelCpkm || 0) * (v.totalKm || 0))), 0);
 
                 const foot = [['', 'TOTAL / RATA-RATA', '', `${Math.round(totalKm).toLocaleString('id-ID')} KM`, '-', '-', '-', `Rp ${Math.round(totalFuelCost).toLocaleString('id-ID')}`]];
 
@@ -739,7 +751,11 @@ export default function VehicleReportTab({ dashboardData, availableMonths = [], 
                         <Calendar size={15} className="text-slate-400" />
                         <select
                             value={selectedMonth}
-                            onChange={e => setSelectedMonth(e.target.value)}
+                            onChange={e => {
+                                const val = e.target.value;
+                                setSelectedMonth(val);
+                                if (onPeriodChange) onPeriodChange(val);
+                            }}
                             className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
                         >
                             <option value="summary">📊 Semua Periode (Akumulasi)</option>
@@ -859,7 +875,7 @@ export default function VehicleReportTab({ dashboardData, availableMonths = [], 
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-slate-700">
                                 {filteredPerformance.map((v, i) => {
-                                    const fuelTotal = (v.fuelCpkm || 0) * (v.totalKm || 0);
+                                    const fuelTotal = v.fuelCost !== undefined ? v.fuelCost : ((v.fuelCpkm || 0) * (v.totalKm || 0));
                                     return (
                                         <tr key={i} className="hover:bg-slate-50/60 transition-colors">
                                             <td className="p-3.5 font-mono text-slate-400">{i + 1}</td>
@@ -867,9 +883,15 @@ export default function VehicleReportTab({ dashboardData, availableMonths = [], 
                                             <td className="p-3.5 font-mono text-slate-500">{v.plate}</td>
                                             <td className="p-3.5 text-right font-semibold">{Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM</td>
                                             <td className="p-3.5 text-center">
-                                                <span className={`px-2 py-0.5 rounded font-bold ${v.kml > 10 ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>
-                                                    {(v.kml || 0).toFixed(1)} KM/L
-                                                </span>
+                                                {v.kml && v.kml > 0 ? (
+                                                    <span className={`px-2.5 py-0.5 rounded-full font-bold text-xs inline-flex items-center gap-1 ${v.kml >= 10 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                                                        {v.kml.toFixed(1)} KM/L
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2.5 py-0.5 rounded-full font-semibold text-xs text-slate-400 bg-slate-100 border border-slate-200 inline-block" title="Belum ada data pengisian BBM pada periode ini">
+                                                        -
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="p-3.5 text-center font-medium">{(v.utilization || 0).toFixed(0)}%</td>
                                             <td className="p-3.5 text-right font-mono text-slate-600">Rp {Math.round(v.cpkm || 0).toLocaleString('id-ID')}</td>

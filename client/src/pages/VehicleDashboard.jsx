@@ -153,7 +153,7 @@ const VehicleDashboard = () => {
             doc.text('Matriks Performa Kendaraan', 14, doc.lastAutoTable.finalY + 10);
             const vStatsRows = (data.vStats || []).map((v, i) => [
                 i + 1, v.name, v.plate,
-                (v.kml || 0).toFixed(1) + ' KM/L',
+                v.kml && v.kml > 0 ? `${v.kml.toFixed(1)} KM/L` : '-',
                 (v.utilization || 0).toFixed(0) + '%',
                 `Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}`,
                 (v.totalKm || 0).toLocaleString('id-ID') + ' KM'
@@ -385,7 +385,13 @@ const VehicleDashboard = () => {
 
             {/* Tab Content */}
             {activeTab === 'reports' ? (
-                <VehicleReportTab dashboardData={data} availableMonths={data?.availableMonths || []} initialReportType={reportCategory} />
+                <VehicleReportTab 
+                    dashboardData={data} 
+                    availableMonths={data?.availableMonths || []} 
+                    initialReportType={reportCategory}
+                    currentMonth={filter.month && filter.year ? `${filter.year}-${filter.month}` : 'summary'}
+                    onPeriodChange={handleFilterChange}
+                />
             ) : (
                 <>
                     {/* Banner Peringatan Pengguna Terkena Sanksi Perjalanan */}
@@ -629,7 +635,7 @@ const VehicleDashboard = () => {
                         <div className="p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100">
                             <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Efisiensi Armada</span>
                             <span className="text-sm font-black text-slate-800 mt-0.5 block">
-                                {(data?.stats?.fleetKml || 0).toFixed(1)} KM/L
+                                {data?.stats?.fleetKml && data.stats.fleetKml > 0 ? `${data.stats.fleetKml.toFixed(1)} KM/L` : '-'}
                             </span>
                         </div>
                     </div>
@@ -736,10 +742,20 @@ const VehicleDashboard = () => {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[120px] mx-auto">
-                                                <span className={`text-sm font-black ${v.kml > 10 ? 'text-emerald-600' : 'text-slate-700'}`}>{v.kml?.toFixed(1) || '-'}</span>
-                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                                    <div className={`h-full ${v.kml > 10 ? 'bg-emerald-500' : 'bg-orange-400'}`} style={{ width: `${Math.min((v.kml || 0) * 5, 100)}%` }}></div>
-                                                </div>
+                                                {v.kml && v.kml > 0 ? (
+                                                    <>
+                                                        <span className={`text-sm font-black ${v.kml >= 10 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                            {v.kml.toFixed(1)} KM/L
+                                                        </span>
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                                                            <div className={`h-full ${v.kml >= 10 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(v.kml * 5, 100)}%` }}></div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100" title="Belum ada data pengisian BBM pada periode ini">
+                                                        -
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -751,7 +767,7 @@ const VehicleDashboard = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center font-bold text-sm">
-                                            <span className="bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg text-slate-700 whitespace-nowrap">Rp {Math.round(v.cpkm).toLocaleString('id-ID')}</span>
+                                            <span className="bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg text-slate-700 whitespace-nowrap">Rp {Math.round(v.cpkm || 0).toLocaleString('id-ID')}</span>
                                         </td>
                                         <td className="px-6 py-4 text-right font-black text-indigo-600 text-sm italic whitespace-nowrap">
                                             {v.totalKm?.toLocaleString('id-ID')} KM

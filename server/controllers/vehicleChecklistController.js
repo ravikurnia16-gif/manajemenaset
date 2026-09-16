@@ -12,8 +12,15 @@ exports.getChecklists = async (req, res) => {
     try {
         const checklists = await prisma.vehicleChecklist.findMany({
             include: {
-                vehicle: { select: { name: true, plateNumber: true, type: true } },
-                driver: { select: { name: true, position: true } }
+                vehicle: { 
+                    select: { 
+                        name: true, 
+                        plateNumber: true, 
+                        type: true,
+                        pics: { select: { id: true, name: true, phone: true } }
+                    } 
+                },
+                driver: { select: { id: true, name: true, position: true } }
             },
             orderBy: { createdAt: 'desc' },
             take: 100
@@ -25,12 +32,12 @@ exports.getChecklists = async (req, res) => {
 };
 
 exports.createChecklist = async (req, res) => {
-    const { vehicleId, type, checks, fuelLevel, notes, status } = req.body;
+    const { vehicleId, type, checks, fuelLevel, notes, status, driverId } = req.body;
     try {
         const checklist = await prisma.vehicleChecklist.create({
             data: {
                 vehicleId: parseInt(vehicleId),
-                driverId: req.user.id,
+                driverId: driverId ? parseInt(driverId) : req.user.id,
                 date: new Date(),
                 type,
                 checks: typeof checks === 'string' ? JSON.parse(checks) : checks,

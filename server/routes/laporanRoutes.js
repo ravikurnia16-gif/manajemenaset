@@ -29,7 +29,9 @@ router.put('/:id/point-review', laporanController.updatePointReview);
 router.get('/my-stats', laporanController.getMyStats);
 router.post('/upload-photo', upload.single('photo'), laporanController.uploadReportPhoto);
 
-// Inactivity Alert for Kabid (2 working days)
+// Inactivity Alert & Daily Summary for Kabid
+const personnelController = require('../controllers/personnelController');
+router.post('/send-daily-summary', personnelController.sendDailyPersonnelSummary);
 router.post('/notify-inactive', laporanController.notifyKabidInactiveStaff);
 router.post('/remind-staff', laporanController.remindStaffMissingReport);
 

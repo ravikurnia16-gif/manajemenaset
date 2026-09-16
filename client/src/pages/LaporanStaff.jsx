@@ -969,6 +969,23 @@ const LaporanStaff = () => {
                     >
                         <RefreshCw size={16} className={loading ? 'animate-spin text-blue-600' : ''} />
                     </button>
+                    {isKabid && (
+                        <button
+                            onClick={async () => {
+                                if (!window.confirm('Kirim rangkuman laporan harian staf hari ini ke WhatsApp Kepala Bidang Sarana?')) return;
+                                try {
+                                    const res = await api.post('/laporan/send-daily-summary');
+                                    alert(res.data.message || 'Rangkuman laporan harian berhasil dikirim ke WhatsApp Kabid!');
+                                } catch (err) {
+                                    alert(err.response?.data?.error || 'Gagal mengirim rangkuman.');
+                                }
+                            }}
+                            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                            title="Kirim Rangkuman Harian ke WhatsApp Kabid"
+                        >
+                            <Send size={14} /> <span className="hidden sm:inline">Kirim Rangkuman WA</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -2813,7 +2830,7 @@ const LaporanStaff = () => {
                                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                                                     <Clock size={16} className="text-indigo-600" /> Sesi Siang (13.00 - 16.15 WIB)
                                                 </h3>
-                                                <p className="text-[11px] text-slate-400 font-medium">Batas pengingat: 16.16 WIB</p>
+                                                <p className="text-[11px] text-slate-400 font-medium">Batas pengingat: 19.00 WIB</p>
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <button

@@ -53,11 +53,11 @@ const initScheduler = () => {
         */
 
         // ----------------------------------------------------
-        // 0.5 REPORT REMINDERS (13:30 & 16:16 - Hari Kerja)
+        // 0.5 REPORT REMINDERS (13:30 & 19:00 - Hari Kerja)
         // Pemberitahuan tidak dikirimkan pada hari Sabtu, Ahad, dan libur nasional
         // ----------------------------------------------------
-        if ((hour === 13 && minute === 30) || (hour === 16 && minute === 16)) {
-            console.log('[Scheduler] Executing Report Reminders at 13:30 / 16:16...');
+        if ((hour === 13 && minute === 30) || (hour === 19 && minute === 0)) {
+            console.log('[Scheduler] Executing Report Reminders at 13:30 / 19:00...');
             try {
                 await sendReportReminders();
             } catch (err) {
