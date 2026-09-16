@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber } = require('../services/documentNumberingService');
+const ExcelJS = require('exceljs');
+const xlsx = require('xlsx');
 
 // ==========================================
 // METADATA HELPER FOR APPROVAL & E-OFFICE
@@ -85,6 +87,8 @@ exports.getProjects = async (req, res) => {
                 bastNumber: meta.bastNumber || null,
                 bastDate: meta.bastDate || null,
                 bastOfficeDocId: meta.bastOfficeDocId || null,
+                itemAdjustments: meta.itemAdjustments || [],
+                originalTargetQuantity: meta.originalTargetQuantity || p.targetQuantity,
                 selections: p.vendorSelections || []
             };
         });
@@ -309,7 +313,7 @@ exports.deleteProject = async (req, res) => {
 exports.approveProject = async (req, res) => {
     try {
         const projectId = parseInt(req.params.id, 10);
-        const { action, notes, signature } = req.body; // action: 'APPROVE' | 'REJECT'
+        const { action, notes, signature, adjustedItems } = req.body; // action: 'APPROVE' | 'REJECT'
 
         // Auth check: KABID_SARPRAS or Kepala Bidang Sarana or SUPER_ADMIN
         const role = req.user?.role || '';
@@ -346,10 +350,45 @@ exports.approveProject = async (req, res) => {
             approvalSignature: signature || meta.approvalSignature || null
         };
 
+        // Jika disetujui dan ada penyesuaian/pengurangan jumlah item oleh Kepala Bidang
+        let newTargetQty = project.targetQuantity;
+        if (isApprove && Array.isArray(adjustedItems) && adjustedItems.length > 0) {
+            const itemAdjustments = [];
+            newTargetQty = 0;
+
+            for (const pi of (project.projectItems || [])) {
+                const adj = adjustedItems.find(a => (a.id && a.id === pi.id) || (a.itemId && a.itemId === pi.itemId));
+                let qtyToSet = pi.quantity;
+                if (adj && adj.quantity !== undefined) {
+                    qtyToSet = Math.max(0, parseInt(adj.quantity, 10) || 0);
+                }
+
+                if (qtyToSet !== pi.quantity) {
+                    itemAdjustments.push({
+                        itemId: pi.itemId,
+                        itemName: pi.item?.name || 'Barang',
+                        originalQuantity: pi.quantity,
+                        approvedQuantity: qtyToSet
+                    });
+                    await prisma.invProjectItem.update({
+                        where: { id: pi.id },
+                        data: { quantity: qtyToSet }
+                    });
+                }
+                newTargetQty += qtyToSet;
+            }
+
+            if (itemAdjustments.length > 0) {
+                updatedMeta.itemAdjustments = itemAdjustments;
+                updatedMeta.originalTargetQuantity = meta.originalTargetQuantity || project.targetQuantity;
+            }
+        }
+
         const updated = await prisma.invProject.update({
             where: { id: projectId },
             data: {
                 status: newStatus,
+                targetQuantity: newTargetQty,
                 note: serializeProjectMetadata(text, updatedMeta)
             },
             include: {
@@ -425,8 +464,12 @@ exports.createPurchaseOrder = async (req, res) => {
             resolvedVendorPhone = chosen.vendor?.phone || '';
         }
 
-        // Format items for PO
-        const rawItems = items && items.length > 0 ? items : project.projectItems;
+        // Format items for PO (hanya item dengan kuantitas > 0 yang dipesan)
+        const allItems = items && items.length > 0 ? items : project.projectItems;
+        const rawItems = (allItems || []).filter(pi => {
+            const q = parseInt(pi.quantity || pi.qty || 0, 10);
+            return q > 0;
+        });
         const poItems = rawItems.map((pi, idx) => ({
             no: idx + 1,
             name: pi.name || pi.item?.name || 'Barang Logistik',
@@ -1081,3 +1124,367 @@ async function updateVendorAverages(vendorId) {
         }
     });
 }
+
+// ==========================================
+// IMPORT & TEMPLATE PROYEK PENGADAAN (EXCEL)
+// ==========================================
+
+exports.downloadProjectTemplate = async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        
+        // Sheet 1: Daftar Barang Pesanan (Hanya daftar barang & kuantitas)
+        const sheet = workbook.addWorksheet('Daftar_Barang_Pesanan');
+
+        sheet.columns = [
+            { header: 'Nama Barang (Pilih dari Dropdown) *', key: 'itemName', width: 45 },
+            { header: 'Kuantitas *', key: 'quantity', width: 20 }
+        ];
+
+        // Style header Sheet 1
+        sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        sheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E40AF' } // Blue-800
+        };
+        sheet.getRow(1).height = 28;
+        sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Sheet 2: Master Barang (Untuk Referensi & Dropdown Excel)
+        const masterSheet = workbook.addWorksheet('Master_Barang');
+        masterSheet.columns = [
+            { header: 'Nama Barang (Master Data)', key: 'name', width: 40 },
+            { header: 'Kode Barang', key: 'code', width: 20 },
+            { header: 'Kategori', key: 'category', width: 25 },
+            { header: 'Satuan', key: 'unit', width: 15 }
+        ];
+
+        masterSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        masterSheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF334155' } // Slate-700
+        };
+
+        // Ambil data barang dari master database
+        const allItems = await prisma.invItem.findMany({
+            select: { 
+                id: true, 
+                code: true, 
+                name: true, 
+                unit: true,
+                category: { select: { name: true } }
+            },
+            orderBy: { name: 'asc' }
+        });
+
+        if (allItems.length > 0) {
+            allItems.forEach(it => {
+                masterSheet.addRow({
+                    name: it.name,
+                    code: it.code || '-',
+                    category: it.category?.name || 'Umum',
+                    unit: it.unit || 'Pcs'
+                });
+            });
+        } else {
+            // Fallback placeholder jika database kosong
+            masterSheet.addRow({
+                name: 'Kertas HVS A4 70gr',
+                code: 'LOG-ATK-001',
+                category: 'ATK',
+                unit: 'Rim'
+            });
+            masterSheet.addRow({
+                name: 'Spidol Whiteboard Hitam',
+                code: 'LOG-ATK-002',
+                category: 'ATK',
+                unit: 'Pcs'
+            });
+        }
+
+        const totalMasterRows = Math.max(allItems.length, 2);
+
+        // Pasang Dropdown Data Validation pada Sheet 1 Kolom A (Nama Barang)
+        for (let r = 2; r <= 500; r++) {
+            const cellA = sheet.getCell(`A${r}`);
+            cellA.dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: [`Master_Barang!$A$2:$A$${totalMasterRows + 1}`],
+                showErrorMessage: true,
+                errorTitle: 'Barang Tidak Valid',
+                error: 'Harap pilih nama barang yang tersedia pada dropdown Master Data.'
+            };
+
+            const cellB = sheet.getCell(`B${r}`);
+            cellB.dataValidation = {
+                type: 'whole',
+                operator: 'greaterThan',
+                allowBlank: true,
+                formulae: [0],
+                showErrorMessage: true,
+                errorTitle: 'Kuantitas Tidak Valid',
+                error: 'Kuantitas pesanan harus berupa bilangan bulat lebih dari 0.'
+            };
+        }
+
+        // Tambahkan baris contoh (Sample Data)
+        if (allItems.length >= 2) {
+            sheet.addRow({ itemName: allItems[0].name, quantity: 20 });
+            sheet.addRow({ itemName: allItems[1].name, quantity: 50 });
+        } else if (allItems.length === 1) {
+            sheet.addRow({ itemName: allItems[0].name, quantity: 20 });
+        } else {
+            sheet.addRow({ itemName: 'Kertas HVS A4 70gr', quantity: 20 });
+            sheet.addRow({ itemName: 'Spidol Whiteboard Hitam', quantity: 50 });
+        }
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Daftar_Barang_Logistik.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Download Project Template Error:', error);
+        res.status(500).json({ error: error.message || 'Gagal mendownload template daftar barang logistik' });
+    }
+};
+
+exports.importProjects = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'File Excel belum dipilih' });
+        }
+
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+        const sheetName = workbook.SheetNames[0];
+        const rawData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+
+        if (!rawData || rawData.length === 0) {
+            return res.status(400).json({ error: 'File Excel tidak memuat baris barang yang dapat dibaca' });
+        }
+
+        const allItems = await prisma.invItem.findMany({
+            select: { id: true, code: true, name: true, unit: true, category: { select: { name: true } } }
+        });
+
+        const normalize = (str) => (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+        const itemMap = new Map();
+        for (const it of allItems) {
+            if (it.name) itemMap.set(normalize(it.name), it);
+            if (it.code) itemMap.set(normalize(it.code), it);
+        }
+
+        const parseDate = (val) => {
+            if (!val) return null;
+            if (val instanceof Date) return val.toISOString();
+            if (typeof val === 'number') {
+                const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+                return !isNaN(d.getTime()) ? d.toISOString() : null;
+            }
+            const d = new Date(val);
+            return !isNaN(d.getTime()) ? d.toISOString() : null;
+        };
+
+        const errors = [];
+        const parsedItems = [];
+
+        rawData.forEach((row, idx) => {
+            const rowNum = idx + 2;
+
+            // Ekstrak nama barang
+            const itemNameRaw = (
+                row['Nama Barang (Pilih dari Dropdown) *'] ||
+                row['Nama Barang (Pilih dari Dropdown)'] ||
+                row['Nama Barang *'] || 
+                row['Nama Barang'] || 
+                row['nama_barang'] || 
+                row['Kode / Nama Barang *'] || 
+                row['Kode / Nama Barang'] || 
+                row['Barang'] || 
+                row['itemName'] || 
+                row['itemQuery'] || ''
+            ).toString().trim();
+
+            if (!itemNameRaw) {
+                // Abaikan baris kosong tanpa nama barang
+                return;
+            }
+
+            // Ekstrak kuantitas
+            const qtyRaw = parseInt(
+                row['Kuantitas *'] || 
+                row['Kuantitas'] || 
+                row['kuantitas'] || 
+                row['Jumlah Target *'] || 
+                row['Jumlah Target'] || 
+                row['Jumlah Pesanan *'] ||
+                row['Jumlah Pesanan'] ||
+                row['Jumlah'] || 
+                row['quantity'] || 
+                row['qty'], 
+                10
+            );
+
+            if (isNaN(qtyRaw) || qtyRaw <= 0) {
+                errors.push(`Baris ${rowNum}: Kuantitas barang "${itemNameRaw}" tidak valid atau kurang dari 1.`);
+                return;
+            }
+
+            const matchedItem = itemMap.get(normalize(itemNameRaw));
+            if (!matchedItem) {
+                errors.push(`Baris ${rowNum}: Barang "${itemNameRaw}" tidak sesuai dengan Master Data.`);
+                return;
+            }
+
+            parsedItems.push({
+                itemId: matchedItem.id,
+                name: matchedItem.name,
+                unit: matchedItem.unit || 'Pcs',
+                quantity: qtyRaw
+            });
+        });
+
+        if (parsedItems.length === 0) {
+            return res.status(400).json({ 
+                error: 'Tidak ada daftar barang pesanan valid yang dapat diproses.', 
+                errors 
+            });
+        }
+
+        // Gabungkan item yang sama (sum quantities)
+        const aggregatedItemMap = new Map();
+        parsedItems.forEach(it => {
+            const current = aggregatedItemMap.get(it.itemId) || { itemId: it.itemId, quantity: 0, name: it.name, unit: it.unit };
+            current.quantity += it.quantity;
+            aggregatedItemMap.set(it.itemId, current);
+        });
+
+        const finalItems = Array.from(aggregatedItemMap.values());
+        const totalQty = finalItems.reduce((sum, it) => sum + it.quantity, 0);
+
+        // Cek apakah import ini untuk Proyek yang sudah ada (projectId) atau Proyek Baru
+        const targetProjectId = parseInt(req.body.projectId || req.query.projectId, 10);
+
+        if (targetProjectId) {
+            // Tambahkan / gabungkan ke proyek yang sudah ada
+            const existingProject = await prisma.invProject.findUnique({
+                where: { id: targetProjectId },
+                include: { projectItems: true }
+            });
+
+            if (!existingProject) {
+                return res.status(404).json({ error: 'Proyek tujuan tidak ditemukan.' });
+            }
+
+            await prisma.$transaction(async (tx) => {
+                for (const it of finalItems) {
+                    const existingPI = existingProject.projectItems.find(pi => pi.itemId === it.itemId);
+                    if (existingPI) {
+                        await tx.invProjectItem.update({
+                            where: { id: existingPI.id },
+                            data: { quantity: existingPI.quantity + it.quantity }
+                        });
+                    } else {
+                        await tx.invProjectItem.create({
+                            data: {
+                                projectId: targetProjectId,
+                                itemId: it.itemId,
+                                quantity: it.quantity
+                            }
+                        });
+                    }
+                }
+
+                // Update total targetQuantity pada proyek
+                const allCurrentItems = await tx.invProjectItem.findMany({
+                    where: { projectId: targetProjectId }
+                });
+                const newTotal = allCurrentItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                await tx.invProject.update({
+                    where: { id: targetProjectId },
+                    data: { targetQuantity: newTotal }
+                });
+            });
+
+            return res.json({
+                message: `Berhasil menambahkan ${finalItems.length} jenis barang pesanan ke Proyek "${existingProject.title}".`,
+                successCount: 1,
+                totalItemsCount: finalItems.length,
+                totalQuantity: totalQty,
+                errorCount: errors.length,
+                errors,
+                project: existingProject
+            });
+        }
+
+        // BUAT PROYEK BARU DENGAN DAFTAR BARANG IMPORT
+        const title = (req.body.title || `Pengadaan Logistik - ${new Date().toLocaleDateString('id-ID')}`).trim();
+        const year = parseInt(req.body.year, 10) || new Date().getFullYear();
+        const type = (req.body.projectType || req.body.type || 'SELEKSI').toUpperCase() === 'PENUNJUKAN_LANGSUNG' ? 'PENUNJUKAN_LANGSUNG' : 'SELEKSI';
+        const budget = parseFloat(req.body.budget) || 0;
+        const requestedByName = (req.body.requestedByName || req.user?.name || 'Staff Bagian Sarana').trim();
+        const targetDate = parseDate(req.body.targetDate);
+        const justification = (req.body.justification || 'Usulan pengadaan barang logistik melalui import Excel').trim();
+        const directVendorId = parseInt(req.body.directVendorId, 10) || null;
+
+        const meta = {
+            approvalStatus: 'PENDING',
+            requestedByName,
+            justification,
+            targetDate,
+            budget,
+            projectType: type
+        };
+
+        const serializedNote = serializeProjectMetadata(justification, meta);
+
+        let createdProject;
+        await prisma.$transaction(async (tx) => {
+            createdProject = await tx.invProject.create({
+                data: {
+                    title,
+                    name: title,
+                    year,
+                    type,
+                    budget,
+                    targetQuantity: totalQty,
+                    status: 'MENUNGGU_PERSETUJUAN',
+                    note: serializedNote,
+                    projectItems: {
+                        create: finalItems.map(it => ({
+                            itemId: it.itemId,
+                            quantity: it.quantity
+                        }))
+                    }
+                }
+            });
+
+            if (type === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
+                await tx.invVendorSelection.create({
+                    data: {
+                        projectId: createdProject.id,
+                        vendorId: directVendorId,
+                        status: 'DIPILIH',
+                        reason: 'Penunjukan Langsung (Import Proyek)'
+                    }
+                });
+            }
+        });
+
+        res.json({
+            message: `Berhasil membuat proyek pengadaan baru "${createdProject.title}" dengan ${finalItems.length} item pesanan (${totalQty} total unit). Status: Menunggu Persetujuan Kabid Sarana.`,
+            successCount: 1,
+            totalItemsCount: finalItems.length,
+            totalQuantity: totalQty,
+            errorCount: errors.length,
+            errors,
+            project: createdProject
+        });
+    } catch (error) {
+        console.error('Import Projects Error:', error);
+        res.status(500).json({ error: error.message || 'Gagal memproses import daftar barang logistik' });
+    }
+};

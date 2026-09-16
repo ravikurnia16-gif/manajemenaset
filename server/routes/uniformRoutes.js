@@ -98,6 +98,8 @@ router.put('/vendors/:id', c.updateVendor);
 router.delete('/vendors/:id', c.deleteVendor);
 
 // Vendor Projects & Selections
+router.get('/projects/template', c.downloadUniformProjectTemplate);
+router.post('/projects/import', upload.single('file'), c.importUniformProjects);
 router.get('/projects', c.getProjects);
 router.post('/projects', c.createProject);
 router.put('/projects/:id', c.updateProject);

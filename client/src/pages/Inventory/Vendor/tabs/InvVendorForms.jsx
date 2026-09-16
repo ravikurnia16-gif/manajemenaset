@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../../../lib/axios';
-import { Plus, Trash2, Box, PackagePlus, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Box, PackagePlus, AlertTriangle, FileSpreadsheet, Download, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
     const currentUser = (() => {
         try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch (e) { return {}; }
     })();
+
+    const excelFileRef = useRef(null);
+    const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
     const [formData, setFormData] = useState(() => {
         if (initialData) {
@@ -54,6 +58,124 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
             setAvailableItems(res.data || []);
         }).catch(console.error);
     }, []);
+
+    const handleDownloadTemplate = async () => {
+        setDownloadingTemplate(true);
+        try {
+            const res = await api.get('/inventory/projects/template', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'Template_Daftar_Barang_Logistik.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Download template error:', err);
+            alert('Gagal mengunduh template Excel.');
+        } finally {
+            setDownloadingTemplate(false);
+        }
+    };
+
+    const handleImportExcelItems = (e) => {
+        const selectedFile = e.target.files[0];
+        if (!selectedFile) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                if (!data || data.length === 0) {
+                    alert('File Excel kosong atau format tidak sesuai.');
+                    return;
+                }
+
+                const normalize = (str) => (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+                const itemMap = new Map();
+                availableItems.forEach(it => {
+                    if (it.name) itemMap.set(normalize(it.name), it);
+                    if (it.code) itemMap.set(normalize(it.code), it);
+                });
+
+                const newItems = [...formData.items];
+                let matchedCount = 0;
+                const missing = [];
+
+                data.forEach((row, idx) => {
+                    const itemName = (
+                        row['Nama Barang (Pilih dari Dropdown) *'] || 
+                        row['Nama Barang (Pilih dari Dropdown)'] || 
+                        row['Nama Barang *'] || 
+                        row['Nama Barang'] || 
+                        row['Kode / Nama Barang *'] || 
+                        row['Kode / Nama Barang'] || 
+                        row['Barang'] || 
+                        ''
+                    ).toString().trim();
+
+                    const qty = parseInt(
+                        row['Kuantitas *'] || 
+                        row['Kuantitas'] || 
+                        row['Jumlah Target *'] || 
+                        row['Jumlah Pesanan *'] ||
+                        row['Jumlah Pesanan'] ||
+                        row['Jumlah'] || 
+                        row['quantity'] || 
+                        row['qty'], 
+                        10
+                    );
+
+                    if (!itemName) return;
+
+                    if (isNaN(qty) || qty <= 0) {
+                        missing.push(`Baris ${idx + 2}: Kuantitas barang "${itemName}" tidak valid.`);
+                        return;
+                    }
+
+                    const matched = itemMap.get(normalize(itemName));
+                    if (matched) {
+                        const existingIdx = newItems.findIndex(i => i.itemId === matched.id);
+                        if (existingIdx >= 0) {
+                            newItems[existingIdx].quantity += qty;
+                        } else {
+                            newItems.push({
+                                itemId: matched.id,
+                                quantity: qty,
+                                name: matched.name,
+                                code: matched.code,
+                                unit: matched.unit || 'Pcs',
+                                categoryName: matched.category?.name || 'Umum'
+                            });
+                        }
+                        matchedCount++;
+                    } else {
+                        missing.push(`Baris ${idx + 2}: "${itemName}" tidak cocok dengan Master Data.`);
+                    }
+                });
+
+                const newTotal = newItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                setFormData({ ...formData, items: newItems, targetQuantity: newTotal });
+
+                let msg = `Berhasil memuat ${matchedCount} barang pesanan ke dalam tabel.`;
+                if (missing.length > 0) {
+                    msg += `\n\nCatatan (${missing.length} baris tidak cocok / dilewati):\n` + missing.slice(0, 5).join('\n') + (missing.length > 5 ? `\n...dan ${missing.length - 5} lainnya.` : '');
+                }
+                alert(msg);
+            } catch (err) {
+                console.error('Parse Excel error:', err);
+                alert('Gagal membaca file Excel. Pastikan format file sesuai template.');
+            } finally {
+                if (excelFileRef.current) excelFileRef.current.value = '';
+            }
+        };
+        reader.readAsBinaryString(selectedFile);
+    };
 
     const handleAddItem = () => {
         if (!selectedItemId) return alert('Silakan pilih barang terlebih dahulu!');
@@ -246,11 +368,42 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
             
             {/* Box Pemilihan Master Barang Logistik */}
             <div className="border border-slate-200 p-4 rounded-xl bg-slate-50 space-y-3">
-                <div className="flex items-center gap-2">
-                    <Box size={16} className="text-blue-600" />
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        Daftar Barang Proyek (Master Data Logistik)
-                    </label>
+                <input 
+                    type="file" 
+                    ref={excelFileRef} 
+                    onChange={handleImportExcelItems} 
+                    accept=".xlsx, .xls, .csv" 
+                    className="hidden" 
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <Box size={16} className="text-blue-600" />
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Daftar Barang Proyek (Master Data Logistik)
+                        </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleDownloadTemplate}
+                            disabled={downloadingTemplate}
+                            className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all"
+                            title="Unduh format template Excel daftar barang logistik"
+                        >
+                            <Download size={13} className="text-blue-600" />
+                            {downloadingTemplate ? 'Mengunduh...' : 'Format Excel'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => excelFileRef.current?.click()}
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all"
+                            title="Unggah Excel berisi daftar nama barang & kuantitas"
+                        >
+                            <FileSpreadsheet size={13} className="text-blue-700" />
+                            Import Excel
+                        </button>
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 bg-white p-3 rounded-xl border border-slate-200">

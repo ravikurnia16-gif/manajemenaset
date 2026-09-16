@@ -11,6 +11,7 @@ import { ProjectForm, VendorSelectionForm, VendorMoUForm, VendorEvaluationForm, 
 import { ProjectApprovalModal } from '../../../components/ProjectApprovalModal';
 import { ProjectPurchaseOrderModal } from '../../../components/ProjectPurchaseOrderModal';
 import { ProjectBASTModal } from '../../../components/ProjectBASTModal';
+import { ProjectImportModal } from '../../../components/ProjectImportModal';
 
 const TABS = [
     { key: 'profile', label: 'Profil Vendor', icon: <Users size={16} /> },
@@ -210,6 +211,16 @@ export default function VendorPage() {
                 isOpen={modal.open && modal.type === 'project-bast'}
                 onClose={closeModal}
                 project={modal.data}
+            />
+
+            {/* Modal Import Proyek (Excel) */}
+            <ProjectImportModal
+                isOpen={modal.open && modal.type === 'project-import'}
+                onClose={closeModal}
+                type="UNIFORM"
+                onSuccess={() => {
+                    fetchData();
+                }}
             />
         </div>
     );

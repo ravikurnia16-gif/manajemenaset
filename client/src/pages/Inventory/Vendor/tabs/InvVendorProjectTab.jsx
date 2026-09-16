@@ -12,7 +12,8 @@ import {
     Lock, 
     AlertCircle,
     Building2,
-    ExternalLink
+    ExternalLink,
+    FileSpreadsheet
 } from 'lucide-react';
 import { Badge } from '../../../ManajemenSeragam/UIComponents';
 
@@ -44,12 +45,20 @@ export const InvVendorProjectTab = ({ projects = [], openModal }) => {
                         Alur terpadu: Pengajuan Proyek &rarr; Persetujuan Kabid Sarana (ACC) &rarr; Surat Pesanan (PO) &rarr; Cek Fisik & BAST E-Office
                     </p>
                 </div>
-                <button 
-                    onClick={() => openModal('project')} 
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-all"
-                >
-                    <Plus size={14} /> Buat Proyek Baru
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => openModal('project-import')} 
+                        className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all hover:border-blue-300"
+                    >
+                        <FileSpreadsheet size={15} className="text-emerald-600" /> Import Proyek (Excel)
+                    </button>
+                    <button 
+                        onClick={() => openModal('project')} 
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-all"
+                    >
+                        <Plus size={14} /> Buat Proyek Baru
+                    </button>
+                </div>
             </div>
 
             {/* Filter Tabs / Pills */}
@@ -183,12 +192,20 @@ export const InvVendorProjectTab = ({ projects = [], openModal }) => {
                                         {project.projectItems && project.projectItems.length > 0 && (
                                             <div className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200 inline-flex flex-wrap items-center gap-1.5 shadow-2xs">
                                                 <span className="font-bold text-slate-700">Rincian Barang: </span>
-                                                {project.projectItems.map(pi => (
-                                                    <span key={pi.id || pi.itemId} className="bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-medium text-slate-700">
-                                                        {pi.item?.name || 'Barang'} <b className="text-blue-600">({pi.quantity} {pi.item?.unit || 'Pcs'})</b>
-                                                        {pi.receivedQuantity > 0 && <span className="text-emerald-600 font-bold ml-1">✓ {pi.receivedQuantity}</span>}
-                                                    </span>
-                                                ))}
+                                                {project.projectItems.map(pi => {
+                                                    const adj = (project.itemAdjustments || []).find(a => a.itemId === pi.itemId);
+                                                    return (
+                                                        <span key={pi.id || pi.itemId} className="bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-medium text-slate-700">
+                                                            {pi.item?.name || 'Barang'} <b className="text-blue-600">({pi.quantity} {pi.item?.unit || 'Pcs'})</b>
+                                                            {adj && (
+                                                                <span className="text-[10px] text-amber-700 font-bold ml-1 bg-amber-50 px-1 py-0.2 rounded border border-amber-200" title={`Disetujui ${pi.quantity} dari semula ${adj.originalQuantity}`}>
+                                                                    ACC: {pi.quantity}/{adj.originalQuantity}
+                                                                </span>
+                                                            )}
+                                                            {pi.receivedQuantity > 0 && <span className="text-emerald-600 font-bold ml-1">✓ {pi.receivedQuantity}</span>}
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

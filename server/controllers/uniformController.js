@@ -5032,7 +5032,9 @@ exports.getProjects = async (req, res) => {
                 poVendorName: meta.poVendorName || null,
                 bastNumber: meta.bastNumber || null,
                 bastDate: meta.bastDate || null,
-                bastOfficeDocId: meta.bastOfficeDocId || null
+                bastOfficeDocId: meta.bastOfficeDocId || null,
+                itemAdjustments: meta.itemAdjustments || [],
+                originalTargetQuantity: meta.originalTargetQuantity || p.targetQuantity
             };
         });
 
@@ -5215,7 +5217,7 @@ exports.updateProject = async (req, res) => {
 exports.approveUniformProject = async (req, res) => {
     try {
         const projectId = parseInt(req.params.id, 10);
-        const { action, notes, signature } = req.body; // action: 'APPROVE' | 'REJECT'
+        const { action, notes, signature, adjustedItems } = req.body; // action: 'APPROVE' | 'REJECT'
 
         const role = req.user?.role || '';
         const position = (req.user?.position || '').toLowerCase();
@@ -5251,10 +5253,46 @@ exports.approveUniformProject = async (req, res) => {
             approvalSignature: signature || meta.approvalSignature || null
         };
 
+        // Jika disetujui dan ada penyesuaian/pengurangan jumlah item oleh Kepala Bidang
+        let newTargetQty = project.targetQuantity;
+        if (isApprove && Array.isArray(adjustedItems) && adjustedItems.length > 0) {
+            const itemAdjustments = [];
+            newTargetQty = 0;
+
+            for (const pi of (project.projectItems || [])) {
+                const adj = adjustedItems.find(a => (a.id && a.id === pi.id) || (a.variantId && a.variantId === pi.variantId) || (a.itemId && a.itemId === pi.variantId));
+                let qtyToSet = pi.quantity;
+                if (adj && adj.quantity !== undefined) {
+                    qtyToSet = Math.max(0, parseInt(adj.quantity, 10) || 0);
+                }
+
+                if (qtyToSet !== pi.quantity) {
+                    itemAdjustments.push({
+                        variantId: pi.variantId,
+                        itemName: pi.variant?.item?.name || 'Seragam',
+                        sizeName: pi.variant?.sizeName || '',
+                        originalQuantity: pi.quantity,
+                        approvedQuantity: qtyToSet
+                    });
+                    await prisma.uniformProjectItem.update({
+                        where: { id: pi.id },
+                        data: { quantity: qtyToSet }
+                    });
+                }
+                newTargetQty += qtyToSet;
+            }
+
+            if (itemAdjustments.length > 0) {
+                updatedMeta.itemAdjustments = itemAdjustments;
+                updatedMeta.originalTargetQuantity = meta.originalTargetQuantity || project.targetQuantity;
+            }
+        }
+
         const updated = await prisma.uniformProject.update({
             where: { id: projectId },
             data: {
                 status: newStatus,
+                targetQuantity: newTargetQty,
                 note: serializeUniformProjectMetadata(text, updatedMeta)
             },
             include: {
@@ -5274,6 +5312,511 @@ exports.approveUniformProject = async (req, res) => {
     } catch (error) {
         console.error('Approve Uniform Project Error:', error);
         res.status(500).json({ error: error.message || 'Gagal memproses persetujuan proyek seragam' });
+    }
+};
+
+// --- TEMPLATE & IMPORT PROYEK SERAGAM (EXCEL) ---
+exports.downloadUniformProjectTemplate = async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        
+        // Sheet 1: Daftar Pesanan Seragam (Hanya daftar barang pesanan sesuai master data)
+        const sheet = workbook.addWorksheet('Daftar_Pesanan_Seragam');
+
+        sheet.columns = [
+            { header: 'Kategori *', key: 'category', width: 25 },
+            { header: 'Jenis Pakaian *', key: 'clothingType', width: 28 },
+            { header: 'Unit *', key: 'unit', width: 18 },
+            { header: 'Gender *', key: 'gender', width: 18 },
+            { header: 'Ukuran (Sesuai Master Data) *', key: 'sizeName', width: 26 },
+            { header: 'Jumlah Pesanan *', key: 'quantity', width: 20 }
+        ];
+
+        // Style header Sheet 1
+        sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        sheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4338CA' } // Indigo-700
+        };
+        sheet.getRow(1).height = 28;
+        sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Sheet 2: Master Referensi Seragam
+        const refSheet = workbook.addWorksheet('Referensi_Master');
+        refSheet.columns = [
+            { header: 'Kategori', key: 'cat', width: 25 },
+            { header: 'Jenis Pakaian', key: 'cloth', width: 25 },
+            { header: 'Unit', key: 'unit', width: 16 },
+            { header: 'Gender', key: 'gender', width: 16 },
+            { header: 'Ukuran', key: 'size', width: 16 },
+            { header: 'Pemisah', key: 'sep', width: 4 },
+            { header: 'Kombinasi Master Barang Tersedia', key: 'combination', width: 45 }
+        ];
+
+        refSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        refSheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF334155' } // Slate-700
+        };
+
+        // Ambil data master seragam dari database
+        const [categories, clothingTypes, units, sizes, allVariants] = await Promise.all([
+            prisma.uniformCategory.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
+            prisma.uniformClothingType.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
+            prisma.uniformUnit.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
+            prisma.uniformSize.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
+            prisma.uniformVariant.findMany({
+                where: { isActive: true },
+                include: {
+                    item: {
+                        include: {
+                            category: true,
+                            clothingType: true,
+                            unit: true
+                        }
+                    },
+                    size: true
+                },
+                take: 150
+            })
+        ]);
+
+        const maxRefRows = Math.max(
+            categories.length,
+            clothingTypes.length,
+            units.length,
+            sizes.length,
+            2
+        );
+
+        const genders = ['IKHWAN', 'AKHWAT'];
+
+        for (let i = 0; i < maxRefRows; i++) {
+            const rowData = {
+                cat: categories[i]?.name || '',
+                cloth: clothingTypes[i]?.name || '',
+                unit: units[i]?.name || '',
+                gender: genders[i] || '',
+                size: sizes[i]?.name || '',
+                sep: '',
+                combination: ''
+            };
+
+            if (allVariants[i]?.item) {
+                const itm = allVariants[i].item;
+                const catName = itm.category?.name || '';
+                const clothName = itm.clothingType?.name || '';
+                const unitName = itm.unit?.name || '';
+                const gnd = itm.gender || '';
+                const sz = allVariants[i].sizeName || '';
+                rowData.combination = `${catName} | ${clothName} | ${unitName} | ${gnd} | Uk. ${sz}`;
+            }
+
+            refSheet.addRow(rowData);
+        }
+
+        const totalSizeRows = Math.max(sizes.length, 1);
+
+        // Data Validation pada Sheet 1
+        for (let r = 2; r <= 500; r++) {
+            // Col D: Gender Dropdown (IKHWAN, AKHWAT)
+            sheet.getCell(`D${r}`).dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: ['"IKHWAN,AKHWAT"'],
+                showErrorMessage: true,
+                errorTitle: 'Gender Tidak Valid',
+                error: 'Pilih IKHWAN atau AKHWAT.'
+            };
+
+            // Col E: Ukuran Dropdown dari Referensi Master
+            if (sizes.length > 0) {
+                sheet.getCell(`E${r}`).dataValidation = {
+                    type: 'list',
+                    allowBlank: true,
+                    formulae: [`Referensi_Master!$E$2:$E$${totalSizeRows + 1}`],
+                    showErrorMessage: true,
+                    errorTitle: 'Ukuran Tidak Valid',
+                    error: 'Harap pilih ukuran yang sesuai dengan Master Data.'
+                };
+            }
+
+            // Col F: Jumlah Pesanan > 0
+            sheet.getCell(`F${r}`).dataValidation = {
+                type: 'whole',
+                operator: 'greaterThan',
+                allowBlank: true,
+                formulae: [0],
+                showErrorMessage: true,
+                errorTitle: 'Jumlah Pesanan Tidak Valid',
+                error: 'Jumlah pesanan harus berupa bilangan bulat lebih dari 0.'
+            };
+        }
+
+        // Sample Data pada Sheet 1
+        if (allVariants.length >= 2 && allVariants[0].item && allVariants[1].item) {
+            const v1 = allVariants[0];
+            const v2 = allVariants[1];
+            sheet.addRow({
+                category: v1.item.category?.name || 'Seragam Sekolah',
+                clothingType: v1.item.clothingType?.name || 'Kemeja Putih',
+                unit: v1.item.unit?.name || 'SMP',
+                gender: v1.item.gender || 'IKHWAN',
+                sizeName: v1.sizeName || 'M',
+                quantity: 50
+            });
+            sheet.addRow({
+                category: v2.item.category?.name || 'Seragam Sekolah',
+                clothingType: v2.item.clothingType?.name || 'Kemeja Putih',
+                unit: v2.item.unit?.name || 'SMP',
+                gender: v2.item.gender || 'IKHWAN',
+                sizeName: v2.sizeName || 'L',
+                quantity: 50
+            });
+        } else {
+            sheet.addRow({
+                category: 'Seragam Nasional',
+                clothingType: 'Kemeja Putih Pendek',
+                unit: 'SMP',
+                gender: 'IKHWAN',
+                sizeName: 'M',
+                quantity: 50
+            });
+            sheet.addRow({
+                category: 'Seragam Nasional',
+                clothingType: 'Kemeja Putih Pendek',
+                unit: 'SMP',
+                gender: 'IKHWAN',
+                sizeName: 'L',
+                quantity: 50
+            });
+        }
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Daftar_Pesanan_Seragam.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        console.error('Download Uniform Project Template Error:', error);
+        res.status(500).json({ error: error.message || 'Gagal mendownload template daftar pesanan seragam' });
+    }
+};
+
+exports.importUniformProjects = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'File Excel belum dipilih' });
+        }
+
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer', cellDates: true });
+        const sheetName = workbook.SheetNames[0];
+        const rawData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+
+        if (!rawData || rawData.length === 0) {
+            return res.status(400).json({ error: 'File Excel tidak memuat baris pesanan yang dapat dibaca' });
+        }
+
+        const allVariants = await prisma.uniformVariant.findMany({
+            where: { isActive: true },
+            include: { 
+                item: {
+                    include: {
+                        category: true,
+                        clothingType: true,
+                        unit: true
+                    }
+                },
+                size: true
+            }
+        });
+
+        const normalize = (str) => (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+        // Buat map pencarian varian berdasarkan kombinasi master data
+        // Kunci: [kategori]__[jenis_pakaian]__[unit]__[gender]__[ukuran]
+        const makeKey = (cat, cloth, unit, gender, size) => {
+            return `${normalize(cat)}__${normalize(cloth)}__${normalize(unit)}__${normalize(gender)}__${normalize(size)}`;
+        };
+
+        const variantMap = new Map();
+        for (const v of allVariants) {
+            if (!v.item) continue;
+            const cat = v.item.category?.name || '';
+            const cloth = v.item.clothingType?.name || '';
+            const unit = v.item.unit?.name || '';
+            const gender = v.item.gender || '';
+            const size = v.sizeName || v.size?.name || '';
+
+            // Key lengkap: Kategori + Jenis + Unit + Gender + Ukuran
+            variantMap.set(makeKey(cat, cloth, unit, gender, size), v);
+
+            // Key tanpa unit jika unit di database null / kosong
+            if (!unit) {
+                variantMap.set(makeKey(cat, cloth, '', gender, size), v);
+            }
+
+            // Key nama barang + ukuran sebagai alternatif
+            if (v.item.name && size) {
+                variantMap.set(`${normalize(v.item.name)}__${normalize(size)}`, v);
+            }
+
+            // SKU langsung
+            if (v.sku) {
+                variantMap.set(normalize(v.sku), v);
+            }
+        }
+
+        const parseDate = (val) => {
+            if (!val) return null;
+            if (val instanceof Date) return val.toISOString();
+            if (typeof val === 'number') {
+                const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+                return !isNaN(d.getTime()) ? d.toISOString() : null;
+            }
+            const d = new Date(val);
+            return !isNaN(d.getTime()) ? d.toISOString() : null;
+        };
+
+        const errors = [];
+        const parsedItems = [];
+
+        rawData.forEach((row, idx) => {
+            const rowNum = idx + 2;
+
+            // Ekstrak Kolom: Kategori, Jenis pakaian, Unit, Gender, Ukuran, Jumlah Pesanan
+            const catRaw = (
+                row['Kategori *'] || 
+                row['Kategori'] || 
+                row['kategori'] || 
+                row['category'] || ''
+            ).toString().trim();
+
+            const clothRaw = (
+                row['Jenis Pakaian *'] || 
+                row['Jenis Pakaian'] || 
+                row['Jenis pakaian'] || 
+                row['jenis_pakaian'] || 
+                row['clothingType'] || ''
+            ).toString().trim();
+
+            const unitRaw = (
+                row['Unit *'] || 
+                row['Unit'] || 
+                row['unit'] || ''
+            ).toString().trim();
+
+            let genderRaw = (
+                row['Gender *'] || 
+                row['Gender'] || 
+                row['gender'] || ''
+            ).toString().trim().toUpperCase();
+
+            // Normalisasi singkatan gender jika ada
+            if (genderRaw === 'L' || genderRaw === 'PUTRA' || genderRaw === 'PRIA') genderRaw = 'IKHWAN';
+            if (genderRaw === 'P' || genderRaw === 'PUTRI' || genderRaw === 'WANITA') genderRaw = 'AKHWAT';
+
+            const sizeRaw = (
+                row['Ukuran (Sesuai Master Data) *'] || 
+                row['Ukuran *'] || 
+                row['Ukuran'] || 
+                row['ukuran'] || 
+                row['size'] || 
+                row['sizeName'] || ''
+            ).toString().trim();
+
+            const qtyRaw = parseInt(
+                row['Jumlah Pesanan *'] || 
+                row['Jumlah Pesanan'] || 
+                row['jumlah_pesanan'] || 
+                row['Jumlah Target *'] || 
+                row['Jumlah Target'] || 
+                row['Jumlah'] || 
+                row['quantity'] || 
+                row['qty'], 
+                10
+            );
+
+            // Kolom alternatif jika format lama (Nama Seragam + Ukuran)
+            const legacyItemName = (
+                row['Nama Seragam *'] || 
+                row['Nama Seragam'] || 
+                row['Nama Barang'] || 
+                row['itemName'] || ''
+            ).toString().trim();
+
+            // Jika baris kosong sama sekali, lewati
+            if (!catRaw && !clothRaw && !sizeRaw && !legacyItemName) {
+                return;
+            }
+
+            if (isNaN(qtyRaw) || qtyRaw <= 0) {
+                errors.push(`Baris ${rowNum}: Jumlah Pesanan untuk seragam "${clothRaw || legacyItemName} (${sizeRaw})" tidak valid atau kurang dari 1.`);
+                return;
+            }
+
+            // Pencarian varian di master data
+            let matchedVariant = null;
+
+            if (catRaw && clothRaw && genderRaw && sizeRaw) {
+                const searchKeyWithUnit = makeKey(catRaw, clothRaw, unitRaw, genderRaw, sizeRaw);
+                const searchKeyNoUnit = makeKey(catRaw, clothRaw, '', genderRaw, sizeRaw);
+                matchedVariant = variantMap.get(searchKeyWithUnit) || variantMap.get(searchKeyNoUnit);
+            }
+
+            // Fallback dengan nama seragam / SKU
+            if (!matchedVariant && legacyItemName) {
+                matchedVariant = variantMap.get(`${normalize(legacyItemName)}__${normalize(sizeRaw)}`) || variantMap.get(normalize(legacyItemName));
+            }
+
+            if (!matchedVariant) {
+                errors.push(`Baris ${rowNum}: Seragam [Kategori: "${catRaw}", Jenis: "${clothRaw}", Unit: "${unitRaw}", Gender: "${genderRaw}", Ukuran: "${sizeRaw}"] tidak cocok dengan Master Data.`);
+                return;
+            }
+
+            parsedItems.push({
+                variantId: matchedVariant.id,
+                name: matchedVariant.item?.name || `${clothRaw} ${genderRaw}`,
+                sizeName: matchedVariant.sizeName || sizeRaw,
+                quantity: qtyRaw
+            });
+        });
+
+        if (parsedItems.length === 0) {
+            return res.status(400).json({ 
+                error: 'Tidak ada daftar barang pesanan seragam valid yang dapat diproses.', 
+                errors 
+            });
+        }
+
+        // Gabungkan varian yang sama (sum quantities)
+        const aggregatedVariantMap = new Map();
+        parsedItems.forEach(it => {
+            const current = aggregatedVariantMap.get(it.variantId) || { variantId: it.variantId, quantity: 0, name: it.name, sizeName: it.sizeName };
+            current.quantity += it.quantity;
+            aggregatedVariantMap.set(it.variantId, current);
+        });
+
+        const finalItems = Array.from(aggregatedVariantMap.values());
+        const totalQty = finalItems.reduce((sum, it) => sum + it.quantity, 0);
+
+        // Cek apakah import ini untuk Proyek yang sudah ada (projectId) atau Proyek Baru
+        const targetProjectId = parseInt(req.body.projectId || req.query.projectId, 10);
+
+        if (targetProjectId) {
+            const existingProject = await prisma.uniformProject.findUnique({
+                where: { id: targetProjectId },
+                include: { projectItems: true }
+            });
+
+            if (!existingProject) {
+                return res.status(404).json({ error: 'Proyek seragam tujuan tidak ditemukan.' });
+            }
+
+            await prisma.$transaction(async (tx) => {
+                for (const it of finalItems) {
+                    const existingPI = existingProject.projectItems.find(pi => pi.variantId === it.variantId);
+                    if (existingPI) {
+                        await tx.uniformProjectItem.update({
+                            where: { id: existingPI.id },
+                            data: { quantity: existingPI.quantity + it.quantity }
+                        });
+                    } else {
+                        await tx.uniformProjectItem.create({
+                            data: {
+                                projectId: targetProjectId,
+                                variantId: it.variantId,
+                                quantity: it.quantity
+                            }
+                        });
+                    }
+                }
+
+                // Update total targetQuantity pada proyek seragam
+                const allCurrentItems = await tx.uniformProjectItem.findMany({
+                    where: { projectId: targetProjectId }
+                });
+                const newTotal = allCurrentItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                await tx.uniformProject.update({
+                    where: { id: targetProjectId },
+                    data: { targetQuantity: newTotal }
+                });
+            });
+
+            return res.json({
+                message: `Berhasil menambahkan ${finalItems.length} varian seragam pesanan ke Proyek "${existingProject.title}".`,
+                successCount: 1,
+                totalItemsCount: finalItems.length,
+                totalQuantity: totalQty,
+                errorCount: errors.length,
+                errors,
+                project: existingProject
+            });
+        }
+
+        // BUAT PROYEK SERAGAM BARU
+        const title = (req.body.title || `Pengadaan Seragam - ${new Date().toLocaleDateString('id-ID')}`).trim();
+        const year = parseInt(req.body.year, 10) || new Date().getFullYear();
+        const budget = parseFloat(req.body.budget) || 0;
+        const requestedByName = (req.body.requestedByName || req.user?.name || 'Staff Divisi Seragam').trim();
+        const targetDate = parseDate(req.body.targetDate);
+        const justification = (req.body.justification || 'Usulan pengadaan seragam santri / siswa melalui import Excel').trim();
+        const directVendorId = parseInt(req.body.directVendorId, 10) || null;
+
+        const meta = {
+            approvalStatus: 'PENDING',
+            requestedByName,
+            justification,
+            targetDate,
+            budget,
+            projectType: 'SELEKSI'
+        };
+
+        const serializedNote = serializeUniformProjectMetadata(justification, meta);
+
+        let createdProject;
+        await prisma.$transaction(async (tx) => {
+            createdProject = await tx.uniformProject.create({
+                data: {
+                    title,
+                    year,
+                    targetQuantity: totalQty,
+                    status: 'MENUNGGU_PERSETUJUAN',
+                    note: serializedNote,
+                    projectItems: {
+                        create: finalItems.map(it => ({
+                            variantId: it.variantId,
+                            quantity: it.quantity
+                        }))
+                    }
+                }
+            });
+
+            if (directVendorId) {
+                await tx.uniformVendorSelection.create({
+                    data: {
+                        projectId: createdProject.id,
+                        vendorId: directVendorId,
+                        status: 'DIPILIH',
+                        reason: 'Penunjukan Vendor Rekanan (Import Proyek)'
+                    }
+                });
+            }
+        });
+
+        res.json({
+            message: `Berhasil membuat proyek pengadaan seragam baru "${createdProject.title}" dengan ${finalItems.length} varian ukuran (${totalQty} total pcs). Status: Menunggu Persetujuan Kabid Sarana.`,
+            successCount: 1,
+            totalItemsCount: finalItems.length,
+            totalQuantity: totalQty,
+            errorCount: errors.length,
+            errors,
+            project: createdProject
+        });
+    } catch (error) {
+        console.error('Import Uniform Projects Error:', error);
+        res.status(500).json({ error: error.message || 'Gagal memproses import daftar pesanan seragam' });
     }
 };
 
@@ -5327,7 +5870,12 @@ exports.createUniformPurchaseOrder = async (req, res) => {
             resolvedVendorPhone = chosen.vendor?.phone || '';
         }
 
-        const rawItems = items && items.length > 0 ? items : project.projectItems;
+        // Format items for PO (hanya item dengan kuantitas > 0 yang dipesan)
+        const allItems = items && items.length > 0 ? items : project.projectItems;
+        const rawItems = (allItems || []).filter(pi => {
+            const q = parseInt(pi.quantity || pi.qty || 0, 10);
+            return q > 0;
+        });
         const poItems = rawItems.map((pi, idx) => ({
             no: idx + 1,
             name: pi.name || pi.variant?.item?.name || 'Seragam',

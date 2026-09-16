@@ -73,6 +73,8 @@ router.delete('/vendors/:id', isSuperAdminOrIT, invCtrl.deleteVendor);
 const projectCtrl = require('../controllers/inventoryProjectController');
 
 // PROJECTS
+router.get('/projects/template', projectCtrl.downloadProjectTemplate);
+router.post('/projects/import', isAdmin, uploadMemory.single('file'), projectCtrl.importProjects);
 router.get('/projects', projectCtrl.getProjects);
 router.post('/projects', isAdmin, projectCtrl.createProject);
 router.put('/projects/:id', isAdmin, projectCtrl.updateProject);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     CheckCircle, 
     XCircle, 
@@ -12,7 +12,10 @@ import {
     User, 
     DollarSign, 
     Package, 
-    X 
+    X,
+    Minus,
+    Plus,
+    RotateCcw
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -45,12 +48,44 @@ export const ProjectApprovalModal = ({
     const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [itemQuantities, setItemQuantities] = useState({});
 
     const isAlreadyApproved = project.approvalStatus === 'APPROVED' || project.status === 'DISETUJUI' || project.status === 'BERJALAN' || project.status === 'SELESAI';
     const isRejected = project.approvalStatus === 'REJECTED' || project.status === 'DITOLAK';
 
     const items = project.projectItems || [];
     const estimatedBudget = project.budget ? Number(project.budget) : 0;
+
+    // Inisialisasi kuantitas item saat modal dibuka atau project berubah
+    useEffect(() => {
+        if (project?.projectItems) {
+            const initMap = {};
+            project.projectItems.forEach(it => {
+                initMap[it.id] = it.quantity;
+            });
+            setItemQuantities(initMap);
+        }
+        if (project?.approvalNote) {
+            setNotes(project.approvalNote);
+        } else {
+            setNotes('');
+        }
+    }, [project, isOpen]);
+
+    // Menghitung ringkasan jumlah usulan vs disetujui
+    const totalOriginalQty = items.reduce((acc, it) => {
+        // Jika sudah pernah disesuaikan sebelumnya, cek riwayat jika ada
+        const prevAdj = (project.itemAdjustments || []).find(a => (a.itemId === it.itemId) || (a.variantId === it.variantId));
+        const orig = prevAdj ? prevAdj.originalQuantity : it.quantity;
+        return acc + (parseInt(orig, 10) || 0);
+    }, 0);
+
+    const totalApprovedQty = items.reduce((acc, it) => {
+        const q = itemQuantities[it.id] !== undefined ? parseInt(itemQuantities[it.id], 10) : it.quantity;
+        return acc + Math.max(0, isNaN(q) ? 0 : q);
+    }, 0);
+
+    const totalReduced = Math.max(0, totalOriginalQty - totalApprovedQty);
 
     const handleApprovalSubmit = async (e) => {
         e.preventDefault();
@@ -62,10 +97,22 @@ export const ProjectApprovalModal = ({
                 ? `/uniforms/projects/${project.id}/approve`
                 : `/inventory/projects/${project.id}/approve`;
 
+            const adjustedItems = items.map(it => {
+                const q = itemQuantities[it.id] !== undefined ? parseInt(itemQuantities[it.id], 10) : it.quantity;
+                return {
+                    id: it.id,
+                    itemId: it.itemId || it.variantId,
+                    variantId: it.variantId,
+                    quantity: Math.max(0, isNaN(q) ? 0 : q),
+                    originalQuantity: it.quantity
+                };
+            });
+
             const res = await api.post(endpoint, {
                 action,
                 notes,
-                signature: currentUser.signatureUrl || null
+                signature: currentUser.signatureUrl || null,
+                adjustedItems
             });
 
             if (onSuccess) {
@@ -86,7 +133,7 @@ export const ProjectApprovalModal = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
-            <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
                 {/* Header Modal */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
                     <div className="flex items-center gap-2.5">
@@ -95,7 +142,7 @@ export const ProjectApprovalModal = ({
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-800 text-base">Lembar Persetujuan Prapengadaan (Proyek)</h3>
-                            <p className="text-xs text-slate-500">Pemeriksaan & Disposisi Kepala Bidang Sarana</p>
+                            <p className="text-xs text-slate-500">Pemeriksaan, Penyesuaian Jumlah Item & Disposisi Kepala Bidang Sarana</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -185,7 +232,7 @@ export const ProjectApprovalModal = ({
                             <p className="font-bold text-emerald-600 text-sm">
                                 {estimatedBudget > 0 ? `Rp ${estimatedBudget.toLocaleString('id-ID')}` : 'Sesuai Penawaran Vendor'}
                             </p>
-                            <p className="text-[11px] text-slate-500">Total target: {project.targetQuantity || 0} unit</p>
+                            <p className="text-[11px] text-slate-500">Total target: {totalApprovedQty} unit (Usulan: {totalOriginalQty})</p>
                         </div>
                     </div>
 
@@ -199,14 +246,22 @@ export const ProjectApprovalModal = ({
                         </p>
                     </div>
 
-                    {/* Rincian Barang Pengadaan */}
+                    {/* Rincian Barang Pengadaan & Penyesuaian Kuantitas */}
                     <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Package size={15} className="text-blue-600" />
-                            <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">
-                                Daftar Rincian Barang yang Diminta:
-                            </h4>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                            <div className="flex items-center gap-2">
+                                <Package size={16} className="text-blue-600" />
+                                <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider">
+                                    Daftar Rincian Barang & Persetujuan Kuantitas:
+                                </h4>
+                            </div>
+                            {canApprove && !isAlreadyApproved && (
+                                <span className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg font-medium">
+                                    💡 Kepala Bidang dapat menyesuaikan / mengurangi kuantitas per item di bawah ini
+                                </span>
+                            )}
                         </div>
+
                         {items.length === 0 ? (
                             <div className="text-center py-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 text-xs">
                                 Belum ada rincian barang yang dicantumkan dalam proyek ini.
@@ -214,36 +269,152 @@ export const ProjectApprovalModal = ({
                         ) : (
                             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
                                 <table className="w-full text-xs text-left">
-                                    <thead className="bg-slate-100 font-bold text-slate-600 border-b border-slate-200">
+                                    <thead className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200">
                                         <tr>
                                             <th className="p-2.5 w-10 text-center">No</th>
                                             <th className="p-2.5">Nama Barang & Spesifikasi</th>
                                             <th className="p-2.5">Kategori / Kode</th>
-                                            <th className="p-2.5 text-center">Jumlah Target</th>
-                                            <th className="p-2.5 text-center">Satuan</th>
+                                            <th className="p-2.5 text-center w-24">Jml Diajukan</th>
+                                            <th className="p-2.5 text-center min-w-[200px]">Jml Disetujui (ACC)</th>
+                                            <th className="p-2.5 text-center w-20">Satuan</th>
+                                            <th className="p-2.5 text-center w-36">Status Item</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {items.map((it, idx) => (
-                                            <tr key={it.id || idx} className="hover:bg-slate-50/50">
-                                                <td className="p-2.5 text-center font-medium text-slate-400">{idx + 1}</td>
-                                                <td className="p-2.5 font-bold text-slate-800">
-                                                    {it.item?.name || it.variant?.item?.name || it.name || 'Barang'}
-                                                    {it.variant?.sizeName && (
-                                                        <span className="ml-2 text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-semibold">
-                                                            Ukuran: {it.variant.sizeName}
+                                        {items.map((it, idx) => {
+                                            const prevAdj = (project.itemAdjustments || []).find(a => (a.itemId === it.itemId) || (a.variantId === it.variantId));
+                                            const originalQty = prevAdj ? prevAdj.originalQuantity : it.quantity;
+                                            const currentApprovedQty = itemQuantities[it.id] !== undefined ? itemQuantities[it.id] : it.quantity;
+                                            const isReduced = currentApprovedQty < originalQty && currentApprovedQty > 0;
+                                            const isCancelled = currentApprovedQty === 0;
+                                            const isMatched = currentApprovedQty === originalQty;
+
+                                            return (
+                                                <tr key={it.id || idx} className={`transition-colors ${isCancelled ? 'bg-rose-50/40 text-slate-400' : isReduced ? 'bg-amber-50/30' : 'hover:bg-slate-50/50'}`}>
+                                                    <td className="p-2.5 text-center font-medium text-slate-400">{idx + 1}</td>
+                                                    <td className="p-2.5 font-bold text-slate-800">
+                                                        <span className={isCancelled ? 'line-through text-slate-400' : ''}>
+                                                            {it.item?.name || it.variant?.item?.name || it.name || 'Barang'}
                                                         </span>
-                                                    )}
-                                                </td>
-                                                <td className="p-2.5 text-slate-500">
-                                                    {it.item?.category?.name || it.variant?.item?.clothingType?.name || it.item?.code || '-'}
-                                                </td>
-                                                <td className="p-2.5 text-center font-bold text-blue-600">{it.quantity}</td>
-                                                <td className="p-2.5 text-center text-slate-600">{it.item?.unit || it.unit || 'Pcs'}</td>
-                                            </tr>
-                                        ))}
+                                                        {it.variant?.sizeName && (
+                                                            <span className="ml-2 text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-semibold">
+                                                                Ukuran: {it.variant.sizeName}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-2.5 text-slate-500">
+                                                        {it.item?.category?.name || it.variant?.item?.clothingType?.name || it.item?.code || '-'}
+                                                    </td>
+                                                    <td className="p-2.5 text-center font-semibold text-slate-600">
+                                                        {originalQty}
+                                                    </td>
+                                                    <td className="p-2.5 text-center">
+                                                        {canApprove && !isAlreadyApproved ? (
+                                                            <div className="flex items-center justify-center gap-1 print:hidden">
+                                                                <button
+                                                                    type="button"
+                                                                    title="Kurangi 1 unit"
+                                                                    onClick={() => {
+                                                                        const curr = itemQuantities[it.id] !== undefined ? itemQuantities[it.id] : it.quantity;
+                                                                        setItemQuantities({ ...itemQuantities, [it.id]: Math.max(0, curr - 1) });
+                                                                    }}
+                                                                    className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition-colors shadow-2xs"
+                                                                >
+                                                                    <Minus size={12} />
+                                                                </button>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={originalQty}
+                                                                    value={itemQuantities[it.id] !== undefined ? itemQuantities[it.id] : it.quantity}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value === '' ? '' : Math.max(0, Math.min(originalQty, parseInt(e.target.value, 10) || 0));
+                                                                        setItemQuantities({ ...itemQuantities, [it.id]: val });
+                                                                    }}
+                                                                    className={`w-14 text-center font-bold px-1.5 py-1 border rounded-lg text-xs outline-none transition-all ${isCancelled ? 'border-rose-400 bg-rose-50 text-rose-700' : isReduced ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-blue-700 focus:border-blue-500'}`}
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    title="Tambah 1 unit"
+                                                                    disabled={currentApprovedQty >= originalQty}
+                                                                    onClick={() => {
+                                                                        const curr = itemQuantities[it.id] !== undefined ? itemQuantities[it.id] : it.quantity;
+                                                                        setItemQuantities({ ...itemQuantities, [it.id]: Math.min(originalQty, curr + 1) });
+                                                                    }}
+                                                                    className={`w-6 h-6 rounded-md font-bold flex items-center justify-center transition-colors shadow-2xs ${currentApprovedQty >= originalQty ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                                                                >
+                                                                    <Plus size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Coret / Batalkan item ini dari usulan"
+                                                                    onClick={() => {
+                                                                        setItemQuantities({ ...itemQuantities, [it.id]: 0 });
+                                                                    }}
+                                                                    className="text-[10px] px-1.5 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold border border-rose-200 transition-colors ml-0.5"
+                                                                >
+                                                                    Batal (0)
+                                                                </button>
+                                                                {currentApprovedQty !== originalQty && (
+                                                                    <button
+                                                                        type="button"
+                                                                        title="Reset ke kuantitas awal usulan"
+                                                                        onClick={() => {
+                                                                            setItemQuantities({ ...itemQuantities, [it.id]: originalQty });
+                                                                        }}
+                                                                        className="p-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                                                                    >
+                                                                        <RotateCcw size={12} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="font-extrabold text-blue-700 text-sm">
+                                                                {currentApprovedQty}
+                                                            </div>
+                                                        )}
+                                                        <div className="hidden print:block text-center font-bold">
+                                                            {currentApprovedQty}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2.5 text-center text-slate-600">
+                                                        {it.item?.unit || it.unit || 'Pcs'}
+                                                    </td>
+                                                    <td className="p-2.5 text-center">
+                                                        {isCancelled ? (
+                                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-md">
+                                                                ❌ Dicoret (0)
+                                                            </span>
+                                                        ) : isReduced ? (
+                                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">
+                                                                ⚠️ Dikurangi (-{originalQty - currentApprovedQty})
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                                                ✓ Sesuai Usulan
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+
+                        {/* Banner Ringkasan Penyesuaian Kuantitas jika ada pengurangan */}
+                        {totalReduced > 0 && (
+                            <div className="mt-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                                    <span>
+                                        Kuantitas disesuaikan oleh Kepala Bidang Sarana: semula <b>{totalOriginalQty} unit</b> disetujui menjadi <b>{totalApprovedQty} unit</b>.
+                                    </span>
+                                </div>
+                                <span className="font-extrabold text-amber-800 bg-white px-2.5 py-1 rounded-lg border border-amber-300 text-[11px] shadow-2xs">
+                                    Pengurangan: -{totalReduced} Unit
+                                </span>
                             </div>
                         )}
                     </div>
@@ -299,13 +470,18 @@ export const ProjectApprovalModal = ({
                     )}
 
                     {/* FORM DISPOSISI KEPALA BIDANG SARANA (Hanya muncul jika berwenang dan belum final) */}
-                    {canApprove && (
+                    {canApprove && !isAlreadyApproved && (
                         <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-slate-50 to-blue-50/40 border-2 border-blue-200 print:hidden space-y-4">
                             <div className="flex items-center gap-2">
                                 <ShieldCheck size={18} className="text-blue-600" />
-                                <h4 className="font-extrabold text-sm text-slate-800">
-                                    Form Keputusan & TTE Kepala Bidang Sarana
-                                </h4>
+                                <div>
+                                    <h4 className="font-extrabold text-sm text-slate-800">
+                                        Form Keputusan & Pengesahan TTE Kepala Bidang Sarana
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500">
+                                        Pastikan kuantitas item di atas telah disesuaikan sebelum menekan tombol persetujuan (ACC).
+                                    </p>
+                                </div>
                             </div>
 
                             {errorMsg && (
@@ -328,7 +504,7 @@ export const ProjectApprovalModal = ({
                                                 className="hidden" 
                                             />
                                             <CheckCircle size={16} className={action === 'APPROVE' ? 'text-emerald-600' : 'text-slate-400'} />
-                                            Setujui Proyek (ACC & Lanjut Pemesanan)
+                                            Setujui Proyek (ACC & Terbitkan Pemesanan: {totalApprovedQty} Unit)
                                         </label>
 
                                         <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer font-bold text-xs transition-all ${action === 'REJECT' ? 'border-rose-500 bg-rose-50 text-rose-800 shadow-xs' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
@@ -352,7 +528,7 @@ export const ProjectApprovalModal = ({
                                     </label>
                                     <textarea 
                                         rows={2} 
-                                        placeholder="Tuliskan arahan pengadaan, batas anggaran yang diizinkan, atau catatan revisi..." 
+                                        placeholder="Tuliskan arahan pengadaan, alasan pengurangan kuantitas item, atau catatan revisi..." 
                                         className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:border-blue-500 bg-white"
                                         value={notes}
                                         onChange={e => setNotes(e.target.value)}
@@ -375,7 +551,7 @@ export const ProjectApprovalModal = ({
                                         className={`px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow-md transition-all ${action === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'}`}
                                     >
                                         <Send size={14} />
-                                        {submitting ? 'Memproses...' : (action === 'APPROVE' ? 'Sahkan & Terbitkan ACC' : 'Kirim Catatan Tolak')}
+                                        {submitting ? 'Memproses...' : (action === 'APPROVE' ? 'Sahkan ACC & Kuantitas Resmi' : 'Kirim Catatan Tolak')}
                                     </button>
                                 </div>
                             </form>

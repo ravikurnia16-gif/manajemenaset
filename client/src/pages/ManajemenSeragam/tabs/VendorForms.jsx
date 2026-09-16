@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../../lib/axios';
-import { Plus, Trash2, AlertTriangle, Box, PackagePlus } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Box, PackagePlus, FileSpreadsheet, Download, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
     const currentUser = (() => {
         try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch (e) { return {}; }
     })();
+
+    const excelFileRef = useRef(null);
+    const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
     const [formData, setFormData] = useState(() => {
         if (initialData) {
@@ -48,9 +52,9 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
 
     useEffect(() => {
         api.get('/uniforms/variants').then(res => {
-            setVariants(res.data);
+            setVariants(res.data || []);
             const itemsMap = new Map();
-            res.data.forEach(v => {
+            (res.data || []).forEach(v => {
                 if (v.item && !itemsMap.has(v.item.id)) {
                     itemsMap.set(v.item.id, v.item);
                 }
@@ -58,6 +62,148 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
             setAvailableItems(Array.from(itemsMap.values()));
         }).catch(console.error);
     }, []);
+
+    const handleDownloadTemplate = async () => {
+        setDownloadingTemplate(true);
+        try {
+            const res = await api.get('/uniforms/projects/template', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'Template_Daftar_Pesanan_Seragam.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Download uniform template error:', err);
+            alert('Gagal mengunduh template Excel seragam.');
+        } finally {
+            setDownloadingTemplate(false);
+        }
+    };
+
+    const handleImportExcelItems = (e) => {
+        const selectedFile = e.target.files[0];
+        if (!selectedFile) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                if (!data || data.length === 0) {
+                    alert('File Excel kosong atau format tidak sesuai.');
+                    return;
+                }
+
+                const normalize = (str) => (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+                // Bangun peta pencarian varian
+                const makeKey = (cat, cloth, unit, gender, size) => {
+                    return `${normalize(cat)}__${normalize(cloth)}__${normalize(unit)}__${normalize(gender)}__${normalize(size)}`;
+                };
+
+                const variantLookup = new Map();
+                variants.forEach(v => {
+                    if (!v.item) return;
+                    const cat = v.item.category?.name || '';
+                    const cloth = v.item.clothingType?.name || '';
+                    const unit = v.item.unit?.name || '';
+                    const gender = v.item.gender || '';
+                    const size = v.sizeName || v.size?.name || '';
+
+                    variantLookup.set(makeKey(cat, cloth, unit, gender, size), v);
+                    if (!unit) {
+                        variantLookup.set(makeKey(cat, cloth, '', gender, size), v);
+                    }
+                    if (v.item.name && size) {
+                        variantLookup.set(`${normalize(v.item.name)}__${normalize(size)}`, v);
+                    }
+                    if (v.sku) {
+                        variantLookup.set(normalize(v.sku), v);
+                    }
+                });
+
+                const newItems = [...formData.items];
+                let matchedCount = 0;
+                const missing = [];
+
+                data.forEach((row, idx) => {
+                    const cat = (row['Kategori *'] || row['Kategori'] || '').toString().trim();
+                    const cloth = (row['Jenis Pakaian *'] || row['Jenis Pakaian'] || row['Jenis pakaian'] || '').toString().trim();
+                    const unit = (row['Unit *'] || row['Unit'] || '').toString().trim();
+                    let gender = (row['Gender *'] || row['Gender'] || '').toString().trim().toUpperCase();
+                    if (gender === 'L' || gender === 'PUTRA') gender = 'IKHWAN';
+                    if (gender === 'P' || gender === 'PUTRI') gender = 'AKHWAT';
+
+                    const size = (row['Ukuran (Sesuai Master Data) *'] || row['Ukuran *'] || row['Ukuran'] || row['size'] || '').toString().trim();
+                    const qty = parseInt(
+                        row['Jumlah Pesanan *'] || 
+                        row['Jumlah Pesanan'] || 
+                        row['Jumlah Target *'] || 
+                        row['Jumlah'] || 
+                        row['quantity'] || 
+                        0, 
+                        10
+                    );
+
+                    const legacyName = (row['Nama Seragam *'] || row['Nama Seragam'] || row['itemName'] || '').toString().trim();
+
+                    if (!cat && !cloth && !size && !legacyName) return;
+
+                    if (isNaN(qty) || qty <= 0) {
+                        missing.push(`Baris ${idx + 2}: Jumlah pesanan seragam "${cloth || legacyName} (${size})" tidak valid.`);
+                        return;
+                    }
+
+                    let matched = null;
+                    if (cat && cloth && gender && size) {
+                        matched = variantLookup.get(makeKey(cat, cloth, unit, gender, size)) || 
+                                  variantLookup.get(makeKey(cat, cloth, '', gender, size));
+                    }
+                    if (!matched && legacyName) {
+                        matched = variantLookup.get(`${normalize(legacyName)}__${normalize(size)}`) || variantLookup.get(normalize(legacyName));
+                    }
+
+                    if (matched) {
+                        const existingIdx = newItems.findIndex(i => i.variantId === matched.id);
+                        if (existingIdx >= 0) {
+                            newItems[existingIdx].quantity += qty;
+                        } else {
+                            newItems.push({
+                                variantId: matched.id,
+                                quantity: qty,
+                                name: matched.item?.name || `${cloth} ${gender}`,
+                                sizeName: matched.sizeName || size
+                            });
+                        }
+                        matchedCount++;
+                    } else {
+                        missing.push(`Baris ${idx + 2}: Seragam [${cat} | ${cloth} | ${unit} | ${gender} | ${size}] tidak cocok dengan Master Data.`);
+                    }
+                });
+
+                const newTotal = newItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                setFormData({ ...formData, items: newItems, targetQuantity: newTotal });
+
+                let msg = `Berhasil memuat ${matchedCount} varian seragam pesanan ke dalam tabel.`;
+                if (missing.length > 0) {
+                    msg += `\n\nCatatan (${missing.length} baris tidak cocok / dilewati):\n` + missing.slice(0, 5).join('\n') + (missing.length > 5 ? `\n...dan ${missing.length - 5} lainnya.` : '');
+                }
+                alert(msg);
+            } catch (err) {
+                console.error('Parse uniform excel error:', err);
+                alert('Gagal membaca file Excel. Pastikan format file sesuai template.');
+            } finally {
+                if (excelFileRef.current) excelFileRef.current.value = '';
+            }
+        };
+        reader.readAsBinaryString(selectedFile);
+    };
 
     const handleAddItemVariants = () => {
         if (!selectedItem) return;
@@ -204,7 +350,37 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
             </div>
             
             <div className="border border-slate-200 p-3 rounded-xl bg-slate-50 space-y-3">
-                <label className="block text-xs font-bold text-slate-700">Daftar Barang Pesanan</label>
+                <input 
+                    type="file" 
+                    ref={excelFileRef} 
+                    onChange={handleImportExcelItems} 
+                    accept=".xlsx, .xls, .csv" 
+                    className="hidden" 
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-xs font-bold text-slate-700">Daftar Barang Pesanan</label>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleDownloadTemplate}
+                            disabled={downloadingTemplate}
+                            className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all"
+                            title="Unduh format template Excel daftar pesanan seragam"
+                        >
+                            <Download size={13} className="text-indigo-600" />
+                            {downloadingTemplate ? 'Mengunduh...' : 'Format Excel'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => excelFileRef.current?.click()}
+                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all"
+                            title="Unggah Excel berisi daftar pesanan seragam sesuai master data"
+                        >
+                            <FileSpreadsheet size={13} className="text-indigo-700" />
+                            Import Excel
+                        </button>
+                    </div>
+                </div>
                 
                 <div className="flex flex-col gap-2">
                     <input 
