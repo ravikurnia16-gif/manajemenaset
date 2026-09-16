@@ -4960,10 +4960,38 @@ exports.getDashboardStats = async (req, res) => {
 
 // ========== VENDOR LIFECYCLE (PROJECT, SELECTION, MOU, EVALUATION) ==========
 
+function parseUniformProjectMetadata(note) {
+    if (!note) return { text: '', meta: {} };
+    if (typeof note === 'string' && note.trim().startsWith('__META__::')) {
+        try {
+            const jsonPart = note.trim().substring('__META__::'.length);
+            const parsed = JSON.parse(jsonPart);
+            return { text: parsed.noteText || '', meta: parsed };
+        } catch (e) {
+            return { text: note, meta: {} };
+        }
+    }
+    if (typeof note === 'string' && note.trim().startsWith('{') && note.trim().endsWith('}')) {
+        try {
+            const parsed = JSON.parse(note);
+            return { text: parsed.text || parsed.noteText || '', meta: parsed };
+        } catch (e) {}
+    }
+    return { text: note, meta: {} };
+}
+
+function serializeUniformProjectMetadata(noteText, metaObj) {
+    const payload = {
+        noteText: noteText || '',
+        ...metaObj
+    };
+    return '__META__::' + JSON.stringify(payload);
+}
+
 exports.getProjects = async (req, res) => {
     try {
         const projects = await prisma.uniformProject.findMany({
-            orderBy: { year: 'desc' },
+            orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
             include: {
                 selections: {
                     include: { vendor: true }
@@ -4979,7 +5007,36 @@ exports.getProjects = async (req, res) => {
                 }
             }
         });
-        res.json(projects);
+
+        const mapped = projects.map(p => {
+            const { text, meta } = parseUniformProjectMetadata(p.note);
+            const approvalStatus = meta.approvalStatus || (p.status === 'MENUNGGU_PERSETUJUAN' ? 'PENDING' : 'APPROVED');
+
+            return {
+                ...p,
+                note: text,
+                approvalStatus,
+                approvedById: meta.approvedById || null,
+                approvedByName: meta.approvedByName || null,
+                approvedAt: meta.approvedAt || null,
+                approvalNote: meta.approvalNote || null,
+                approvalSignature: meta.approvalSignature || null,
+                requestedByName: meta.requestedByName || null,
+                justification: meta.justification || '',
+                targetDate: meta.targetDate || null,
+                budget: meta.budget || 0,
+                projectType: meta.projectType || 'SELEKSI',
+                poNumber: meta.poNumber || null,
+                poDate: meta.poDate || null,
+                poOfficeDocId: meta.poOfficeDocId || null,
+                poVendorName: meta.poVendorName || null,
+                bastNumber: meta.bastNumber || null,
+                bastDate: meta.bastDate || null,
+                bastOfficeDocId: meta.bastOfficeDocId || null
+            };
+        });
+
+        res.json(mapped);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -4987,39 +5044,63 @@ exports.getProjects = async (req, res) => {
 
 exports.createProject = async (req, res) => {
     try {
-        const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
+        const { year, title, targetQuantity, status, note, items, projectType, directVendorId, budget, justification, targetDate, requestedByName } = req.body;
 
-        const parsedYear = parseInt(year);
+        const parsedYear = parseInt(year, 10) || new Date().getFullYear();
+        const selectedType = projectType || 'SELEKSI';
 
         const itemMap = new Map();
         if (items) {
             items.forEach(i => {
-                const vId = parseInt(i.variantId);
-                const qty = parseInt(i.quantity);
-                itemMap.set(vId, (itemMap.get(vId) || 0) + qty);
+                const vId = parseInt(i.variantId, 10);
+                const qty = parseInt(i.quantity, 10);
+                if (vId && qty > 0) {
+                    itemMap.set(vId, (itemMap.get(vId) || 0) + qty);
+                }
             });
         }
         const projectItemsData = Array.from(itemMap.entries()).map(([variantId, quantity]) => ({ variantId, quantity }));
+
+        const totalQty = projectItemsData.reduce((acc, curr) => acc + curr.quantity, 0) || parseInt(targetQuantity || 0, 10);
+
+        const initialStatus = status || 'MENUNGGU_PERSETUJUAN';
+        const initialApprovalStatus = initialStatus === 'MENUNGGU_PERSETUJUAN' ? 'PENDING' : 'APPROVED';
+
+        const meta = {
+            approvalStatus: initialApprovalStatus,
+            requestedByName: requestedByName || req.user?.name || 'Staff Seragam / Admin',
+            justification: justification || '',
+            targetDate: targetDate || null,
+            budget: parseFloat(budget) || 0,
+            projectType: selectedType
+        };
+
+        const serializedNote = serializeUniformProjectMetadata(note, meta);
 
         const data = await prisma.$transaction(async (tx) => {
             const proj = await tx.uniformProject.create({
                 data: {
                     year: parsedYear,
                     title,
-                    targetQuantity: parseInt(targetQuantity || 0),
-                    status,
-                    note,
+                    targetQuantity: totalQty,
+                    status: initialStatus,
+                    note: serializedNote,
                     projectItems: {
                         create: projectItemsData
+                    }
+                },
+                include: {
+                    projectItems: {
+                        include: { variant: { include: { item: true } } }
                     }
                 }
             });
 
-            if (projectType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
+            if (selectedType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
                 await tx.uniformVendorSelection.create({
                     data: {
                         projectId: proj.id,
-                        vendorId: parseInt(directVendorId),
+                        vendorId: parseInt(directVendorId, 10),
                         status: 'DIPILIH',
                         reason: 'Penunjukan Langsung'
                     }
@@ -5029,7 +5110,11 @@ exports.createProject = async (req, res) => {
             return proj;
         });
 
-        res.json(data);
+        res.json({
+            ...data,
+            ...meta,
+            note: note || ''
+        });
     } catch (error) {
         console.error('Create Project Error:', error);
         res.status(500).json({ error: error.message });
@@ -5038,17 +5123,37 @@ exports.createProject = async (req, res) => {
 
 exports.updateProject = async (req, res) => {
     try {
-        const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
-        const projectId = parseInt(req.params.id);
-        const parsedYear = parseInt(year);
+        const { year, title, targetQuantity, status, note, items, projectType, directVendorId, budget, justification, targetDate, requestedByName } = req.body;
+        const projectId = parseInt(req.params.id, 10);
+        const parsedYear = year ? parseInt(year, 10) : undefined;
+        const selectedType = projectType;
+
+        const existingProj = await prisma.uniformProject.findUnique({ where: { id: projectId } });
+        if (!existingProj) return res.status(404).json({ error: 'Proyek tidak ditemukan' });
+
+        const { text, meta } = parseUniformProjectMetadata(existingProj.note);
+
+        const updatedMeta = {
+            ...meta,
+            ...(justification !== undefined ? { justification } : {}),
+            ...(targetDate !== undefined ? { targetDate } : {}),
+            ...(requestedByName !== undefined ? { requestedByName } : {}),
+            ...(budget !== undefined ? { budget: parseFloat(budget) } : {}),
+            ...(selectedType !== undefined ? { projectType: selectedType } : {})
+        };
+
+        const noteTextToSave = note !== undefined ? note : text;
+        const serializedNote = serializeUniformProjectMetadata(noteTextToSave, updatedMeta);
 
         const data = await prisma.$transaction(async (tx) => {
             if (items) {
                 const itemMap = new Map();
                 items.forEach(i => {
-                    const vId = parseInt(i.variantId);
-                    const qty = parseInt(i.quantity);
-                    itemMap.set(vId, (itemMap.get(vId) || 0) + qty);
+                    const vId = parseInt(i.variantId, 10);
+                    const qty = parseInt(i.quantity, 10);
+                    if (vId && qty > 0) {
+                        itemMap.set(vId, (itemMap.get(vId) || 0) + qty);
+                    }
                 });
                 const projectItemsData = Array.from(itemMap.entries()).map(([variantId, quantity]) => ({ variantId, quantity }));
 
@@ -5060,16 +5165,16 @@ exports.updateProject = async (req, res) => {
                 }
             }
 
-            if (projectType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
+            if (selectedType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
                 const existingSelection = await tx.uniformVendorSelection.findFirst({
-                    where: { projectId, vendorId: parseInt(directVendorId) }
+                    where: { projectId, vendorId: parseInt(directVendorId, 10) }
                 });
 
                 if (!existingSelection) {
                     await tx.uniformVendorSelection.create({
                         data: {
                             projectId,
-                            vendorId: parseInt(directVendorId),
+                            vendorId: parseInt(directVendorId, 10),
                             status: 'DIPILIH',
                             reason: 'Penunjukan Langsung'
                         }
@@ -5077,15 +5182,257 @@ exports.updateProject = async (req, res) => {
                 }
             }
 
+            const dataToUpdate = {};
+            if (parsedYear) dataToUpdate.year = parsedYear;
+            if (title) dataToUpdate.title = title;
+            if (targetQuantity !== undefined) dataToUpdate.targetQuantity = parseInt(targetQuantity || 0, 10);
+            if (status) dataToUpdate.status = status;
+            dataToUpdate.note = serializedNote;
+
             return tx.uniformProject.update({
                 where: { id: projectId },
-                data: { year: parsedYear, title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+                data: dataToUpdate,
+                include: {
+                    projectItems: {
+                        include: { variant: { include: { item: true } } }
+                    }
+                }
             });
         });
-        res.json(data);
+
+        res.json({
+            ...data,
+            ...updatedMeta,
+            note: noteTextToSave
+        });
     } catch (error) {
         console.error('Update Project Error:', error);
         res.status(500).json({ error: error.message });
+    }
+};
+
+// --- PERSETUJUAN KEPALA BIDANG SARANA (SERAGAM) ---
+exports.approveUniformProject = async (req, res) => {
+    try {
+        const projectId = parseInt(req.params.id, 10);
+        const { action, notes, signature } = req.body; // action: 'APPROVE' | 'REJECT'
+
+        const role = req.user?.role || '';
+        const position = (req.user?.position || '').toLowerCase();
+        const isAuthorized = role === 'SUPER_ADMIN' || 
+                             role === 'KABID_SARPRAS' || 
+                             role === 'KEPALA_BIDANG' || 
+                             position.includes('kepala bidang sarana') || 
+                             position.includes('kabid sarpras');
+
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'Akses Ditolak: Hanya Kepala Bidang Sarana atau Super Admin yang berhak menyetujui proyek ini.' });
+        }
+
+        const project = await prisma.uniformProject.findUnique({
+            where: { id: projectId },
+            include: { projectItems: { include: { variant: { include: { item: true } } } } }
+        });
+        if (!project) return res.status(404).json({ error: 'Proyek tidak ditemukan' });
+
+        const { text, meta } = parseUniformProjectMetadata(project.note);
+
+        const isApprove = action === 'APPROVE';
+        const newStatus = isApprove ? 'DISETUJUI' : 'DITOLAK';
+        const newApprovalStatus = isApprove ? 'APPROVED' : 'REJECTED';
+
+        const updatedMeta = {
+            ...meta,
+            approvalStatus: newApprovalStatus,
+            approvedById: req.user?.id || null,
+            approvedByName: req.user?.name || 'Ravi Kurnia, S.Pd.I',
+            approvedAt: new Date().toISOString(),
+            approvalNote: notes || '',
+            approvalSignature: signature || meta.approvalSignature || null
+        };
+
+        const updated = await prisma.uniformProject.update({
+            where: { id: projectId },
+            data: {
+                status: newStatus,
+                note: serializeUniformProjectMetadata(text, updatedMeta)
+            },
+            include: {
+                projectItems: { include: { variant: { include: { item: true } } } },
+                selections: { include: { vendor: true } }
+            }
+        });
+
+        res.json({
+            message: isApprove ? 'Proyek seragam berhasil disetujui (ACC) oleh Kepala Bidang Sarana' : 'Pengajuan proyek seragam telah ditolak / dikembalikan dengan catatan',
+            project: {
+                ...updated,
+                note: text,
+                ...updatedMeta
+            }
+        });
+    } catch (error) {
+        console.error('Approve Uniform Project Error:', error);
+        res.status(500).json({ error: error.message || 'Gagal memproses persetujuan proyek seragam' });
+    }
+};
+
+// --- PENERBITAN SURAT PESANAN (PO) SERAGAM KE VENDOR ---
+exports.createUniformPurchaseOrder = async (req, res) => {
+    try {
+        const projectId = parseInt(req.params.id, 10);
+        const { vendorId, vendorName, vendorAddress, vendorPhone, deadline, items, notes } = req.body;
+
+        const project = await prisma.uniformProject.findUnique({
+            where: { id: projectId },
+            include: {
+                projectItems: { include: { variant: { include: { item: true } } } },
+                selections: { include: { vendor: true } }
+            }
+        });
+        if (!project) return res.status(404).json({ error: 'Proyek tidak ditemukan' });
+
+        const { text, meta } = parseUniformProjectMetadata(project.note);
+
+        if (project.status === 'MENUNGGU_PERSETUJUAN' || meta.approvalStatus === 'PENDING') {
+            return res.status(400).json({ error: 'Surat Pesanan belum dapat diterbitkan karena proyek belum disetujui oleh Kepala Bidang Sarana.' });
+        }
+
+        let poNumber = meta.poNumber;
+        if (!poNumber) {
+            try {
+                poNumber = await generateDocumentNumber('Pesanan', 'SURAT_PESANAN');
+            } catch (numErr) {
+                console.error('Failed to generate document number:', numErr);
+                poNumber = `001/PO/SRN/${new Date().getFullYear()}`;
+            }
+        }
+
+        let resolvedVendorName = vendorName;
+        let resolvedVendorAddress = vendorAddress || '';
+        let resolvedVendorPhone = vendorPhone || '';
+
+        if (!resolvedVendorName && vendorId) {
+            const v = await prisma.uniformVendor.findUnique({ where: { id: parseInt(vendorId, 10) } });
+            if (v) {
+                resolvedVendorName = v.name;
+                resolvedVendorAddress = v.address || '';
+                resolvedVendorPhone = v.phone || '';
+            }
+        }
+        if (!resolvedVendorName && project.selections?.length > 0) {
+            const chosen = project.selections.find(s => s.status === 'DIPILIH') || project.selections[0];
+            resolvedVendorName = chosen.vendor?.name;
+            resolvedVendorAddress = chosen.vendor?.address || '';
+            resolvedVendorPhone = chosen.vendor?.phone || '';
+        }
+
+        const rawItems = items && items.length > 0 ? items : project.projectItems;
+        const poItems = rawItems.map((pi, idx) => ({
+            no: idx + 1,
+            name: pi.name || pi.variant?.item?.name || 'Seragam',
+            spec: pi.spec || (pi.variant?.sizeName ? `Ukuran: ${pi.variant.sizeName} (${pi.variant?.sku || '-'})` : '-'),
+            qty: parseInt(pi.quantity || pi.qty || 0, 10),
+            unit: pi.unit || 'Stel / Pcs',
+            price: parseFloat(pi.price || pi.unitPrice || 0)
+        }));
+
+        const grandTotal = poItems.reduce((acc, curr) => acc + (curr.qty * curr.price), 0);
+
+        const contentObj = {
+            subCategory: 'SURAT PESANAN',
+            items: poItems,
+            deadline: deadline || meta.targetDate || '',
+            totalAmount: grandTotal,
+            priceDetermined: grandTotal > 0,
+            note: notes || meta.justification || '',
+            projectId: project.id,
+            poNumber,
+            orderDate: new Date().toISOString()
+        };
+
+        let officeDocId = meta.poOfficeDocId;
+        try {
+            if (officeDocId) {
+                await prisma.officeDocument.update({
+                    where: { id: officeDocId },
+                    data: {
+                        subject: `Surat Pesanan (PO) - ${project.title} (${resolvedVendorName || 'Vendor Seragam'})`,
+                        number: poNumber,
+                        party2Name: resolvedVendorName || 'Vendor Rekanan',
+                        party2Address: resolvedVendorAddress,
+                        content: JSON.stringify(contentObj)
+                    }
+                });
+            } else {
+                const newOfficeDoc = await prisma.officeDocument.create({
+                    data: {
+                        type: 'SURAT_KELUAR',
+                        category: 'Pesanan',
+                        subject: `Surat Pesanan (PO) - ${project.title} (${resolvedVendorName || 'Vendor Seragam'})`,
+                        number: poNumber,
+                        date: new Date(),
+                        referenceNumber: `PRJ-SRG-${project.id}`,
+                        authorId: req.user?.id || 1,
+                        signedById: meta.approvedById || req.user?.id || 1,
+                        status: 'SIGNED',
+                        signedAt: meta.approvedAt ? new Date(meta.approvedAt) : new Date(),
+                        party1Name: meta.approvedByName || 'Ravi Kurnia, S.Pd.I',
+                        party1Title: 'Kepala Bidang Sarana',
+                        party1Org: 'Bidang Sarana dan Prasarana',
+                        party2Name: resolvedVendorName || 'Vendor Rekanan',
+                        party2Title: 'Pihak Penjahit / Supplier Seragam',
+                        party2Address: resolvedVendorAddress,
+                        party2Org: resolvedVendorName || '',
+                        content: JSON.stringify(contentObj)
+                    }
+                });
+
+                if (newOfficeDoc.uuid) {
+                    await prisma.officeDocument.update({
+                        where: { id: newOfficeDoc.id },
+                        data: { qrCodeData: newOfficeDoc.uuid }
+                    });
+                }
+                officeDocId = newOfficeDoc.id;
+            }
+        } catch (docErr) {
+            console.error('Failed to create/update office document for PO seragam:', docErr);
+        }
+
+        const updatedMeta = {
+            ...meta,
+            poNumber,
+            poDate: new Date().toISOString(),
+            poOfficeDocId: officeDocId,
+            poVendorName: resolvedVendorName || 'Vendor Seragam',
+            poVendorAddress: resolvedVendorAddress,
+            poVendorPhone: resolvedVendorPhone,
+            poGrandTotal: grandTotal,
+            poDeadline: deadline || meta.targetDate || ''
+        };
+
+        const updatedProj = await prisma.uniformProject.update({
+            where: { id: projectId },
+            data: {
+                status: 'BERJALAN',
+                note: serializeUniformProjectMetadata(text, updatedMeta)
+            }
+        });
+
+        res.json({
+            message: 'Surat Pesanan (PO) seragam resmi berhasil diterbitkan dan tersinkron ke E-Office',
+            poNumber,
+            officeDocId,
+            project: {
+                ...updatedProj,
+                note: text,
+                ...updatedMeta
+            }
+        });
+    } catch (error) {
+        console.error('Create Uniform PO Error:', error);
+        res.status(500).json({ error: error.message || 'Gagal menerbitkan Surat Pesanan seragam' });
     }
 };
 
@@ -5277,7 +5624,7 @@ exports.updateVendorEvaluation = async (req, res) => {
 exports.receiveProjectGoods = async (req, res) => {
     try {
         const projectId = parseInt(req.params.id);
-        const { warehouseId, items, isFinal } = req.body; // items: [{ variantId, quantity }]
+        const { warehouseId, items, isFinal, conditionNotes, vendorName, receiverName } = req.body; // items: [{ variantId, quantity, condition, note }]
 
         if (!warehouseId || !items || items.length === 0) {
             return res.status(400).json({ error: 'Data penerimaan tidak valid. Pastikan gudang dan rincian barang diisi.' });
@@ -5285,13 +5632,20 @@ exports.receiveProjectGoods = async (req, res) => {
 
         const project = await prisma.uniformProject.findUnique({
             where: { id: projectId },
-            include: { selections: true, projectItems: true }
+            include: { 
+                selections: { include: { vendor: true } }, 
+                projectItems: { include: { variant: { include: { item: true } } } } 
+            }
         });
 
         if (!project) return res.status(404).json({ error: 'Proyek tidak ditemukan' });
 
         const selectedVendor = project.selections.find(s => s.status === 'DIPILIH');
         const vendorId = selectedVendor ? selectedVendor.vendorId : null;
+        const resolvedVendor = vendorName || selectedVendor?.vendor?.name || 'Vendor Rekanan Seragam';
+        const resolvedReceiver = receiverName || req.user?.name || 'Staff Pengelola Seragam';
+
+        const { text, meta } = parseUniformProjectMetadata(project.note);
 
         const data = await prisma.$transaction(async (tx) => {
             // Track the updated quantities to check completion later
@@ -5317,7 +5671,7 @@ exports.receiveProjectGoods = async (req, res) => {
                 if (qty <= 0) continue;
 
                 // Record transaction
-                const trx = await tx.uniformStockTransaction.create({
+                await tx.uniformStockTransaction.create({
                     data: {
                         code: `TRX/PRJ/${projectId}/${item.variantId}/${Date.now()}`,
                         type: 'IN',
@@ -5327,7 +5681,7 @@ exports.receiveProjectGoods = async (req, res) => {
                         referenceType: 'PROJECT',
                         referenceId: projectId,
                         vendorId: vendorId,
-                        note: `Penerimaan barang dari Proyek ${project.title}`
+                        note: `Penerimaan barang dari Proyek ${project.title} (${item.condition || 'Baik'})`
                     }
                 });
 
@@ -5358,15 +5712,113 @@ exports.receiveProjectGoods = async (req, res) => {
 
             // Update project status based on completion or isFinal flag
             const finalStatus = (isFinal || allCompleted) ? 'SELESAI' : 'BERJALAN';
+
+            // Generate BAST number & sync to OfficeDocument
+            let bastNumber = meta.bastNumber;
+            let bastDocId = meta.bastOfficeDocId;
+
+            try {
+                if (!bastNumber) {
+                    bastNumber = await generateDocumentNumber('BAST', 'BAST');
+                }
+
+                const bastItems = (items || []).map(it => {
+                    const foundPi = project.projectItems.find(p => p.variantId === parseInt(it.variantId));
+                    return {
+                        name: foundPi?.variant?.item?.name || it.name || 'Seragam',
+                        spec: foundPi?.variant?.sizeName ? `Ukuran ${foundPi.variant.sizeName} (${foundPi.variant?.sku || '-'})` : '-',
+                        qty: it.quantity,
+                        unit: 'Stel / Pcs',
+                        condition: it.condition || 'Baik & Sesuai Spesifikasi',
+                        note: it.note || ''
+                    };
+                });
+
+                const contentObj = {
+                    location: 'Gudang Seragam Yayasan Dar el-Iman',
+                    items: bastItems,
+                    projectTitle: project.title,
+                    projectId: project.id,
+                    conditionSummary: conditionNotes || 'Barang telah diperiksa fisik, jahitan, dan ukuran dalam kondisi baik serta lengkap sesuai Surat Pesanan.',
+                    pembukaan: `Pada hari ini, bertempat di Gudang Pengadaan Seragam Yayasan Dar el-Iman, telah dilaksanakan serah terima hasil pengadaan seragam antara pihak penjahit/rekanan dan pengelola sarana.`,
+                    penutup: 'Demikian Berita Acara Serah Terima (BAST) ini dibuat dan disahkan oleh para pihak dengan penuh tanggung jawab.'
+                };
+
+                if (bastDocId) {
+                    await tx.officeDocument.update({
+                        where: { id: bastDocId },
+                        data: {
+                            party1Name: resolvedVendor,
+                            party2Name: resolvedReceiver,
+                            content: JSON.stringify(contentObj)
+                        }
+                    });
+                } else {
+                    const officeDoc = await tx.officeDocument.create({
+                        data: {
+                            type: 'SURAT_KELUAR',
+                            category: 'BAST',
+                            subject: `Berita Acara Serah Terima (BAST) - ${project.title} (${resolvedVendor})`,
+                            number: bastNumber,
+                            date: new Date(),
+                            referenceNumber: `BAST-SRG-${project.id}`,
+                            authorId: req.user?.id || 1,
+                            signedById: meta.approvedById || req.user?.id || 1,
+                            status: 'SIGNED',
+                            signedAt: new Date(),
+                            party1Name: resolvedVendor,
+                            party1Title: 'Penyedia / Penjahit Seragam',
+                            party2Name: resolvedReceiver,
+                            party2Title: 'Staff Pengelola Seragam & Logistik',
+                            party2Org: 'Bidang Sarana',
+                            content: JSON.stringify(contentObj)
+                        }
+                    });
+
+                    if (officeDoc.uuid) {
+                        await tx.officeDocument.update({
+                            where: { id: officeDoc.id },
+                            data: { qrCodeData: officeDoc.uuid }
+                        });
+                    }
+                    bastDocId = officeDoc.id;
+                }
+            } catch (bastErr) {
+                console.error('Failed to generate uniform BAST office document:', bastErr);
+            }
+
+            const updatedMeta = {
+                ...meta,
+                bastNumber,
+                bastDate: new Date().toISOString(),
+                bastOfficeDocId: bastDocId
+            };
+
             const updatedProj = await tx.uniformProject.update({
                 where: { id: projectId },
-                data: { status: finalStatus }
+                data: { 
+                    status: finalStatus,
+                    note: serializeUniformProjectMetadata(text, updatedMeta)
+                }
             });
 
-            return updatedProj;
+            return {
+                project: {
+                    ...updatedProj,
+                    note: text,
+                    ...updatedMeta
+                },
+                bastNumber,
+                bastDocId
+            };
         });
 
-        res.json({ message: 'Penerimaan barang berhasil dicatat', data });
+        res.json({ 
+            message: 'Barang seragam berhasil diterima, stok gudang terupdate, dan BAST resmi berhasil diterbitkan.', 
+            data: data.project,
+            bastNumber: data.bastNumber,
+            bastDocId: data.bastDocId
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

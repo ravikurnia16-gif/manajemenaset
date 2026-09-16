@@ -101,6 +101,8 @@ router.delete('/vendors/:id', c.deleteVendor);
 router.get('/projects', c.getProjects);
 router.post('/projects', c.createProject);
 router.put('/projects/:id', c.updateProject);
+router.post('/projects/:id/approve', c.approveUniformProject);
+router.post('/projects/:id/purchase-order', c.createUniformPurchaseOrder);
 router.post('/projects/:id/receive', c.receiveProjectGoods);
 
 router.post('/vendor-selections', upload.single('file'), c.createVendorSelection);

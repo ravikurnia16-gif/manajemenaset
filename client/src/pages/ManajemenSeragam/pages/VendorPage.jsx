@@ -8,6 +8,9 @@ import { VendorProjectTab } from '../tabs/VendorProjectTab';
 import { VendorMoUTab } from '../tabs/VendorMoUTab';
 import { VendorEvaluationTab } from '../tabs/VendorEvaluationTab';
 import { ProjectForm, VendorSelectionForm, VendorMoUForm, VendorEvaluationForm, ProjectReceiveForm } from '../tabs/VendorForms';
+import { ProjectApprovalModal } from '../../../components/ProjectApprovalModal';
+import { ProjectPurchaseOrderModal } from '../../../components/ProjectPurchaseOrderModal';
+import { ProjectBASTModal } from '../../../components/ProjectBASTModal';
 
 const TABS = [
     { key: 'profile', label: 'Profil Vendor', icon: <Users size={16} /> },
@@ -93,8 +96,8 @@ export default function VendorPage() {
 
     const handleSaveProjectReceive = async (payload, projectId) => {
         try {
-            await api.post(`/uniforms/projects/${projectId}/receive`, payload);
-            alert('Barang berhasil diterima dan stok telah diupdate.');
+            const res = await api.post(`/uniforms/projects/${projectId}/receive`, payload);
+            alert(res.data?.message || 'Barang seragam berhasil diterima, stok terupdate, dan BAST resmi telah terbit.');
             closeModal();
             fetchData();
         } catch (err) { alert(err.response?.data?.error || 'Gagal menerima barang'); }
@@ -178,6 +181,36 @@ export default function VendorPage() {
                     <ProjectReceiveForm initialData={modal.data} onSave={handleSaveProjectReceive} onCancel={closeModal} />
                 )}
             </Modal>
+
+            {/* Modal Lembar Persetujuan Kepala Bidang Sarana */}
+            <ProjectApprovalModal
+                isOpen={modal.open && modal.type === 'project-approval'}
+                onClose={closeModal}
+                project={modal.data}
+                type="UNIFORM"
+                onSuccess={() => {
+                    fetchData();
+                }}
+            />
+
+            {/* Modal Surat Pesanan (PO) */}
+            <ProjectPurchaseOrderModal
+                isOpen={modal.open && modal.type === 'project-po'}
+                onClose={closeModal}
+                project={modal.data}
+                type="UNIFORM"
+                vendors={vendors}
+                onSuccess={() => {
+                    fetchData();
+                }}
+            />
+
+            {/* Modal Berita Acara Serah Terima (BAST) */}
+            <ProjectBASTModal
+                isOpen={modal.open && modal.type === 'project-bast'}
+                onClose={closeModal}
+                project={modal.data}
+            />
         </div>
     );
 }

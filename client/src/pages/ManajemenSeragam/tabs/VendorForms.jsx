@@ -1,18 +1,45 @@
 import { useState, useEffect } from 'react';
 import api from '../../../lib/axios';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Box, PackagePlus } from 'lucide-react';
 
 export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
+    const currentUser = (() => {
+        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch (e) { return {}; }
+    })();
+
     const [formData, setFormData] = useState(() => {
         if (initialData) {
             return {
                 ...initialData,
                 projectType: initialData.projectType || 'SELEKSI',
                 directVendorId: initialData.directVendorId || '',
-                items: initialData.projectItems ? initialData.projectItems.map(pi => ({ variantId: pi.variantId, quantity: pi.quantity, name: pi.variant?.item?.name, sizeName: pi.variant?.sizeName })) : []
+                budget: initialData.budget || '',
+                requestedByName: initialData.requestedByName || currentUser.name || '',
+                targetDate: initialData.targetDate ? initialData.targetDate.split('T')[0] : '',
+                justification: initialData.justification || '',
+                status: initialData.status || 'MENUNGGU_PERSETUJUAN',
+                items: initialData.projectItems ? initialData.projectItems.map(pi => ({ 
+                    variantId: pi.variantId, 
+                    quantity: pi.quantity, 
+                    name: pi.variant?.item?.name, 
+                    sizeName: pi.variant?.sizeName 
+                })) : []
             };
         }
-        return { year: new Date().getFullYear(), title: '', targetQuantity: 0, status: 'PERENCANAAN', note: '', items: [], projectType: 'SELEKSI', directVendorId: '' };
+        return { 
+            year: new Date().getFullYear(), 
+            title: '', 
+            targetQuantity: 0, 
+            budget: '',
+            status: 'MENUNGGU_PERSETUJUAN', 
+            requestedByName: currentUser.name || 'Staff Pengelola Seragam',
+            targetDate: '',
+            justification: '',
+            note: '', 
+            items: [], 
+            projectType: 'SELEKSI', 
+            directVendorId: '' 
+        };
     });
     const [variants, setVariants] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
@@ -66,46 +93,114 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
     };
 
     return (
-        <form onSubmit={e => { e.preventDefault(); onSave(formData); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={e => { e.preventDefault(); onSave(formData); }} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+            {/* Informasi Alur Persetujuan Kabid */}
+            {!initialData && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                        <span className="font-bold">Alur Prapengadaan Seragam: </span>
+                        Proyek baru ini otomatis berstatus <b>Menunggu Persetujuan</b>. Surat Pesanan (PO) dan tender penjahit/vendor rekanan baru dapat diterbitkan setelah disetujui (ACC) oleh Kepala Bidang Sarana.
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Tahun Proyek</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Tahun Proyek *</label>
                     <input type="number" required className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.year} onChange={e => setFormData({ ...formData, year: e.target.value })} />
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
-                    <select className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                        <option value="PERENCANAAN">Perencanaan</option>
-                        <option value="SELEKSI">Seleksi Vendor</option>
-                        <option value="BERJALAN">Proyek Berjalan</option>
-                        <option value="SELESAI">Selesai</option>
-                    </select>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Status Proyek</label>
+                    {initialData ? (
+                        <select className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                            <option value="MENUNGGU_PERSETUJUAN">Menunggu Persetujuan Kabid</option>
+                            <option value="DISETUJUI">Disetujui (ACC)</option>
+                            <option value="DITOLAK">Ditolak / Revisi</option>
+                            <option value="BERJALAN">Proyek Berjalan</option>
+                            <option value="SELESAI">Selesai</option>
+                        </select>
+                    ) : (
+                        <div className="px-3 py-2 border rounded-xl text-sm bg-slate-50 text-amber-700 font-bold flex items-center justify-between">
+                            <span>Menunggu Persetujuan (ACC)</span>
+                            <span className="text-[10px] bg-amber-100 px-2 py-0.5 rounded-full text-amber-800">Default Awal</span>
+                        </div>
+                    )}
                 </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Tipe Pemesanan</label>
-                    <select className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.projectType} onChange={e => setFormData({ ...formData, projectType: e.target.value })}>
-                        <option value="SELEKSI">Proyek Seleksi (Tender)</option>
-                        <option value="PENUNJUKAN_LANGSUNG">Penunjukan Langsung (Parsial)</option>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Tipe Pemesanan *</label>
+                    <select className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" value={formData.projectType} onChange={e => setFormData({ ...formData, projectType: e.target.value })}>
+                        <option value="SELEKSI">Proyek Seleksi (Tender / Banyak Penjahit)</option>
+                        <option value="PENUNJUKAN_LANGSUNG">Penunjukan Langsung (1 Rekanan Khusus)</option>
                     </select>
                 </div>
-                {formData.projectType === 'PENUNJUKAN_LANGSUNG' && (
+                {formData.projectType === 'PENUNJUKAN_LANGSUNG' ? (
                     <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Pilih Vendor Langsung</label>
-                        <select required className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.directVendorId} onChange={e => setFormData({ ...formData, directVendorId: e.target.value })}>
-                            <option value="">-- Pilih Vendor --</option>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Pilih Vendor Langsung *</label>
+                        <select required className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" value={formData.directVendorId} onChange={e => setFormData({ ...formData, directVendorId: e.target.value })}>
+                            <option value="">-- Pilih Vendor Rekanan --</option>
                             {vendors && vendors.map(v => (
                                 <option key={v.id} value={v.id}>{v.name}</option>
                             ))}
                         </select>
                     </div>
+                ) : (
+                    <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Estimasi Anggaran / Pagu (Rp)</label>
+                        <input 
+                            type="number" 
+                            placeholder="Contoh: 25000000"
+                            className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" 
+                            value={formData.budget} 
+                            onChange={e => setFormData({ ...formData, budget: e.target.value })} 
+                        />
+                    </div>
                 )}
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Unit Pemohon / PIC Seragam *</label>
+                    <input 
+                        type="text" 
+                        required 
+                        placeholder="Contoh: Tim Pengadaan Seragam TP 2026/2027" 
+                        className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" 
+                        value={formData.requestedByName} 
+                        onChange={e => setFormData({ ...formData, requestedByName: e.target.value })} 
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Target Tanggal Kebutuhan (Deadline Pembagian)</label>
+                    <input 
+                        type="date" 
+                        className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" 
+                        value={formData.targetDate} 
+                        onChange={e => setFormData({ ...formData, targetDate: e.target.value })} 
+                    />
+                </div>
+            </div>
+
             <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Judul / Nama Proyek</label>
-                <input type="text" required placeholder={formData.projectType === 'PENUNJUKAN_LANGSUNG' ? 'Contoh: Pesanan Celana SD 2026' : 'Contoh: Pengadaan Seragam Siswa 2026'} className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                <label className="block text-xs font-medium text-slate-700 mb-1">Judul / Nama Proyek Pengadaan *</label>
+                <input type="text" required placeholder={formData.projectType === 'PENUNJUKAN_LANGSUNG' ? 'Contoh: Pesanan Seragam Olahraga SD 2026' : 'Contoh: Pengadaan Seragam Siswa Baru 2026/2027'} className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+            </div>
+
+            <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Latar Belakang & Alasan Urgensi Pengadaan (Untuk Lembar Persetujuan Kabid) *
+                </label>
+                <textarea 
+                    rows={2} 
+                    required 
+                    placeholder="Jelaskan peruntukan seragam, jenjang siswa, alasan pemilihan model/bahan, dan target waktu..." 
+                    className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:border-blue-500" 
+                    value={formData.justification} 
+                    onChange={e => setFormData({ ...formData, justification: e.target.value })} 
+                />
             </div>
             
             <div className="border border-slate-200 p-3 rounded-xl bg-slate-50 space-y-3">
@@ -407,8 +502,16 @@ export const VendorEvaluationForm = ({ vendors, projects, initialData, onSave, o
 };
 
 export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
+    const currentUser = (() => {
+        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch (e) { return {}; }
+    })();
+
     const [warehouseId, setWarehouseId] = useState('');
+    const [receiverName, setReceiverName] = useState(currentUser.name || 'Staff Pengelola Seragam');
+    const [vendorName, setVendorName] = useState(initialData?.poVendorName || '');
+    const [conditionNotes, setConditionNotes] = useState('Hasil jahitan, ukuran, dan kelengkapan seragam telah diperiksa fisik dalam kondisi baik.');
     const [receivedQuantities, setReceivedQuantities] = useState({});
+    const [itemConditions, setItemConditions] = useState({});
     const [warehouses, setWarehouses] = useState([]);
     const [isMatchesOrder, setIsMatchesOrder] = useState(true);
     const [isFinal, setIsFinal] = useState(false);
@@ -419,11 +522,14 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
         
         // Auto-fill received quantities from remaining order
         const initialQtys = {};
+        const initialConds = {};
         projectItems.forEach(pi => {
             const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
             initialQtys[pi.variantId] = remaining;
+            initialConds[pi.variantId] = { condition: 'Baik & Sesuai Spesifikasi', note: '' };
         });
         setReceivedQuantities(initialQtys);
+        setItemConditions(initialConds);
     }, [initialData]);
 
     const handleQuantityChange = (variantId, val) => {
@@ -433,10 +539,19 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
         }));
     };
 
+    const handleConditionChange = (variantId, field, val) => {
+        setItemConditions(prev => ({
+            ...prev,
+            [variantId]: {
+                ...(prev[variantId] || { condition: 'Baik & Sesuai Spesifikasi', note: '' }),
+                [field]: val
+            }
+        }));
+    };
+
     const handleMatchesOrderChange = (matches) => {
         setIsMatchesOrder(matches);
         if (matches) {
-            // Reset to remaining quantities
             const initialQtys = {};
             projectItems.forEach(pi => {
                 const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
@@ -452,7 +567,13 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
         const itemsToReceive = [];
         Object.entries(receivedQuantities).forEach(([variantId, qty]) => {
             if (qty > 0) {
-                itemsToReceive.push({ variantId: parseInt(variantId), quantity: qty });
+                const c = itemConditions[variantId] || {};
+                itemsToReceive.push({ 
+                    variantId: parseInt(variantId), 
+                    quantity: qty,
+                    condition: c.condition || 'Baik & Sesuai Spesifikasi',
+                    note: c.note || ''
+                });
             }
         });
 
@@ -464,73 +585,138 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
         const payload = {
             warehouseId: parseInt(warehouseId),
             items: itemsToReceive,
-            isFinal: isFinal
+            isFinal: isFinal,
+            receiverName,
+            vendorName,
+            conditionNotes
         };
         onSave(payload, initialData.id);
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-4">
-                <p className="text-sm font-bold text-blue-800">Penerimaan Barang Proyek: {initialData?.title}</p>
-                <p className="text-xs text-blue-600">Masukkan jumlah barang yang baru datang (parsial) dan pilih gudang tujuan.</p>
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+            <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl">
+                <p className="text-sm font-bold text-emerald-900">Penerimaan Hasil Jahitan & BAST: {initialData?.title}</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                    Lakukan pemeriksaan fisik seragam (kualitas jahitan, ukuran, bahan). Sistem akan mencatat stok masuk gudang dan menerbitkan BAST resmi ke E-Office.
+                </p>
             </div>
 
-            <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Gudang Penyimpanan</label>
-                <select required className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
-                    <option value="">-- Pilih Gudang --</option>
-                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                    <label className="block font-bold text-slate-700 mb-1">Gudang Penyimpanan Seragam *</label>
+                    <select required className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:border-blue-500 bg-white" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
+                        <option value="">-- Pilih Gudang Seragam --</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block font-bold text-slate-700 mb-1">Nama Petugas Penerima Gudang *</label>
+                    <input 
+                        type="text" 
+                        required 
+                        className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:border-blue-500" 
+                        value={receiverName} 
+                        onChange={e => setReceiverName(e.target.value)} 
+                    />
+                </div>
+
+                <div>
+                    <label className="block font-bold text-slate-700 mb-1">Nama Rekanan / Penjahit</label>
+                    <input 
+                        type="text" 
+                        placeholder="Nama penjahit / supplier seragam" 
+                        className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:border-blue-500" 
+                        value={vendorName} 
+                        onChange={e => setVendorName(e.target.value)} 
+                    />
+                </div>
+
+                <div>
+                    <label className="block font-bold text-slate-700 mb-1">Kesimpulan Cek Fisik Jahitan & Ukuran</label>
+                    <input 
+                        type="text" 
+                        placeholder="Contoh: Jahitan rapi, ukuran dan bahan sesuai pesanan" 
+                        className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:border-blue-500" 
+                        value={conditionNotes} 
+                        onChange={e => setConditionNotes(e.target.value)} 
+                    />
+                </div>
             </div>
 
-            <div className="space-y-4">
-                <div className="border-b border-slate-200 pb-3">
-                    <p className="text-xs font-bold text-slate-700 mb-2">Apakah barang yang datang sesuai dengan *Sisa Pesanan*?</p>
-                    <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer text-sm">
-                            <input type="radio" name="matchesOrder" checked={isMatchesOrder} onChange={() => handleMatchesOrderChange(true)} className="w-4 h-4 text-blue-600" />
-                            Ya, Sesuai Sisa
+            <div className="space-y-3 pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-slate-700">Lembar Cek Fisik Rincian Ukuran Seragam:</p>
+                    <div className="flex gap-4 text-xs">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="matchesOrder" checked={isMatchesOrder} onChange={() => handleMatchesOrderChange(true)} className="w-3.5 h-3.5 text-blue-600" />
+                            Sesuai Sisa Pesanan
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-sm">
-                            <input type="radio" name="matchesOrder" checked={!isMatchesOrder} onChange={() => handleMatchesOrderChange(false)} className="w-4 h-4 text-blue-600" />
-                            Tidak, Ketik Manual
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="matchesOrder" checked={!isMatchesOrder} onChange={() => handleMatchesOrderChange(false)} className="w-3.5 h-3.5 text-blue-600" />
+                            Input Parsial / Manual
                         </label>
                     </div>
                 </div>
 
-                <label className="block text-xs font-bold text-slate-700">Rincian Ukuran Barang</label>
                 {projectItems.length === 0 ? (
                     <div className="p-4 border border-dashed border-red-200 bg-red-50 rounded-xl text-center">
                         <p className="text-sm font-bold text-red-600">Proyek ini belum memiliki rincian ukuran barang!</p>
-                        <p className="text-xs text-red-500 mt-1">Silakan "Edit Proyek" terlebih dahulu di menu sebelumnya untuk memasukkan rincian barang, atau Anda tidak dapat melakukan penerimaan.</p>
+                        <p className="text-xs text-red-500 mt-1">Silakan edit proyek terlebih dahulu.</p>
                     </div>
                 ) : (
-                    <div className="grid gap-3 max-h-64 overflow-y-auto pr-2">
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                         {projectItems.map(pi => {
                             const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
+                            const curCond = itemConditions[pi.variantId] || { condition: 'Baik & Sesuai Spesifikasi', note: '' };
+
                             return (
-                                <div key={pi.id} className="flex justify-between items-center border border-slate-200 p-3 rounded-xl bg-slate-50">
-                                    <div>
-                                        <p className="font-bold text-sm text-slate-800">{pi.variant?.item?.name || 'Unknown Item'}</p>
-                                        <p className="text-xs text-slate-500">Ukuran: <span className="font-bold text-slate-700">{pi.variant?.size || pi.variant?.sizeName || '?'}</span></p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Target: <span className="font-semibold text-blue-600">{pi.quantity}</span> | 
-                                            Sdh Diterima: <span className="font-semibold text-green-600">{pi.receivedQuantity || 0}</span> | 
-                                            Sisa: <span className="font-semibold text-red-500">{remaining}</span>
-                                        </p>
+                                <div key={pi.id} className="p-3 border border-slate-200 rounded-xl bg-slate-50 space-y-2">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div>
+                                            <p className="font-bold text-xs text-slate-800">{pi.variant?.item?.name || 'Seragam'}</p>
+                                            <p className="text-[11px] text-slate-500">
+                                                Ukuran: <b className="text-indigo-700">{pi.variant?.size || pi.variant?.sizeName || '?'}</b> | Target: <b className="text-blue-600">{pi.quantity}</b> | Sudah Masuk: <b className="text-emerald-600">{pi.receivedQuantity || 0}</b> | Sisa: <b className="text-amber-600">{remaining}</b>
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Terima Sekarang:</label>
+                                            <input 
+                                                type="number" 
+                                                min="0" 
+                                                className={`w-20 px-2 py-1 border rounded-lg text-xs text-center font-bold ${isMatchesOrder ? 'bg-slate-200 text-slate-600' : 'bg-white text-blue-700'}`} 
+                                                value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
+                                                onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
+                                                readOnly={isMatchesOrder}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col items-end gap-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Terima Sekarang</label>
-                                        <input 
-                                            type="number" 
-                                            min="0" 
-                                            className={`w-24 px-2 py-1.5 border rounded-lg text-sm text-center ${isMatchesOrder ? 'bg-slate-200 text-slate-500' : 'bg-white'}`} 
-                                            placeholder="0"
-                                            value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
-                                            onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
-                                            readOnly={isMatchesOrder}
-                                        />
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-[11px]">
+                                        <div>
+                                            <label className="block text-slate-500 font-medium mb-0.5">Kondisi Seragam:</label>
+                                            <select 
+                                                className="w-full px-2 py-1 border rounded-lg bg-white text-slate-700 text-xs"
+                                                value={curCond.condition}
+                                                onChange={e => handleConditionChange(pi.variantId, 'condition', e.target.value)}
+                                            >
+                                                <option value="Baik & Sesuai Spesifikasi">✓ Jahitan Rapi & Sesuai Ukuran</option>
+                                                <option value="Jahitan Rusak">⚠ Jahitan Rusak / Cacat</option>
+                                                <option value="Ukuran Tidak Sesuai">⚠ Ukuran Tidak Sesuai Pola</option>
+                                                <option value="Bahan Bernoda">⚠ Kain Bernoda / Reject</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-slate-500 font-medium mb-0.5">Catatan Pemeriksaan:</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Contoh: Kancing lengkap, obras rapi"
+                                                className="w-full px-2 py-1 border rounded-lg bg-white text-slate-700 text-xs"
+                                                value={curCond.note}
+                                                onChange={e => handleConditionChange(pi.variantId, 'note', e.target.value)}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -539,20 +725,20 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
                 )}
             </div>
 
-            <div className="pt-2 border-t border-slate-200 mt-4">
-                <label className="flex items-center gap-2 cursor-pointer text-sm p-3 bg-orange-50 border border-orange-200 rounded-xl">
-                    <input type="checkbox" checked={isFinal} onChange={(e) => setIsFinal(e.target.checked)} className="w-4 h-4 text-orange-600" />
+            <div className="pt-2 border-t border-slate-200">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <input type="checkbox" checked={isFinal} onChange={(e) => setIsFinal(e.target.checked)} className="w-4 h-4 text-amber-600 rounded" />
                     <div>
-                        <p className="font-bold text-orange-800">Tutup Proyek (Final)</p>
-                        <p className="text-xs text-orange-600">Centang ini jika pengiriman ini adalah yang terakhir dan Anda ingin mengakhiri proyek (meskipun masih ada sisa barang).</p>
+                        <p className="font-bold text-amber-900">Tutup Proyek (Finalisasi & Selesai Penuh)</p>
+                        <p className="text-[11px] text-amber-700">Centang ini jika seluruh pesanan seragam telah diterima lengkap dan proyek siap diselesaikan.</p>
                     </div>
                 </label>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
-                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">Batal</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-green-600 rounded-xl hover:bg-green-700 font-bold flex items-center gap-2">
-                    <i className="fas fa-save"></i> Catat Penerimaan
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">Batal</button>
+                <button type="submit" className="px-4 py-2 text-xs text-white bg-emerald-600 hover:bg-emerald-700 font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+                    <PackagePlus size={15} /> Catat Cek Fisik & Terbitkan BAST
                 </button>
             </div>
         </form>
