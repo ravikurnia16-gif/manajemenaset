@@ -215,6 +215,30 @@ const MaintenanceDetail = () => {
         }));
     };
 
+    const handleOpenActionModal = (type, nextStatus) => {
+        setActionModal({ show: true, type, nextStatus });
+        if (type === 'assignment') {
+            setTechnicianName(report?.technician || '');
+            setTechnicianPhone(report?.technicianPhone || '');
+            setUserSearchQuery('');
+            setAssignUnitId('');
+        }
+    };
+
+    const handleCloseActionModal = () => {
+        setActionModal({ show: false, type: '', nextStatus: '' });
+        setActionNote('');
+        setAssignUnitId('');
+        setTechnicianName('');
+        setTechnicianPhone('');
+        setUserSearchQuery('');
+        setProgressNote('');
+        setCostItems([]);
+        setBulkPrice('');
+        setReceiptFile(null);
+        setCompletionPhoto(null);
+    };
+
     const handleStatusUpdate = async () => {
         try {
             const payload = { status: actionModal.nextStatus };
@@ -223,8 +247,12 @@ const MaintenanceDetail = () => {
             if (actionModal.nextStatus === 'VALIDATED') payload.validationNote = actionNote;
             if (actionModal.nextStatus === 'REJECTED') payload.rejectionReason = actionNote;
             if (actionModal.nextStatus === 'ASSIGNED') {
-                payload.technician = technicianName;
-                payload.technicianPhone = technicianPhone || undefined;
+                if (!technicianName || !technicianName.trim()) {
+                    showToast('Silakan cari dan pilih teknisi terlebih dahulu!', 'error');
+                    return;
+                }
+                payload.technician = technicianName.trim();
+                payload.technicianPhone = technicianPhone ? technicianPhone.trim() : undefined;
                 payload.approvalNote = actionNote;
             }
 
@@ -850,7 +878,7 @@ const MaintenanceDetail = () => {
             {nextAction && (
                 <div className="flex flex-col md:flex-row gap-3">
                     <button
-                        onClick={() => setActionModal({ show: true, type: nextAction.type, nextStatus: nextAction.nextStatus })}
+                        onClick={() => handleOpenActionModal(nextAction.type, nextAction.nextStatus)}
                         className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs shadow-md transition-all"
                     >
                         <CheckCircle size={16} /> {nextAction.label}
@@ -858,7 +886,7 @@ const MaintenanceDetail = () => {
 
                     {nextAction.secondaryLabel && (
                         <button
-                            onClick={() => setActionModal({ show: true, type: nextAction.secondaryType, nextStatus: report.status })}
+                            onClick={() => handleOpenActionModal(nextAction.secondaryType, report.status)}
                             className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-orange-500 text-orange-600 py-3 rounded-xl font-bold text-xs hover:bg-orange-50 transition-all"
                         >
                             <Sparkles size={16} /> {nextAction.secondaryLabel}
@@ -867,7 +895,7 @@ const MaintenanceDetail = () => {
 
                     {nextAction.rejectLabel && (
                         <button
-                            onClick={() => setActionModal({ show: true, type: 'rejection', nextStatus: 'REJECTED' })}
+                            onClick={() => handleOpenActionModal('rejection', 'REJECTED')}
                             className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-xs shadow-md transition-all"
                         >
                             <XCircle size={16} /> {nextAction.rejectLabel}
@@ -875,7 +903,7 @@ const MaintenanceDetail = () => {
                     )}
                     {nextAction.cancelLabel && isAdmin && (
                         <button
-                            onClick={() => setActionModal({ show: true, type: 'rejection', nextStatus: 'REJECTED' })}
+                            onClick={() => handleOpenActionModal('rejection', 'REJECTED')}
                             className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-xs shadow-md transition-all"
                         >
                             <XCircle size={16} /> {nextAction.cancelLabel}
@@ -991,7 +1019,7 @@ const MaintenanceDetail = () => {
                                 {actionModal.type === 'completion' && 'Selesaikan Pekerjaan'}
                                 {actionModal.type === 'rejection' && 'Tolak Laporan'}
                             </h3>
-                            <button onClick={() => setActionModal({ show: false, type: '', nextStatus: '' })} className="text-slate-400 hover:text-slate-600">
+                            <button onClick={handleCloseActionModal} className="text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                         </div>
@@ -1033,60 +1061,132 @@ const MaintenanceDetail = () => {
                                         </div>
 
                                         <div>
-                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Cari & Pilih Pegawai (Teknisi) *</label>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                                                    Cari & Pilih Pegawai (Teknisi) *
+                                                </label>
+                                                <span className="text-[10px] text-slate-400 font-medium">
+                                                    {filteredAssignableUsers.length} pegawai
+                                                </span>
+                                            </div>
+
                                             <div className="relative mb-2">
                                                 <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
                                                 <input
                                                     type="text"
                                                     value={userSearchQuery}
                                                     onChange={e => setUserSearchQuery(e.target.value)}
-                                                    placeholder="Cari nama, username, atau posisi..."
-                                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                                    placeholder="Ketik nama, username, atau posisi..."
+                                                    className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
                                                 />
+                                                {userSearchQuery && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUserSearchQuery('')}
+                                                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5"
+                                                        title="Hapus pencarian"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
                                             </div>
 
-                                            <select
-                                                value={technicianName}
-                                                onChange={e => {
-                                                    const selectedName = e.target.value;
-                                                    setTechnicianName(selectedName);
-                                                    const u = users.find(usr => (usr.name || usr.username) === selectedName);
-                                                    if (u && u.phone) {
-                                                        setTechnicianPhone(u.phone);
-                                                    } else {
-                                                        setTechnicianPhone('');
-                                                    }
-                                                }}
-                                                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 max-h-40"
-                                                size={5}
-                                                required
-                                            >
+                                            {/* Interactive User List */}
+                                            <div className="border border-slate-200 rounded-xl bg-white max-h-52 overflow-y-auto divide-y divide-slate-100 shadow-2xs">
                                                 {filteredAssignableUsers.length === 0 ? (
-                                                    <option value="" disabled>Tidak ada user sesuai pencarian</option>
+                                                    <div className="p-4 text-center text-xs text-slate-400">
+                                                        Tidak ada pegawai ditemukan{userSearchQuery ? ` untuk "${userSearchQuery}"` : ''}
+                                                    </div>
                                                 ) : (
                                                     filteredAssignableUsers.map(u => {
+                                                        const uName = u.name || u.username;
+                                                        const isSelected = technicianName === uName;
                                                         const uUnit = units.find(un => un.id === u.unitId);
                                                         return (
-                                                            <option key={u.id} value={u.name || u.username} className="py-1">
-                                                                {u.name || u.username} {u.position ? `— ${u.position}` : ''} {uUnit ? `(${uUnit.name})` : ''}
-                                                            </option>
+                                                            <button
+                                                                type="button"
+                                                                key={u.id}
+                                                                onClick={() => {
+                                                                    setTechnicianName(uName);
+                                                                    setTechnicianPhone(u.phone || '');
+                                                                }}
+                                                                className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                                                                    isSelected
+                                                                        ? 'bg-blue-50 text-blue-900 border-l-4 border-blue-600 font-medium'
+                                                                        : 'hover:bg-slate-50 text-slate-700'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                                                        isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                                                                    }`}>
+                                                                        {uName.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <p className={`text-xs truncate ${isSelected ? 'font-bold text-blue-900' : 'font-semibold text-slate-800'}`}>
+                                                                            {uName}
+                                                                        </p>
+                                                                        <p className="text-[11px] text-slate-400 truncate">
+                                                                            {u.position || 'Pegawai'} {uUnit ? `— ${uUnit.name}` : ''}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                    {u.phone && (
+                                                                        <span className="text-[10px] text-slate-400 hidden sm:inline font-mono">
+                                                                            {u.phone}
+                                                                        </span>
+                                                                    )}
+                                                                    {isSelected ? (
+                                                                        <CheckCircle2 size={16} className="text-blue-600 shrink-0" />
+                                                                    ) : (
+                                                                        <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
+                                                                    )}
+                                                                </div>
+                                                            </button>
                                                         );
                                                     })
                                                 )}
-                                            </select>
+                                            </div>
                                         </div>
 
                                         {technicianName && (
-                                            <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-900 flex justify-between items-center">
-                                                <div>
-                                                    <span className="font-bold block">Teknisi Terpilih: {technicianName}</span>
-                                                    <span className="text-[11px] text-blue-700">{technicianPhone ? `No WA: ${technicianPhone}` : 'Nomor WA belum diisi di profil'}</span>
+                                            <div className="p-3 bg-blue-50/90 rounded-xl border border-blue-200 text-xs text-blue-900 flex justify-between items-center animate-in fade-in duration-150">
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                                        {technicianName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="font-bold">Teknisi Terpilih: {technicianName}</span>
+                                                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                                Siap Ditugaskan
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[11px] text-blue-700 block truncate">
+                                                            {technicianPhone ? `No WA: ${technicianPhone}` : 'Nomor WA belum diisi di profil'}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                {technicianPhone && (
-                                                    <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px]">
-                                                        WhatsApp Ready
-                                                    </span>
-                                                )}
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {technicianPhone && (
+                                                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] hidden sm:inline">
+                                                            WhatsApp Ready
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setTechnicianName('');
+                                                            setTechnicianPhone('');
+                                                        }}
+                                                        className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors ml-1"
+                                                        title="Batalkan pilihan"
+                                                    >
+                                                        <X size={15} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1272,13 +1372,21 @@ const MaintenanceDetail = () => {
                         )}
 
                         <div className="flex gap-3 pt-3 border-t border-slate-100">
-                            <button onClick={() => setActionModal({ show: false, type: '', nextStatus: '' })} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                            <button 
+                                onClick={handleCloseActionModal} 
+                                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
                                 Batal
                             </button>
                             <button
                                 onClick={handleStatusUpdate}
+                                disabled={actionModal.nextStatus === 'ASSIGNED' && !technicianName.trim()}
                                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold text-white transition-colors shadow-sm ${
-                                    actionModal.type === 'rejection' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                                    actionModal.type === 'rejection'
+                                        ? 'bg-red-600 hover:bg-red-700'
+                                        : (actionModal.nextStatus === 'ASSIGNED' && !technicianName.trim())
+                                            ? 'bg-slate-300 cursor-not-allowed text-slate-500'
+                                            : 'bg-blue-600 hover:bg-blue-700'
                                 }`}
                             >
                                 Konfirmasi

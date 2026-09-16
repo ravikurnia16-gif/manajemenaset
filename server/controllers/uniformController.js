@@ -3702,14 +3702,16 @@ exports.manageSaleItems = async (req, res) => {
                     }
                 }
 
-                notifications.updates.push({
-                    itemName: item.itemName,
-                    size: item.size,
-                    qty: qty,
-                    oldStatus: oldStatus,
-                    newStatus: newStatus,
-                    location: locText
-                });
+                if (!isVariantChanged || oldStatus !== newStatus) {
+                    notifications.updates.push({
+                        itemName: item.itemName,
+                        size: item.size,
+                        qty: qty,
+                        oldStatus: oldStatus,
+                        newStatus: newStatus,
+                        location: locText
+                    });
+                }
 
                 if (newStatus === 'TIDAK_TERSEDIA') notifications.hasTidakTersedia = true;
 
@@ -3839,7 +3841,7 @@ exports.manageSaleItems = async (req, res) => {
                     }
                 }
 
-                const updateLog = notifications.updates.find(u => u.itemName === itemName && u.size === size);
+                const updateLog = notifications.updates.find(u => u.itemName === itemName && (u.size === size || (u.size && u.size.includes(size))));
                 let loc = updateLog ? updateLog.location : '';
 
                 if (update.status === 'SEDIA' && !loc) {

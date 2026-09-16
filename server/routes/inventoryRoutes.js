@@ -3,6 +3,7 @@ const router = express.Router();
 const invCtrl = require('../controllers/inventoryController');
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
+const uploadMemory = multer({ storage: multer.memoryStorage() });
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
 const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT', 'ADMIN_PBG']);
@@ -80,14 +81,14 @@ router.post('/projects/:id/receive', isAdmin, projectCtrl.receiveProjectGoods);
 
 // VENDOR SELECTIONS
 router.get('/vendor-selections', projectCtrl.getVendorSelections);
-router.post('/vendor-selections', isAdmin, projectCtrl.createVendorSelection);
-router.put('/vendor-selections/:id', isAdmin, projectCtrl.updateVendorSelection);
+router.post('/vendor-selections', isAdmin, uploadMemory.single('file'), projectCtrl.createVendorSelection);
+router.put('/vendor-selections/:id', isAdmin, uploadMemory.single('file'), projectCtrl.updateVendorSelection);
 router.delete('/vendor-selections/:id', isAdmin, projectCtrl.deleteVendorSelection);
 
 // VENDOR MOUs
 router.get('/vendor-mous', projectCtrl.getVendorMoUs);
-router.post('/vendor-mous', isAdmin, projectCtrl.createVendorMoU);
-router.put('/vendor-mous/:id', isAdmin, projectCtrl.updateVendorMoU);
+router.post('/vendor-mous', isAdmin, uploadMemory.single('file'), projectCtrl.createVendorMoU);
+router.put('/vendor-mous/:id', isAdmin, uploadMemory.single('file'), projectCtrl.updateVendorMoU);
 router.delete('/vendor-mous/:id', isAdmin, projectCtrl.deleteVendorMoU);
 
 // VENDOR EVALUATIONS

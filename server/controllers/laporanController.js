@@ -7,6 +7,7 @@ const whatsappService = require('../services/whatsappService');
 const { uploadFile } = require('../services/minioService');
 const aiService = require('../services/aiService');
 const { createNotification } = require('./notificationController');
+const { isHolidayOrWeekend, getNationalHoliday } = require('../utils/holidayHelper');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -50,7 +51,7 @@ const isKabid = (user) => {
 
 /**
  * Helper to get the last N working days (Monday - Friday) starting from fromDate.
- * Excludes Saturday (6) and Sunday (0).
+ * Excludes Saturday (6), Sunday (0), and National Holidays.
  */
 const getLastWorkingDays = (count = 2, fromDate = dayjs().tz('Asia/Jakarta')) => {
     const workingDays = [];
@@ -58,7 +59,8 @@ const getLastWorkingDays = (count = 2, fromDate = dayjs().tz('Asia/Jakarta')) =>
     
     while (workingDays.length < count) {
         const dayOfWeek = curr.day(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        const isNatHoliday = !!getNationalHoliday(curr);
+        if (dayOfWeek >= 1 && dayOfWeek <= 5 && !isNatHoliday) {
             workingDays.push(curr.clone());
         }
         curr = curr.subtract(1, 'day');
@@ -1316,10 +1318,19 @@ exports.uploadReportPhoto = async (req, res) => {
  * Cron Job: Send daily report reminders to Admin Aset staff only.
  * Morning trigger: 13:30 WIB
  * Afternoon trigger: 16:16 WIB
+ * Skipped on Saturdays, Sundays, and National Holidays.
  */
 exports.sendReportReminders = async () => {
     try {
         const targetDate = dayjs().tz('Asia/Jakarta');
+
+        // Pengecekan hari libur: Sabtu, Ahad, dan Libur Nasional tidak dikirimkan
+        const offDayCheck = await isHolidayOrWeekend(targetDate, prisma);
+        if (offDayCheck.isOffDay) {
+            console.log(`[Scheduler] Pengingat laporan tidak dikirimkan: Hari ini adalah ${offDayCheck.reason}.`);
+            return;
+        }
+
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
         const hour = targetDate.hour();
@@ -1404,6 +1415,15 @@ exports.remindStaffMissingReport = async (req, res) => {
 
         const { userId, date } = req.body;
         const targetDate = date ? dayjs.tz(date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
+
+        // Pengecekan hari libur: Sabtu, Ahad, dan Libur Nasional tidak dikirimkan
+        const offDayCheck = await isHolidayOrWeekend(targetDate, prisma);
+        if (offDayCheck.isOffDay) {
+            return res.status(400).json({ 
+                error: `Hari yang dipilih (${targetDate.format('dddd, DD MMMM YYYY')}) adalah ${offDayCheck.reason}. Pemberitahuan pengisian laporan pada hari Sabtu, Ahad, dan libur nasional tidak dikirimkan.` 
+            });
+        }
+
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
         const dateFormatted = targetDate.format('dddd, DD MMMM YYYY');
@@ -1529,12 +1549,12 @@ exports.remindStaffMissingReport = async (req, res) => {
 exports.notifyKabidInactiveStaff = async (req, res) => {
     try {
         const now = dayjs().tz('Asia/Jakarta');
-        const dayOfWeek = now.day();
 
-        // Hari kerja: Senin (1) sampai Jumat (5)
-        if (dayOfWeek < 1 || dayOfWeek > 5) {
-            console.log('[Scheduler] Weekend detected, skipping Kabid inactivity alert.');
-            if (res) return res.json({ message: 'Hari ini akhir pekan (Sabtu/Ahad), pengecekan dilewati.' });
+        // Hari kerja: Senin (1) sampai Jumat (5), lewati jika akhir pekan atau hari libur nasional
+        const offDayCheck = await isHolidayOrWeekend(now, prisma);
+        if (offDayCheck.isOffDay) {
+            console.log(`[Scheduler] Hari libur terdeteksi (${offDayCheck.reason}), skipping Kabid inactivity alert.`);
+            if (res) return res.json({ message: `Hari ini adalah ${offDayCheck.reason}, pengecekan dilewati.` });
             return;
         }
 

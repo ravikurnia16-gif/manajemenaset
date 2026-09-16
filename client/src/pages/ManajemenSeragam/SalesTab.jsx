@@ -39,6 +39,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
           return {
             saleItemId: i.id,
             variantId: i.variantId,
+            initialVariantId: i.variantId,
             itemId: matchedVariant?.itemId || i.variant?.itemId,
             name: i.itemName,
             size: i.size,
@@ -109,7 +110,9 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
       }
 
       let newStatus = item.status;
-      if (item.status === 'SEDIA' && !hasStock) {
+      if (item.status === 'TIDAK_TERSEDIA') {
+        newStatus = hasStock ? 'PENDING' : 'INDENT';
+      } else if (item.status === 'SEDIA' && !hasStock) {
         newStatus = 'INDENT';
       } else if (item.status === 'INDENT' && hasStock) {
         newStatus = 'SEDIA';
@@ -125,7 +128,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
         status: newStatus,
         sourceWarehouseId: defWhId || '',
         transitWarehouseId: item.isMoved ? item.transitWarehouseId : (defWhId || ''),
-        isSizeChanged: true
+        isSizeChanged: String(newV.id) !== String(item.initialVariantId || '')
       };
       return next;
     });
@@ -207,9 +210,11 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
   const handleSubmit = async (e) => {
     e?.preventDefault();
     
+    const isItemChanged = (item) => item.status !== item.oldStatus || !!item.isSizeChanged;
+
     // Validasi
     for (const item of itemUpdates) {
-      if (item.status === item.oldStatus) continue;
+      if (!isItemChanged(item)) continue;
       if (String(item.saleItemId).startsWith('NAMADADA')) continue;
 
       if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA'].includes(item.oldStatus) && item.status === 'SEDIA') {
@@ -238,9 +243,11 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
     }
 
     const payload = itemUpdates
-      .filter(i => i.status !== i.oldStatus)
+      .filter(isItemChanged)
       .map(i => ({
         saleItemId: i.saleItemId,
+        variantId: i.variantId ? parseInt(i.variantId) : null,
+        size: i.size,
         status: i.status,
         sourceWarehouseId: i.sourceWarehouseId,
         transitWarehouseId: i.isMoved ? i.transitWarehouseId : (i.status === 'SEDIA' ? i.sourceWarehouseId : (i.transitWarehouseId || i.returnWarehouseId)),
@@ -248,7 +255,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
       }));
 
     if (payload.length === 0) {
-      alert('Tidak ada perubahan status item.');
+      alert('Tidak ada perubahan status atau ukuran item.');
       return;
     }
 
@@ -262,7 +269,8 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
     }
   };
 
-  const totalChanged = itemUpdates.filter(i => i.status !== i.oldStatus).length;
+  const isItemChanged = (item) => item.status !== item.oldStatus || !!item.isSizeChanged;
+  const totalChanged = itemUpdates.filter(isItemChanged).length;
   const currentIndentItems = itemUpdates.filter(i => i.status === 'INDENT' || i.status === 'TIDAK_TERSEDIA');
 
   return (
@@ -349,7 +357,7 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
       {/* Items List Cards / Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 max-h-[55vh] overflow-y-auto pr-1 custom-scrollbar">
         {itemUpdates.map((item, idx) => {
-          const changed = item.status !== item.oldStatus;
+          const changed = item.status !== item.oldStatus || !!item.isSizeChanged;
           const isNd = String(item.saleItemId).startsWith('NAMADADA');
           const hasStock = isNd || item.totalStock >= item.qty;
           const isItemIndent = item.status === 'INDENT' || item.status === 'TIDAK_TERSEDIA';
@@ -378,8 +386,8 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
                     {isItemIndent && <span className="text-amber-600">⏳</span>}
                     <span className="break-words">{item.name}</span>
                     {item.isSizeChanged && (
-                      <span className="text-[10px] bg-blue-600 text-white font-extrabold px-2 py-0.5 rounded-full">
-                        Ukuran Diubah
+                      <span className="text-[10px] bg-blue-600 text-white font-extrabold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                        ✓ Ukuran Diubah ({item.size})
                       </span>
                     )}
                   </div>
@@ -612,10 +620,10 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
         <div className="text-xs text-slate-500 flex items-center gap-2">
           {totalChanged > 0 ? (
             <span className="font-bold text-blue-700 bg-blue-100/90 border border-blue-200 px-3 py-1 rounded-lg">
-              {totalChanged} item mengalami perubahan status
+              {totalChanged} item mengalami perubahan status / ukuran
             </span>
           ) : (
-            <span className="text-slate-500 font-medium">Belum ada perubahan status item.</span>
+            <span className="text-slate-500 font-medium">Belum ada perubahan status atau ukuran item.</span>
           )}
         </div>
 

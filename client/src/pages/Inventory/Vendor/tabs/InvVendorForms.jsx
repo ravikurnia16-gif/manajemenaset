@@ -306,13 +306,29 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
 };
 
 export const VendorSelectionForm = ({ vendors, initialData, onSave, onCancel }) => {
-    const [formData, setFormData] = useState(initialData || { projectId: '', vendorId: '', proposedPrice: 0, status: 'MENUNGGU', reason: '' });
+    const [formData, setFormData] = useState({
+        projectId: initialData?.projectId || '',
+        vendorId: initialData?.vendorId || '',
+        proposedPrice: initialData?.proposedPrice ?? 0,
+        status: initialData?.status || 'MENUNGGU',
+        reason: initialData?.reason || '',
+        id: initialData?.id || undefined,
+        proposalFileUrl: initialData?.proposalFileUrl || undefined
+    });
     const [file, setFile] = useState(null);
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (!formData.vendorId && !formData.id) {
+            alert('Silakan pilih vendor terlebih dahulu!');
+            return;
+        }
         const data = new FormData();
-        Object.keys(formData).forEach(key => data.append(key, formData[key]));
+        data.append('projectId', formData.projectId);
+        data.append('vendorId', formData.vendorId);
+        data.append('proposedPrice', formData.proposedPrice !== undefined && formData.proposedPrice !== '' ? formData.proposedPrice : 0);
+        data.append('status', formData.status || 'MENUNGGU');
+        data.append('reason', formData.reason || '');
         if (file) data.append('file', file);
         onSave(data, formData.id);
     };
@@ -333,7 +349,7 @@ export const VendorSelectionForm = ({ vendors, initialData, onSave, onCancel }) 
             )}
             <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Harga Penawaran Total (Rp)</label>
-                <input type="number" required className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.proposedPrice} onChange={e => setFormData({ ...formData, proposedPrice: e.target.value })} />
+                <input type="number" min="0" className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.proposedPrice} onChange={e => setFormData({ ...formData, proposedPrice: e.target.value })} />
             </div>
             <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Upload Proposal (PDF/Doc) {formData.proposalFileUrl && '(File sudah ada)'}</label>
@@ -360,7 +376,16 @@ export const VendorSelectionForm = ({ vendors, initialData, onSave, onCancel }) 
 };
 
 export const VendorMoUForm = ({ vendors, projects, initialData, onSave, onCancel }) => {
-    const [formData, setFormData] = useState(initialData || { projectId: '', vendorId: '', mouNumber: '', startDate: '', endDate: '', status: 'DRAFT' });
+    const [formData, setFormData] = useState({
+        projectId: initialData?.projectId || '',
+        vendorId: initialData?.vendorId || '',
+        mouNumber: initialData?.mouNumber || '',
+        startDate: initialData?.startDate ? new Date(initialData.startDate).toISOString().split('T')[0] : '',
+        endDate: initialData?.endDate ? new Date(initialData.endDate).toISOString().split('T')[0] : '',
+        status: initialData?.status || 'DRAFT',
+        id: initialData?.id || undefined,
+        fileUrl: initialData?.fileUrl || undefined
+    });
     const [file, setFile] = useState(null);
 
     const selectedProject = projects.find(p => p.id == formData.projectId);
@@ -370,14 +395,18 @@ export const VendorMoUForm = ({ vendors, projects, initialData, onSave, onCancel
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const data = new FormData();
-        Object.keys(formData).forEach(key => {
-            if (key !== 'vendorId') data.append(key, formData[key]);
-        });
-        
         const finalVendorId = filteredVendors.length === 1 ? filteredVendors[0].id : formData.vendorId;
+        if (!finalVendorId && !formData.id) {
+            alert('Silakan pilih vendor yang berstatus DIPILIH!');
+            return;
+        }
+        const data = new FormData();
+        data.append('projectId', formData.projectId);
         data.append('vendorId', finalVendorId);
-        
+        data.append('mouNumber', formData.mouNumber || '');
+        data.append('startDate', formData.startDate || '');
+        data.append('endDate', formData.endDate || '');
+        data.append('status', formData.status || 'DRAFT');
         if (file) data.append('file', file);
         onSave(data, formData.id);
     };

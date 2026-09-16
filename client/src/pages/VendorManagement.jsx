@@ -427,7 +427,7 @@ const VendorManagement = () => {
                 loading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="bg-slate-50 h-64 rounded-2xl animate-pulse" />
+                            <div key={i} className="bg-slate-50 h-96 rounded-2xl animate-pulse" />
                         ))}
                     </div>
                 ) : vendors.length === 0 ? (
@@ -442,12 +442,12 @@ const VendorManagement = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {vendors.map(vendor => (
                             <div key={vendor.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all overflow-hidden">
-                                <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                                <div className="relative aspect-square bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
                                     {vendor.photo ? (
-                                        <img src={getMediaUrl(vendor.photo)} alt={vendor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                        <img src={getMediaUrl(vendor.photo)} alt={vendor.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                     ) : (
                                         <div className="flex items-center justify-center h-full opacity-30">
-                                            <Users size={48} className="text-slate-400" />
+                                            <Users size={64} className="text-slate-400" />
                                         </div>
                                     )}
                                     <div className="absolute top-3 right-3 flex gap-2">
@@ -652,7 +652,9 @@ const VendorManagement = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {/* Photo Upload */}
                                 <div className="space-y-2">
-                                    <label className="block text-sm font-bold text-slate-700">Logo/Foto Profile</label>
+                                    <label className="block text-sm font-bold text-slate-700">
+                                        Logo / Foto Profil <span className="text-xs font-normal text-slate-400">(Ukuran Postingan Instagram / 1:1)</span>
+                                    </label>
                                     <div className="relative group cursor-pointer" onClick={() => document.getElementById('vendor-photo-input').click()}>
                                         <div className="w-full aspect-square bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-400 group-hover:bg-blue-50">
                                             {vendorPhotoPreview ? (

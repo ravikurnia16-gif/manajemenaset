@@ -349,49 +349,119 @@ exports.getVendorSelections = async (req, res) => {
 
 exports.createVendorSelection = async (req, res) => {
     try {
-        const { projectId, vendorId, proposedPrice, status, reason, proposalFileUrl } = req.body;
-        const selection = await prisma.invVendorSelection.create({
-            data: {
-                projectId: parseInt(projectId),
-                vendorId: parseInt(vendorId),
-                proposedPrice: parseFloat(proposedPrice) || 0,
-                status: status || 'MENUNGGU',
-                reason,
-                proposalFileUrl
+        const { projectId, vendorId, proposedPrice, status, reason } = req.body;
+        let proposalFileUrl = req.body.proposalFileUrl || null;
+        if (req.file) {
+            proposalFileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
+        const pId = parseInt(projectId, 10);
+        const vId = parseInt(vendorId, 10);
+
+        if (!pId || isNaN(pId)) {
+            return res.status(400).json({ error: 'Proyek wajib dipilih' });
+        }
+        if (!vId || isNaN(vId)) {
+            return res.status(400).json({ error: 'Vendor wajib dipilih' });
+        }
+
+        // Cek apakah sudah ada seleksi untuk project dan vendor ini (unique constraint)
+        const existing = await prisma.invVendorSelection.findUnique({
+            where: {
+                projectId_vendorId: { projectId: pId, vendorId: vId }
             }
         });
+
+        let selection;
+        if (existing) {
+            selection = await prisma.invVendorSelection.update({
+                where: { id: existing.id },
+                data: {
+                    proposedPrice: proposedPrice !== undefined && proposedPrice !== '' ? parseFloat(proposedPrice) : existing.proposedPrice,
+                    status: status || existing.status,
+                    reason: reason !== undefined ? reason : existing.reason,
+                    ...(proposalFileUrl ? { proposalFileUrl } : {})
+                },
+                include: { project: true, vendor: true }
+            });
+        } else {
+            selection = await prisma.invVendorSelection.create({
+                data: {
+                    projectId: pId,
+                    vendorId: vId,
+                    proposedPrice: proposedPrice !== undefined && proposedPrice !== '' ? parseFloat(proposedPrice) : 0,
+                    status: status || 'MENUNGGU',
+                    reason: reason || null,
+                    proposalFileUrl
+                },
+                include: { project: true, vendor: true }
+            });
+        }
+
+        // Jika status DIPILIH (penunjukan vendor), update status proyek ke BERJALAN jika masih PERENCANAAN atau SELEKSI
+        if (status === 'DIPILIH') {
+            const proj = await prisma.invProject.findUnique({ where: { id: pId } });
+            if (proj && (proj.status === 'PERENCANAAN' || proj.status === 'SELEKSI')) {
+                await prisma.invProject.update({
+                    where: { id: pId },
+                    data: { status: 'BERJALAN' }
+                });
+            }
+        }
+
         res.status(201).json(selection);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to create vendor selection' });
+        console.error('createVendorSelection error:', error);
+        res.status(500).json({ error: error.message || 'Failed to create vendor selection' });
     }
 };
 
 exports.updateVendorSelection = async (req, res) => {
     try {
         const { id } = req.params;
-        const { proposedPrice, status, reason, proposalFileUrl } = req.body;
+        const { proposedPrice, status, reason } = req.body;
+        let proposalFileUrl = req.body.proposalFileUrl;
+        if (req.file) {
+            proposalFileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
+        const updateData = {};
+        if (proposedPrice !== undefined && proposedPrice !== '') updateData.proposedPrice = parseFloat(proposedPrice);
+        if (status) updateData.status = status;
+        if (reason !== undefined) updateData.reason = reason;
+        if (proposalFileUrl) updateData.proposalFileUrl = proposalFileUrl;
+
         const selection = await prisma.invVendorSelection.update({
-            where: { id: parseInt(id) },
-            data: {
-                proposedPrice: proposedPrice ? parseFloat(proposedPrice) : undefined,
-                status,
-                reason,
-                proposalFileUrl
-            }
+            where: { id: parseInt(id, 10) },
+            data: updateData,
+            include: { project: true, vendor: true }
         });
+
+        if (status === 'DIPILIH' && selection.projectId) {
+            const proj = await prisma.invProject.findUnique({ where: { id: selection.projectId } });
+            if (proj && (proj.status === 'PERENCANAAN' || proj.status === 'SELEKSI')) {
+                await prisma.invProject.update({
+                    where: { id: selection.projectId },
+                    data: { status: 'BERJALAN' }
+                });
+            }
+        }
+
         res.json(selection);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to update vendor selection' });
+        console.error('updateVendorSelection error:', error);
+        res.status(500).json({ error: error.message || 'Failed to update vendor selection' });
     }
 };
 
 exports.deleteVendorSelection = async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.invVendorSelection.delete({ where: { id: parseInt(id) } });
+        await prisma.invVendorSelection.delete({ where: { id: parseInt(id, 10) } });
         res.json({ message: 'Deleted' });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to delete' });
+        console.error('deleteVendorSelection error:', error);
+        res.status(500).json({ error: error.message || 'Failed to delete' });
     }
 };
 
@@ -400,8 +470,8 @@ exports.getVendorMoUs = async (req, res) => {
     try {
         const { projectId, vendorId } = req.query;
         let whereClause = {};
-        if (projectId) whereClause.projectId = parseInt(projectId);
-        if (vendorId) whereClause.vendorId = parseInt(vendorId);
+        if (projectId) whereClause.projectId = parseInt(projectId, 10);
+        if (vendorId) whereClause.vendorId = parseInt(vendorId, 10);
 
         const mous = await prisma.invVendorMoU.findMany({
             where: whereClause,
@@ -416,28 +486,47 @@ exports.getVendorMoUs = async (req, res) => {
 
 exports.createVendorMoU = async (req, res) => {
     try {
-        const { projectId, vendorId, mouNumber, startDate, endDate, status, fileUrl } = req.body;
+        const { projectId, vendorId, mouNumber, startDate, endDate, status } = req.body;
+        let fileUrl = req.body.fileUrl || null;
+        if (req.file) {
+            fileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
+        const pId = parseInt(projectId, 10);
+        const vId = parseInt(vendorId, 10);
+
+        if (!pId || isNaN(pId)) return res.status(400).json({ error: 'Proyek wajib dipilih' });
+        if (!vId || isNaN(vId)) return res.status(400).json({ error: 'Vendor wajib dipilih' });
+        if (!mouNumber) return res.status(400).json({ error: 'Nomor MoU wajib diisi' });
+
         const mou = await prisma.invVendorMoU.create({
             data: {
-                projectId: parseInt(projectId),
-                vendorId: parseInt(vendorId),
+                projectId: pId,
+                vendorId: vId,
                 mouNumber,
-                startDate: new Date(startDate),
-                endDate: new Date(endDate),
+                startDate: startDate ? new Date(startDate) : new Date(),
+                endDate: endDate ? new Date(endDate) : new Date(),
                 status: status || 'DRAFT',
                 fileUrl
-            }
+            },
+            include: { project: true, vendor: true }
         });
         res.status(201).json(mou);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to create MoU' });
+        console.error('createVendorMoU error:', error);
+        res.status(500).json({ error: error.message || 'Failed to create MoU' });
     }
 };
 
 exports.updateVendorMoU = async (req, res) => {
     try {
         const { id } = req.params;
-        const { mouNumber, startDate, endDate, status, fileUrl } = req.body;
+        const { mouNumber, startDate, endDate, status } = req.body;
+        let fileUrl = req.body.fileUrl;
+        if (req.file) {
+            fileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
         const data = {};
         if (mouNumber) data.mouNumber = mouNumber;
         if (startDate) data.startDate = new Date(startDate);
@@ -446,12 +535,14 @@ exports.updateVendorMoU = async (req, res) => {
         if (fileUrl !== undefined) data.fileUrl = fileUrl;
 
         const mou = await prisma.invVendorMoU.update({
-            where: { id: parseInt(id) },
-            data
+            where: { id: parseInt(id, 10) },
+            data,
+            include: { project: true, vendor: true }
         });
         res.json(mou);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to update MoU' });
+        console.error('updateVendorMoU error:', error);
+        res.status(500).json({ error: error.message || 'Failed to update MoU' });
     }
 };
 
