@@ -9,6 +9,12 @@ import {
   PenTool, ShieldCheck, X, Receipt, FileCheck, CreditCard, CalendarClock, AlertTriangle, CheckCircle, Edit3
 } from 'lucide-react';
 import SignaturePad from '../../components/SignaturePad';
+import { 
+  getStaffGudangDraftSignature, 
+  saveStaffGudangDraftSignature, 
+  resetStaffGudangDraftSignature, 
+  hasCustomStaffGudangDraftSignature 
+} from '../../utils/staffSignatureHelper';
 
 export default function InventoryInvoicePublic() {
   const { id } = useParams();
@@ -21,6 +27,7 @@ export default function InventoryInvoicePublic() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [saveAsStaffDraft, setSaveAsStaffDraft] = useState(false);
   const [signatureModal, setSignatureModal] = useState({
     isOpen: false,
     type: '', // 'requester' | 'deliverer'
@@ -321,6 +328,10 @@ export default function InventoryInvoicePublic() {
         signatureData: dataUrl,
         signerName: signatureModal.signerName
       });
+      if (signatureModal.type === 'deliverer' && saveAsStaffDraft) {
+        saveStaffGudangDraftSignature(dataUrl);
+        setSaveAsStaffDraft(false);
+      }
       setInvoice(res.data);
       setSignatureModal({ isOpen: false, type: '', title: '', signerName: '' });
       Swal.fire({
@@ -332,6 +343,36 @@ export default function InventoryInvoicePublic() {
       });
     } catch (err) {
       Swal.fire('Gagal Menyimpan', err.response?.data?.error || 'Gagal menyimpan tanda tangan', 'error');
+    } finally {
+      setSigning(false);
+    }
+  };
+
+  const handleAutoSignDeliverer = async () => {
+    if (!invoice) return;
+    const staffName = invoice.defaultDelivererName || signatures.deliverer?.name || 'Jeri Saputra';
+    const draftSig = getStaffGudangDraftSignature(staffName);
+
+    try {
+      setSigning(true);
+      const endpoint = localStorage.getItem('token') 
+        ? `/inventory/orders/${invoice.id}/signatures` 
+        : `/inventory/orders/public/${invoice.id}/signatures`;
+      const res = await api.put(endpoint, {
+        type: 'deliverer',
+        signatureData: draftSig,
+        signerName: staffName
+      });
+      setInvoice(res.data);
+      Swal.fire({
+        icon: 'success',
+        title: 'Tanda Tangan Berhasil',
+        text: `Dokumen berhasil ditandatangani otomatis oleh ${staffName} (Staff Gudang dan Logistik)`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.fire('Gagal Menyimpan', err.response?.data?.error || 'Gagal menandatangani dokumen', 'error');
     } finally {
       setSigning(false);
     }
@@ -650,7 +691,7 @@ export default function InventoryInvoicePublic() {
               <div className="text-base sm:text-lg font-black text-blue-700 font-mono tracking-tight">
                 {docType === 'nota' 
                   ? invoice.code 
-                  : `BAST/${invoice.code}/${new Date(invoice.date || Date.now()).getFullYear()}`}
+                  : (invoice.bastNumber || signatures.kabid?.bastNumber || 'DRAFT (Menunggu TTE Kabid)')}
               </div>
               
               <div className="mt-2 flex sm:justify-end items-center gap-1.5 flex-wrap">
@@ -982,14 +1023,21 @@ export default function InventoryInvoicePublic() {
                   BERITA ACARA SERAH TERIMA BARANG (BAST)
                 </h1>
                 <p className="text-xs text-blue-800 font-mono font-bold mt-1">
-                  Nomor: BAST/{invoice.code}/{new Date(invoice.date || Date.now()).getFullYear()}
+                  Nomor: {invoice.bastNumber || signatures.kabid?.bastNumber || 'DRAFT (Nomor Terbit Setelah Ditandatangani Kabid)'}
                 </p>
               </div>
 
               {/* KALIMAT PEMBUKA / PREAMBLE BAST */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs leading-relaxed text-slate-700">
-                Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(invoice.date)}</span>, tanggal <span className="font-extrabold text-slate-900">{new Date(invoice.date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
-              </div>
+              {(() => {
+                const bastDate = (signatures.requester?.signedAt || invoice.bastDate)
+                  ? new Date(signatures.requester?.signedAt || invoice.bastDate)
+                  : new Date();
+                return (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs leading-relaxed text-slate-700">
+                    Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(bastDate)}</span>, tanggal <span className="font-extrabold text-slate-900">{bastDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
+                  </div>
+                );
+              })()}
 
               {/* IDENTITAS PARA PIHAK (PIHAK I & PIHAK II) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -1220,12 +1268,34 @@ export default function InventoryInvoicePublic() {
                           <span className="text-[8px] text-slate-400 font-mono">
                             {new Date(signatures.deliverer.signedAt).toLocaleDateString('id-ID')}
                           </span>
+                          <button 
+                            type="button" 
+                            onClick={() => handleResetSignature('deliverer')} 
+                            className="text-[9px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer"
+                          >
+                            Hapus TTD
+                          </button>
                         </div>
                       ) : (
-                        <>
-                          <div className="text-slate-400 italic text-xs print:hidden">( Belum ditandatangani )</div>
-                          <div className="h-12 hidden print:block"></div>
-                        </>
+                        <div className="flex flex-col items-center gap-1.5 print:hidden">
+                          <button
+                            type="button"
+                            onClick={handleAutoSignDeliverer}
+                            disabled={signing}
+                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm shadow-blue-500/20 transition cursor-pointer disabled:opacity-50"
+                            title="Klik untuk langsung menandatangani dengan draft tanda tangan resmi Staff Gudang & Logistik"
+                          >
+                            <PenTool size={13} />
+                            <span>Input TTD (Otomatis)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openSignatureModal('deliverer')}
+                            className="text-[10px] text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
+                          >
+                            Goreskan Manual
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -1246,25 +1316,36 @@ export default function InventoryInvoicePublic() {
 
                     <div className="my-2 flex-1 flex flex-col items-center justify-center min-h-[70px]">
                       {signatures.kabid?.approved ? (
-                        <div className="p-3 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 rounded-2xl text-center shadow-xs w-full max-w-[190px]">
-                          <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-black text-[10px] uppercase tracking-wider">
-                            <ShieldCheck size={14} className="text-emerald-600" />
-                            <span>ACC RESMI DIGITAL</span>
+                        <div className="flex flex-col items-center justify-center p-2 bg-white border border-slate-200 rounded-xl shadow-2xs w-full max-w-[190px] mx-auto">
+                          <div 
+                            className="p-1.5 bg-white rounded-lg border border-slate-200 shadow-xs cursor-pointer hover:scale-105 transition-transform"
+                            onClick={() => {
+                              const uuid = invoice.bastUuid || signatures.kabid?.bastUuid;
+                              if (uuid) window.open(`/verify/${uuid}`, '_blank');
+                            }}
+                            title="Klik untuk membuka verifikasi keabsahan tanda tangan digital"
+                          >
+                            <QRCode 
+                              value={`${window.location.origin}/verify/${invoice.bastUuid || signatures.kabid?.bastUuid || invoice.code}`} 
+                              size={68}
+                              level="H"
+                            />
                           </div>
-                          <div className="text-[9px] font-black text-slate-800 mt-1 uppercase">
-                            KEPALA BIDANG SARANA
+                          <div className="flex items-center gap-1 text-[9px] font-black text-emerald-700 mt-1.5 uppercase tracking-wider">
+                            <ShieldCheck size={11} className="text-emerald-600" />
+                            <span>TTE KEPALA BIDANG</span>
                           </div>
-                          <div className="text-[8px] text-slate-500 font-mono mt-0.5">
+                          <div className="text-[8px] text-slate-400 font-mono">
                             {new Date(signatures.kabid.signedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </div>
-                          <div className="text-[7.5px] text-emerald-700 font-mono font-bold truncate mt-0.5">
-                            {signatures.kabid.authHash || 'ACC-VALID'}
+                          <div className="text-[7.5px] font-mono text-slate-500 font-bold max-w-[140px] truncate" title={invoice.bastNumber || signatures.kabid?.bastNumber}>
+                            {invoice.bastNumber || signatures.kabid?.bastNumber || signatures.kabid?.authHash}
                           </div>
                           {isKabid && (
                             <button 
                               type="button" 
                               onClick={() => handleKabidAcc(true)} 
-                              className="text-[9px] text-rose-500 hover:underline print:hidden mt-1 cursor-pointer block mx-auto"
+                              className="text-[9px] text-rose-500 hover:underline print:hidden mt-1 cursor-pointer block"
                             >
                               Batalkan ACC
                             </button>
@@ -1372,6 +1453,48 @@ export default function InventoryInvoicePublic() {
               <label className="block text-[11px] font-bold text-slate-600 uppercase">
                 Goreskan Tanda Tangan
               </label>
+              {signatureModal.type === 'deliverer' && (
+                <div className="flex flex-col gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSignature(getStaffGudangDraftSignature(signatureModal.signerName))}
+                    className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <CheckCircle size={14} />
+                    <span>Gunakan Draft TTD Resmi Staff Gudang</span>
+                  </button>
+
+                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                    <label className="flex items-center gap-2 text-slate-700 font-medium cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={saveAsStaffDraft} 
+                        onChange={(e) => setSaveAsStaffDraft(e.target.checked)} 
+                        className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                      />
+                      <span>Simpan goresan ini sebagai draft otomatis ke depan</span>
+                    </label>
+                    {hasCustomStaffGudangDraftSignature() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetStaffGudangDraftSignature();
+                          Swal.fire({
+                            icon: 'info',
+                            title: 'Draft Direset',
+                            text: 'Draft tanda tangan dikembalikan ke spesimen bawaan Jeri Saputra',
+                            timer: 1500,
+                            showConfirmButton: false
+                          });
+                        }}
+                        className="text-[11px] text-red-600 hover:text-red-700 font-bold underline cursor-pointer shrink-0 ml-2"
+                      >
+                        Reset Bawaan
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <SignaturePad 
                 title=""
                 onCancel={() => setSignatureModal({ isOpen: false, type: '', title: '', signerName: '' })}

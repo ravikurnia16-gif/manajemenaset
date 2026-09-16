@@ -13,6 +13,12 @@ import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
 import SignaturePad from '../../components/SignaturePad';
 import OrdersNavTabs from '../../components/OrdersNavTabs';
+import { 
+  getStaffGudangDraftSignature, 
+  saveStaffGudangDraftSignature, 
+  resetStaffGudangDraftSignature, 
+  hasCustomStaffGudangDraftSignature 
+} from '../../utils/staffSignatureHelper';
 
 export default function InventoryOrders() {
   const [orders, setOrders] = useState([]);
@@ -22,6 +28,7 @@ export default function InventoryOrders() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
+  const [saveAsStaffDraft, setSaveAsStaffDraft] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
 
@@ -439,6 +446,10 @@ export default function InventoryOrders() {
         signatureData: dataUrl,
         signerName: signatureModal.signerName
       });
+      if (signatureModal.type === 'deliverer' && saveAsStaffDraft) {
+        saveStaffGudangDraftSignature(dataUrl);
+        setSaveAsStaffDraft(false);
+      }
       const updated = res.data;
       setInvoiceModalOrder(updated);
       setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
@@ -453,6 +464,36 @@ export default function InventoryOrders() {
       });
     } catch (err) {
       Swal.fire('Gagal Menyimpan', err.response?.data?.message || err.response?.data?.error || 'Terjadi kesalahan saat menyimpan tanda tangan', 'error');
+    } finally {
+      setSigning(false);
+    }
+  };
+
+  const handleAutoSignDeliverer = async (order) => {
+    if (!order) return;
+    const staffName = staffGudangUser?.name || order.defaultDelivererName || 'Jeri Saputra';
+    const draftSig = getStaffGudangDraftSignature(staffName);
+
+    try {
+      setSigning(true);
+      const res = await api.put(`/inventory/orders/${order.id}/signatures`, {
+        type: 'deliverer',
+        signatureData: draftSig,
+        signerName: staffName
+      });
+      const updated = res.data;
+      setInvoiceModalOrder(updated);
+      setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+      if (selectedOrder && selectedOrder.id === updated.id) setSelectedOrder(updated);
+      Swal.fire({
+        icon: 'success',
+        title: 'Tanda Tangan Berhasil',
+        text: `Dokumen berhasil ditandatangani otomatis oleh ${staffName} (Staff Gudang dan Logistik)`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.fire('Gagal Menyimpan', err.response?.data?.error || 'Gagal menandatangani dokumen', 'error');
     } finally {
       setSigning(false);
     }
@@ -2443,7 +2484,7 @@ export default function InventoryOrders() {
                     <div className="text-sm sm:text-base font-black text-blue-700 font-mono">
                       {docType === 'nota' 
                         ? invoiceModalOrder.code 
-                        : `BAST/${invoiceModalOrder.code}/${new Date(invoiceModalOrder.date || Date.now()).getFullYear()}`}
+                        : (invoiceModalOrder.bastNumber || signatures.kabid?.bastNumber || 'DRAFT (Menunggu TTE Kabid)')}
                     </div>
                     <div className="mt-1 flex sm:justify-end items-center gap-1.5 flex-wrap">
                       {invoiceModalOrder.status === 'COMPLETED' ? (
@@ -2760,15 +2801,25 @@ export default function InventoryOrders() {
                             ) : (
                               <>
                                 {checkIsAdminAsetOrSuper() ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
-                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
-                                    title="Goreskan Tanda Tangan Petugas Gudang"
-                                  >
-                                    <PenTool size={11} />
-                                    <span>Input TTD</span>
-                                  </button>
+                                  <div className="flex flex-col items-center gap-1 print:hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAutoSignDeliverer(invoiceModalOrder)}
+                                      disabled={signing}
+                                      className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-xs transition cursor-pointer disabled:opacity-50"
+                                      title="Tanda tangani langsung dengan draft tanda tangan resmi Staff Gudang"
+                                    >
+                                      <PenTool size={11} />
+                                      <span>Input TTD (Otomatis)</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
+                                      className="text-[9.5px] text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
+                                    >
+                                      Goreskan Manual
+                                    </button>
+                                  </div>
                                 ) : (
                                   <span className="text-[10px] text-slate-400 italic print:hidden">
                                     ( Belum ditandatangani )
@@ -2804,14 +2855,21 @@ export default function InventoryOrders() {
                         BERITA ACARA SERAH TERIMA BARANG (BAST)
                       </h1>
                       <div className="text-xs font-mono font-bold text-blue-700 mt-1">
-                        NOMOR: BAST/{invoiceModalOrder.code}/{new Date(invoiceModalOrder.date || Date.now()).getFullYear()}
+                        NOMOR: {invoiceModalOrder.bastNumber || signatures.kabid?.bastNumber || 'DRAFT (Nomor Terbit Setelah Ditandatangani Kabid)'}
                       </div>
                     </div>
 
                     {/* KALIMAT PEMBUKA / PREAMBLE BAST RESMI */}
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs leading-relaxed text-slate-700">
-                      Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(invoiceModalOrder.date)}</span>, tanggal <span className="font-extrabold text-slate-900">{new Date(invoiceModalOrder.date || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
-                    </div>
+                    {(() => {
+                      const bastDate = (signatures.requester?.signedAt || invoiceModalOrder.bastDate)
+                        ? new Date(signatures.requester?.signedAt || invoiceModalOrder.bastDate)
+                        : new Date();
+                      return (
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs leading-relaxed text-slate-700">
+                          Pada hari ini, <span className="font-extrabold text-slate-900">{getNamaHari(bastDate)}</span>, tanggal <span className="font-extrabold text-slate-900">{bastDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak sebagai berikut:
+                        </div>
+                      );
+                    })()}
 
                     {/* IDENTITAS PARA PIHAK (PIHAK I & PIHAK II) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -3067,15 +3125,25 @@ export default function InventoryOrders() {
                             ) : (
                               <>
                                 {checkCanSignDeliverer() ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
-                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-2xs transition cursor-pointer print:hidden"
-                                    title="Goreskan Tanda Tangan Petugas Gudang"
-                                  >
-                                    <PenTool size={11} />
-                                    <span>Input TTD</span>
-                                  </button>
+                                  <div className="flex flex-col items-center gap-1 print:hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAutoSignDeliverer(invoiceModalOrder)}
+                                      disabled={signing}
+                                      className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10.5px] font-bold inline-flex items-center gap-1 shadow-xs transition cursor-pointer disabled:opacity-50"
+                                      title="Tanda tangani langsung dengan draft tanda tangan resmi Staff Gudang"
+                                    >
+                                      <PenTool size={11} />
+                                      <span>Input TTD (Otomatis)</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openSignatureModal('deliverer', invoiceModalOrder)}
+                                      className="text-[9.5px] text-slate-500 hover:text-blue-600 hover:underline cursor-pointer"
+                                    >
+                                      Goreskan Manual
+                                    </button>
+                                  </div>
                                 ) : (
                                   <span className="text-[10px] text-slate-400 italic print:hidden">
                                     ( Belum ditandatangani )
@@ -3103,25 +3171,36 @@ export default function InventoryOrders() {
 
                           <div className="my-2 flex-1 flex flex-col items-center justify-center min-h-[60px]">
                             {signatures.kabid?.approved ? (
-                              <div className="p-2 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 rounded-xl text-center shadow-2xs w-full max-w-[160px]">
-                                <div className="flex items-center justify-center gap-1 text-emerald-800 font-black text-[9px] uppercase tracking-wider">
-                                  <ShieldCheck size={12} className="text-emerald-600" />
-                                  <span>ACC RESMI DIGITAL</span>
+                              <div className="flex flex-col items-center justify-center p-2 bg-white border border-slate-200 rounded-xl shadow-2xs w-full max-w-[160px] mx-auto">
+                                <div 
+                                  className="p-1 bg-white rounded-lg border border-slate-200 shadow-xs cursor-pointer hover:scale-105 transition-transform"
+                                  onClick={() => {
+                                    const uuid = invoiceModalOrder.bastUuid || signatures.kabid?.bastUuid;
+                                    if (uuid) window.open(`/verify/${uuid}`, '_blank');
+                                  }}
+                                  title="Klik untuk membuka verifikasi keabsahan tanda tangan digital"
+                                >
+                                  <QRCode 
+                                    value={`${window.location.origin}/verify/${invoiceModalOrder.bastUuid || signatures.kabid?.bastUuid || invoiceModalOrder.code}`} 
+                                    size={62}
+                                    level="H"
+                                  />
                                 </div>
-                                <div className="text-[8px] font-black text-slate-800 mt-0.5 uppercase">
-                                  KEPALA BIDANG SARANA
+                                <div className="flex items-center gap-1 text-[8.5px] font-black text-emerald-700 mt-1 uppercase tracking-wider">
+                                  <ShieldCheck size={11} className="text-emerald-600" />
+                                  <span>TTE KEPALA BIDANG</span>
                                 </div>
-                                <div className="text-[7.5px] text-slate-500 font-mono mt-0.5">
+                                <div className="text-[7.5px] text-slate-400 font-mono">
                                   {new Date(signatures.kabid.signedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </div>
-                                <div className="text-[7px] text-emerald-700 font-mono font-bold truncate">
-                                  {signatures.kabid.authHash || 'ACC-VALID'}
+                                <div className="text-[7px] font-mono text-slate-500 font-bold max-w-[130px] truncate" title={invoiceModalOrder.bastNumber || signatures.kabid?.bastNumber}>
+                                  {invoiceModalOrder.bastNumber || signatures.kabid?.bastNumber || signatures.kabid?.authHash}
                                 </div>
                                 {isKabid && (
                                   <button 
                                     type="button" 
                                     onClick={() => handleKabidAcc(invoiceModalOrder, true)} 
-                                    className="text-[9px] text-rose-500 hover:underline print:hidden mt-1 cursor-pointer block mx-auto"
+                                    className="text-[8.5px] text-rose-500 hover:underline print:hidden mt-0.5 cursor-pointer block"
                                   >
                                     Batalkan ACC
                                   </button>
@@ -3246,6 +3325,48 @@ export default function InventoryOrders() {
               <label className="block text-[11px] font-bold text-slate-600 uppercase">
                 Goreskan Tanda Tangan
               </label>
+              {signatureModal.type === 'deliverer' && (
+                <div className="flex flex-col gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSignature(getStaffGudangDraftSignature(signatureModal.signerName))}
+                    className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <CheckCircle size={14} />
+                    <span>Gunakan Draft TTD Resmi Staff Gudang</span>
+                  </button>
+
+                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                    <label className="flex items-center gap-2 text-slate-700 font-medium cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={saveAsStaffDraft} 
+                        onChange={(e) => setSaveAsStaffDraft(e.target.checked)} 
+                        className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                      />
+                      <span>Simpan goresan ini sebagai draft otomatis ke depan</span>
+                    </label>
+                    {hasCustomStaffGudangDraftSignature() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetStaffGudangDraftSignature();
+                          Swal.fire({
+                            icon: 'info',
+                            title: 'Draft Direset',
+                            text: 'Draft tanda tangan dikembalikan ke spesimen bawaan Jeri Saputra',
+                            timer: 1500,
+                            showConfirmButton: false
+                          });
+                        }}
+                        className="text-[11px] text-red-600 hover:text-red-700 font-bold underline cursor-pointer shrink-0 ml-2"
+                      >
+                        Reset Bawaan
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <SignaturePad 
                 title=""
                 onCancel={() => setSignatureModal({ isOpen: false, type: '', title: '', order: null, signerName: '' })}

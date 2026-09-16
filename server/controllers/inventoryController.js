@@ -11,6 +11,7 @@ const {
     removeVendorProductForInvItem,
     syncAllInventoryItemsToVendor
 } = require('../services/gudangVendorSyncService');
+const { generateDocumentNumber } = require('../services/documentNumberingService');
 
 const uploadBase64 = async (base64String, folder = 'inventory/items') => {
     if (!base64String || typeof base64String !== 'string' || !base64String.startsWith('data:')) return base64String;
@@ -1167,6 +1168,11 @@ const parseOrderSignatures = (order) => {
         kabid: null
     };
 
+    let bastNumber = null;
+    let bastUuid = null;
+    let bastDocId = null;
+    let bastDate = null;
+
     if (order.note) {
         try {
             if (typeof order.note === 'string' && order.note.trim().startsWith('{')) {
@@ -1187,6 +1193,10 @@ const parseOrderSignatures = (order) => {
                     deliverer: parsed.signatures?.deliverer || null,
                     kabid: parsed.signatures?.kabid || null
                 };
+                bastNumber = parsed.bastNumber || parsed.signatures?.kabid?.bastNumber || null;
+                bastUuid = parsed.bastUuid || parsed.signatures?.kabid?.bastUuid || null;
+                bastDocId = parsed.bastDocId || parsed.signatures?.kabid?.bastDocId || null;
+                bastDate = parsed.bastDate || parsed.signatures?.requester?.signedAt || null;
             }
         } catch (e) {
             displayNote = order.note;
@@ -1221,6 +1231,10 @@ const parseOrderSignatures = (order) => {
         signatures,
         itemPrices,
         totalAmount,
+        bastNumber,
+        bastUuid,
+        bastDocId,
+        bastDate,
         items
     };
 };
@@ -1367,6 +1381,118 @@ exports.getOrderById = async (req, res) => {
         parsed.defaultDelivererPosition = staffGudangUser?.position || null;
         parsed.defaultKabidName = kabidUser?.name || null;
         parsed.defaultKabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+
+        // Auto-sync backfill for orders already approved by Kabid
+        if (parsed.signatures?.kabid?.approved && (!parsed.bastNumber || !parsed.signatures.kabid.bastUuid)) {
+            try {
+                let officeDoc = await prisma.officeDocument.findFirst({
+                    where: { referenceNumber: order.code }
+                });
+
+                let bastNumber = officeDoc?.number || parsed.bastNumber;
+                if (!bastNumber) {
+                    bastNumber = await generateDocumentNumber('BAST', 'BAST');
+                }
+
+                const signedDate = parsed.signatures.kabid.signedAt ? new Date(parsed.signatures.kabid.signedAt) : new Date();
+                const bastDocDate = parsed.signatures.requester?.signedAt ? new Date(parsed.signatures.requester.signedAt) : signedDate;
+
+                const bastItems = (order.items || []).map(it => ({
+                    name: it.item?.name || 'Barang Logistik',
+                    spec: it.item?.code ? `${it.item.code} (${it.item?.category?.name || 'Logistik'})` : (it.item?.category?.name || '-'),
+                    qty: it.qtyDelivered ?? (it.qtyApproved ?? it.qtyRequested),
+                    condition: 'Baik & Lengkap'
+                }));
+
+                const contentObj = {
+                    location: 'Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang',
+                    items: bastItems,
+                    orderCode: order.code,
+                    orderId: order.id,
+                    pembukaan: `Pada hari ini, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak terkait.`,
+                    penutup: 'Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh para pihak dengan sadar dan tanpa paksaan dari pihak manapun.'
+                };
+
+                if (officeDoc) {
+                    officeDoc = await prisma.officeDocument.update({
+                        where: { id: officeDoc.id },
+                        data: {
+                            type: 'SURAT_KELUAR',
+                            category: 'BAST',
+                            status: 'SIGNED',
+                            number: bastNumber,
+                            date: bastDocDate,
+                            signedById: kabidUser?.id || order.createdById,
+                            signedAt: signedDate,
+                            party1Name: parsed.signatures.deliverer?.name || 'Staff Gudang dan Logistik',
+                            party1Title: 'Staff Gudang dan Logistik',
+                            party1Org: 'Bidang Sarana',
+                            party1SignedAt: parsed.signatures.deliverer?.signedAt ? new Date(parsed.signatures.deliverer.signedAt) : signedDate,
+                            party2Name: parsed.signatures.requester?.name || order.requesterName || 'Pemohon',
+                            party2Title: 'Pemohon Barang Logistik',
+                            party2Org: order.requesterUnit || 'Unit Pemohon',
+                            party2SignedAt: parsed.signatures.requester?.signedAt ? new Date(parsed.signatures.requester.signedAt) : null,
+                            content: JSON.stringify(contentObj),
+                            qrCodeData: officeDoc.uuid
+                        }
+                    });
+                } else {
+                    officeDoc = await prisma.officeDocument.create({
+                        data: {
+                            type: 'SURAT_KELUAR',
+                            category: 'BAST',
+                            subject: `Berita Acara Serah Terima Barang (BAST) - ${order.code} (${order.requesterUnit || order.requesterName})`,
+                            number: bastNumber,
+                            date: bastDocDate,
+                            referenceNumber: order.code,
+                            authorId: order.createdById || kabidUser?.id,
+                            status: 'SIGNED',
+                            signedById: kabidUser?.id,
+                            signedAt: signedDate,
+                            party1Name: parsed.signatures.deliverer?.name || 'Staff Gudang dan Logistik',
+                            party1Title: 'Staff Gudang dan Logistik',
+                            party1Org: 'Bidang Sarana',
+                            party1SignedAt: parsed.signatures.deliverer?.signedAt ? new Date(parsed.signatures.deliverer.signedAt) : signedDate,
+                            party2Name: parsed.signatures.requester?.name || order.requesterName || 'Pemohon',
+                            party2Title: 'Pemohon Barang Logistik',
+                            party2Org: order.requesterUnit || 'Unit Pemohon',
+                            party2SignedAt: parsed.signatures.requester?.signedAt ? new Date(parsed.signatures.requester.signedAt) : null,
+                            content: JSON.stringify(contentObj),
+                        }
+                    });
+                    officeDoc = await prisma.officeDocument.update({
+                        where: { id: officeDoc.id },
+                        data: { qrCodeData: officeDoc.uuid }
+                    });
+                }
+
+                parsed.signatures.kabid.bastNumber = officeDoc.number;
+                parsed.signatures.kabid.bastUuid = officeDoc.uuid;
+                parsed.signatures.kabid.bastDocId = officeDoc.id;
+                parsed.bastNumber = officeDoc.number;
+                parsed.bastUuid = officeDoc.uuid;
+                parsed.bastDocId = officeDoc.id;
+
+                let noteObj = {};
+                try {
+                    if (order.note && order.note.trim().startsWith('{')) {
+                        noteObj = JSON.parse(order.note);
+                    }
+                } catch(e) {}
+                noteObj.bastNumber = officeDoc.number;
+                noteObj.bastUuid = officeDoc.uuid;
+                noteObj.bastDocId = officeDoc.id;
+                if (!noteObj.signatures) noteObj.signatures = {};
+                noteObj.signatures.kabid = parsed.signatures.kabid;
+
+                await prisma.invOrder.update({
+                    where: { id: order.id },
+                    data: { note: JSON.stringify(noteObj) }
+                });
+            } catch (syncErr) {
+                console.error('Error auto-syncing BAST to OfficeDocument in getOrderById:', syncErr);
+            }
+        }
 
         res.json(parsed);
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1652,16 +1778,125 @@ exports.updateOrderSignatures = async (req, res) => {
 
             if (action === 'RESET') {
                 currentSignatures.kabid = null;
+                delete parsedMeta.bastNumber;
+                delete parsedMeta.bastUuid;
+                delete parsedMeta.bastDocId;
+                try {
+                    const existingDoc = await prisma.officeDocument.findFirst({
+                        where: { referenceNumber: order.code }
+                    });
+                    if (existingDoc) {
+                        await prisma.officeDocument.update({
+                            where: { id: existingDoc.id },
+                            data: { status: 'DRAFT' }
+                        });
+                    }
+                } catch (docErr) {
+                    console.error('Failed to reset office document status to DRAFT:', docErr);
+                }
             } else {
+                let officeDoc = await prisma.officeDocument.findFirst({
+                    where: { referenceNumber: order.code }
+                });
+
+                let bastNumber = officeDoc?.number || parsedMeta.bastNumber;
+                if (!bastNumber) {
+                    bastNumber = await generateDocumentNumber('BAST', 'BAST');
+                }
+
+                const orderItemsWithDetails = await prisma.invOrderItem.findMany({
+                    where: { orderId: order.id },
+                    include: { item: { include: { category: true } } }
+                });
+
+                const bastItems = (orderItemsWithDetails || []).map(it => ({
+                    name: it.item?.name || 'Barang Logistik',
+                    spec: it.item?.code ? `${it.item.code} (${it.item?.category?.name || 'Logistik'})` : (it.item?.category?.name || '-'),
+                    qty: it.qtyDelivered ?? (it.qtyApproved ?? it.qtyRequested),
+                    condition: 'Baik & Lengkap'
+                }));
+
+                const contentObj = {
+                    location: 'Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang',
+                    items: bastItems,
+                    orderCode: order.code,
+                    orderId: order.id,
+                    pembukaan: `Pada hari ini, bertempat di Kantor Bagian Gudang dan Logistik Yayasan Dar el-Iman Padang, telah dilaksanakan serah terima barang permohonan logistik antara pihak-pihak terkait.`,
+                    penutup: 'Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh para pihak dengan sadar dan tanpa paksaan dari pihak manapun.'
+                };
+
+                const signedDate = new Date();
+                const bastDocDate = currentSignatures.requester?.signedAt ? new Date(currentSignatures.requester.signedAt) : signedDate;
+
+                if (officeDoc) {
+                    officeDoc = await prisma.officeDocument.update({
+                        where: { id: officeDoc.id },
+                        data: {
+                            type: 'SURAT_KELUAR',
+                            category: 'BAST',
+                            status: 'SIGNED',
+                            number: bastNumber,
+                            date: bastDocDate,
+                            signedById: req.user.id,
+                            signedAt: signedDate,
+                            party1Name: currentSignatures.deliverer?.name || 'Staff Gudang dan Logistik',
+                            party1Title: 'Staff Gudang dan Logistik',
+                            party1Org: 'Bidang Sarana',
+                            party1SignedAt: currentSignatures.deliverer?.signedAt ? new Date(currentSignatures.deliverer.signedAt) : signedDate,
+                            party2Name: currentSignatures.requester?.name || order.requesterName || 'Pemohon',
+                            party2Title: 'Pemohon Barang Logistik',
+                            party2Org: order.requesterUnit || 'Unit Pemohon',
+                            party2SignedAt: currentSignatures.requester?.signedAt ? new Date(currentSignatures.requester.signedAt) : null,
+                            content: JSON.stringify(contentObj),
+                            qrCodeData: officeDoc.uuid
+                        }
+                    });
+                } else {
+                    officeDoc = await prisma.officeDocument.create({
+                        data: {
+                            type: 'SURAT_KELUAR',
+                            category: 'BAST',
+                            subject: `Berita Acara Serah Terima Barang (BAST) - ${order.code} (${order.requesterUnit || order.requesterName})`,
+                            number: bastNumber,
+                            date: bastDocDate,
+                            referenceNumber: order.code,
+                            authorId: order.createdById || req.user.id,
+                            status: 'SIGNED',
+                            signedById: req.user.id,
+                            signedAt: signedDate,
+                            party1Name: currentSignatures.deliverer?.name || 'Staff Gudang dan Logistik',
+                            party1Title: 'Staff Gudang dan Logistik',
+                            party1Org: 'Bidang Sarana',
+                            party1SignedAt: currentSignatures.deliverer?.signedAt ? new Date(currentSignatures.deliverer.signedAt) : signedDate,
+                            party2Name: currentSignatures.requester?.name || order.requesterName || 'Pemohon',
+                            party2Title: 'Pemohon Barang Logistik',
+                            party2Org: order.requesterUnit || 'Unit Pemohon',
+                            party2SignedAt: currentSignatures.requester?.signedAt ? new Date(currentSignatures.requester.signedAt) : null,
+                            content: JSON.stringify(contentObj),
+                        }
+                    });
+                    officeDoc = await prisma.officeDocument.update({
+                        where: { id: officeDoc.id },
+                        data: { qrCodeData: officeDoc.uuid }
+                    });
+                }
+
                 currentSignatures.kabid = {
                     approved: true,
                     name: user.name || user.username || 'Kepala Bidang Sarana',
                     position: user.position || 'Kepala Bidang Sarana',
                     nip: user.nip || '-',
-                    signedAt: new Date().toISOString(),
+                    signedAt: signedDate.toISOString(),
                     signatureData: signatureData || null,
+                    bastNumber: officeDoc.number,
+                    bastDocId: officeDoc.id,
+                    bastUuid: officeDoc.uuid,
                     authHash: `ACC-KABID-SARPRAS-${order.code}-${Date.now().toString(36).toUpperCase()}`
                 };
+
+                parsedMeta.bastNumber = officeDoc.number;
+                parsedMeta.bastDocId = officeDoc.id;
+                parsedMeta.bastUuid = officeDoc.uuid;
             }
         } else if (type === 'requester') {
             const isAdmin = req.user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
@@ -1685,17 +1920,39 @@ exports.updateOrderSignatures = async (req, res) => {
 
             if (action === 'RESET') {
                 currentSignatures.requester = null;
+                delete parsedMeta.bastDate;
             } else {
+                const reqSignedAt = new Date().toISOString();
                 currentSignatures.requester = {
                     name: signerName || order.requesterName,
-                    signedAt: new Date().toISOString(),
+                    signedAt: reqSignedAt,
                     signatureData: signatureData
                 };
+                parsedMeta.bastDate = reqSignedAt;
+
+                // If OfficeDocument already exists, sync date and party2
+                try {
+                    const existingDoc = await prisma.officeDocument.findFirst({
+                        where: { referenceNumber: order.code }
+                    });
+                    if (existingDoc) {
+                        await prisma.officeDocument.update({
+                            where: { id: existingDoc.id },
+                            data: {
+                                date: new Date(reqSignedAt),
+                                party2Name: currentSignatures.requester.name,
+                                party2SignedAt: new Date(reqSignedAt)
+                            }
+                        });
+                    }
+                } catch (docErr) {
+                    console.error('Failed to sync office doc with requester signature:', docErr);
+                }
             }
         } else if (type === 'deliverer') {
-            // User selain admin aset dan super admin, yang memesan, hanya bisa tandatangan penerima saja
             const isAdmin = req.user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
-            const isStaffGudang = req.user && req.user.position && req.user.position.toLowerCase().includes('staff gudang dan logistik');
+            const pos = (req.user?.position || '').toLowerCase();
+            const isStaffGudang = pos.includes('staff gudang dan logistik') || pos.includes('gudang') || pos.includes('logistik');
 
             if (!isAdmin && !isStaffGudang) {
                 return res.status(403).json({
@@ -1706,11 +1963,29 @@ exports.updateOrderSignatures = async (req, res) => {
             if (action === 'RESET') {
                 currentSignatures.deliverer = null;
             } else {
+                const delivSignedAt = new Date().toISOString();
                 currentSignatures.deliverer = {
                     name: signerName || req.user?.name || req.user?.username || 'Petugas Logistik DEI',
-                    signedAt: new Date().toISOString(),
+                    signedAt: delivSignedAt,
                     signatureData: signatureData
                 };
+
+                try {
+                    const existingDoc = await prisma.officeDocument.findFirst({
+                        where: { referenceNumber: order.code }
+                    });
+                    if (existingDoc) {
+                        await prisma.officeDocument.update({
+                            where: { id: existingDoc.id },
+                            data: {
+                                party1Name: currentSignatures.deliverer.name,
+                                party1SignedAt: new Date(delivSignedAt)
+                            }
+                        });
+                    }
+                } catch (docErr) {
+                    console.error('Failed to sync office doc with deliverer signature:', docErr);
+                }
             }
         } else {
             return res.status(400).json({ error: 'Tipe tanda tangan tidak valid.' });
@@ -1761,9 +2036,9 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
     const { type, signatureData, signerName, action } = req.body;
 
     try {
-        if (type !== 'requester') {
+        if (type !== 'requester' && type !== 'deliverer') {
             return res.status(403).json({
-                error: 'Akses publik hanya diizinkan untuk penandatanganan Pihak Penerima Barang. Tanda tangan penyerah dan pengesahan ACC resmi harus melalui login akun berwenang.'
+                error: 'Akses hanya diizinkan untuk Pihak Penerima atau Petugas Gudang (Penyerah Barang).'
             });
         }
 
@@ -1812,22 +2087,61 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
         if (type === 'requester') {
             if (action === 'RESET') {
                 currentSignatures.requester = null;
+                delete parsedMeta.bastDate;
             } else {
+                const reqSignedAt = new Date().toISOString();
                 currentSignatures.requester = {
                     name: signerName || order.requesterName,
-                    signedAt: new Date().toISOString(),
+                    signedAt: reqSignedAt,
                     signatureData: signatureData
                 };
+                parsedMeta.bastDate = reqSignedAt;
+
+                try {
+                    const existingDoc = await prisma.officeDocument.findFirst({
+                        where: { referenceNumber: order.code }
+                    });
+                    if (existingDoc) {
+                        await prisma.officeDocument.update({
+                            where: { id: existingDoc.id },
+                            data: {
+                                date: new Date(reqSignedAt),
+                                party2Name: currentSignatures.requester.name,
+                                party2SignedAt: new Date(reqSignedAt)
+                            }
+                        });
+                    }
+                } catch (docErr) {
+                    console.error('Failed to sync office doc with requester public signature:', docErr);
+                }
             }
         } else if (type === 'deliverer') {
             if (action === 'RESET') {
                 currentSignatures.deliverer = null;
             } else {
+                const delivSignedAt = new Date().toISOString();
                 currentSignatures.deliverer = {
                     name: signerName || 'Petugas Logistik DEI',
-                    signedAt: new Date().toISOString(),
+                    signedAt: delivSignedAt,
                     signatureData: signatureData
                 };
+
+                try {
+                    const existingDoc = await prisma.officeDocument.findFirst({
+                        where: { referenceNumber: order.code }
+                    });
+                    if (existingDoc) {
+                        await prisma.officeDocument.update({
+                            where: { id: existingDoc.id },
+                            data: {
+                                party1Name: currentSignatures.deliverer.name,
+                                party1SignedAt: new Date(delivSignedAt)
+                            }
+                        });
+                    }
+                } catch (docErr) {
+                    console.error('Failed to sync office doc with deliverer public signature:', docErr);
+                }
             }
         } else {
             return res.status(400).json({ error: 'Tipe tanda tangan tidak valid.' });
