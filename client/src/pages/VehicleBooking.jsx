@@ -1041,7 +1041,7 @@ const VehicleBooking = () => {
     }, [isStaffKendaraan, isPIC, isSuperAdmin, isAdminAset]);
 
     const uncheckedVehicles = useMemo(() => {
-        if ((!isStaffKendaraan && !isPIC && !isSuperAdmin && !isAdminAset) || vehicles.length === 0) return [];
+        if (!isStaffKendaraan || vehicles.length === 0) return [];
         const today = new Date().toISOString().split('T')[0];
         const todayChecklists = checklists.filter(c => {
             if (c.type !== 'DAILY') return false;
@@ -1050,13 +1050,8 @@ const VehicleBooking = () => {
         });
         const checkedVehicleIds = todayChecklists.map(c => c.vehicleId);
 
-        // If user is PIC (and not admin/staff), only filter their assigned vehicles
-        const relevantVehicles = (isStaffKendaraan || isSuperAdmin || isAdminAset)
-            ? vehicles
-            : vehicles.filter(v => v.pics?.some(p => p.id === (user?.id || currentUserProfile?.id)));
-
-        return relevantVehicles.filter(v => v.status === 'ACTIVE' && v.requireDailyChecklist !== false && !checkedVehicleIds.includes(v.id));
-    }, [isStaffKendaraan, isPIC, isSuperAdmin, isAdminAset, vehicles, checklists, user?.id, currentUserProfile?.id]);
+        return vehicles.filter(v => v.status === 'ACTIVE' && v.requireDailyChecklist !== false && !checkedVehicleIds.includes(v.id));
+    }, [isStaffKendaraan, vehicles, checklists]);
 
     const getRentalPrice = () => {
         if (!selectedVehicle || !formData.isRented) return 0;
@@ -1173,8 +1168,8 @@ const VehicleBooking = () => {
                 )
             )}
 
-            {/* Unchecked Vehicles Banner (Staff Kendaraan & PIC) */}
-            {(isStaffKendaraan || isPIC) && uncheckedVehicles.length > 0 && (
+            {/* Unchecked Vehicles Banner (Staff Kendaraan Only) */}
+            {isStaffKendaraan && uncheckedVehicles.length > 0 && (
                 <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 justify-between relative">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
@@ -1182,7 +1177,7 @@ const VehicleBooking = () => {
                         </div>
                         <div>
                             <h4 className="text-sm font-bold text-orange-800">
-                                {isPIC && !isStaffKendaraan ? 'Pengecekan Armada Tanggung Jawab Anda (PIC)' : 'Pengecekan Kendaraan Harian'}
+                                Pengecekan Kendaraan Harian
                             </h4>
                             <p className="text-xs text-orange-600">
                                 Terdapat {uncheckedVehicles.length} kendaraan aktif yang belum dilakukan ceklis harian hari ini. 

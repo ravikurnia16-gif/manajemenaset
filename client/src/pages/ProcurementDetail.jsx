@@ -1429,7 +1429,10 @@ const ProcurementDetail = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {req.items.map((item, index) => {
                                 const itemUnitId = selectedUnits[index] || users.find(u => u.id === item.assignedToId)?.unitId || '';
-                                const filteredUsers = users.filter(u => !itemUnitId || u.unitId === parseInt(itemUnitId));
+                                const filteredUsers = users.filter(u => 
+                                    (u.id === item.assignedToId || u.unitId !== 21) &&
+                                    (!itemUnitId || u.unitId === parseInt(itemUnitId))
+                                );
                                 return (
                                     <div key={item.id} style={{
                                         border: `1px solid ${T.border}`,
@@ -1482,7 +1485,9 @@ const ProcurementDetail = () => {
                                                         handleItemChange(index, 'assignedTo', '');
                                                     }}>
                                                     <option value="">— Semua Unit —</option>
-                                                    {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                    {units
+                                                        .filter(u => u.id !== 21 && !u.name?.toLowerCase().includes('workshop'))
+                                                        .map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                 </Select>
                                             </div>
 
