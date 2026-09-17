@@ -120,6 +120,109 @@ exports.createIncomingMail = async (req, res) => {
     }
 };
 
+// Auto-heal / synchronize BAST document signatures and status with Procurement
+const autoHealBastDocument = async (doc) => {
+    const isBast = doc.category === 'BAST' ||
+        doc.type === 'BAST' ||
+        (doc.subject && doc.subject.toLowerCase().includes('berita acara serah terima')) ||
+        (doc.subject && doc.subject.toLowerCase().includes('bast')) ||
+        (typeof doc.content === 'string' && doc.content.includes('"procurementId"'));
+
+    if (!isBast) return;
+
+    try {
+        let parsed = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+        let procId = parsed.procurementId;
+        let procCode = parsed.procurementCode;
+
+        if (!procId && !procCode && doc.subject) {
+            const matchCode = doc.subject.match(/\((REQ\/[^\)]+)\)/i) || doc.subject.match(/(REQ\/\d{4}\/\d{3,})/i) || doc.subject.match(/\(([^)]+)\)$/);
+            if (matchCode) procCode = matchCode[1];
+        }
+
+        let proc = null;
+        if (procId) {
+            proc = await prisma.procurement.findUnique({
+                where: { id: parseInt(procId) },
+                include: { unit: true, items: true, user: true }
+            });
+        } else if (procCode) {
+            proc = await prisma.procurement.findFirst({
+                where: { code: procCode },
+                include: { unit: true, items: true, user: true }
+            });
+        }
+
+        if (!proc) return;
+
+        let sigs = {};
+        if (proc.bastFile && typeof proc.bastFile === 'string' && proc.bastFile.startsWith('{')) {
+            try { sigs = JSON.parse(proc.bastFile); } catch (e) { }
+        }
+
+        const isP1Signed = Boolean(sigs.kabidTte || doc.party1SignedAt);
+        const isP2Signed = Boolean(sigs.receiverSignature || doc.party2Signature);
+        const isCompleted = proc.status === 'COMPLETED';
+
+        const targetStatus = (isP1Signed && isP2Signed) || isCompleted ? 'SIGNED' : ((isP1Signed || isP2Signed) ? 'PENDING_APPROVAL' : 'DRAFT');
+
+        let needsDbUpdate = false;
+        const updateData = {};
+
+        if (doc.status !== targetStatus) {
+            doc.status = targetStatus;
+            updateData.status = targetStatus;
+            needsDbUpdate = true;
+        }
+
+        if (sigs.receiverSignature && !doc.party2Signature) {
+            doc.party2Signature = sigs.receiverSignature;
+            updateData.party2Signature = sigs.receiverSignature;
+            doc.party2SignedAt = sigs.receiverSignedAt ? new Date(sigs.receiverSignedAt) : new Date();
+            updateData.party2SignedAt = doc.party2SignedAt;
+            needsDbUpdate = true;
+        }
+
+        if (sigs.receiverName && !doc.party2Name) {
+            doc.party2Name = sigs.receiverName;
+            updateData.party2Name = sigs.receiverName;
+            needsDbUpdate = true;
+        }
+
+        if (isP1Signed && !doc.party1SignedAt) {
+            doc.party1SignedAt = sigs.kabidSignedAt ? new Date(sigs.kabidSignedAt) : new Date();
+            updateData.party1SignedAt = doc.party1SignedAt;
+            doc.signedAt = doc.party1SignedAt;
+            updateData.signedAt = doc.signedAt;
+            needsDbUpdate = true;
+        }
+
+        if ((!parsed.items || parsed.items.length === 0) && proc.items && proc.items.length > 0) {
+            parsed.items = proc.items.map(it => ({
+                name: it.name,
+                spec: it.spec || '-',
+                qty: it.qty,
+                unit: it.unit || 'Unit'
+            }));
+            parsed.procurementId = proc.id;
+            parsed.procurementCode = proc.code;
+            parsed.procurementTitle = proc.title;
+            doc.content = JSON.stringify(parsed);
+            updateData.content = doc.content;
+            needsDbUpdate = true;
+        }
+
+        if (needsDbUpdate) {
+            await prisma.officeDocument.update({
+                where: { id: doc.id },
+                data: updateData
+            });
+        }
+    } catch (e) {
+        console.error('autoHealBastDocument error:', e);
+    }
+};
+
 // ==================== SURAT KELUAR ====================
 
 /**
@@ -165,8 +268,10 @@ exports.getOutgoingDocuments = async (req, res) => {
             }),
         ]);
 
-        // Auto-heal / synchronize assignment order signatures on the fly
+        // Auto-heal / synchronize assignment order and BAST documents on the fly
         for (const doc of documents) {
+            await autoHealBastDocument(doc);
+
             const isAssignment = doc.category === 'Perintah' ||
                 doc.category === 'Surat Perintah' ||
                 (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
@@ -297,6 +402,8 @@ exports.getDocumentById = async (req, res) => {
         });
 
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        await autoHealBastDocument(doc);
 
         const isAssignment = doc.category === 'Perintah' ||
             doc.category === 'Surat Perintah' ||

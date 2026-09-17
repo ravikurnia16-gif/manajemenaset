@@ -955,13 +955,191 @@ export default function InventoryOrders() {
     }
   };
 
+  // Helper mendapatkan daftar stok item di semua gudang
+  const getAllWhStocksForItem = (itemId) => {
+    const it = (items || []).find(i => i.id === itemId);
+    return (warehouses || []).map(wh => {
+      const st = it?.stocks && Array.isArray(it.stocks)
+        ? it.stocks.find(s => s.warehouseId === wh.id)
+        : null;
+      return {
+        warehouseId: wh.id,
+        warehouseName: wh.name,
+        location: wh.location,
+        quantity: st?.quantity || 0
+      };
+    });
+  };
+
+  // Helper auto-allocate untuk 1 item pesanan
+  const autoAllocateItemStock = (orderItemId, targetApprovedQty = null) => {
+    if (!selectedOrder) return [];
+    const ordItem = (selectedOrder.items || []).find(i => i.id === orderItemId);
+    if (!ordItem) return [];
+
+    const approvedQty = targetApprovedQty !== null 
+      ? targetApprovedQty 
+      : ((processData.approvedItems || []).find(ai => ai.orderItemId === orderItemId)?.qtyApproved ?? (ordItem.qtyApproved ?? ordItem.qtyRequested));
+
+    if (approvedQty <= 0) {
+      return [{ warehouseId: warehouses[0]?.id ? String(warehouses[0].id) : '', quantity: 0 }];
+    }
+
+    const whStocks = getAllWhStocksForItem(ordItem.itemId).filter(w => w.quantity > 0);
+    // Jika tidak ada stok sama sekali di gudang manapun
+    if (whStocks.length === 0) {
+      const defWh = warehouses[0]?.id ? String(warehouses[0].id) : '';
+      return [{ warehouseId: defWh, quantity: approvedQty }];
+    }
+
+    let remainingNeeded = approvedQty;
+    const newAllocs = [];
+
+    for (const ws of whStocks) {
+      if (remainingNeeded <= 0) break;
+      const takeQty = Math.min(ws.quantity, remainingNeeded);
+      newAllocs.push({
+        warehouseId: String(ws.warehouseId),
+        quantity: takeQty
+      });
+      remainingNeeded -= takeQty;
+    }
+
+    // Jika masih ada sisa yang belum tercakup stok
+    if (remainingNeeded > 0) {
+      if (newAllocs.length > 0) {
+        newAllocs[newAllocs.length - 1].quantity += remainingNeeded;
+      } else {
+        newAllocs.push({
+          warehouseId: String(whStocks[0]?.warehouseId || warehouses[0]?.id || ''),
+          quantity: remainingNeeded
+        });
+      }
+    }
+
+    return newAllocs;
+  };
+
+  // Helper auto-allocate untuk semua item sekaligus
+  const handleAutoAllocateAll = () => {
+    if (!selectedOrder) return;
+    const newAllocations = {};
+    (selectedOrder.items || []).forEach(it => {
+      newAllocations[it.id] = autoAllocateItemStock(it.id);
+    });
+
+    setProcessData(prev => ({
+      ...prev,
+      warehouseMode: 'multi',
+      warehouseAllocations: newAllocations
+    }));
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Bagi Stok Otomatis Berhasil',
+      text: 'Kuantitas barang berhasil dialokasikan ke gudang-gudang yang memiliki stok tersedia.',
+      timer: 1600,
+      showConfirmButton: false
+    });
+  };
+
+  const handleSwitchToMultiWithAutoAllocate = () => {
+    handleAutoAllocateAll();
+  };
+
+  const updateItemAllocation = (orderItemId, allocIndex, field, value) => {
+    setProcessData(prev => {
+      const currentAllocs = [...(prev.warehouseAllocations?.[orderItemId] || [])];
+      if (!currentAllocs[allocIndex]) return prev;
+
+      currentAllocs[allocIndex] = {
+        ...currentAllocs[allocIndex],
+        [field]: field === 'quantity' ? (Math.max(0, parseInt(value) || 0)) : value
+      };
+
+      return {
+        ...prev,
+        warehouseAllocations: {
+          ...prev.warehouseAllocations,
+          [orderItemId]: currentAllocs
+        }
+      };
+    });
+  };
+
+  const addWarehouseRow = (orderItemId) => {
+    setProcessData(prev => {
+      const currentAllocs = [...(prev.warehouseAllocations?.[orderItemId] || [])];
+      const ordItem = (selectedOrder?.items || []).find(i => i.id === orderItemId);
+      const appQty = (prev.approvedItems || []).find(ai => ai.orderItemId === orderItemId)?.qtyApproved ?? (ordItem?.qtyApproved ?? ordItem?.qtyRequested ?? 0);
+      const currentTotal = currentAllocs.reduce((sum, a) => sum + (parseInt(a.quantity) || 0), 0);
+      const remainingNeeded = Math.max(0, appQty - currentTotal);
+
+      // Cari gudang yang belum dipilih
+      const selectedWhIds = currentAllocs.map(a => String(a.warehouseId));
+      const nextWh = (warehouses || []).find(w => !selectedWhIds.includes(String(w.id))) || warehouses[0];
+
+      currentAllocs.push({
+        warehouseId: nextWh?.id ? String(nextWh.id) : '',
+        quantity: remainingNeeded
+      });
+
+      return {
+        ...prev,
+        warehouseAllocations: {
+          ...prev.warehouseAllocations,
+          [orderItemId]: currentAllocs
+        }
+      };
+    });
+  };
+
+  const removeWarehouseRow = (orderItemId, allocIndex) => {
+    setProcessData(prev => {
+      const currentAllocs = [...(prev.warehouseAllocations?.[orderItemId] || [])];
+      if (currentAllocs.length <= 1) return prev;
+      currentAllocs.splice(allocIndex, 1);
+      return {
+        ...prev,
+        warehouseAllocations: {
+          ...prev.warehouseAllocations,
+          [orderItemId]: currentAllocs
+        }
+      };
+    });
+  };
+
   const openProcessModal = (order) => {
     setSelectedOrder(order);
     setCopiedCode(false);
+
+    const hasExistingAllocations = order.warehouseAllocations && Object.keys(order.warehouseAllocations).length > 0;
+    const defaultWhId = warehouses.length === 1 ? String(warehouses[0].id) : '';
+
+    const initialAllocations = {};
+    (order.items || []).forEach(it => {
+      const appQty = it.qtyApproved ?? it.qtyRequested;
+      if (order.warehouseAllocations && order.warehouseAllocations[it.id]) {
+        initialAllocations[it.id] = order.warehouseAllocations[it.id].map(a => ({
+          warehouseId: String(a.warehouseId),
+          quantity: a.quantity
+        }));
+      } else {
+        initialAllocations[it.id] = [{
+          warehouseId: defaultWhId,
+          quantity: appQty
+        }];
+      }
+    });
+
+    const isMultiInitially = hasExistingAllocations && Object.keys(order.warehouseAllocations).some(k => (order.warehouseAllocations[k] || []).length > 1);
+
     setProcessData({
       status: order.status || 'PENDING',
       note: getOrderNoteText(order),
-      warehouseId: warehouses.length === 1 ? String(warehouses[0].id) : '',
+      warehouseId: defaultWhId,
+      warehouseMode: isMultiInitially ? 'multi' : 'single',
+      warehouseAllocations: initialAllocations,
       approvedItems: (order.items || []).map(it => ({ 
         orderItemId: it.id, 
         qtyApproved: it.qtyApproved ?? it.qtyRequested 
@@ -970,7 +1148,23 @@ export default function InventoryOrders() {
     setIsProcessModalOpen(true);
     if (order?.id) {
       api.get(`/inventory/orders/${order.id}`).then(res => {
-        if (res.data) setSelectedOrder(res.data);
+        if (res.data) {
+          setSelectedOrder(res.data);
+          if (res.data.warehouseAllocations && Object.keys(res.data.warehouseAllocations).length > 0) {
+            const freshAllocations = {};
+            Object.keys(res.data.warehouseAllocations).forEach(k => {
+              freshAllocations[k] = res.data.warehouseAllocations[k].map(a => ({
+                warehouseId: String(a.warehouseId),
+                quantity: a.quantity
+              }));
+            });
+            setProcessData(prev => ({
+              ...prev,
+              warehouseAllocations: freshAllocations,
+              warehouseMode: 'multi'
+            }));
+          }
+        }
       }).catch(() => {});
     }
   };
@@ -978,36 +1172,142 @@ export default function InventoryOrders() {
   // Quick helper: Setujui semua barang 100% sesuai permintaan
   const handleApproveAllFull = () => {
     if (!selectedOrder) return;
-    setProcessData(prev => ({
-      ...prev,
-      status: prev.status === 'PENDING' ? 'APPROVED' : prev.status,
-      approvedItems: (selectedOrder.items || []).map(it => ({
+    setProcessData(prev => {
+      const newApp = (selectedOrder.items || []).map(it => ({
         orderItemId: it.id,
         qtyApproved: it.qtyRequested
-      }))
-    }));
+      }));
+      const newAllocs = { ...(prev.warehouseAllocations || {}) };
+      (selectedOrder.items || []).forEach(it => {
+        if (newAllocs[it.id] && newAllocs[it.id].length === 1) {
+          newAllocs[it.id] = [{
+            ...newAllocs[it.id][0],
+            quantity: it.qtyRequested
+          }];
+        }
+      });
+      return {
+        ...prev,
+        status: prev.status === 'PENDING' ? 'APPROVED' : prev.status,
+        approvedItems: newApp,
+        warehouseAllocations: newAllocs
+      };
+    });
   };
 
   // Quick helper: Setujui semua barang = 0 (Tolak/Kosong)
   const handleApproveAllZero = () => {
     if (!selectedOrder) return;
-    setProcessData(prev => ({
-      ...prev,
-      approvedItems: (selectedOrder.items || []).map(it => ({
-        orderItemId: it.id,
-        qtyApproved: 0
-      }))
-    }));
+    setProcessData(prev => {
+      const newAllocs = { ...(prev.warehouseAllocations || {}) };
+      (selectedOrder.items || []).forEach(it => {
+        if (newAllocs[it.id] && newAllocs[it.id].length === 1) {
+          newAllocs[it.id] = [{
+            ...newAllocs[it.id][0],
+            quantity: 0
+          }];
+        }
+      });
+      return {
+        ...prev,
+        approvedItems: (selectedOrder.items || []).map(it => ({
+          orderItemId: it.id,
+          qtyApproved: 0
+        })),
+        warehouseAllocations: newAllocs
+      };
+    });
   };
 
   const handleProcessOrder = async (e) => {
     e.preventDefault();
     try {
-      if (processData.status === 'COMPLETED' && selectedOrder.status !== 'COMPLETED' && !processData.warehouseId) {
-        return Swal.fire({ icon: 'warning', title: 'Pilih Gudang', text: 'Pilih gudang sumber untuk memproses dan memotong stok barang pesanan.' });
+      if (processData.status === 'COMPLETED' && selectedOrder.status !== 'COMPLETED') {
+        const orderItems = selectedOrder.items || [];
+        
+        if (processData.warehouseMode === 'multi') {
+          // Validasi mode multi-gudang
+          for (const it of orderItems) {
+            const approvedQty = (processData.approvedItems || []).find(ai => ai.orderItemId === it.id)?.qtyApproved ?? (it.qtyApproved ?? it.qtyRequested);
+            if (approvedQty > 0) {
+              const allocs = (processData.warehouseAllocations?.[it.id] || []).filter(a => a.warehouseId && Number(a.quantity) > 0);
+              
+              if (allocs.length === 0) {
+                return Swal.fire({
+                  icon: 'warning',
+                  title: 'Alokasi Belum Lengkap',
+                  text: `Tentukan gudang sumber pengeluaran untuk barang "${it.item?.name || 'Item'}".`
+                });
+              }
+
+              const totalAllocated = allocs.reduce((sum, a) => sum + (parseInt(a.quantity) || 0), 0);
+              if (totalAllocated !== approvedQty) {
+                return Swal.fire({
+                  icon: 'warning',
+                  title: 'Jumlah Alokasi Tidak Sesuai',
+                  text: `Barang "${it.item?.name}": total alokasi gudang (${totalAllocated}) harus sama dengan jumlah yang disetujui (${approvedQty}).`
+                });
+              }
+
+              // Cek stok fisik tiap alokasi
+              for (const alloc of allocs) {
+                const stockInWh = getItemStockInWh(it.itemId, alloc.warehouseId);
+                const whObj = warehouses.find(w => w.id === parseInt(alloc.warehouseId));
+                const whName = whObj?.name || `Gudang ID ${alloc.warehouseId}`;
+                if (parseInt(alloc.quantity) > stockInWh) {
+                  return Swal.fire({
+                    icon: 'error',
+                    title: 'Stok Tidak Mencukupi',
+                    text: `Stok barang "${it.item?.name}" di ${whName} tidak mencukupi (Tersedia: ${stockInWh}, dialokasikan: ${alloc.quantity}). Kurangi alokasi atau ambil dari gudang lain.`
+                  });
+                }
+              }
+            }
+          }
+        } else {
+          // Mode satu gudang
+          if (!processData.warehouseId) {
+            return Swal.fire({ 
+              icon: 'warning', 
+              title: 'Pilih Gudang', 
+              text: 'Pilih gudang sumber untuk memproses dan memotong stok barang pesanan.' 
+            });
+          }
+
+          // Cek apakah ada barang yang melebihi stok gudang terpilih
+          for (const it of orderItems) {
+            const approvedQty = (processData.approvedItems || []).find(ai => ai.orderItemId === it.id)?.qtyApproved ?? (it.qtyApproved ?? it.qtyRequested);
+            if (approvedQty > 0) {
+              const stockInWh = getItemStockInWh(it.itemId, processData.warehouseId);
+              const whObj = warehouses.find(w => w.id === parseInt(processData.warehouseId));
+              const whName = whObj?.name || 'gudang terpilih';
+              if (approvedQty > stockInWh) {
+                return Swal.fire({
+                  icon: 'error',
+                  title: 'Stok Gudang Tidak Mencukupi',
+                  html: `Stok barang <b>"${it.item?.name}"</b> di <b>${whName}</b> hanya tersedia <b>${stockInWh}</b> unit (disetujui: ${approvedQty} unit).<br/><br/>Silakan aktifkan <b>Mode Multi-Gudang</b> untuk mengambil sisa stok dari gudang lain.`
+                });
+              }
+            }
+          }
+        }
       }
 
-      await api.put(`/inventory/orders/${selectedOrder.id}/status`, processData);
+      // Siapkan payload dengan allocations yang dinormalisasi
+      const payload = {
+        ...processData,
+        approvedItems: (processData.approvedItems || []).map(ai => {
+          const allocs = processData.warehouseMode === 'multi' 
+            ? (processData.warehouseAllocations?.[ai.orderItemId] || []).filter(a => a.warehouseId && Number(a.quantity) > 0)
+            : [{ warehouseId: processData.warehouseId, quantity: ai.qtyApproved }];
+          return {
+            ...ai,
+            allocations: allocs
+          };
+        })
+      };
+
+      await api.put(`/inventory/orders/${selectedOrder.id}/status`, payload);
       setIsProcessModalOpen(false);
       fetchOrders();
       Swal.fire({
@@ -2058,8 +2358,21 @@ export default function InventoryOrders() {
                     <tbody className="divide-y divide-slate-100">
                       {(selectedOrder.items || []).map((item) => {
                         const approvedQtyValue = (processData.approvedItems || []).find(ai => ai.orderItemId === item.id)?.qtyApproved ?? (item.qtyApproved ?? item.qtyRequested);
-                        const currentWhStock = getItemStockInWh(item.itemId, processData.warehouseId);
-                        const isExceedWhStock = processData.status === 'COMPLETED' && processData.warehouseId && approvedQtyValue > currentWhStock;
+                        const isMultiMode = processData.warehouseMode === 'multi';
+                        const itemAllocs = processData.warehouseAllocations?.[item.id] || [];
+                        const currentWhStock = isMultiMode 
+                          ? getItemStockInWh(item.itemId, null)
+                          : getItemStockInWh(item.itemId, processData.warehouseId);
+                        
+                        const totalAllocated = itemAllocs.reduce((sum, a) => sum + (parseInt(a.quantity) || 0), 0);
+                        const hasAllocShortage = itemAllocs.some(a => a.warehouseId && parseInt(a.quantity) > getItemStockInWh(item.itemId, a.warehouseId));
+                        
+                        const isExceedWhStock = processData.status === 'COMPLETED' && (
+                          isMultiMode 
+                            ? (totalAllocated !== approvedQtyValue || hasAllocShortage)
+                            : (processData.warehouseId && approvedQtyValue > currentWhStock)
+                        );
+
                         const sellPrice = getItemSellingPrice(item, selectedOrder);
                         const effectiveQty = selectedOrder.status === 'COMPLETED' ? (item.qtyDelivered ?? approvedQtyValue) : approvedQtyValue;
                         const subtotalVal = sellPrice * effectiveQty;
@@ -2071,6 +2384,33 @@ export default function InventoryOrders() {
                               <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                                 {item.item?.code || '-'} • {item.item?.category?.name || 'Umum'} • [{item.item?.unit || 'Pcs'}]
                               </div>
+
+                              {/* Tampilkan rincian gudang pengambilan jika order sudah COMPLETED */}
+                              {selectedOrder.status === 'COMPLETED' && selectedOrder.warehouseAllocations?.[item.id] && (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {selectedOrder.warehouseAllocations[item.id].map((alloc, aIdx) => (
+                                    <span key={aIdx} className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded-md font-bold">
+                                      <Warehouse size={10} className="text-emerald-600" />
+                                      {alloc.warehouseName || `Gudang #${alloc.warehouseId}`}: {alloc.quantity} {item.item?.unit || 'Pcs'}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Tampilkan preview pembagian multi-gudang saat sedang diproses */}
+                              {selectedOrder.status !== 'COMPLETED' && processData.status === 'COMPLETED' && isMultiMode && itemAllocs.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {itemAllocs.filter(a => a.warehouseId && a.quantity > 0).map((a, aIdx) => {
+                                    const whName = warehouses.find(w => String(w.id) === String(a.warehouseId))?.name || `Gudang #${a.warehouseId}`;
+                                    return (
+                                      <span key={aIdx} className="inline-flex items-center gap-1 text-[9.5px] bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 rounded-md font-semibold">
+                                        <Warehouse size={9} className="text-blue-600" />
+                                        {whName}: <b>{a.quantity}</b>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </td>
                             
                             {/* Stock Indicator */}
@@ -2080,8 +2420,11 @@ export default function InventoryOrders() {
                                    ? 'bg-rose-100 text-rose-800' 
                                   : (currentWhStock < item.qtyRequested ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700')
                               }`}>
-                                {currentWhStock} unit
+                                {isMultiMode ? `Total: ${currentWhStock} unit` : `${currentWhStock} unit`}
                               </span>
+                              {isMultiMode && (
+                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Semua Gudang</div>
+                              )}
                             </td>
 
                             <td className="p-3 text-center">
@@ -2111,13 +2454,31 @@ export default function InventoryOrders() {
                                       const val = parseInt(e.target.value) || 0;
                                       if (existIdx >= 0) newAppItems[existIdx].qtyApproved = val;
                                       else newAppItems.push({ orderItemId: item.id, qtyApproved: val });
-                                      setProcessData({...processData, approvedItems: newAppItems});
+                                      
+                                      // Sinkronisasi alokasi jika hanya ada 1 baris
+                                      const newAllocObj = { ...(processData.warehouseAllocations || {}) };
+                                      if (newAllocObj[item.id] && newAllocObj[item.id].length === 1) {
+                                        newAllocObj[item.id] = [{
+                                          ...newAllocObj[item.id][0],
+                                          quantity: val
+                                        }];
+                                      }
+
+                                      setProcessData({
+                                        ...processData, 
+                                        approvedItems: newAppItems,
+                                        warehouseAllocations: newAllocObj
+                                      });
                                     }}
                                   />
                                 </div>
                               )}
                               {isExceedWhStock && (
-                                <div className="text-[10px] text-rose-600 font-bold mt-0.5">Melebihi stok gudang!</div>
+                                <div className="text-[10px] text-rose-600 font-bold mt-0.5">
+                                  {isMultiMode 
+                                    ? (hasAllocShortage ? 'Melebihi stok gudang!' : (totalAllocated < approvedQtyValue ? `Kurang ${approvedQtyValue - totalAllocated} unit!` : 'Kelebihan alokasi!'))
+                                    : 'Melebihi stok gudang!'}
+                                </div>
                               )}
                             </td>
 
@@ -2202,25 +2563,360 @@ export default function InventoryOrders() {
 
                   {/* Warehouse Selector (Wajib jika COMPLETED) */}
                   {processData.status === 'COMPLETED' && selectedOrder.status !== 'COMPLETED' && (
-                    <div className="p-3.5 bg-white border-2 border-emerald-400 rounded-xl space-y-2 shadow-2xs animate-in fade-in">
-                      <div className="flex items-center gap-2 font-extrabold text-emerald-950 text-xs">
-                        <Warehouse size={16} className="text-emerald-600 shrink-0" />
-                        <span>Pilih Lokasi Gudang Pengeluaran Stok Fisik:</span>
+                    <div className="p-4 sm:p-5 bg-white border-2 border-emerald-400 rounded-2xl space-y-4 shadow-sm animate-in fade-in">
+                      {/* Header & Mode Switcher */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl shadow-2xs">
+                            <Warehouse size={18} className="text-emerald-700 shrink-0" />
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
+                              <span>Lokasi Gudang Pengeluaran Stok Fisik</span>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                                Wajib Diisi
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500">
+                              Tentukan gudang tempat pemotongan fisik dan penerbitan bukti mutasi OUT
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Mode Switcher Tabs */}
+                        <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => setProcessData(prev => ({ ...prev, warehouseMode: 'single' }))}
+                            className={`px-3 py-1.5 rounded-lg font-extrabold transition cursor-pointer ${
+                              processData.warehouseMode !== 'multi'
+                                ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            🏢 Satu Gudang
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (processData.warehouseMode !== 'multi') {
+                                setProcessData(prev => ({ ...prev, warehouseMode: 'multi' }));
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                              processData.warehouseMode === 'multi'
+                                ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>🏢🔀 Multi-Gudang</span>
+                            <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-md">Bisa Split</span>
+                          </button>
+                        </div>
                       </div>
-                      <select 
-                        required 
-                        className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
-                        value={processData.warehouseId} 
-                        onChange={e => setProcessData({...processData, warehouseId: e.target.value})}
-                      >
-                        <option value="">-- Wajib Pilih Gudang Sumber Pengeluaran --</option>
-                        {(warehouses || []).map(wh => (
-                          <option key={wh.id} value={wh.id}>{wh.name} {wh.location ? `(${wh.location})` : ''}</option>
-                        ))}
-                      </select>
-                      <p className="text-[11px] text-emerald-800 leading-relaxed">
-                        * Sistem akan otomatis memotong kuantitas stok barang yang disetujui dari gudang di atas dan mencatat bukti transaksi pengeluaran (OUT).
-                      </p>
+
+                      {/* MODE 1: SATU GUDANG */}
+                      {processData.warehouseMode !== 'multi' ? (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                              Pilih Gudang Sumber Pengeluaran (Semua Barang):
+                            </label>
+                            <select 
+                              required 
+                              className="w-full bg-emerald-50/40 border border-emerald-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                              value={processData.warehouseId} 
+                              onChange={e => {
+                                const newWhId = e.target.value;
+                                const updatedAllocations = {};
+                                (selectedOrder.items || []).forEach(it => {
+                                  const appQty = (processData.approvedItems || []).find(ai => ai.orderItemId === it.id)?.qtyApproved ?? (it.qtyApproved ?? it.qtyRequested);
+                                  updatedAllocations[it.id] = [{
+                                    warehouseId: newWhId,
+                                    quantity: appQty
+                                  }];
+                                });
+                                setProcessData({
+                                  ...processData, 
+                                  warehouseId: newWhId,
+                                  warehouseAllocations: updatedAllocations
+                                });
+                              }}
+                            >
+                              <option value="">-- Wajib Pilih Gudang Sumber Pengeluaran --</option>
+                              {(warehouses || []).map(wh => (
+                                <option key={wh.id} value={wh.id}>{wh.name} {wh.location ? `(${wh.location})` : ''}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* SHORTAGE WARNING & QUICK AUTO-SPLIT BUTTON */}
+                          {(() => {
+                            if (!processData.warehouseId) return null;
+                            const shortageItems = (selectedOrder.items || []).filter(it => {
+                              const appQty = (processData.approvedItems || []).find(ai => ai.orderItemId === it.id)?.qtyApproved ?? (it.qtyApproved ?? it.qtyRequested);
+                              if (appQty <= 0) return false;
+                              const stockInWh = getItemStockInWh(it.itemId, processData.warehouseId);
+                              return appQty > stockInWh;
+                            });
+
+                            if (shortageItems.length === 0) return null;
+
+                            const selWh = warehouses.find(w => String(w.id) === String(processData.warehouseId));
+                            const selWhName = selWh?.name || 'gudang ini';
+
+                            return (
+                              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-xs text-amber-950 animate-in fade-in shadow-2xs">
+                                <div className="flex items-start gap-2.5">
+                                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                                  <div className="flex-1">
+                                    <div className="font-extrabold text-amber-950">
+                                      Stok di {selWhName} tidak lengkap untuk {shortageItems.length} barang!
+                                    </div>
+                                    <ul className="text-[11px] text-amber-800 mt-1 list-disc list-inside space-y-0.5">
+                                      {shortageItems.map(si => {
+                                        const app = (processData.approvedItems || []).find(ai => ai.orderItemId === si.id)?.qtyApproved ?? (si.qtyApproved ?? si.qtyRequested);
+                                        const st = getItemStockInWh(si.itemId, processData.warehouseId);
+                                        return (
+                                          <li key={si.id}>
+                                            <b>{si.item?.name}</b>: Disetujui <b>{app}</b> {si.item?.unit || 'Pcs'}, namun stok di {selWhName} hanya ada <b>{st}</b>.
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                </div>
+                                <div className="pt-1 flex items-center justify-between flex-wrap gap-2 border-t border-amber-200">
+                                  <span className="text-[11px] text-amber-800">
+                                    Ingin mengambil kekurangan dari gudang lain?
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={handleSwitchToMultiWithAutoAllocate}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+                                  >
+                                    <Sparkles size={13} />
+                                    <span>Aktifkan Multi-Gudang & Bagi Otomatis</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <p className="text-[11px] text-emerald-800 leading-relaxed">
+                            * Sistem akan otomatis memotong kuantitas stok barang yang disetujui dari gudang di atas dan mencatat bukti transaksi pengeluaran (OUT).
+                          </p>
+                        </div>
+                      ) : (
+                        /* MODE 2: MULTI-GUDANG (BEDA / PECAH GUDANG) */
+                        <div className="space-y-4">
+                          {/* Multi toolbar */}
+                          <div className="bg-emerald-50/80 p-3 rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-2">
+                              <Sparkles size={16} className="text-emerald-700 shrink-0" />
+                              <div>
+                                <div className="font-extrabold text-xs text-emerald-950">Mode Alokasi Multi-Gudang Aktif</div>
+                                <div className="text-[10.5px] text-emerald-800">
+                                  Anda dapat membagi pengeluaran stok per item dari beberapa gudang berbeda bila stok di satu gudang tidak lengkap.
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleAutoAllocateAll}
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+                              title="Bagi otomatis kuantitas yang dibutuhkan ke gudang-gudang yang memiliki stok tersedia"
+                            >
+                              <Sparkles size={13} />
+                              <span>⚡ Bagi Otomatis Semua Barang</span>
+                            </button>
+                          </div>
+
+                          {/* List of items allocations */}
+                          <div className="space-y-3">
+                            {(selectedOrder.items || []).map((item) => {
+                              const approvedQty = (processData.approvedItems || []).find(ai => ai.orderItemId === item.id)?.qtyApproved ?? (item.qtyApproved ?? item.qtyRequested);
+                              const allocations = processData.warehouseAllocations?.[item.id] || [];
+                              const totalAllocated = allocations.reduce((sum, a) => sum + (parseInt(a.quantity) || 0), 0);
+                              const isComplete = totalAllocated === approvedQty;
+                              const isUnder = totalAllocated < approvedQty;
+                              const isOver = totalAllocated > approvedQty;
+                              const whStocks = getAllWhStocksForItem(item.itemId);
+
+                              if (approvedQty <= 0) {
+                                return (
+                                  <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-center justify-between">
+                                    <span className="font-bold text-slate-700">{item.item?.name}</span>
+                                    <span className="italic text-[11px]">(Barang tidak disetujui / 0 unit, tidak ada pemotongan stok)</span>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div 
+                                  key={item.id} 
+                                  className={`p-3.5 rounded-xl border transition-all ${
+                                    isComplete 
+                                      ? 'bg-slate-50/80 border-emerald-300' 
+                                      : (isUnder ? 'bg-amber-50/40 border-amber-300' : 'bg-rose-50/40 border-rose-300')
+                                  }`}
+                                >
+                                  {/* Item Header */}
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5 mb-2.5">
+                                    <div>
+                                      <div className="font-extrabold text-slate-800 text-xs sm:text-sm">
+                                        {item.item?.name || 'Barang Logistik'}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                        Kode: {item.item?.code || '-'} • Satuan: {item.item?.unit || 'Pcs'}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <div className="text-right">
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase">Target Disetujui:</div>
+                                        <div className="font-mono font-black text-blue-700 text-sm">
+                                          {approvedQty} {item.item?.unit || 'Pcs'}
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const auto = autoAllocateItemStock(item.id);
+                                          setProcessData(prev => ({
+                                            ...prev,
+                                            warehouseAllocations: {
+                                              ...prev.warehouseAllocations,
+                                              [item.id]: auto
+                                            }
+                                          }));
+                                        }}
+                                        className="text-[10.5px] px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                        title="Bagi otomatis item ini berdasarkan stok tersedia"
+                                      >
+                                        <Sparkles size={11} className="text-emerald-600" />
+                                        <span>Bagi Otomatis</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Stock availability tags */}
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-3 text-[10.5px]">
+                                    <span className="font-bold text-slate-500">Stok Tersedia:</span>
+                                    {whStocks.map(ws => (
+                                      <span 
+                                        key={ws.warehouseId} 
+                                        className={`px-2 py-0.5 rounded-md font-mono font-medium border ${
+                                          ws.quantity > 0 
+                                            ? 'bg-white text-emerald-900 border-emerald-200' 
+                                            : 'bg-slate-100 text-slate-400 border-slate-200'
+                                        }`}
+                                      >
+                                        {ws.warehouseName}: <b>{ws.quantity}</b>
+                                      </span>
+                                    ))}
+                                  </div>
+
+                                  {/* Allocation rows */}
+                                  <div className="space-y-2">
+                                    {allocations.map((alloc, aIdx) => {
+                                      const stockInThisWh = alloc.warehouseId ? getItemStockInWh(item.itemId, alloc.warehouseId) : 0;
+                                      const isExceedThisWh = alloc.warehouseId && Number(alloc.quantity) > stockInThisWh;
+
+                                      return (
+                                        <div key={aIdx} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                          <div className="w-6 text-center text-xs font-bold text-slate-400">
+                                            #{aIdx + 1}
+                                          </div>
+                                          
+                                          {/* Select Gudang */}
+                                          <select
+                                            className="flex-1 min-w-[200px] bg-white border border-slate-300 rounded-xl p-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                                            value={alloc.warehouseId}
+                                            onChange={e => updateItemAllocation(item.id, aIdx, 'warehouseId', e.target.value)}
+                                          >
+                                            <option value="">-- Pilih Gudang Sumber --</option>
+                                            {whStocks.map(ws => (
+                                              <option key={ws.warehouseId} value={ws.warehouseId}>
+                                                {ws.warehouseName} {ws.location ? `(${ws.location})` : ''} — (Stok: {ws.quantity})
+                                              </option>
+                                            ))}
+                                          </select>
+
+                                          {/* Input Kuantitas */}
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              className={`w-24 border rounded-xl p-2 text-center font-extrabold text-xs outline-none focus:ring-2 focus:ring-emerald-500 ${
+                                                isExceedThisWh 
+                                                  ? 'bg-rose-50 border-rose-400 text-rose-800' 
+                                                  : 'bg-white border-slate-300 text-slate-800'
+                                              }`}
+                                              value={alloc.quantity}
+                                              onChange={e => updateItemAllocation(item.id, aIdx, 'quantity', e.target.value)}
+                                              placeholder="Qty"
+                                            />
+                                            <span className="text-xs font-bold text-slate-500 w-8">
+                                              {item.item?.unit || 'Pcs'}
+                                            </span>
+                                          </div>
+
+                                          {/* Delete row button */}
+                                          {allocations.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => removeWarehouseRow(item.id, aIdx)}
+                                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                              title="Hapus baris alokasi ini"
+                                            >
+                                              <Trash2 size={15} />
+                                            </button>
+                                          )}
+
+                                          {isExceedThisWh && (
+                                            <div className="w-full text-[10px] text-rose-600 font-bold ml-8">
+                                              ⚠️ Jumlah melebihi stok gudang terpilih (Tersedia: {stockInThisWh} unit)!
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Item Allocation Footer */}
+                                  <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+                                    <button
+                                      type="button"
+                                      onClick={() => addWarehouseRow(item.id)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 transition cursor-pointer"
+                                    >
+                                      <Plus size={13} />
+                                      <span>+ Ambil dari Gudang Lain</span>
+                                    </button>
+
+                                    {/* Status Badge */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[11px] text-slate-500 font-medium">Total Dialokasikan:</span>
+                                      <span className={`px-2.5 py-0.5 rounded-full font-extrabold text-[11px] border ${
+                                        isComplete 
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                          : (isUnder ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300')
+                                      }`}>
+                                        {isComplete && `✓ Pas (${totalAllocated} / ${approvedQty})`}
+                                        {isUnder && `⚠️ Kurang ${approvedQty - totalAllocated} ${item.item?.unit || 'Pcs'}`}
+                                        {isOver && `❌ Kelebihan ${totalAllocated - approvedQty} ${item.item?.unit || 'Pcs'}`}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

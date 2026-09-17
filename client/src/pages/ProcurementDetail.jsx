@@ -1092,8 +1092,15 @@ const ProcurementDetail = () => {
                 bastDate: bastDate || null,
                 photoUrl: typeof handoverPhoto === 'string' && !handoverPhoto.startsWith('data:') ? handoverPhoto : null
             };
-            await api.put(`/procurements/${id}/bast-signatures`, payload);
+            const res = await api.put(`/procurements/${id}/bast-signatures`, payload);
+            if (res.data?.bastSignatures) {
+                setBastSignatures(res.data.bastSignatures);
+            }
+            if (res.data?.bastDoc) {
+                setBastDoc(res.data.bastDoc);
+            }
             alert('Tanda tangan dan data penerima BAST berhasil disimpan!');
+            fetchDetail();
         } catch (e) {
             console.error('Error saving signatures:', e);
             alert(e.response?.data?.error || e.message || 'Gagal menyimpan tanda tangan.');
@@ -3876,32 +3883,42 @@ const ProcurementDetail = () => {
                                                     >
                                                         <Printer size={14} /> Lihat &amp; Cetak Dokumen BAST Resmi
                                                     </Btn>
-                                                    <Btn
-                                                        variant="ghost"
-                                                        style={{ width: '100%', justifyContent: 'center', background: T.white, borderColor: '#cbd5e1', fontSize: 12 }}
-                                                        onClick={() => {
-                                                            const bastItems = req.items.map(it => ({
-                                                                name: it.name,
-                                                                qty: it.qty,
-                                                                condition: 'Baik'
-                                                            }));
-                                                            navigate('/e-office/surat-keluar', {
-                                                                state: {
-                                                                    autoCreate: true,
-                                                                    type: 'SURAT_KELUAR',
-                                                                    category: 'Serah Terima Barang',
-                                                                    subject: `BAST Pengadaan: ${req.title || req.code}`,
-                                                                    party1Name: staffName || 'Staff Manajemen Aset',
-                                                                    party1Title: 'Pemberi',
-                                                                    party2Name: receiverName || req.user?.name || req.user?.username || 'Penerima Barang',
-                                                                    party2Title: 'Penerima',
-                                                                    bastItems
-                                                                }
-                                                            });
-                                                        }}
-                                                    >
-                                                        <QrCode size={14} /> Terbitkan / Kelola di E-Office
-                                                    </Btn>
+                                                    {bastDoc?.id ? (
+                                                        <Btn
+                                                            variant="secondary"
+                                                            style={{ width: '100%', justifyContent: 'center', background: T.white, borderColor: '#cbd5e1', fontSize: 12 }}
+                                                            onClick={() => window.open(`/api/office-documents/${bastDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
+                                                        >
+                                                            <ExternalLink size={14} /> Buka PDF Asli E-Office
+                                                        </Btn>
+                                                    ) : (
+                                                        <Btn
+                                                            variant="ghost"
+                                                            style={{ width: '100%', justifyContent: 'center', background: T.white, borderColor: '#cbd5e1', fontSize: 12 }}
+                                                            onClick={() => {
+                                                                const bastItems = req.items.map(it => ({
+                                                                    name: it.name,
+                                                                    qty: it.qty,
+                                                                    condition: 'Baik'
+                                                                }));
+                                                                navigate('/e-office/surat-keluar', {
+                                                                    state: {
+                                                                        autoCreate: true,
+                                                                        type: 'SURAT_KELUAR',
+                                                                        category: 'Serah Terima Barang',
+                                                                        subject: `BAST Pengadaan: ${req.title || req.code}`,
+                                                                        party1Name: staffName || 'Staff Manajemen Aset',
+                                                                        party1Title: 'Pemberi',
+                                                                        party2Name: receiverName || req.user?.name || req.user?.username || 'Penerima Barang',
+                                                                        party2Title: 'Penerima',
+                                                                        bastItems
+                                                                    }
+                                                                });
+                                                            }}
+                                                        >
+                                                            <QrCode size={14} /> Terbitkan / Kelola di E-Office
+                                                        </Btn>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -4000,13 +4017,37 @@ const ProcurementDetail = () => {
                                                             border: '1.5px solid #86efac', padding: '16px 14px',
                                                             textAlign: 'center', position: 'relative'
                                                         }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#15803d', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>
-                                                                <ShieldCheck size={18} color="#16a34a" /> TTE SAH ELEKTRONIK
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '4px 0 8px' }}>
+                                                                <div className="relative p-1 bg-white border border-emerald-300 rounded-lg shadow-xs flex items-center justify-center">
+                                                                    <QRCode
+                                                                        value={bastDoc?.uuid ? `https://sarpras.dareliman.or.id/verify/${bastDoc.uuid}` : `https://sarpras.dareliman.or.id/verify/BAST-${req.code}`}
+                                                                        size={58}
+                                                                        level="H"
+                                                                    />
+                                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                        <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                                            <img
+                                                                                src="/Sarpras.jpeg"
+                                                                                alt="Logo Sarpras"
+                                                                                className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                                                onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ textAlign: 'left' }}>
+                                                                    <div style={{ color: '#15803d', fontWeight: 800, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                        <ShieldCheck size={15} color="#16a34a" /> TTE SAH ELEKTRONIK
+                                                                    </div>
+                                                                    <div style={{ fontSize: 10.5, color: '#166534', fontWeight: 600, marginTop: 2 }}>
+                                                                        Tercatat pada E-Office Surat Keluar
+                                                                    </div>
+                                                                    <div style={{ fontSize: 9.5, color: '#6b7280', fontFamily: 'monospace', marginTop: 2 }}>
+                                                                        UUID: {(bastDoc?.uuid || req.code)?.substring(0, 14)}...
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                            <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>
-                                                                Terverifikasi via E-Office & QR Code Resmi
-                                                            </div>
-                                                            <div style={{ fontSize: 10.5, color: '#4b5563', marginTop: 4 }}>
+                                                            <div style={{ fontSize: 10.5, color: '#4b5563', marginTop: 6, borderTop: '1px solid #dcfce7', paddingTop: 6 }}>
                                                                 Ditandatangani oleh: <strong>{bastSignatures?.kabidName || bastDoc?.party1Name || kabidUser?.name || 'Kepala Bidang Sarana'}</strong>
                                                             </div>
                                                             {(bastSignatures?.kabidSignedAt || bastDoc?.party1SignedAt) && (
@@ -5294,6 +5335,15 @@ const ProcurementDetail = () => {
                             </span>
                         </div>
                         <div style={{ display: 'flex', gap: 10 }}>
+                            {bastDoc?.id && (
+                                <Btn
+                                    variant="secondary"
+                                    onClick={() => window.open(`/api/office-documents/${bastDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
+                                    style={{ padding: '8px 16px', fontSize: 13, background: '#f8fafc', borderColor: '#cbd5e1' }}
+                                >
+                                    <ExternalLink size={15} /> Buka PDF Asli E-Office
+                                </Btn>
+                            )}
                             <Btn
                                 variant="primary"
                                 onClick={() => window.print()}
@@ -5496,29 +5546,71 @@ const ProcurementDetail = () => {
                                         Padang, {new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        {/* Pihak Pertama (TTE Elektronik Terverifikasi) */}
+                                        {/* Pihak Kedua (Kiri - Penerima Barang) */}
                                         <div style={{ width: '48%', textAlign: 'center' }}>
-                                            <div style={{ fontWeight: 'bold' }}>PIHAK PERTAMA</div>
-                                            <div style={{ fontSize: 11.5, color: '#374151' }}>Yang Menyerahkan,</div>
+                                            <div style={{ fontWeight: 'bold' }}>PIHAK KEDUA,</div>
+                                            <div style={{ fontSize: 11.5, color: '#374151' }}>Yang Menerima</div>
+                                            <div style={{
+                                                minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                margin: '6px 0'
+                                            }}>
+                                                {(receiverSignature || bastDoc?.party2Signature) ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <img
+                                                            src={receiverSignature || bastDoc?.party2Signature}
+                                                            alt="TTD Penerima"
+                                                            style={{ maxHeight: 75, maxWidth: 160, objectFit: 'contain' }}
+                                                        />
+                                                        <span style={{ fontSize: '7.5pt', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
+                                                            Ditandatangani: {new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
+                                                        (Belum Ditandatangani)
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
+                                                {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#4b5563' }}>Penerima / Pemohon Barang</div>
+                                            <div style={{ fontSize: 10, color: '#6b7280' }}>{req.unit?.name || 'Unit Pemohon'}</div>
+                                        </div>
+
+                                        {/* Pihak Pertama (Kanan - Pejabat Yang Menyerahkan dengan TTE Sah E-Office) */}
+                                        <div style={{ width: '48%', textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 'bold' }}>PIHAK PERTAMA,</div>
+                                            <div style={{ fontSize: 11.5, color: '#374151' }}>{bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}</div>
                                             <div style={{
                                                 minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                                 margin: '6px 0', padding: '4px 6px'
                                             }}>
                                                 {isPihak1Tte ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
-                                                        <div style={{ padding: 2, background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 4, display: 'inline-block' }}>
+                                                        <div className="relative p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
                                                             <QRCode
                                                                 value={verifyUrl}
-                                                                size={64}
-                                                                level="M"
+                                                                size={60}
+                                                                level="H"
                                                             />
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                                    <img
+                                                                        src="/Sarpras.jpeg"
+                                                                        alt="Logo Bidang Sarana"
+                                                                        className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                                        onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div style={{ textAlign: 'left', fontFamily: 'sans-serif' }}>
                                                             <div style={{ color: '#15803d', fontWeight: 'bold', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
                                                                 <ShieldCheck size={12} color="#16a34a" /> TTE SAH ELEKTRONIK
                                                             </div>
                                                             <div style={{ fontSize: 7.5, color: '#4b5563', lineHeight: 1.2, marginTop: 1 }}>
-                                                                Tercatat pada E-Office
+                                                                Tercatat pada E-Office Surat Keluar
                                                             </div>
                                                             <div style={{ fontSize: 7, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>
                                                                 UUID: {(bastDoc?.uuid || req.code)?.substring(0, 13)}...
@@ -5560,31 +5652,8 @@ const ProcurementDetail = () => {
                                                 {bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}
                                             </div>
                                             <div style={{ fontSize: 10, color: '#6b7280' }}>
-                                                {bastDoc?.party1Org || 'Bidang Sarana'}
+                                                {kabidUser?.nip && kabidUser.nip !== '-' ? `NIY. ${kabidUser.nip}` : (bastDoc?.party1Org || 'Bidang Sarana')}
                                             </div>
-                                        </div>
-
-                                        {/* Pihak Kedua */}
-                                        <div style={{ width: '48%', textAlign: 'center' }}>
-                                            <div style={{ fontWeight: 'bold' }}>PIHAK KEDUA</div>
-                                            <div style={{ fontSize: 11.5, color: '#374151' }}>Yang Menerima,</div>
-                                            <div style={{
-                                                minHeight: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                margin: '6px 0'
-                                            }}>
-                                                {receiverSignature ? (
-                                                    <img src={receiverSignature} alt="TTD Penerima" style={{ maxHeight: 80, maxWidth: '90%', objectFit: 'contain' }} />
-                                                ) : (
-                                                    <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
-                                                        (Belum Ditandatangani)
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
-                                                {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
-                                            </div>
-                                            <div style={{ fontSize: 11, color: '#4b5563' }}>Penerima / Pemohon Barang</div>
-                                            <div style={{ fontSize: 10, color: '#6b7280' }}>{req.unit?.name || 'Unit Pemohon'}</div>
                                         </div>
                                     </div>
                                 </div>

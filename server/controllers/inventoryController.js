@@ -1172,6 +1172,7 @@ const parseOrderSignatures = (order) => {
     let bastUuid = null;
     let bastDocId = null;
     let bastDate = null;
+    let warehouseAllocations = null;
 
     if (order.note) {
         try {
@@ -1197,6 +1198,7 @@ const parseOrderSignatures = (order) => {
                 bastUuid = parsed.bastUuid || parsed.signatures?.kabid?.bastUuid || null;
                 bastDocId = parsed.bastDocId || parsed.signatures?.kabid?.bastDocId || null;
                 bastDate = parsed.bastDate || parsed.signatures?.requester?.signedAt || null;
+                warehouseAllocations = parsed.warehouseAllocations || null;
             }
         } catch (e) {
             displayNote = order.note;
@@ -1235,6 +1237,7 @@ const parseOrderSignatures = (order) => {
         bastUuid,
         bastDocId,
         bastDate,
+        warehouseAllocations,
         items
     };
 };
@@ -1578,51 +1581,120 @@ exports.createOrder = async (req, res) => {
 
 exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, note, approvedItems, warehouseId } = req.body; // approvedItems: array of { orderItemId, qtyApproved }
+    const { status, note, approvedItems, warehouseId, warehouseAllocations } = req.body; // approvedItems: array of { orderItemId, qtyApproved, allocations }
     
     try {
-        const order = await prisma.invOrder.findUnique({ where: { id: parseInt(id) }, include: { items: true } });
+        const order = await prisma.invOrder.findUnique({ 
+            where: { id: parseInt(id) }, 
+            include: { 
+                items: { 
+                    include: { item: true } 
+                } 
+            } 
+        });
         if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
         
         const result = await prisma.$transaction(async (tx) => {
-            // Jika memproses menjadi COMPLETED, kita harus memotong stok di warehouseId yang dipilih
+            const finalAllocationsRecord = {};
+
+            // Jika memproses menjadi COMPLETED, kita harus memotong stok di warehouse(s) yang dipilih
             if (status === 'COMPLETED' && order.status !== 'COMPLETED') {
-                if (!warehouseId) throw new Error('Pilih gudang sumber untuk memproses pesanan.');
-                
                 const txCode = await generateTxCode();
+
+                // Ambil info nama gudang untuk deskripsi transaksi
+                const allWhs = await tx.uniformWarehouse.findMany({ select: { id: true, name: true } });
+                const whMap = {};
+                allWhs.forEach(w => { whMap[w.id] = w.name; });
                 
                 // Lakukan pemotongan stok & catat transaksi untuk setiap item yang di-approve
                 for (const item of order.items) {
-                    const approvedQty = approvedItems?.find(ai => ai.orderItemId === item.id)?.qtyApproved || item.qtyApproved;
+                    const approvedQty = approvedItems?.find(ai => ai.orderItemId === item.id)?.qtyApproved ?? item.qtyApproved;
+                    
                     if (approvedQty > 0) {
-                        // Cek stok
-                        const stock = await tx.invStock.findUnique({
-                            where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: parseInt(warehouseId) } }
-                        });
-                        if (!stock || stock.quantity < approvedQty) {
-                            throw new Error(`Stok tidak mencukupi untuk item ID ${item.itemId}.`);
+                        // Cari alokasi untuk item ini (dari approvedItems[x].allocations atau warehouseAllocations[itemId])
+                        let rawAllocations = null;
+                        const aiObj = approvedItems?.find(ai => ai.orderItemId === item.id);
+                        if (aiObj && Array.isArray(aiObj.allocations) && aiObj.allocations.length > 0) {
+                            rawAllocations = aiObj.allocations;
+                        } else if (warehouseAllocations && Array.isArray(warehouseAllocations[item.id]) && warehouseAllocations[item.id].length > 0) {
+                            rawAllocations = warehouseAllocations[item.id];
                         }
-                        
-                        // Potong stok
-                        await tx.invStock.update({
-                            where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: parseInt(warehouseId) } },
-                            data: { quantity: { decrement: approvedQty } }
-                        });
-                        
-                        // Catat transaksi OUT
-                        await tx.invStockTransaction.create({
-                            data: {
-                                code: txCode + `-${item.id}`,
-                                type: 'OUT',
-                                date: new Date(),
-                                itemId: item.itemId,
-                                warehouseId: parseInt(warehouseId),
-                                quantity: approvedQty,
-                                note: `Pengeluaran untuk pesanan ${order.code}`,
-                                createdById: req.user.id
+
+                        // Filter dan normalisasi alokasi
+                        let validAllocations = [];
+                        if (rawAllocations && Array.isArray(rawAllocations)) {
+                            validAllocations = rawAllocations
+                                .map(a => ({
+                                    warehouseId: parseInt(a.warehouseId),
+                                    quantity: parseInt(a.quantity) || 0
+                                }))
+                                .filter(a => !isNaN(a.warehouseId) && a.warehouseId > 0 && a.quantity > 0);
+                        }
+
+                        // Fallback ke warehouseId tunggal jika tidak ada multi-alokasi
+                        if (validAllocations.length === 0) {
+                            if (!warehouseId) {
+                                throw new Error(`Pilih gudang sumber pengeluaran untuk barang "${item.item?.name || 'Item #' + item.itemId}".`);
                             }
-                        });
-                        
+                            validAllocations = [{
+                                warehouseId: parseInt(warehouseId),
+                                quantity: approvedQty
+                            }];
+                        }
+
+                        // Validasi total kuantitas alokasi harus sesuai dengan approvedQty
+                        const totalAllocated = validAllocations.reduce((sum, a) => sum + a.quantity, 0);
+                        if (totalAllocated !== approvedQty) {
+                            throw new Error(`Total alokasi gudang untuk barang "${item.item?.name || 'Item #' + item.itemId}" (${totalAllocated}) belum sesuai dengan jumlah yang disetujui (${approvedQty}).`);
+                        }
+
+                        // Simpan rincian alokasi untuk dicatat di metadata order
+                        finalAllocationsRecord[item.id] = validAllocations.map(a => ({
+                            warehouseId: a.warehouseId,
+                            warehouseName: whMap[a.warehouseId] || `Gudang ID ${a.warehouseId}`,
+                            quantity: a.quantity
+                        }));
+
+                        // Proses pemotongan stok dan catat transaksi OUT per gudang
+                        for (let aIdx = 0; aIdx < validAllocations.length; aIdx++) {
+                            const alloc = validAllocations[aIdx];
+                            const whName = whMap[alloc.warehouseId] || `Gudang ID ${alloc.warehouseId}`;
+
+                            // Cek stok di gudang ini
+                            const stock = await tx.invStock.findUnique({
+                                where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: alloc.warehouseId } }
+                            });
+                            
+                            if (!stock || stock.quantity < alloc.quantity) {
+                                const currentStock = stock ? stock.quantity : 0;
+                                throw new Error(`Stok barang "${item.item?.name || 'Item #' + item.itemId}" tidak mencukupi di ${whName}. Tersedia: ${currentStock}, Dibutuhkan: ${alloc.quantity}.`);
+                            }
+
+                            // Potong stok
+                            await tx.invStock.update({
+                                where: { itemId_warehouseId: { itemId: item.itemId, warehouseId: alloc.warehouseId } },
+                                data: { quantity: { decrement: alloc.quantity } }
+                            });
+
+                            // Catat transaksi OUT
+                            const uniqueCode = validAllocations.length > 1
+                                ? `${txCode}-${item.id}-${alloc.warehouseId}`
+                                : `${txCode}-${item.id}`;
+
+                            await tx.invStockTransaction.create({
+                                data: {
+                                    code: uniqueCode,
+                                    type: 'OUT',
+                                    date: new Date(),
+                                    itemId: item.itemId,
+                                    warehouseId: alloc.warehouseId,
+                                    quantity: alloc.quantity,
+                                    note: `Pengeluaran pesanan ${order.code} (${whName})`,
+                                    createdById: req.user.id
+                                }
+                            });
+                        }
+
                         // Update OrderItem qtyDelivered
                         await tx.invOrderItem.update({
                             where: { id: item.id },
@@ -1642,7 +1714,7 @@ exports.updateOrderStatus = async (req, res) => {
                 }
             }
             
-            // Preserve signatures, payment metadata, itemPrices, and totalAmount in note if exists
+            // Preserve signatures, payment metadata, itemPrices, totalAmount, and warehouseAllocations in note if exists
             let currentSignatures = {};
             let noteText = note;
             let dueDate = null;
@@ -1653,6 +1725,7 @@ exports.updateOrderStatus = async (req, res) => {
             let paymentUpdatedBy = null;
             let itemPrices = null;
             let totalAmount = null;
+            let existingWarehouseAllocations = null;
 
             if (order.note && typeof order.note === 'string' && order.note.trim().startsWith('{')) {
                 try {
@@ -1666,14 +1739,19 @@ exports.updateOrderStatus = async (req, res) => {
                     paymentUpdatedBy = parsed.paymentUpdatedBy || null;
                     itemPrices = parsed.itemPrices || null;
                     totalAmount = parsed.totalAmount || null;
+                    existingWarehouseAllocations = parsed.warehouseAllocations || null;
                     if (note === undefined || note === null) {
                         noteText = parsed.note;
                     }
                 } catch (e) {}
             }
 
+            const savedAllocations = Object.keys(finalAllocationsRecord).length > 0
+                ? finalAllocationsRecord
+                : existingWarehouseAllocations;
+
             let finalNote = noteText !== undefined ? noteText : order.note;
-            if (Object.keys(currentSignatures).length > 0 || dueDate || paymentStatus || paidAt || paymentMethod || paymentNote || itemPrices || totalAmount) {
+            if (Object.keys(currentSignatures).length > 0 || dueDate || paymentStatus || paidAt || paymentMethod || paymentNote || itemPrices || totalAmount || savedAllocations) {
                 finalNote = JSON.stringify({
                     note: noteText !== undefined ? noteText : (order.displayNote || ''),
                     dueDate,
@@ -1684,7 +1762,8 @@ exports.updateOrderStatus = async (req, res) => {
                     paymentUpdatedBy,
                     signatures: currentSignatures,
                     itemPrices,
-                    totalAmount
+                    totalAmount,
+                    warehouseAllocations: savedAllocations
                 });
             }
 

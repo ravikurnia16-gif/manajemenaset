@@ -33,9 +33,19 @@ function WorkshopBaruBoard() {
     const queryParams = new URLSearchParams(location.search);
     const initialType = queryParams.get('type') || '';
     const initialPriority = queryParams.get('priority') || '';
+    const initialUnit = queryParams.get('unitId') || '';
     const initialView = queryParams.get('view') === 'byUnit' ? 'byUnit' : (queryParams.get('view') || 'kanban');
 
+    const userStr = localStorage.getItem('user');
+    const userObj = userStr ? JSON.parse(userStr) : null;
+    const isWorkshopAdmin = userObj && (
+        ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(userObj.role) ||
+        userObj.unitId === 21 ||
+        (userObj.unit?.name || '').toLowerCase().includes('workshop')
+    );
+
     const [orders, setOrders] = useState([]);
+    const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState(initialView); // 'kanban' | 'table' | 'byUnit'
 
@@ -46,10 +56,18 @@ function WorkshopBaruBoard() {
         }
     }, [location.search]);
 
+    // Load master units for filter
+    useEffect(() => {
+        api.get('/master/units')
+            .then(res => setUnits(res.data || []))
+            .catch(err => console.error('Failed to load units for filter:', err));
+    }, []);
+
     // Filters
     const [filterType, setFilterType] = useState(initialType);
     const [filterPriority, setFilterPriority] = useState(initialPriority);
     const [filterStatus, setFilterStatus] = useState('');
+    const [filterUnit, setFilterUnit] = useState(initialUnit);
     const [searchTerm, setSearchTerm] = useState('');
 
     // Quick Percentage Modal State
@@ -60,7 +78,7 @@ function WorkshopBaruBoard() {
 
     useEffect(() => {
         fetchOrders();
-    }, [filterType, filterPriority, filterStatus]);
+    }, [filterType, filterPriority, filterStatus, filterUnit]);
 
     const fetchOrders = async () => {
         try {
@@ -69,6 +87,7 @@ function WorkshopBaruBoard() {
             if (filterType) params.append('type', filterType);
             if (filterPriority) params.append('priority', filterPriority);
             if (filterStatus) params.append('status', filterStatus);
+            if (filterUnit) params.append('unitId', filterUnit);
 
             const res = await api.get(`/workshop/orders?${params.toString()}`);
             setOrders(res.data || []);
@@ -81,6 +100,7 @@ function WorkshopBaruBoard() {
     };
 
     const filteredOrders = orders.filter(o => {
+        if (filterUnit && String(o.unitId) !== String(filterUnit)) return false;
         const term = searchTerm.toLowerCase();
         return (
             (o.title || '').toLowerCase().includes(term) ||
@@ -207,18 +227,20 @@ function WorkshopBaruBoard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => navigate('/workshop-baru/dashboard')}
+                        onClick={() => navigate(isWorkshopAdmin ? '/workshop-baru/dashboard' : '/dashboard')}
                         className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors"
-                        title="Kembali ke Dashboard"
+                        title={isWorkshopAdmin ? "Kembali ke Dashboard Unit 21" : "Kembali ke Dashboard Utama"}
                     >
                         <ArrowLeft size={18} />
                     </button>
                     <div>
                         <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2">
-                            <Kanban className="text-emerald-600" size={24} /> Papan Kerja Workshop Unit 21
+                            <Kanban className="text-emerald-600" size={24} /> {isWorkshopAdmin ? 'Papan & List Pekerjaan Workshop Unit 21' : `Pesanan Workshop - ${userObj?.unit?.name || 'Unit Anda'}`}
                         </h1>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Pantau seluruh alur antrean pengerjaan fisik kayu & besi secara terpusat
+                            {isWorkshopAdmin
+                                ? 'Pantau seluruh alur pekerjaan fisik kayu & besi dalam mode Papan Kerja (Kanban), Tabel, atau per Unit'
+                                : 'Pantau status dan alur pengerjaan fisik pesanan workshop unit Anda secara terpusat'}
                         </p>
                     </div>
                 </div>
@@ -234,7 +256,7 @@ function WorkshopBaruBoard() {
                                     : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
-                            <Kanban size={14} /> Kanban
+                            <Kanban size={14} /> Papan Kerja
                         </button>
                         <button
                             onClick={() => setViewMode('table')}
@@ -244,7 +266,7 @@ function WorkshopBaruBoard() {
                                     : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
-                            <List size={14} /> Tabel
+                            <List size={14} /> List Tabel
                         </button>
                         <button
                             onClick={() => setViewMode('byUnit')}
@@ -254,7 +276,7 @@ function WorkshopBaruBoard() {
                                     : 'text-slate-500 hover:text-slate-800'
                             }`}
                         >
-                            <Building2 size={14} /> Per Unit
+                            <Building2 size={14} /> List per Unit
                         </button>
                     </div>
 
@@ -266,6 +288,16 @@ function WorkshopBaruBoard() {
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                     </button>
 
+                    {isWorkshopAdmin && (
+                        <Link
+                            to="/workshop-baru/export"
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold shadow-xs transition-colors"
+                            title="Ekspor Rekap Pekerjaan ke PDF atau Excel"
+                        >
+                            <FileSpreadsheet size={15} className="text-emerald-700" /> Ekspor Pekerjaan
+                        </Link>
+                    )}
+
                     <Link
                         to="/workshop-baru/catalog"
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-colors"
@@ -274,20 +306,14 @@ function WorkshopBaruBoard() {
                         <Boxes size={15} /> Katalog
                     </Link>
 
-                    <Link
-                        to="/workshop-baru/export"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition-colors"
-                        title="Ekspor Pekerjaan ke PDF/Excel"
-                    >
-                        <FileSpreadsheet size={15} /> Ekspor
-                    </Link>
-
-                    <Link
-                        to="/workshop-baru/orders/new"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors"
-                    >
-                        <Plus size={16} /> Buat Pesanan Baru
-                    </Link>
+                    {isWorkshopAdmin && (
+                        <Link
+                            to="/workshop-baru/orders/new"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors"
+                        >
+                            <Plus size={16} /> Buat Pesanan Baru
+                        </Link>
+                    )}
                 </div>
             </div>
 
@@ -347,6 +373,27 @@ function WorkshopBaruBoard() {
                         <Filter size={12} /> Filter:
                     </span>
 
+                    {isWorkshopAdmin ? (
+                        <select
+                            value={filterUnit}
+                            onChange={(e) => setFilterUnit(e.target.value)}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs outline-none focus:border-emerald-500 max-w-[200px] truncate"
+                            title="Filter berdasarkan Unit Pemesan"
+                        >
+                            <option value="">Semua Unit Pemesan</option>
+                            {units.map(u => (
+                                <option key={u.id} value={u.id}>
+                                    {u.name}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                            <Building2 size={13} className="text-emerald-600" />
+                            <span>Unit: {userObj?.unit?.name || 'Unit Anda'}</span>
+                        </div>
+                    )}
+
                     <select
                         value={filterPriority}
                         onChange={(e) => setFilterPriority(e.target.value)}
@@ -372,12 +419,13 @@ function WorkshopBaruBoard() {
                         <option value="CANCELLED">Dibatalkan (CANCELLED)</option>
                     </select>
 
-                    {(filterType || filterPriority || filterStatus || searchTerm) && (
+                    {(filterType || filterPriority || filterStatus || filterUnit || searchTerm) && (
                         <button
                             onClick={() => {
                                 setFilterType('');
                                 setFilterPriority('');
                                 setFilterStatus('');
+                                setFilterUnit('');
                                 setSearchTerm('');
                             }}
                             className="text-xs text-rose-600 hover:text-rose-800 font-medium ml-auto"
@@ -605,13 +653,19 @@ function WorkshopBaruBoard() {
                                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-blue-100 text-blue-800 border-blue-200">
                                                             Dikerjakan
                                                         </span>
-                                                        <button
-                                                            onClick={(e) => openPercentModal(e, order)}
-                                                            className="font-mono text-[11px] font-black text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-0.5"
-                                                            title="Klik untuk ubah persentase"
-                                                        >
-                                                            {order.currentPercentage ?? 0}% <SlidersHorizontal size={10} />
-                                                        </button>
+                                                        {isWorkshopAdmin ? (
+                                                            <button
+                                                                onClick={(e) => openPercentModal(e, order)}
+                                                                className="font-mono text-[11px] font-black text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-0.5"
+                                                                title="Klik untuk ubah persentase"
+                                                            >
+                                                                {order.currentPercentage ?? 0}% <SlidersHorizontal size={10} />
+                                                            </button>
+                                                        ) : (
+                                                            <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                                                {order.currentPercentage ?? 0}%
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                         <div

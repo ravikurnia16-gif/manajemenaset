@@ -130,7 +130,7 @@ exports.getDashboardStats = async (req, res) => {
 // 2. Get All Orders
 exports.getAllOrders = async (req, res) => {
     const user = req.user;
-    const { type, status, priority } = req.query;
+    const { type, status, priority, unitId } = req.query;
 
     try {
         const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
@@ -140,6 +140,7 @@ exports.getAllOrders = async (req, res) => {
         if (type) whereClause.workshopType = type;
         if (status) whereClause.status = status;
         if (priority) whereClause.priority = priority;
+        if (unitId) whereClause.unitId = parseInt(unitId);
 
         if (!isWorkshopAdmin) {
             // Jika user memilih filter myUnitOnly atau default untuk non-admin
@@ -196,6 +197,7 @@ exports.getAllOrders = async (req, res) => {
 // 3. Get Order by ID
 exports.getOrderById = async (req, res) => {
     const { id } = req.params;
+    const user = req.user;
     try {
         const parsedId = parseInt(id, 10);
         const whereClause = !isNaN(parsedId)
@@ -224,6 +226,16 @@ exports.getOrderById = async (req, res) => {
         });
 
         if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
+        const isWorkshopAdmin = isFullWorkshopAdmin || (user.unit?.name || '').toLowerCase().includes('workshop');
+
+        if (!isWorkshopAdmin) {
+            const isOwner = (user.unitId && order.unitId === user.unitId) || order.requestedById === user.id;
+            if (!isOwner) {
+                return res.status(403).json({ error: 'Anda tidak memiliki akses untuk melihat pesanan workshop unit lain.' });
+            }
+        }
 
         const latest = order.progress && order.progress.length > 0 ? order.progress[0] : null;
         let currentPercentage = 0;

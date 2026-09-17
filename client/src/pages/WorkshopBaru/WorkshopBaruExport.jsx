@@ -312,8 +312,9 @@ export default function WorkshopBaruExport() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => navigate('/workshop-baru/dashboard')}
+                        onClick={() => navigate('/workshop-baru/board')}
                         className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors"
+                        title="Kembali ke Papan & List Pekerjaan"
                     >
                         <ArrowLeft size={18} />
                     </button>

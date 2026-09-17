@@ -510,13 +510,25 @@ const ProcurementAssignmentOrderModal = ({
                                     </div>
 
                                     <div className="my-1.5 flex flex-col items-center justify-center min-h-[65px] w-full">
-                                        {qrCodeData ? (
+                                        {(verifyUrl || docUuid) ? (
                                             <div className="flex items-center gap-2">
-                                                <img
-                                                    src={qrCodeData}
-                                                    alt="QR Code Verifikasi E-Office"
-                                                    className="w-15 h-15 sm:w-16 sm:h-16 object-contain border border-slate-200 bg-white p-0.5 rounded shadow-xs"
-                                                />
+                                                <div className="relative p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                    <QRCode
+                                                        value={verifyUrl || `https://sarpras.dareliman.or.id/verify/${docUuid}`}
+                                                        size={60}
+                                                        level="H"
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                            <img
+                                                                src="/Sarpras.jpeg"
+                                                                alt="Logo Bidang Sarana"
+                                                                className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                                onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
                                                 <div className="text-left font-sans">
                                                     <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">
                                                         <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />
@@ -530,14 +542,24 @@ const ProcurementAssignmentOrderModal = ({
                                                     </p>
                                                 </div>
                                             </div>
-                                        ) : (verifyUrl || docUuid) ? (
+                                        ) : qrCodeData ? (
                                             <div className="flex items-center gap-2">
-                                                <div className="p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
-                                                    <QRCode
-                                                        value={verifyUrl || `https://sarpras.dareliman.or.id/verify/${docUuid}`}
-                                                        size={56}
-                                                        level="M"
+                                                <div className="relative p-0.5 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                    <img
+                                                        src={qrCodeData}
+                                                        alt="QR Code Verifikasi E-Office"
+                                                        className="w-15 h-15 sm:w-16 sm:h-16 object-contain"
                                                     />
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                            <img
+                                                                src="/Sarpras.jpeg"
+                                                                alt="Logo Bidang Sarana"
+                                                                className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                                onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div className="text-left font-sans">
                                                     <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">

@@ -32,7 +32,7 @@ const ProcurementAssignmentOrderSign = () => {
             const res = await api.get(`/procurements/public/assignment-orders/${orderId}`);
             setOrderData(res.data.order);
             setProcurement(res.data.procurement);
-            if (res.data.order?.assigneeSignature) {
+            if (res.data.order?.assigneeSignature || res.data.order?.party2Signature) {
                 setIsSuccess(true);
             }
         } catch (err) {
@@ -114,8 +114,11 @@ const ProcurementAssignmentOrderSign = () => {
         items: assignedItems = [],
         notes = '',
         qrCodeData = null,
+        verifyUrl = null,
         assigneeSignature = null,
-        assigneeSignedAt = null
+        assigneeSignedAt = null,
+        party2Signature = null,
+        party2SignedAt = null
     } = orderData;
 
     // Resolusi nama dan jabatan Kepala Bidang Sarana & Petugas
@@ -125,6 +128,10 @@ const ProcurementAssignmentOrderSign = () => {
     const assignerPosition = assigner?.position || 'Kepala Bidang Sarana';
     const assignerNiy = assigner?.nip || assigner?.niy || '-';
     const assigneeNiy = assignee?.nip || assignee?.niy || '-';
+
+    // Resolusi tanda tangan penerima perintah (bisa dari assigneeSignature atau party2Signature E-Office)
+    const activeAssigneeSignature = assigneeSignature || party2Signature || orderData.party2Signature || null;
+    const activeAssigneeSignedAt = assigneeSignedAt || party2SignedAt || orderData.party2SignedAt || null;
 
     const formattedDate = new Date(createdAt).toLocaleDateString('id-ID', {
         day: 'numeric',
@@ -156,10 +163,10 @@ const ProcurementAssignmentOrderSign = () => {
                     body * {
                         visibility: hidden;
                     }
-                    #public-order-sheet, #public-order-sheet * {
+                    #public-order-sheet, #public-order-sheet *, #procurement-order-sheet, #procurement-order-sheet * {
                         visibility: visible;
                     }
-                    #public-order-sheet {
+                    #public-order-sheet, #procurement-order-sheet {
                         position: absolute;
                         left: 0;
                         top: 0;
@@ -200,17 +207,25 @@ const ProcurementAssignmentOrderSign = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {!assigneeSignature && (
+                        {!activeAssigneeSignature ? (
                             <button
                                 onClick={() => setShowSignPad(true)}
-                                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition-all active:scale-95"
+                                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition-all active:scale-95 cursor-pointer"
                             >
                                 <PenTool size={14} /> Tandatangani
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setShowSignPad(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-medium rounded-xl transition-all cursor-pointer"
+                                title="Perbarui tanda tangan penerima perintah"
+                            >
+                                <PenTool size={13} /> Ubah TTD Petugas
                             </button>
                         )}
                         <button
                             onClick={handlePrint}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 transition-all"
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 transition-all cursor-pointer"
                         >
                             <Printer size={14} /> Cetak (A4)
                         </button>
@@ -228,25 +243,33 @@ const ProcurementAssignmentOrderSign = () => {
 
             {/* Status Banner */}
             <div className="no-print max-w-4xl mx-auto px-4 pt-4">
-                {assigneeSignature ? (
+                {activeAssigneeSignature ? (
                     <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <CheckCircle2 size={22} className="text-emerald-600 flex-shrink-0" />
                             <div>
                                 <h4 className="text-sm font-bold">Surat Perintah Telah Ditandatangani</h4>
                                 <p className="text-xs text-emerald-700">
-                                    Ditandatangani oleh <strong>{assignee.name}</strong> pada {new Date(assigneeSignedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                                    Ditandatangani oleh <strong>{assignee.name || 'Petugas Pengadaan'}</strong>{activeAssigneeSignedAt ? ` pada ${new Date(activeAssigneeSignedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}.
                                 </p>
                             </div>
                         </div>
-                        {procurement?.id && (
-                            <Link
-                                to={`/procurements/${procurement.id}`}
-                                className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 flex-shrink-0"
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                                onClick={() => setShowSignPad(true)}
+                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
                             >
-                                Lanjut Pemilihan Vendor <ArrowRight size={14} />
-                            </Link>
-                        )}
+                                <PenTool size={13} /> Ubah TTD
+                            </button>
+                            {procurement?.id && (
+                                <Link
+                                    to={`/procurements/${procurement.id}`}
+                                    className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5"
+                                >
+                                    Lanjut Pemilihan Vendor <ArrowRight size={14} />
+                                </Link>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex items-center justify-between gap-4">
@@ -261,7 +284,7 @@ const ProcurementAssignmentOrderSign = () => {
                         </div>
                         <button
                             onClick={() => setShowSignPad(true)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95 cursor-pointer"
                         >
                             <PenTool size={15} /> Tandatangani Sekarang
                         </button>
@@ -274,7 +297,7 @@ const ProcurementAssignmentOrderSign = () => {
                 <div
                     id="public-order-sheet"
                     ref={printAreaRef}
-                    className="bg-white mx-auto max-w-[800px] p-6 sm:p-10 rounded-xl shadow-sm print:shadow-none border border-slate-200 print:border-none text-slate-900"
+                    className="bg-white mx-auto max-w-[800px] p-6 sm:p-10 rounded-lg shadow-sm print:shadow-none border border-slate-200 print:border-none text-slate-900"
                     style={{ fontFamily: "'Times New Roman', Times, serif", lineHeight: 1.4, fontSize: '11pt' }}
                 >
                     {/* KOP SURAT BIDANG SARANA */}
@@ -477,25 +500,34 @@ const ProcurementAssignmentOrderSign = () => {
                                 </div>
 
                                 <div className="my-1.5 flex items-center justify-center min-h-[65px] w-full">
-                                    {assigneeSignature ? (
-                                        <div className="flex flex-col items-center">
+                                    {activeAssigneeSignature ? (
+                                        <div className="flex flex-col items-center group">
                                             <img
-                                                src={assigneeSignature}
+                                                src={activeAssigneeSignature}
                                                 alt="TTD Penerima Tugas"
                                                 className="max-h-16 max-w-[160px] object-contain"
                                             />
-                                            {assigneeSignedAt && (
+                                            {activeAssigneeSignedAt && (
                                                 <span className="text-[7.5pt] text-slate-500 italic mt-0.5">
-                                                    Ditandatangani: {new Date(assigneeSignedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                    Ditandatangani: {new Date(activeAssigneeSignedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                 </span>
                                             )}
+                                            <button
+                                                onClick={() => setShowSignPad(true)}
+                                                className="no-print mt-1 text-[7.5pt] text-blue-600 hover:text-blue-800 underline flex items-center gap-1 font-sans cursor-pointer"
+                                                title="Ubah tanda tangan penerima tugas"
+                                            >
+                                                <PenTool size={10} /> Ubah TTD
+                                            </button>
                                         </div>
                                     ) : (
                                         <button
                                             onClick={() => setShowSignPad(true)}
-                                            className="no-print px-3.5 py-1.5 bg-blue-50 border border-blue-300 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 transition-all flex items-center gap-1.5 shadow-xs"
+                                            className="no-print px-3 py-2 bg-blue-50 hover:bg-blue-100 border-2 border-dashed border-blue-400 text-blue-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                                            title="Klik untuk langsung menggambar tanda tangan di sini"
                                         >
-                                            <PenTool size={14} /> Klik untuk Tanda Tangan
+                                            <PenTool size={15} className="text-blue-600 animate-pulse" />
+                                            <span>Klik untuk Tanda Tangan</span>
                                         </button>
                                     )}
                                 </div>
@@ -514,13 +546,25 @@ const ProcurementAssignmentOrderSign = () => {
                                 </div>
 
                                 <div className="my-1.5 flex flex-col items-center justify-center min-h-[65px] w-full">
-                                    {qrCodeData ? (
+                                    {(verifyUrl || docUuid) ? (
                                         <div className="flex items-center gap-2">
-                                            <img
-                                                src={qrCodeData}
-                                                alt="QR Code Verifikasi E-Office"
-                                                className="w-15 h-15 sm:w-16 sm:h-16 object-contain border border-slate-200 bg-white p-0.5 rounded shadow-xs"
-                                            />
+                                            <div className="relative p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                <QRCode
+                                                    value={verifyUrl || `https://sarpras.dareliman.or.id/verify/${docUuid}`}
+                                                    size={60}
+                                                    level="H"
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                        <img
+                                                            src="/Sarpras.jpeg"
+                                                            alt="Logo Bidang Sarana"
+                                                            className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                            onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <div className="text-left font-sans">
                                                 <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">
                                                     <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />
@@ -534,14 +578,24 @@ const ProcurementAssignmentOrderSign = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                    ) : (verifyUrl || docUuid) ? (
+                                    ) : qrCodeData ? (
                                         <div className="flex items-center gap-2">
-                                            <div className="p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
-                                                <QRCode
-                                                    value={verifyUrl || `https://sarpras.dareliman.or.id/verify/${docUuid}`}
-                                                    size={56}
-                                                    level="M"
+                                            <div className="relative p-0.5 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                <img
+                                                    src={qrCodeData}
+                                                    alt="QR Code Verifikasi E-Office"
+                                                    className="w-15 h-15 sm:w-16 sm:h-16 object-contain"
                                                 />
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                        <img
+                                                            src="/Sarpras.jpeg"
+                                                            alt="Logo Bidang Sarana"
+                                                            className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                            onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="text-left font-sans">
                                                 <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">

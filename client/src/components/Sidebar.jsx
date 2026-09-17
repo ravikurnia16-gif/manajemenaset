@@ -98,6 +98,7 @@ const Sidebar = ({ isOpen = true }) => {
     
     const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
     const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'BIDANG_IT'].includes(role) || isWarehouseAdmin || isStaffSarpras;
+    const isRegularUnitUser = !['SUPER_ADMIN', 'ADMIN_ASET'].includes(role) && user?.unitId !== 21 && !isKabidSarpras;
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || role === 'AUDITOR';
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR', 'BIDANG_IT'].includes(role) || isKabidSarpras || isStaffSarpras;
     const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
@@ -248,16 +249,10 @@ const Sidebar = ({ isOpen = true }) => {
                             <LayoutDashboard size={16} /> Dashboard Unit 21
                         </Link>
                         <Link to="/workshop-baru/board" className={subNavItemClass('/workshop-baru/board')}>
-                            <Kanban size={16} /> Papan Kerja & Antrean
-                        </Link>
-                        <Link to="/workshop-baru/board?view=byUnit" className={subNavItemClass('/workshop-baru/board?view=byUnit')}>
-                            <Building2 size={16} /> List Pekerjaan per Unit
+                            <Kanban size={16} /> Papan & List Pekerjaan
                         </Link>
                         <Link to="/workshop-baru/catalog" className={subNavItemClass('/workshop-baru/catalog')}>
                             <Boxes size={16} /> Katalog Workshop
-                        </Link>
-                        <Link to="/workshop-baru/export" className={subNavItemClass('/workshop-baru/export')}>
-                            <FileSpreadsheet size={16} /> Ekspor Pekerjaan
                         </Link>
                         <Link to="/workshop-baru/settings" className={subNavItemClass('/workshop-baru/settings')}>
                             <Settings size={16} /> Pengaturan Workshop
@@ -352,40 +347,44 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
                             <Shirt size={16} /> Pesanan Seragam
                         </Link>
-                        {unitWorkshopOrderCount > 0 && (
-                            <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
-                                <Wrench size={16} className="text-amber-400" />
-                                <span className="flex-1">Pekerjaan Workshop</span>
-                                <span className="px-1.5 py-0.2 text-[10px] font-bold bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30">
-                                    {unitWorkshopOrderCount}
-                                </span>
+                        {isRegularUnitUser && (
+                            <Link to="/workshop-baru/board" className={subNavItemClass('/workshop-baru/board')}>
+                                <HardHat size={16} className="text-amber-400" />
+                                <span className="flex-1">Pesanan Workshop</span>
+                                {unitWorkshopOrderCount > 0 && (
+                                    <span className="px-1.5 py-0.2 text-[10px] font-bold bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30">
+                                        {unitWorkshopOrderCount}
+                                    </span>
+                                )}
                             </Link>
                         )}
                     </>
                 ))}
 
-                {/* Menu Khusus Unit jika ada pesanan workshop di unit mereka */}
-                {unitWorkshopOrderCount > 0 && !isKabidSarpras && (
+                {/* Menu Khusus Unit untuk melihat Pesanan Workshop Unit mereka */}
+                {isRegularUnitUser && (
                     <Link
-                        to="/workshop/orders"
+                        to="/workshop-baru/board"
                         className={cn(
-                            navItemClass('/workshop/orders'),
-                            "border border-amber-500/40 bg-slate-800/80 hover:bg-slate-800 hover:border-amber-400 group flex items-center justify-between"
+                            navItemClass('/workshop-baru/board'),
+                            "border border-amber-500/30 bg-slate-800/60 hover:bg-slate-800 hover:border-amber-400 group flex items-center justify-between"
                         )}
-                        title="Lihat list pekerjaan workshop untuk unit Anda"
+                        title="Lihat status dan progres pekerjaan workshop untuk unit Anda"
                     >
                         <div className="flex items-center gap-2.5 min-w-0">
-                            <Wrench size={18} className="text-amber-400 shrink-0 group-hover:rotate-12 transition-transform" />
+                            <HardHat size={18} className="text-amber-400 shrink-0 group-hover:rotate-12 transition-transform" />
                             <span className={cn("transition-all duration-300 truncate font-semibold text-xs text-slate-200", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
-                                Pekerjaan Workshop Unit
+                                Pesanan Workshop
                             </span>
                         </div>
-                        <span className={cn(
-                            "px-2 py-0.5 text-xs font-black bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/40 shrink-0",
-                            !isOpen ? "hidden" : "inline-block"
-                        )}>
-                            {unitWorkshopOrderCount}
-                        </span>
+                        {unitWorkshopOrderCount > 0 && (
+                            <span className={cn(
+                                "px-2 py-0.5 text-xs font-black bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/40 shrink-0",
+                                !isOpen ? "hidden" : "inline-block"
+                            )}>
+                                {unitWorkshopOrderCount}
+                            </span>
+                        )}
                     </Link>
                 )}
 

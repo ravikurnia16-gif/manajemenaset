@@ -21,7 +21,10 @@ import {
     Sparkles,
     ShieldCheck,
     Send,
-    SlidersHorizontal
+    SlidersHorizontal,
+    Maximize2,
+    Download,
+    Eye
 } from 'lucide-react';
 import api from '../../lib/axios';
 import Swal from 'sweetalert2';
@@ -50,6 +53,17 @@ function WorkshopBaruDetail() {
     const [progressMsg, setProgressMsg] = useState('');
     const [progressPercent, setProgressPercent] = useState('25');
     const [photoBase64, setPhotoBase64] = useState(null);
+
+    // Full Size Photo Viewer (Lightbox) State
+    const [selectedPhoto, setSelectedPhoto] = useState(null); // { url, title, subtitle, message }
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') setSelectedPhoto(null);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     // Quick Update Percentage Modal
     const [quickPercentModal, setQuickPercentModal] = useState(false);
@@ -484,17 +498,32 @@ function WorkshopBaruDetail() {
             </div>
 
             {/* Items Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">
-                    Daftar Barang & Rincian Pekerjaan ({order.items?.length || 0})
-                </h3>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">
+                            Rincian Pekerjaan / Material Fabrikasi
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                            Daftar pekerjaan fisik & kebutuhan material yang dikerjakan
+                        </p>
+                    </div>
+                    {isWorkshopAdmin && (
+                        <button
+                            onClick={() => setDetailsModal(true)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 print:hidden"
+                        >
+                            <Edit3 size={14} /> Kelola Rincian
+                        </button>
+                    )}
+                </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+                    <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50/80 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200/80">
                             <tr>
-                                <th className="p-3">No</th>
-                                <th className="p-3">Nama Barang / Pekerjaan</th>
+                                <th className="p-3 w-12 font-mono">No</th>
+                                <th className="p-3">Item / Pekerjaan</th>
                                 <th className="p-3">Spesifikasi Detail</th>
                                 <th className="p-3 text-center">Jumlah</th>
                                 <th className="p-3 text-right">Estimasi Harga</th>
@@ -553,11 +582,32 @@ function WorkshopBaruDetail() {
                             <div key={prog.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row gap-4">
                                 {prog.photo && (
                                     <div className="shrink-0">
-                                        <img
-                                            src={prog.photo}
-                                            alt="Progres Workshop"
-                                            className="w-28 h-28 object-cover rounded-xl border border-slate-200 shadow-xs"
-                                        />
+                                        <div
+                                            onClick={() => setSelectedPhoto({
+                                                url: prog.photo,
+                                                title: `Dokumentasi Progres Workshop (${prog.percentage}%)`,
+                                                subtitle: `${prog.user?.name || prog.user?.username || 'Petugas Workshop'} • ${new Date(prog.createdAt).toLocaleDateString('id-ID', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}`,
+                                                message: prog.message
+                                            })}
+                                            className="relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-400 transition-all w-28 h-28"
+                                            title="Klik untuk melihat foto ukuran penuh"
+                                        >
+                                            <img
+                                                src={prog.photo}
+                                                alt="Progres Workshop"
+                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                            />
+                                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 backdrop-blur-2xs">
+                                                <Maximize2 size={18} className="drop-shadow" />
+                                                <span className="text-[10px] font-bold drop-shadow">Ukuran Penuh</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                                 <div className="flex-1 space-y-1.5">
@@ -711,7 +761,23 @@ function WorkshopBaruDetail() {
                                     className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
                                 />
                                 {photoBase64 && (
-                                    <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover rounded-lg mt-2 border" />
+                                    <div className="mt-2">
+                                        <div
+                                            onClick={() => setSelectedPhoto({
+                                                url: photoBase64,
+                                                title: 'Preview Foto Upload Status',
+                                                subtitle: 'Klik foto untuk melihat ukuran penuh sebelum disimpan'
+                                            })}
+                                            className="relative group cursor-pointer inline-block overflow-hidden rounded-xl border border-slate-200 shadow-xs hover:border-emerald-500 transition-all"
+                                            title="Klik untuk melihat ukuran penuh"
+                                        >
+                                            <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover" />
+                                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                                <Maximize2 size={16} />
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 block mt-0.5">Klik foto untuk melihat ukuran penuh</span>
+                                    </div>
                                 )}
                             </div>
 
@@ -808,7 +874,23 @@ function WorkshopBaruDetail() {
                                     className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                 />
                                 {photoBase64 && (
-                                    <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover rounded-lg mt-2 border" />
+                                    <div className="mt-2">
+                                        <div
+                                            onClick={() => setSelectedPhoto({
+                                                url: photoBase64,
+                                                title: 'Preview Foto Progres',
+                                                subtitle: 'Klik foto untuk melihat ukuran penuh sebelum disimpan'
+                                            })}
+                                            className="relative group cursor-pointer inline-block overflow-hidden rounded-xl border border-slate-200 shadow-xs hover:border-blue-500 transition-all"
+                                            title="Klik untuk melihat ukuran penuh"
+                                        >
+                                            <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover" />
+                                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                                <Maximize2 size={16} />
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 block mt-0.5">Klik foto untuk melihat ukuran penuh</span>
+                                    </div>
                                 )}
                             </div>
 
@@ -899,7 +981,23 @@ function WorkshopBaruDetail() {
                                     className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                 />
                                 {photoBase64 && (
-                                    <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover rounded-lg mt-2 border" />
+                                    <div className="mt-2">
+                                        <div
+                                            onClick={() => setSelectedPhoto({
+                                                url: photoBase64,
+                                                title: 'Preview Foto Dokumentasi Progres',
+                                                subtitle: 'Klik foto untuk melihat ukuran penuh sebelum disimpan'
+                                            })}
+                                            className="relative group cursor-pointer inline-block overflow-hidden rounded-xl border border-slate-200 shadow-xs hover:border-blue-500 transition-all"
+                                            title="Klik untuk melihat ukuran penuh"
+                                        >
+                                            <img src={photoBase64} alt="Preview" className="w-20 h-20 object-cover" />
+                                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                                <Maximize2 size={16} />
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 block mt-0.5">Klik foto untuk melihat ukuran penuh</span>
+                                    </div>
                                 )}
                             </div>
 
@@ -996,6 +1094,77 @@ function WorkshopBaruDetail() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* --- MODAL: Lightbox Foto Ukuran Penuh (Full Size) --- */}
+            {selectedPhoto && (
+                <div
+                    className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-in fade-in duration-200"
+                    onClick={() => setSelectedPhoto(null)}
+                >
+                    {/* Header Bar */}
+                    <div
+                        className="w-full max-w-5xl mx-auto flex items-center justify-between text-white pb-3 border-b border-white/10 shrink-0"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="min-w-0 pr-4">
+                            <h4 className="font-bold text-sm sm:text-base text-white truncate flex items-center gap-2">
+                                <Camera size={18} className="text-emerald-400 shrink-0" />
+                                {selectedPhoto.title || 'Foto Ukuran Penuh'}
+                            </h4>
+                            {selectedPhoto.subtitle && (
+                                <p className="text-xs text-slate-300 mt-0.5 truncate">{selectedPhoto.subtitle}</p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <a
+                                href={selectedPhoto.url}
+                                download={`foto-workshop-${order?.code || 'img'}.png`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors border border-white/20 shadow-xs"
+                                title="Unduh Foto atau Buka di Tab Baru"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <Download size={15} /> Unduh Foto
+                            </a>
+                            <button
+                                onClick={() => setSelectedPhoto(null)}
+                                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/20 shadow-xs"
+                                title="Tutup (Esc)"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Image Viewport Container */}
+                    <div
+                        className="flex-1 flex items-center justify-center w-full max-w-5xl mx-auto my-auto py-4 overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <img
+                            src={selectedPhoto.url}
+                            alt={selectedPhoto.title || 'Dokumentasi Workshop'}
+                            className="max-h-[72vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/15 bg-black/40"
+                        />
+                    </div>
+
+                    {/* Footer Bar / Note */}
+                    <div
+                        className="w-full max-w-3xl mx-auto text-center shrink-0"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {selectedPhoto.message ? (
+                            <div className="p-3 bg-white/10 backdrop-blur-md rounded-xl text-xs text-slate-200 border border-white/10 shadow-sm">
+                                <span className="font-bold text-white block mb-0.5">Catatan Pekerjaan:</span>
+                                {selectedPhoto.message}
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-slate-400">Tekan tombol Esc atau klik di luar gambar untuk menutup</p>
+                        )}
                     </div>
                 </div>
             )}
