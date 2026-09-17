@@ -2955,6 +2955,11 @@ async function generateSuratPerintahPengadaanPDF(doc, setting) {
         order = {};
     }
 
+    if (!order.assigneeSignature && doc.party2Signature) {
+        order.assigneeSignature = doc.party2Signature;
+        order.assigneeSignedAt = doc.party2SignedAt;
+    }
+
     const orderNumber = order.orderNumber || doc.number || '-';
     const procurementCode = order.procurementCode || '-';
     const procurementTitle = sanitizeTextForWinAnsi(order.procurementTitle || 'Pengadaan Barang / Jasa');
@@ -2962,8 +2967,8 @@ async function generateSuratPerintahPengadaanPDF(doc, setting) {
     const assignerName = sanitizeTextForWinAnsi(order.assigner?.name || doc.signedBy?.name || 'Kepala Bidang Sarana');
     const assignerPosition = sanitizeTextForWinAnsi(order.assigner?.position || 'Kepala Bidang Sarana');
     const assignerNiy = order.assigner?.nip || doc.signedBy?.nip || '-';
-    const assigneeName = sanitizeTextForWinAnsi(order.assignee?.name || 'Petugas Pengadaan');
-    const assigneePosition = sanitizeTextForWinAnsi(order.assignee?.position || 'Staf Pelaksana Pengadaan');
+    const assigneeName = sanitizeTextForWinAnsi(order.assignee?.name || doc.party2Name || 'Petugas Pengadaan');
+    const assigneePosition = sanitizeTextForWinAnsi(order.assignee?.position || doc.party2Title || 'Staf Pelaksana Pengadaan');
     const assigneeNiy = order.assignee?.nip || '-';
     const assignedItems = order.items || [];
     const notes = order.notes || '';
@@ -3118,9 +3123,10 @@ async function generateSuratPerintahPengadaanPDF(doc, setting) {
     y -= 55;
 
     // Draw Assignee Signature if exists
-    if (order.assigneeSignature && order.assigneeSignature.startsWith('data:')) {
+    const assigneeSig = order.assigneeSignature || doc.party2Signature;
+    if (assigneeSig && assigneeSig.startsWith('data:')) {
         try {
-            const sigBase64 = order.assigneeSignature.replace(/^data:image\/\w+;base64,/, '');
+            const sigBase64 = assigneeSig.replace(/^data:image\/\w+;base64,/, '');
             const sigImg = await pdfDoc.embedPng(Buffer.from(sigBase64, 'base64'));
             page.drawImage(sigImg, { x: col1X - 5, y: y, width: 90, height: 45 });
         } catch (sigErr) {

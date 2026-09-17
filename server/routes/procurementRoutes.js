@@ -34,6 +34,8 @@ router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);
 router.post('/:id/bast', verifyToken, handleUpload('bastFile', 'procurement'), procurementController.processBAST);
 router.put('/:id/bast-signatures', verifyToken, procurementController.updateBASTSignatures);
 router.post('/:id/bast-document', verifyToken, procurementController.getOrCreateBASTDocument);
+router.post('/:id/bast-tte', verifyToken, procurementController.signBastKabidTte);
+router.delete('/:id/bast-tte', verifyToken, procurementController.cancelBastKabidTte);
 
 // Notify Assignees
 router.post('/:id/notify-assignees', verifyToken, procurementController.notifyAssignees);

@@ -1204,6 +1204,12 @@ exports.getOrCreateBASTDocument = async (req, res) => {
             }
         }) || { id: 1, name: 'Ravi Kurnia', position: 'Kepala Bidang Sarana', nip: '-' };
 
+        let parsedSigs = {};
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try { parsedSigs = JSON.parse(procurement.bastFile); } catch (e) { }
+        }
+        const isKabidSigned = Boolean(parsedSigs.kabidTte);
+
         // Check if BAST OfficeDocument already exists
         let bastDoc = await prisma.officeDocument.findFirst({
             where: {
@@ -1214,7 +1220,7 @@ exports.getOrCreateBASTDocument = async (req, res) => {
         });
 
         if (!bastDoc) {
-            const docUuid = crypto.randomUUID();
+            const docUuid = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9));
             const docNumber = await generateDocumentNumber('BAST', 'BAST');
             const verifyUrl = `https://sarpras.dareliman.or.id/verify/${docUuid}`;
             const qrCodeData = await generateVerificationQR(docUuid);
@@ -1243,21 +1249,48 @@ exports.getOrCreateBASTDocument = async (req, res) => {
                     }),
                     priority: 'BIASA',
                     authorId: kabidUser.id,
-                    status: 'SIGNED',
-                    signedById: kabidUser.id,
-                    signedAt: effectiveDate,
+                    status: isKabidSigned ? 'SIGNED' : 'DRAFT',
+                    signedById: isKabidSigned ? kabidUser.id : null,
+                    signedAt: isKabidSigned ? (parsedSigs.kabidSignedAt ? new Date(parsedSigs.kabidSignedAt) : effectiveDate) : null,
                     party1Name: kabidUser.name,
                     party1Title: kabidUser.position || 'Kepala Bidang Sarana',
                     party1Org: 'Bidang Sarana',
-                    party1SignedAt: effectiveDate,
+                    party1SignedAt: isKabidSigned ? (parsedSigs.kabidSignedAt ? new Date(parsedSigs.kabidSignedAt) : effectiveDate) : null,
                     party2Name: finalReceiver,
                     party2Title: 'Penerima / Pemohon Barang',
                     party2Org: procurement.unit?.name || 'Unit Pemohon',
+                    party2Signature: parsedSigs.receiverSignature || null,
+                    party2SignedAt: parsedSigs.receiverSignature ? (parsedSigs.receiverSignedAt ? new Date(parsedSigs.receiverSignedAt) : effectiveDate) : null,
                     date: effectiveDate,
                     qrCodeData
                 },
                 include: { signedBy: true }
             });
+        } else {
+            // Reconcile signature state: if not signed by Kabid and not completed, ensure party1SignedAt is null and status is DRAFT
+            if (!isKabidSigned && bastDoc.party1SignedAt && procurement.status !== 'COMPLETED') {
+                bastDoc = await prisma.officeDocument.update({
+                    where: { id: bastDoc.id },
+                    data: {
+                        party1SignedAt: null,
+                        signedById: null,
+                        signedAt: null,
+                        status: 'DRAFT'
+                    },
+                    include: { signedBy: true }
+                });
+            } else if (isKabidSigned && !bastDoc.party1SignedAt) {
+                bastDoc = await prisma.officeDocument.update({
+                    where: { id: bastDoc.id },
+                    data: {
+                        party1SignedAt: parsedSigs.kabidSignedAt ? new Date(parsedSigs.kabidSignedAt) : new Date(),
+                        signedById: kabidUser.id,
+                        signedAt: parsedSigs.kabidSignedAt ? new Date(parsedSigs.kabidSignedAt) : new Date(),
+                        status: (bastDoc.party2Signature || parsedSigs.receiverSignature) ? 'SIGNED' : 'DRAFT'
+                    },
+                    include: { signedBy: true }
+                });
+            }
         }
 
         res.json({
@@ -1267,6 +1300,198 @@ exports.getOrCreateBASTDocument = async (req, res) => {
     } catch (e) {
         console.error('getOrCreateBASTDocument Error:', e);
         res.status(500).json({ error: e.message });
+    }
+};
+
+// Sign BAST by Kepala Bidang Sarana with TTE (Strict Role Access)
+exports.signBastKabidTte = async (req, res) => {
+    const { id } = req.params;
+    const currentUser = req.user;
+
+    const pos = (currentUser?.position || '').toLowerCase();
+    const role = (currentUser?.role || '').toUpperCase();
+    const isKabid = pos.includes('kepala bidang sarana') || pos.includes('kabid') || role === 'SUPER_ADMIN' || role === 'KEPALA_BIDANG' || role === 'KABID_SARPRAS';
+
+    if (!isKabid) {
+        return res.status(403).json({ error: 'Akses ditolak: Hanya Kepala Bidang Sarana yang berwenang membubuhkan TTE Berita Acara (BAST).' });
+    }
+
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: { unit: true, items: true, user: true }
+        });
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan' });
+
+        // Identify official Kabid account or current user
+        let kabidUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { position: 'Kepala Bidang Sarana' },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KEPALA_BIDANG' },
+                    { role: 'KABID_SARPRAS' }
+                ]
+            }
+        });
+        if (!kabidUser || (pos.includes('kepala bidang sarana') || pos.includes('kabid'))) {
+            kabidUser = await prisma.user.findUnique({ where: { id: currentUser.id } }) || kabidUser;
+        }
+
+        const kabidName = kabidUser?.name || currentUser.name || currentUser.username || 'Ravi Kurnia, S.T.';
+        const kabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+        const now = new Date();
+
+        // Update bastFile in procurement
+        let existingSigs = {};
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try { existingSigs = JSON.parse(procurement.bastFile); } catch (e) { }
+        } else if (procurement.bastFile) {
+            existingSigs.fileUrl = procurement.bastFile;
+        }
+
+        const updatedSigs = {
+            ...existingSigs,
+            kabidTte: true,
+            kabidSignedAt: now.toISOString(),
+            kabidName,
+            kabidPosition,
+            kabidOrg: 'Bidang Sarana dan Prasarana',
+            kabidNip: kabidUser?.nip || '-'
+        };
+
+        await prisma.procurement.update({
+            where: { id: parseInt(id) },
+            data: {
+                bastFile: JSON.stringify(updatedSigs)
+            }
+        });
+
+        // Check or update BAST OfficeDocument
+        let bastDoc = await prisma.officeDocument.findFirst({
+            where: {
+                category: 'BAST',
+                subject: { contains: procurement.code }
+            },
+            include: { signedBy: true }
+        });
+
+        if (bastDoc) {
+            const hasParty2 = Boolean(bastDoc.party2Signature || updatedSigs.receiverSignature);
+            bastDoc = await prisma.officeDocument.update({
+                where: { id: bastDoc.id },
+                data: {
+                    party1SignedAt: now,
+                    signedById: kabidUser?.id || currentUser.id,
+                    signedAt: now,
+                    party1Name: kabidName,
+                    party1Title: kabidPosition,
+                    party1Org: 'Bidang Sarana',
+                    status: hasParty2 ? 'SIGNED' : 'DRAFT'
+                },
+                include: { signedBy: true }
+            });
+        }
+
+        // Timeline Progress Log
+        await prisma.procurementProgress.create({
+            data: {
+                procurementId: procurement.id,
+                userId: currentUser.id,
+                message: `🛡️ Kepala Bidang Sarana (*${kabidName}*) telah membubuhkan Tanda Tangan Elektronik (TTE) sah pada Berita Acara Serah Terima (BAST)`,
+                type: 'SYSTEM',
+                stage: 5
+            }
+        });
+
+        res.json({
+            message: 'TTE Kepala Bidang Sarana berhasil dibubuhkan pada BAST.',
+            bastSignatures: updatedSigs,
+            bastDoc
+        });
+    } catch (error) {
+        console.error('signBastKabidTte error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Cancel / Revoke BAST TTE by Kepala Bidang Sarana
+exports.cancelBastKabidTte = async (req, res) => {
+    const { id } = req.params;
+    const currentUser = req.user;
+
+    const pos = (currentUser?.position || '').toLowerCase();
+    const role = (currentUser?.role || '').toUpperCase();
+    const isKabid = pos.includes('kepala bidang sarana') || pos.includes('kabid') || role === 'SUPER_ADMIN' || role === 'KEPALA_BIDANG' || role === 'KABID_SARPRAS';
+
+    if (!isKabid) {
+        return res.status(403).json({ error: 'Akses ditolak: Hanya Kepala Bidang Sarana yang berwenang membatalkan TTE BAST.' });
+    }
+
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) }
+        });
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan' });
+
+        let existingSigs = {};
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try { existingSigs = JSON.parse(procurement.bastFile); } catch (e) { }
+        }
+
+        const updatedSigs = {
+            ...existingSigs,
+            kabidTte: false,
+            kabidSignedAt: null
+        };
+
+        await prisma.procurement.update({
+            where: { id: parseInt(id) },
+            data: {
+                bastFile: JSON.stringify(updatedSigs)
+            }
+        });
+
+        let bastDoc = await prisma.officeDocument.findFirst({
+            where: {
+                category: 'BAST',
+                subject: { contains: procurement.code }
+            },
+            include: { signedBy: true }
+        });
+
+        if (bastDoc) {
+            bastDoc = await prisma.officeDocument.update({
+                where: { id: bastDoc.id },
+                data: {
+                    party1SignedAt: null,
+                    signedById: null,
+                    signedAt: null,
+                    status: 'DRAFT'
+                },
+                include: { signedBy: true }
+            });
+        }
+
+        // Timeline Progress Log
+        await prisma.procurementProgress.create({
+            data: {
+                procurementId: procurement.id,
+                userId: currentUser.id,
+                message: `⚠️ TTE Kepala Bidang Sarana pada Dokumen BAST telah dibatalkan oleh *${currentUser.name || currentUser.username}*`,
+                type: 'SYSTEM',
+                stage: 5
+            }
+        });
+
+        res.json({
+            message: 'TTE BAST berhasil dibatalkan.',
+            bastSignatures: updatedSigs,
+            bastDoc
+        });
+    } catch (error) {
+        console.error('cancelBastKabidTte error:', error);
+        res.status(500).json({ error: error.message });
     }
 };
 
@@ -1313,10 +1538,13 @@ exports.processBAST = async (req, res) => {
         if (procurement.status === 'COMPLETED') return res.status(400).json({ error: 'Already completed' });
 
         let parsedSigs = {};
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try { parsedSigs = JSON.parse(procurement.bastFile); } catch (e) { }
+        }
         if (typeof bastSignatures === 'string') {
-            try { parsedSigs = JSON.parse(bastSignatures); } catch (e) { }
+            try { parsedSigs = { ...parsedSigs, ...JSON.parse(bastSignatures) }; } catch (e) { }
         } else if (typeof bastSignatures === 'object' && bastSignatures !== null) {
-            parsedSigs = bastSignatures;
+            parsedSigs = { ...parsedSigs, ...bastSignatures };
         }
 
         const finalReceiverName = receiverName || parsedSigs.receiverName || null;
@@ -1327,9 +1555,10 @@ exports.processBAST = async (req, res) => {
         const finalPhotoUrl = req.fileUrl || bastPhotoUrl || (typeof bastFile === 'string' && !bastFile.startsWith('{') && !bastFile.startsWith('data:') ? bastFile : null);
 
         let bastPayload = null;
-        if (finalReceiverName || finalStaffName || finalReceiverSignature || finalStaffSignature || finalNotes) {
+        if (finalReceiverName || finalStaffName || finalReceiverSignature || finalStaffSignature || finalNotes || parsedSigs.kabidTte) {
             bastPayload = JSON.stringify({
-                fileUrl: finalPhotoUrl || null,
+                ...parsedSigs,
+                fileUrl: finalPhotoUrl || parsedSigs.fileUrl || null,
                 receiverName: finalReceiverName,
                 staffName: finalStaffName,
                 receiverSignature: finalReceiverSignature,
@@ -2339,6 +2568,14 @@ exports.createAssignmentOrder = async (req, res) => {
         });
 
         orderData.officeDocumentId = officeDoc.id;
+        try {
+            await prisma.officeDocument.update({
+                where: { id: officeDoc.id },
+                data: { content: JSON.stringify(orderData) }
+            });
+        } catch (e) {
+            console.error('Failed to update officeDoc content with id:', e);
+        }
 
         // 2. Save in ProcurementProgress
         await prisma.procurementProgress.create({
@@ -2397,6 +2634,80 @@ exports.createAssignmentOrder = async (req, res) => {
 };
 
 /**
+ * Helper to synchronize assignment order signing with OfficeDocument
+ */
+const syncAssignmentOrderToOfficeDoc = async (orderData, signature, signedAt) => {
+    try {
+        let targetOfficeDoc = null;
+        if (orderData.officeDocumentId) {
+            try {
+                targetOfficeDoc = await prisma.officeDocument.findUnique({
+                    where: { id: parseInt(orderData.officeDocumentId) }
+                });
+            } catch (e) {}
+        }
+        if (!targetOfficeDoc && orderData.uuid) {
+            try {
+                targetOfficeDoc = await prisma.officeDocument.findUnique({
+                    where: { uuid: orderData.uuid }
+                });
+            } catch (e) {}
+        }
+        if (!targetOfficeDoc && orderData.orderNumber && orderData.orderNumber !== '-') {
+            try {
+                targetOfficeDoc = await prisma.officeDocument.findFirst({
+                    where: { number: orderData.orderNumber }
+                });
+            } catch (e) {}
+        }
+        if (!targetOfficeDoc && orderData.orderId) {
+            try {
+                targetOfficeDoc = await prisma.officeDocument.findFirst({
+                    where: {
+                        OR: [
+                            { subject: { contains: orderData.orderId } },
+                            { content: { contains: `"${orderData.orderId}"` } }
+                        ]
+                    }
+                });
+            } catch (e) {}
+        }
+
+        if (targetOfficeDoc) {
+            let existingDocContent = {};
+            try {
+                existingDocContent = typeof targetOfficeDoc.content === 'string'
+                    ? JSON.parse(targetOfficeDoc.content)
+                    : (targetOfficeDoc.content || {});
+            } catch (e) {}
+
+            const updatedDocContent = {
+                ...existingDocContent,
+                ...orderData,
+                officeDocumentId: targetOfficeDoc.id,
+                assigneeSignature: signature,
+                assigneeSignedAt: signedAt
+            };
+            const { qrCodeData: _qrD, ...cleanDocContent } = updatedDocContent;
+
+            await prisma.officeDocument.update({
+                where: { id: targetOfficeDoc.id },
+                data: {
+                    party2Signature: signature,
+                    party2SignedAt: new Date(signedAt),
+                    party2Name: orderData.assignee?.name || targetOfficeDoc.party2Name,
+                    party2Title: orderData.assignee?.position || targetOfficeDoc.party2Title,
+                    content: JSON.stringify(cleanDocContent)
+                }
+            });
+            orderData.officeDocumentId = targetOfficeDoc.id;
+        }
+    } catch (err) {
+        console.error('syncAssignmentOrderToOfficeDoc error:', err);
+    }
+};
+
+/**
  * POST /api/procurements/:id/assignment-orders/sign
  * Assigned staff signs the Surat Perintah Pengadaan
  */
@@ -2440,22 +2751,8 @@ exports.signAssignmentOrder = async (req, res) => {
             }
         });
 
-        // Also update OfficeDocument if exists
-        if (orderData.officeDocumentId) {
-            try {
-                await prisma.officeDocument.update({
-                    where: { id: orderData.officeDocumentId },
-                    data: {
-                        party2Signature: signature,
-                        party2SignedAt: new Date(signedAt),
-                        party2Name: orderData.assignee?.name,
-                        party2Title: orderData.assignee?.position
-                    }
-                });
-            } catch (e) {
-                console.error('Failed to update office document party2 signature:', e);
-            }
-        }
+        // Also update OfficeDocument if exists (both party2Signature and content JSON)
+        await syncAssignmentOrderToOfficeDoc(orderData, signature, signedAt);
 
         // Add timeline note
         await prisma.procurementProgress.create({
@@ -2722,22 +3019,8 @@ exports.signPublicAssignmentOrder = async (req, res) => {
             }
         });
 
-        // Also update OfficeDocument if exists
-        if (orderData.officeDocumentId) {
-            try {
-                await prisma.officeDocument.update({
-                    where: { id: orderData.officeDocumentId },
-                    data: {
-                        party2Signature: signature,
-                        party2SignedAt: new Date(signedAt),
-                        party2Name: orderData.assignee?.name,
-                        party2Title: orderData.assignee?.position
-                    }
-                });
-            } catch (e) {
-                console.error('Failed to update office document party2 signature:', e);
-            }
-        }
+        // Also update OfficeDocument if exists (both party2Signature and content JSON)
+        await syncAssignmentOrderToOfficeDoc(orderData, signature, signedAt);
 
         // Add timeline note
         await prisma.procurementProgress.create({

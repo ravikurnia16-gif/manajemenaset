@@ -64,25 +64,35 @@ const ProcurementAssignmentOrderModal = ({
         return acc + (p * q);
     }, 0);
 
+    // Resolusi tanda tangan penerima perintah (bisa dari assigneeSignature atau party2Signature E-Office)
+    const activeAssigneeSignature = assigneeSignature || order.party2Signature || null;
+    const activeAssigneeSignedAt = assigneeSignedAt || order.party2SignedAt || null;
+
     // Izinkan tanda tangan langsung di halaman/modal ini
-    const canSign = !assigneeSignature;
+    const canSign = !activeAssigneeSignature;
 
     const handlePrint = async () => {
         // 1. Langsung panggil cetak browser
         window.print();
 
-        // 2. Otomatis kirim notifikasi WhatsApp ke petugas yang ditugaskan
-        try {
-            setNotifying(true);
-            await api.post(`/procurements/${order.procurementId}/assignment-orders/${order.orderId}/notify-print`);
-        } catch (err) {
-            console.error('Error sending print notification:', err);
-        } finally {
-            setNotifying(false);
+        // 2. Otomatis kirim notifikasi WhatsApp ke petugas yang ditugaskan jika ada procurementId
+        if (order.procurementId && order.orderId) {
+            try {
+                setNotifying(true);
+                await api.post(`/procurements/${order.procurementId}/assignment-orders/${order.orderId}/notify-print`);
+            } catch (err) {
+                console.error('Error sending print notification:', err);
+            } finally {
+                setNotifying(false);
+            }
         }
     };
 
     const handleManualNotify = async () => {
+        if (!order.procurementId || !order.orderId) {
+            alert('Notifikasi WhatsApp hanya tersedia untuk Surat Perintah terkait Pengadaan aktif.');
+            return;
+        }
         try {
             setNotifying(true);
             const res = await api.post(`/procurements/${order.procurementId}/assignment-orders/${order.orderId}/notify-print`);
@@ -99,13 +109,38 @@ const ProcurementAssignmentOrderModal = ({
         if (!sigDataUrl) return;
         setSigning(true);
         try {
-            const res = await api.post(`/procurements/${order.procurementId}/assignment-orders/sign`, {
-                orderId: order.orderId,
-                signature: sigDataUrl
-            });
+            let res = null;
+            if (order.procurementId) {
+                res = await api.post(`/procurements/${order.procurementId}/assignment-orders/sign`, {
+                    orderId: order.orderId,
+                    signature: sigDataUrl
+                });
+            } else if (order.officeDocumentId || order.id) {
+                const targetDocId = order.officeDocumentId || order.id;
+                res = await api.post(`/office-documents/${targetDocId}/sign-party`, {
+                    party: 'party2',
+                    signatureData: sigDataUrl,
+                    name: assignee?.name || order.party2Name,
+                    title: assignee?.position || order.party2Title
+                });
+            } else if (order.orderId) {
+                res = await api.post(`/public/assignment-orders/${order.orderId}/sign`, {
+                    signature: sigDataUrl
+                });
+            }
+
             setShowSignPad(false);
-            if (onOrderUpdated && res.data?.order) {
-                onOrderUpdated(res.data.order);
+            const nowIso = new Date().toISOString();
+            const updatedOrder = {
+                ...order,
+                assigneeSignature: sigDataUrl,
+                assigneeSignedAt: nowIso,
+                party2Signature: sigDataUrl,
+                party2SignedAt: nowIso,
+                ...(res?.data?.order || {})
+            };
+            if (onOrderUpdated) {
+                onOrderUpdated(updatedOrder);
             }
             alert('Surat Perintah Pengadaan berhasil ditandatangani.');
         } catch (err) {
@@ -429,16 +464,16 @@ const ProcurementAssignmentOrderModal = ({
                                     </div>
 
                                     <div className="my-1.5 flex items-center justify-center min-h-[65px] w-full">
-                                        {assigneeSignature ? (
+                                        {activeAssigneeSignature ? (
                                             <div className="flex flex-col items-center group">
                                                 <img
-                                                    src={assigneeSignature}
+                                                    src={activeAssigneeSignature}
                                                     alt="TTD Penerima Tugas"
                                                     className="max-h-16 max-w-[160px] object-contain"
                                                 />
-                                                {assigneeSignedAt && (
+                                                {activeAssigneeSignedAt && (
                                                     <span className="text-[7.5pt] text-slate-500 italic mt-0.5">
-                                                        Ditandatangani: {new Date(assigneeSignedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        Ditandatangani: {new Date(activeAssigneeSignedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                     </span>
                                                 )}
                                                 <button

@@ -415,6 +415,8 @@ const ProcurementDetail = () => {
     const [sigModal, setSigModal] = useState({ open: false, type: null, title: '' });
     const [showBastDocModal, setShowBastDocModal] = useState(false);
     const [bastDoc, setBastDoc] = useState(null);
+    const [bastSignatures, setBastSignatures] = useState(null);
+    const [isSigningBastTte, setIsSigningBastTte] = useState(false);
     const [loadingBastDoc, setLoadingBastDoc] = useState(false);
     const [isSavingSignatures, setIsSavingSignatures] = useState(false);
     const [rooms, setRooms] = useState([]);
@@ -476,12 +478,19 @@ const ProcurementDetail = () => {
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const userPos = (user?.position || '').toLowerCase();
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
-    const isKabid = user?.role === 'SUPER_ADMIN' || userPos.includes('kepala bidang sarana') || user?.role === 'KEPALA_BIDANG';
+    const isKabid = user?.role === 'SUPER_ADMIN' || userPos.includes('kepala bidang sarana') || userPos.includes('kabid') || user?.role === 'KEPALA_BIDANG' || user?.role === 'KABID_SARPRAS';
     const isStaffAset = user?.role === 'ADMIN_ASET' || userPos.includes('staff manajemen aset');
     const canIssueAssignmentOrder = isKabid || isStaffAset;
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
     const isRequester = req?.userId === user?.id;
+
+    const kabidUser = (users || []).find(u =>
+        (u.position && (u.position.toLowerCase().includes('sarana') || u.position.toLowerCase().includes('kabid'))) ||
+        u.role === 'KEPALA_BIDANG' || u.role === 'KABID_SARPRAS'
+    ) || { name: 'Ravi Kurnia, S.T.', position: 'Kepala Bidang Sarana', nip: '-' };
+
+    const isPihak1Tte = Boolean(bastSignatures?.kabidTte || (bastDoc?.party1SignedAt && bastSignatures?.kabidTte !== false));
 
     // Unit Request Letter States
     const [showRequestLetterModal, setShowRequestLetterModal] = useState(false);
@@ -551,6 +560,48 @@ const ProcurementDetail = () => {
             alert(e.response?.data?.error || 'Gagal membubuhkan TTE.');
         } finally {
             setIsSigningKabidTte(false);
+        }
+    };
+
+    const handleBastKabidTte = async () => {
+        if (!confirm('Bubuhkan Tanda Tangan Elektronik (TTE) Kepala Bidang Sarana pada Dokumen BAST ini?')) return;
+        setIsSigningBastTte(true);
+        try {
+            const res = await api.post(`/procurements/${id}/bast-tte`);
+            if (res.data?.bastSignatures) {
+                setBastSignatures(res.data.bastSignatures);
+            }
+            if (res.data?.bastDoc) {
+                setBastDoc(res.data.bastDoc);
+            }
+            alert('TTE Kepala Bidang Sarana berhasil dibubuhkan pada BAST.');
+            fetchDetail();
+        } catch (e) {
+            console.error('handleBastKabidTte error', e);
+            alert(e.response?.data?.error || 'Gagal membubuhkan TTE.');
+        } finally {
+            setIsSigningBastTte(false);
+        }
+    };
+
+    const handleCancelBastKabidTte = async () => {
+        if (!confirm('Batalkan TTE Kepala Bidang Sarana pada Dokumen BAST ini?')) return;
+        setIsSigningBastTte(true);
+        try {
+            const res = await api.delete(`/procurements/${id}/bast-tte`);
+            if (res.data?.bastSignatures) {
+                setBastSignatures(res.data.bastSignatures);
+            }
+            if (res.data?.bastDoc) {
+                setBastDoc(res.data.bastDoc);
+            }
+            alert('TTE BAST berhasil dibatalkan.');
+            fetchDetail();
+        } catch (e) {
+            console.error('handleCancelBastKabidTte error', e);
+            alert(e.response?.data?.error || 'Gagal membatalkan TTE.');
+        } finally {
+            setIsSigningBastTte(false);
         }
     };
 
@@ -730,6 +781,8 @@ const ProcurementDetail = () => {
                 }
                 return null;
             })();
+
+            setBastSignatures(parsedSigs);
 
             const defaultReceiver = data.user?.name || data.user?.username || '';
             const defaultStaff = user?.name || user?.username || 'Staff Manajemen Aset';
@@ -3715,9 +3768,9 @@ const ProcurementDetail = () => {
                                                     </span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                                                    {staffSignature ? <CheckCircle size={15} color={T.success} /> : <AlertCircle size={15} color={T.warn} />}
-                                                    <span style={{ color: staffSignature ? T.text : T.warn, fontWeight: staffSignature ? 600 : 700 }}>
-                                                        {staffSignature ? `TTD Staff Aset: (${staffName || 'Staff'})` : 'TTD Staff Manajemen Aset belum ada'}
+                                                    {isPihak1Tte ? <CheckCircle size={15} color={T.success} /> : <AlertCircle size={15} color={T.warn} />}
+                                                    <span style={{ color: isPihak1Tte ? T.text : T.warn, fontWeight: isPihak1Tte ? 600 : 700 }}>
+                                                        {isPihak1Tte ? `TTE Kepala Bidang Sarana: Sah (Tercatat di E-Office)` : 'TTE Kepala Bidang Sarana belum dibubuhkan'}
                                                     </span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
@@ -3869,7 +3922,7 @@ const ProcurementDetail = () => {
                                                 <div>
                                                     <div style={{ fontSize: 14, fontWeight: 800, color: T.navy }}>Tanda Tangan Berita Acara (BAST)</div>
                                                     <div style={{ fontSize: 11.5, color: T.slate }}>
-                                                        Tanda tangan digital antara Staff Manajemen Aset dan Penerima Barang (nama penerima dapat diganti/disesuaikan jika diwakilkan)
+                                                        Tanda tangan resmi antara Kepala Bidang Sarana (TTE) dan Penerima Barang (nama penerima dapat diganti/disesuaikan jika diwakilkan)
                                                     </div>
                                                 </div>
                                             </div>
@@ -3895,13 +3948,13 @@ const ProcurementDetail = () => {
                                             </div>
                                         </div>
 
-                                        {/* 2 Kolom: Pihak Pertama (Staff Aset) & Pihak Kedua (Penerima) */}
+                                        {/* 2 Kolom: Pihak Pertama (Kepala Bidang Sarana TTE) & Pihak Kedua (Penerima) */}
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-                                            {/* KARTU 1: PIHAK PERTAMA (STAFF MANAJEMEN ASET) */}
+                                            {/* KARTU 1: PIHAK PERTAMA (KEPALA BIDANG SARANA - TTE) */}
                                             <div style={{
                                                 background: T.cream, borderRadius: 12,
-                                                border: `1.5px solid ${staffSignature ? '#a3d9c0' : T.border}`,
-                                                padding: 18, display: 'flex', flexDirection: 'column', gap: 12
+                                                border: `1.5px solid ${isPihak1Tte ? '#a3d9c0' : T.border}`,
+                                                padding: 18, display: 'flex', flexDirection: 'column', gap: 14
                                             }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.navy }}>
@@ -3909,66 +3962,70 @@ const ProcurementDetail = () => {
                                                     </span>
                                                     <span style={{
                                                         fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-                                                        background: staffSignature ? '#dcfce7' : '#fef3c7',
-                                                        color: staffSignature ? '#15803d' : '#b45309',
+                                                        background: isPihak1Tte ? '#dcfce7' : '#fef3c7',
+                                                        color: isPihak1Tte ? '#15803d' : '#b45309',
                                                         display: 'flex', alignItems: 'center', gap: 4
                                                     }}>
-                                                        {staffSignature ? <Check size={11} /> : <Clock size={11} />}
-                                                        {staffSignature ? 'Sudah TTD' : 'Belum TTD'}
+                                                        {isPihak1Tte ? <Check size={11} /> : <Clock size={11} />}
+                                                        {isPihak1Tte ? 'Sudah TTE (Sah)' : 'Belum TTE'}
                                                     </span>
                                                 </div>
 
                                                 <div>
-                                                    <Label style={{ marginBottom: 4 }}>Nama Staff Manajemen Aset</Label>
-                                                    <Input
-                                                        value={staffName}
-                                                        onChange={e => setStaffName(e.target.value)}
-                                                        placeholder="Nama Staff Manajemen Aset..."
-                                                        disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny)}
-                                                    />
-                                                    <span style={{ fontSize: 10.5, color: T.slate, marginTop: 4, display: 'block' }}>
-                                                        Jabatan: Staff Manajemen Aset / Sarana Prasarana
-                                                    </span>
+                                                    <div style={{ fontSize: 11, fontWeight: 700, color: T.slate, marginBottom: 4 }}>
+                                                        PEJABAT PENYERAH BARANG
+                                                    </div>
+                                                    <div style={{
+                                                        background: T.white, borderRadius: 9, border: `1px solid ${T.border}`,
+                                                        padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 2
+                                                    }}>
+                                                        <div style={{ fontSize: 13.5, fontWeight: 800, color: T.navy }}>
+                                                            {bastSignatures?.kabidName || bastDoc?.party1Name || kabidUser?.name || 'Ravi Kurnia, S.T.'}
+                                                        </div>
+                                                        <div style={{ fontSize: 11.5, color: T.slate, fontWeight: 600 }}>
+                                                            {bastSignatures?.kabidPosition || bastDoc?.party1Title || kabidUser?.position || 'Kepala Bidang Sarana'}
+                                                        </div>
+                                                        <div style={{ fontSize: 10.5, color: T.gold, fontWeight: 600 }}>
+                                                            {bastSignatures?.kabidOrg || bastDoc?.party1Org || 'Bidang Sarana dan Prasarana'}
+                                                        </div>
+                                                    </div>
                                                 </div>
 
-                                                {/* Kotak Tanda Tangan Staff */}
+                                                {/* Area TTE */}
                                                 <div>
-                                                    <Label style={{ marginBottom: 6 }}>Goresan Tanda Tangan Staff</Label>
-                                                    {staffSignature ? (
+                                                    <Label style={{ marginBottom: 6 }}>Tanda Tangan Elektronik (TTE)</Label>
+                                                    {isPihak1Tte ? (
                                                         <div style={{
-                                                            background: T.white, borderRadius: 10,
-                                                            border: '1.5px solid #a3d9c0', padding: 12,
+                                                            background: '#f0fdf4', borderRadius: 10,
+                                                            border: '1.5px solid #86efac', padding: '16px 14px',
                                                             textAlign: 'center', position: 'relative'
                                                         }}>
-                                                            <img
-                                                                src={staffSignature}
-                                                                alt="TTD Staff"
-                                                                style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }}
-                                                            />
-                                                            <div style={{ borderTop: `1px solid ${T.creamDk}`, marginTop: 8, paddingTop: 6, fontSize: 12, fontWeight: 700, color: T.navy }}>
-                                                                {staffName || 'Staff Manajemen Aset'}
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#15803d', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>
+                                                                <ShieldCheck size={18} color="#16a34a" /> TTE SAH ELEKTRONIK
                                                             </div>
-                                                            {(req.status !== 'COMPLETED' || (isAdmin || isAssignedToAny)) && (
-                                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+                                                            <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>
+                                                                Terverifikasi via E-Office & QR Code Resmi
+                                                            </div>
+                                                            <div style={{ fontSize: 10.5, color: '#4b5563', marginTop: 4 }}>
+                                                                Ditandatangani oleh: <strong>{bastSignatures?.kabidName || bastDoc?.party1Name || kabidUser?.name || 'Kepala Bidang Sarana'}</strong>
+                                                            </div>
+                                                            {(bastSignatures?.kabidSignedAt || bastDoc?.party1SignedAt) && (
+                                                                <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>
+                                                                    Waktu: {new Date(bastSignatures?.kabidSignedAt || bastDoc?.party1SignedAt).toLocaleString('id-ID')}
+                                                                </div>
+                                                            )}
+                                                            {isKabid && req.status !== 'COMPLETED' && (
+                                                                <div style={{ marginTop: 10 }}>
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Tanda Tangan Staff Manajemen Aset' })}
+                                                                        onClick={handleCancelBastKabidTte}
+                                                                        disabled={isSigningBastTte}
                                                                         style={{
-                                                                            background: 'none', border: `1px solid ${T.border}`, borderRadius: 6,
-                                                                            padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.navy, cursor: 'pointer'
+                                                                            background: 'none', border: '1px solid #fca5a5', borderRadius: 6,
+                                                                            padding: '4px 10px', fontSize: 11, fontWeight: 600, color: T.danger, cursor: 'pointer'
                                                                         }}
                                                                     >
-                                                                        Ubah TTD
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setStaffSignature(null)}
-                                                                        style={{
-                                                                            background: 'none', border: 'none', fontSize: 11,
-                                                                            color: T.danger, cursor: 'pointer', padding: '4px 8px'
-                                                                        }}
-                                                                    >
-                                                                        Hapus
+                                                                        {isSigningBastTte ? 'Memproses...' : 'Batalkan TTE'}
                                                                     </button>
                                                                 </div>
                                                             )}
@@ -3976,21 +4033,38 @@ const ProcurementDetail = () => {
                                                     ) : (
                                                         <div style={{
                                                             border: `2px dashed ${T.border}`, borderRadius: 10,
-                                                            padding: '20px 16px', textAlign: 'center', background: T.white
+                                                            padding: '22px 16px', textAlign: 'center', background: T.white,
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10
                                                         }}>
-                                                            <PenTool size={26} color={T.slate} style={{ margin: '0 auto 6px', opacity: 0.7 }} />
-                                                            <div style={{ fontSize: 11.5, color: T.slate, marginBottom: 8 }}>
-                                                                Belum ada tanda tangan Staff Manajemen Aset
+                                                            <ShieldCheck size={32} color={T.slate} style={{ opacity: 0.6 }} />
+                                                            <div style={{ fontSize: 12, color: T.slate, maxWidth: 280, lineHeight: 1.4 }}>
+                                                                Tanda tangan pihak pertama memerlukan verifikasi <strong>TTE (Tanda Tangan Elektronik)</strong> resmi Kepala Bidang Sarana.
                                                             </div>
-                                                            <Btn
-                                                                type="button"
-                                                                variant="secondary"
-                                                                style={{ margin: '0 auto', fontSize: 12, padding: '5px 12px' }}
-                                                                disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny)}
-                                                                onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Tanda Tangan Staff Manajemen Aset' })}
-                                                            >
-                                                                <PenTool size={12} /> Goreskan TTD Staff
-                                                            </Btn>
+                                                            {isKabid ? (
+                                                                <Btn
+                                                                    type="button"
+                                                                    variant="success"
+                                                                    disabled={isSigningBastTte}
+                                                                    onClick={handleBastKabidTte}
+                                                                    style={{
+                                                                        fontSize: 12.5, fontWeight: 700, padding: '8px 16px',
+                                                                        background: '#15803d', color: '#ffffff',
+                                                                        boxShadow: '0 2px 8px rgba(21,128,61,0.25)'
+                                                                    }}
+                                                                >
+                                                                    {isSigningBastTte ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={14} />}
+                                                                    Tanda Tangan Elektronik (TTE)
+                                                                </Btn>
+                                                            ) : (
+                                                                <div style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                                                    background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a',
+                                                                    padding: '7px 12px', borderRadius: 8, fontSize: 11.5, fontWeight: 600
+                                                                }}>
+                                                                    <Clock size={13} />
+                                                                    Menunggu TTE Kepala Bidang Sarana (Akses Terbatas)
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -4239,50 +4313,47 @@ const ProcurementDetail = () => {
                                                 </div>
                                                 <div>
                                                     <div style={{ fontSize: 13.5, fontWeight: 700, color: T.navy }}>Tanda Tangan Pengesahan BAST</div>
-                                                    <div style={{ fontSize: 11, color: T.slate }}>Tanda tangan digital sah Pihak Pertama (Staff) dan Pihak Kedua (Penerima)</div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>Tanda tangan sah Pihak Pertama (Kepala Bidang Sarana - TTE) dan Pihak Kedua (Penerima)</div>
                                                 </div>
                                             </div>
-                                            {(isAdmin || isAssignedToAny || isRequester) && (
-                                                <Btn
-                                                    type="button"
-                                                    variant="secondary"
-                                                    style={{ fontSize: 11, padding: '5px 12px' }}
-                                                    onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Perbarui Tanda Tangan Staff' })}
-                                                >
-                                                    <PenTool size={12} /> Ubah TTD Staff
-                                                </Btn>
-                                            )}
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-                                            {/* Box Staff */}
+                                            {/* Box Pihak Pertama (Kepala Bidang Sarana) */}
                                             <div style={{
-                                                background: T.cream, borderRadius: 10, border: `1px solid ${T.creamDk}`,
+                                                background: T.cream, borderRadius: 10, border: `1px solid ${isPihak1Tte ? '#a3d9c0' : T.creamDk}`,
                                                 padding: '16px 18px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center'
                                             }}>
                                                 <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: T.slate, marginBottom: 8, letterSpacing: '0.06em' }}>
-                                                    PIHAK PERTAMA (STAFF MANAJEMEN ASET)
+                                                    PIHAK PERTAMA (KEPALA BIDANG SARANA)
                                                 </span>
                                                 <div style={{ height: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                                                    {staffSignature ? (
-                                                        <img src={staffSignature} alt="TTD Staff" style={{ maxHeight: 75, maxWidth: '85%', objectFit: 'contain' }} />
+                                                    {isPihak1Tte ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '8px 14px' }}>
+                                                            <ShieldCheck size={24} color="#16a34a" />
+                                                            <span style={{ fontSize: 11, fontWeight: 800, color: '#15803d' }}>TTE SAH ELEKTRONIK</span>
+                                                            <span style={{ fontSize: 9.5, color: '#4b5563' }}>Tercatat di E-Office</span>
+                                                        </div>
                                                     ) : (
-                                                        <span style={{ fontSize: 11.5, color: T.slate, fontStyle: 'italic' }}>Belum Ditandatangani</span>
+                                                        <span style={{ fontSize: 11.5, color: T.slate, fontStyle: 'italic' }}>Belum Ditandatangani TTE</span>
                                                     )}
                                                 </div>
                                                 <div style={{ borderTop: `1px solid ${T.border}`, width: '100%', paddingTop: 8, marginTop: 4 }}>
                                                     <div style={{ fontSize: 13, fontWeight: 800, color: T.navy }}>
-                                                        {staffName || 'Staff Manajemen Aset'}
+                                                        {bastSignatures?.kabidName || bastDoc?.party1Name || kabidUser?.name || 'Ravi Kurnia, S.T.'}
                                                     </div>
-                                                    <div style={{ fontSize: 11, color: T.slate }}>Staff Manajemen Aset</div>
+                                                    <div style={{ fontSize: 11, color: T.slate }}>
+                                                        {bastSignatures?.kabidPosition || bastDoc?.party1Title || kabidUser?.position || 'Kepala Bidang Sarana'}
+                                                    </div>
                                                 </div>
-                                                {(isAdmin || isAssignedToAny) && (
+                                                {!isPihak1Tte && isKabid && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setSigModal({ open: true, type: 'STAFF', title: 'Tanda Tangan Staff Manajemen Aset' })}
-                                                        style={{ marginTop: 8, background: 'none', border: 'none', color: T.navyMid, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                                        onClick={handleBastKabidTte}
+                                                        disabled={isSigningBastTte}
+                                                        style={{ marginTop: 8, background: 'none', border: 'none', color: '#15803d', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
                                                     >
-                                                        {staffSignature ? 'Ubah TTD Staff' : '+ Bubuhkan TTD Staff'}
+                                                        + Bubuhkan TTE Sekarang
                                                     </button>
                                                 )}
                                             </div>
@@ -5433,26 +5504,54 @@ const ProcurementDetail = () => {
                                                 minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                                 margin: '6px 0', padding: '4px 6px'
                                             }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
-                                                    <div style={{ padding: 2, background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 4, display: 'inline-block' }}>
-                                                        <QRCode
-                                                            value={verifyUrl}
-                                                            size={64}
-                                                            level="M"
-                                                        />
+                                                {isPihak1Tte ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
+                                                        <div style={{ padding: 2, background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 4, display: 'inline-block' }}>
+                                                            <QRCode
+                                                                value={verifyUrl}
+                                                                size={64}
+                                                                level="M"
+                                                            />
+                                                        </div>
+                                                        <div style={{ textAlign: 'left', fontFamily: 'sans-serif' }}>
+                                                            <div style={{ color: '#15803d', fontWeight: 'bold', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                                <ShieldCheck size={12} color="#16a34a" /> TTE SAH ELEKTRONIK
+                                                            </div>
+                                                            <div style={{ fontSize: 7.5, color: '#4b5563', lineHeight: 1.2, marginTop: 1 }}>
+                                                                Tercatat pada E-Office
+                                                            </div>
+                                                            <div style={{ fontSize: 7, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>
+                                                                UUID: {(bastDoc?.uuid || req.code)?.substring(0, 13)}...
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div style={{ textAlign: 'left', fontFamily: 'sans-serif' }}>
-                                                        <div style={{ color: '#15803d', fontWeight: 'bold', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                            <ShieldCheck size={12} color="#16a34a" /> TTE SAH ELEKTRONIK
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                                                        <div style={{
+                                                            fontSize: 11, color: '#9ca3af', fontStyle: 'italic',
+                                                            borderBottom: '1px dashed #d1d5db', padding: '6px 14px'
+                                                        }}>
+                                                            (Belum Ditandatangani TTE)
                                                         </div>
-                                                        <div style={{ fontSize: 7.5, color: '#4b5563', lineHeight: 1.2, marginTop: 1 }}>
-                                                            Tercatat pada E-Office
-                                                        </div>
-                                                        <div style={{ fontSize: 7, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>
-                                                            UUID: {(bastDoc?.uuid || req.code)?.substring(0, 13)}...
-                                                        </div>
+                                                        {isKabid && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setShowBastDocModal(false);
+                                                                    handleBastKabidTte();
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                                    background: '#15803d', color: '#ffffff', border: 'none',
+                                                                    borderRadius: 6, padding: '4px 10px', fontSize: 10.5,
+                                                                    fontWeight: 700, cursor: 'pointer', fontFamily: 'sans-serif'
+                                                                }}
+                                                            >
+                                                                <ShieldCheck size={12} /> Bubuhkan TTE Sekarang
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                             <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
                                                 {bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}

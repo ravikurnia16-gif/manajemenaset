@@ -163,8 +163,47 @@ exports.getOutgoingDocuments = async (req, res) => {
                 skip,
                 take: parseInt(limit),
             }),
-            prisma.officeDocument.count({ where }),
         ]);
+
+        // Auto-heal / synchronize assignment order signatures on the fly
+        for (const doc of documents) {
+            const isAssignment = doc.category === 'Perintah' ||
+                doc.category === 'Surat Perintah' ||
+                (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
+                (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-')));
+            if (isAssignment) {
+                try {
+                    let parsed = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+                    let needsDbUpdate = false;
+                    const updateData = {};
+
+                    if (doc.party2Signature && !parsed.assigneeSignature) {
+                        parsed.assigneeSignature = doc.party2Signature;
+                        parsed.assigneeSignedAt = doc.party2SignedAt ? doc.party2SignedAt.toISOString() : new Date().toISOString();
+                        doc.content = JSON.stringify(parsed);
+                        updateData.content = doc.content;
+                        needsDbUpdate = true;
+                    } else if (parsed.assigneeSignature && !doc.party2Signature) {
+                        doc.party2Signature = parsed.assigneeSignature;
+                        doc.party2SignedAt = parsed.assigneeSignedAt ? new Date(parsed.assigneeSignedAt) : new Date();
+                        doc.party2Name = doc.party2Name || parsed.assignee?.name;
+                        doc.party2Title = doc.party2Title || parsed.assignee?.position;
+                        updateData.party2Signature = doc.party2Signature;
+                        updateData.party2SignedAt = doc.party2SignedAt;
+                        if (doc.party2Name) updateData.party2Name = doc.party2Name;
+                        if (doc.party2Title) updateData.party2Title = doc.party2Title;
+                        needsDbUpdate = true;
+                    }
+
+                    if (needsDbUpdate) {
+                        prisma.officeDocument.update({
+                            where: { id: doc.id },
+                            data: updateData
+                        }).catch(err => console.error('Auto-heal assignment order doc error:', err));
+                    }
+                } catch (e) {}
+            }
+        }
 
         res.json({ documents, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
     } catch (error) {
@@ -258,6 +297,42 @@ exports.getDocumentById = async (req, res) => {
         });
 
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        const isAssignment = doc.category === 'Perintah' ||
+            doc.category === 'Surat Perintah' ||
+            (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
+            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-')));
+        if (isAssignment) {
+            try {
+                let parsed = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+                let needsUpdate = false;
+                const updateData = {};
+                if (doc.party2Signature && !parsed.assigneeSignature) {
+                    parsed.assigneeSignature = doc.party2Signature;
+                    parsed.assigneeSignedAt = doc.party2SignedAt ? doc.party2SignedAt.toISOString() : new Date().toISOString();
+                    doc.content = JSON.stringify(parsed);
+                    updateData.content = doc.content;
+                    needsUpdate = true;
+                } else if (parsed.assigneeSignature && !doc.party2Signature) {
+                    doc.party2Signature = parsed.assigneeSignature;
+                    doc.party2SignedAt = parsed.assigneeSignedAt ? new Date(parsed.assigneeSignedAt) : new Date();
+                    doc.party2Name = doc.party2Name || parsed.assignee?.name;
+                    doc.party2Title = doc.party2Title || parsed.assignee?.position;
+                    updateData.party2Signature = doc.party2Signature;
+                    updateData.party2SignedAt = doc.party2SignedAt;
+                    if (doc.party2Name) updateData.party2Name = doc.party2Name;
+                    if (doc.party2Title) updateData.party2Title = doc.party2Title;
+                    needsUpdate = true;
+                }
+                if (needsUpdate) {
+                    prisma.officeDocument.update({
+                        where: { id: doc.id },
+                        data: updateData
+                    }).catch(e => console.error('getDocumentById auto-sync error:', e));
+                }
+            } catch (e) {}
+        }
+
         res.json(doc);
     } catch (error) {
         console.error('getDocumentById error:', error);
@@ -521,7 +596,18 @@ exports.signAsParty = async (req, res) => {
 
         const doc = await prisma.officeDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
-        if (!['BAST', 'MOU'].includes(doc.type) && !(doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST', 'MOU'].includes(doc.category))) {
+
+        const isAssignment = doc.category === 'Perintah' ||
+            doc.category === 'Surat Perintah' ||
+            doc.category === 'Surat Tugas' ||
+            (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
+            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-')));
+
+        const isMultiParty = ['BAST', 'MOU'].includes(doc.type) ||
+            (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST', 'MOU', 'Perintah', 'Surat Perintah', 'Surat Tugas'].includes(doc.category)) ||
+            isAssignment;
+
+        if (!isMultiParty) {
             return res.status(400).json({ error: 'Multi-party signature only for BAST/MOU or related Surat Keluar categories' });
         }
 
@@ -540,6 +626,46 @@ exports.signAsParty = async (req, res) => {
             if (title) data.party2Title = title;
             if (org) data.party2Org = org;
             if (address) data.party2Address = address;
+
+            if (isAssignment) {
+                try {
+                    let parsedContent = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+                    parsedContent.assigneeSignature = signatureData;
+                    parsedContent.assigneeSignedAt = data.party2SignedAt.toISOString();
+                    const { qrCodeData: _q, ...cleanDocContent } = parsedContent;
+                    data.content = JSON.stringify(cleanDocContent);
+
+                    // Sync back to procurementProgress if procurementId & orderId exist
+                    if (parsedContent.procurementId && parsedContent.orderId) {
+                        (async () => {
+                            try {
+                                const progressEntry = await prisma.procurementProgress.findFirst({
+                                    where: {
+                                        procurementId: parseInt(parsedContent.procurementId),
+                                        type: 'ASSIGNMENT_ORDER',
+                                        message: { contains: `"${parsedContent.orderId}"` }
+                                    }
+                                });
+                                if (progressEntry) {
+                                    let progData = {};
+                                    try { progData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim()); } catch (e) {}
+                                    progData.assigneeSignature = signatureData;
+                                    progData.assigneeSignedAt = data.party2SignedAt.toISOString();
+                                    const { qrCodeData: _qp, ...cleanProg } = progData;
+                                    await prisma.procurementProgress.update({
+                                        where: { id: progressEntry.id },
+                                        data: { message: `[SURAT_PERINTAH] ${JSON.stringify(cleanProg)}` }
+                                    });
+                                }
+                            } catch (e) {
+                                console.error('Error syncing assignment order from E-Office to ProcurementProgress:', e);
+                            }
+                        })();
+                    }
+                } catch (e) {
+                    console.error('Error updating assignment content JSON in signAsParty:', e);
+                }
+            }
         }
 
         // If both parties have signed, mark as SIGNED

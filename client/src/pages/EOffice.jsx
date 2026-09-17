@@ -100,9 +100,21 @@ const handleOpenDocument = (doc, onOpenAssignmentOrder = null) => {
                 parsed.uuid = parsed.uuid || doc.uuid;
                 parsed.verifyUrl = parsed.verifyUrl || `https://sarpras.dareliman.or.id/verify/${doc.uuid}`;
                 parsed.assignerTte = true;
+                parsed.officeDocumentId = parsed.officeDocumentId || doc.id;
                 if (!parsed.qrCodeData && doc.qrCodeData) {
                     parsed.qrCodeData = doc.qrCodeData;
                 }
+                // Two-way synchronization of signature between doc and parsed order
+                if (!parsed.assigneeSignature && doc.party2Signature) {
+                    parsed.assigneeSignature = doc.party2Signature;
+                    parsed.assigneeSignedAt = doc.party2SignedAt;
+                } else if (parsed.assigneeSignature && !doc.party2Signature) {
+                    doc.party2Signature = parsed.assigneeSignature;
+                    doc.party2SignedAt = parsed.assigneeSignedAt;
+                }
+                parsed.party2Signature = parsed.party2Signature || doc.party2Signature || parsed.assigneeSignature;
+                parsed.party2SignedAt = parsed.party2SignedAt || doc.party2SignedAt || parsed.assigneeSignedAt;
+
                 if (onOpenAssignmentOrder) {
                     onOpenAssignmentOrder(parsed);
                     return;
@@ -903,6 +915,22 @@ const ListView = ({
                                             );
                                         } catch (e) { return null; }
                                     })()}
+                                    {(doc.category === 'Perintah' || doc.category === 'Surat Perintah' || (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-')))) && (() => {
+                                        const isSigned = !!(doc.party2Signature || doc.party2SignedAt || (typeof doc.content === 'string' && doc.content.includes('"assigneeSignature":"data:')));
+                                        return (
+                                            <div className="mt-1">
+                                                {isSigned ? (
+                                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[9.5px] font-bold inline-flex items-center gap-1">
+                                                        <CheckCircle2 size={11} className="text-emerald-600" /> TTD Lengkap
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[9.5px] font-bold inline-flex items-center gap-1">
+                                                        <Clock size={11} className="text-amber-600" /> Menunggu TTD Petugas
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
@@ -1020,6 +1048,20 @@ const ListView = ({
                                                 </>
                                             );
                                         } catch (e) { return null; }
+                                    })()}
+                                    {(doc.category === 'Perintah' || doc.category === 'Surat Perintah' || (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-')))) && (() => {
+                                        const isSigned = !!(doc.party2Signature || doc.party2SignedAt || (typeof doc.content === 'string' && doc.content.includes('"assigneeSignature":"data:')));
+                                        return (
+                                            isSigned ? (
+                                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[9px] font-bold inline-flex items-center gap-1">
+                                                    <CheckCircle2 size={10} className="text-emerald-600" /> TTD Lengkap
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[9px] font-bold inline-flex items-center gap-1">
+                                                    <Clock size={10} className="text-amber-600" /> Menunggu TTD
+                                                </span>
+                                            )
+                                        );
                                     })()}
                                 </div>
                             </div>
@@ -1322,15 +1364,70 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                         return (
                                             <div className="space-y-3 pt-1">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs">
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pemberi Tugas</span>
-                                                        <span className="font-bold text-slate-800 text-sm block mt-0.5">{parsed.assigner?.name || 'Kepala Bidang Sarana'}</span>
-                                                        <span className="text-slate-500 block text-[11px]">{parsed.assigner?.position || 'Kepala Bidang Sarana'}</span>
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs flex flex-col justify-between">
+                                                        <div>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pemberi Tugas</span>
+                                                            <span className="font-bold text-slate-800 text-sm block mt-0.5">{parsed.assigner?.name || 'Kepala Bidang Sarana'}</span>
+                                                            <span className="text-slate-500 block text-[11px]">{parsed.assigner?.position || 'Kepala Bidang Sarana'}</span>
+                                                        </div>
+                                                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                                            <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700">
+                                                                <CheckCircle2 size={13} className="text-emerald-600" /> TTE Sah Elektronik
+                                                            </span>
+                                                            {(viewingDoc.signedAt || parsed.assignerTteAt) && (
+                                                                <span className="text-[10px] text-slate-400">
+                                                                    {formatDate(viewingDoc.signedAt || parsed.assignerTteAt, 'datetime')}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs">
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Petugas Penerima Perintah</span>
-                                                        <span className="font-bold text-slate-800 text-sm block mt-0.5">{parsed.assignee?.name || '-'}</span>
-                                                        <span className="text-slate-500 block text-[11px]">{parsed.assignee?.position || '-'} ({parsed.assignee?.unitName || 'Bidang Sarana'})</span>
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs flex flex-col justify-between">
+                                                        <div>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Petugas Penerima Perintah</span>
+                                                            <span className="font-bold text-slate-800 text-sm block mt-0.5">{parsed.assignee?.name || viewingDoc.party2Name || '-'}</span>
+                                                            <span className="text-slate-500 block text-[11px]">{parsed.assignee?.position || viewingDoc.party2Title || '-'} ({parsed.assignee?.unitName || 'Bidang Sarana'})</span>
+                                                        </div>
+                                                        {(() => {
+                                                            const hasSigned = !!(parsed.assigneeSignature || viewingDoc.party2Signature || viewingDoc.party2SignedAt);
+                                                            const signedTime = parsed.assigneeSignedAt || viewingDoc.party2SignedAt;
+                                                            const sigImg = parsed.assigneeSignature || viewingDoc.party2Signature;
+                                                            return (
+                                                                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                                                                    {hasSigned ? (
+                                                                        <>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700">
+                                                                                    <CheckCircle2 size={13} className="text-emerald-600" /> Telah Ditandatangani
+                                                                                </span>
+                                                                                {sigImg && sigImg.startsWith('data:') && (
+                                                                                    <img src={sigImg} alt="TTD Petugas" className="h-5 max-w-[60px] object-contain border border-slate-200 bg-white rounded px-0.5" />
+                                                                                )}
+                                                                            </div>
+                                                                            {signedTime && (
+                                                                                <span className="text-[10px] text-slate-400">
+                                                                                    {formatDate(signedTime, 'datetime')}
+                                                                                </span>
+                                                                            )}
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700">
+                                                                                <Clock size={13} className="text-amber-600" /> Menunggu TTD Petugas
+                                                                            </span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    handleOpenDocument(viewingDoc);
+                                                                                    setViewingDoc(null);
+                                                                                }}
+                                                                                className="px-2.5 py-1 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all shadow-xs cursor-pointer active:scale-95"
+                                                                            >
+                                                                                Tanda Tangani
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                                 {items.length > 0 && (
@@ -2084,9 +2181,21 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                         {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category))) && viewingDoc.status !== 'REJECTED' && !viewingDoc.party2SignedAt && !viewingDoc.party2Signature && (
                             <button
                                 onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
-                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20"
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer"
                             >
                                 <UserCheck size={18} /> TTD Pihak Ke-2
+                            </button>
+                        )}
+                        {/* TTD Petugas for Surat Perintah */}
+                        {(viewingDoc.category === 'Perintah' || viewingDoc.category === 'Surat Perintah' || (typeof viewingDoc.content === 'string' && (viewingDoc.content.includes('"orderId"') || viewingDoc.content.includes('SPO-')))) && !viewingDoc.party2SignedAt && !viewingDoc.party2Signature && (!viewingDoc.content || !viewingDoc.content.includes('"assigneeSignature":"data:')) && (
+                            <button
+                                onClick={() => {
+                                    handleOpenDocument(viewingDoc);
+                                    setViewingDoc(null);
+                                }}
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 cursor-pointer active:scale-95"
+                            >
+                                <UserCheck size={18} /> TTD Surat Perintah
                             </button>
                         )}
                     </div>
@@ -2681,6 +2790,14 @@ const EOffice = () => {
                     onOrderUpdated={(updated) => {
                         setSelectedAssignmentOrder(updated);
                         fetchDocuments();
+                        if (viewingDoc) {
+                            setViewingDoc(prev => prev ? ({
+                                ...prev,
+                                party2Signature: updated.assigneeSignature || updated.party2Signature,
+                                party2SignedAt: updated.assigneeSignedAt || updated.party2SignedAt,
+                                content: JSON.stringify(updated)
+                            }) : null);
+                        }
                     }}
                 />
             )}
