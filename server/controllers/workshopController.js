@@ -308,34 +308,85 @@ exports.createOrder = async (req, res) => {
             console.error('Failed to generate automatic Surat Pesanan:', eDocErr);
         }
 
-        const recipients = await prisma.user.findMany({
+        // Cari penerima: Admin Unit di Unit ID 21 (Workshop)
+        let recipients = await prisma.user.findMany({
             where: {
-                OR: [
-                    { unitId: 21 },
-                    { role: { in: ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'] } }
-                ],
-                phone: { not: null }
+                unitId: 21,
+                role: 'ADMIN_UNIT',
+                phone: { not: null, not: '' }
             },
             select: { phone: true, name: true }
         });
 
-        if (recipients.length > 0) {
-            const appUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        // Fallback jika belum ada user dengan role ADMIN_UNIT di unit 21, cari berdasarkan posisi staf / kepala di Unit 21
+        if (recipients.length === 0) {
+            recipients = await prisma.user.findMany({
+                where: {
+                    unitId: 21,
+                    position: { in: ['Sarpras Unit', 'Kepala Unit', 'Admin Unit', 'Kepala Workshop', 'Staff Workshop'] },
+                    phone: { not: null, not: '' }
+                },
+                select: { phone: true, name: true }
+            });
+        }
+
+        // Fallback jika belum ada yang spesifik, cari user manapun yang berada di Unit 21 yang memiliki nomor HP
+        if (recipients.length === 0) {
+            recipients = await prisma.user.findMany({
+                where: {
+                    unitId: 21,
+                    phone: { not: null, not: '' }
+                },
+                select: { phone: true, name: true }
+            });
+        }
+
+        // Fallback ke nomor HP unit Workshop (Unit ID 21) dari tabel Unit jika tidak ada no hp user
+        if (recipients.length === 0) {
+            const unit21 = await prisma.unit.findFirst({
+                where: {
+                    OR: [
+                        { id: 21 },
+                        { name: { contains: 'Workshop' } }
+                    ]
+                },
+                select: { phone: true, headName: true }
+            });
+            if (unit21?.phone && unit21.phone.trim() !== '-' && unit21.phone.trim() !== '') {
+                recipients.push({ phone: unit21.phone.trim(), name: unit21.headName || 'Admin Workshop' });
+            }
+        }
+
+        // Deduplikasi dan validasi nomor HP
+        const validRecipients = [];
+        const seenPhones = new Set();
+        for (const r of recipients) {
+            const cleanPhone = (r.phone || '').trim();
+            if (cleanPhone && cleanPhone !== '-' && !seenPhones.has(cleanPhone)) {
+                seenPhones.add(cleanPhone);
+                validRecipients.push({ ...r, phone: cleanPhone });
+            }
+        }
+
+        if (validRecipients.length > 0) {
+            const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+            const requesterName = newOrder.requestedBy ? (newOrder.requestedBy.name || newOrder.requestedBy.username) : (user.name || 'Pemohon');
+            const unitName = newOrder.unit?.name || '-';
             const itemDetails = newOrder.items.map((it, idx) => `${idx + 1}. ${it.name} (${it.qty} ${it.unit})`).join('\n');
             const msg = `*Pesanan Baru Masuk ke Workshop*\n\n` +
                 `Kode: *${newOrder.code}*\n` +
                 `Judul: *${newOrder.title}*\n` +
                 `Tipe: *${newOrder.workshopType || 'Umum'}*\n` +
-                `Pemohon: *${user.name}* (${newOrder.unit?.name || '-'})\n` +
+                `Pemohon: *${requesterName}* (${unitName})\n` +
                 `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
                 `*Rincian Item*:\n${itemDetails}\n\n` +
                 `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
                 `Mohon dicek di sistem.`;
 
-            recipients.forEach(recipient => {
+            validRecipients.forEach(recipient => {
                 setTimeout(() => {
                     whatsappService.sendMessage(recipient.phone, msg).catch(console.error);
-                }, 5000);
+                }, 3000);
             });
         }
 
@@ -581,14 +632,33 @@ exports.createFromProcurement = async (req, res) => {
             }
         });
 
-        // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
-        const recipients = await prisma.user.findMany({
+        // Notify Admin Unit di Unit ID 21 (Workshop)
+        let recipients = await prisma.user.findMany({
             where: {
-                position: { in: ['Sarpras Unit', 'Kepala Unit'] },
                 unitId: 21,
+                role: 'ADMIN_UNIT',
                 phone: { not: null, not: '' }
             }
         });
+
+        if (recipients.length === 0) {
+            recipients = await prisma.user.findMany({
+                where: {
+                    unitId: 21,
+                    position: { in: ['Sarpras Unit', 'Kepala Unit', 'Admin Unit', 'Kepala Workshop', 'Staff Workshop'] },
+                    phone: { not: null, not: '' }
+                }
+            });
+        }
+
+        if (recipients.length === 0) {
+            recipients = await prisma.user.findMany({
+                where: {
+                    unitId: 21,
+                    phone: { not: null, not: '' }
+                }
+            });
+        }
 
         if (recipients.length > 0) {
             let unitName = '-';
@@ -604,7 +674,7 @@ exports.createFromProcurement = async (req, res) => {
                 itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
             }
 
-            const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+            const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
 
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
                 `Kode: *${newOrder.code}*\n` +
@@ -699,7 +769,7 @@ exports.updateOrderDetails = async (req, res) => {
                 if (picUser) {
                     const senderName = order.requestedBy ? (order.requestedBy.name || order.requestedBy.username) : 'Pemohon';
                     const unitName = order.unit ? order.unit.name : '-';
-                    const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+                    const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                     
                     let itemDetails = '';
                     if (order.items && order.items.length > 0) {
