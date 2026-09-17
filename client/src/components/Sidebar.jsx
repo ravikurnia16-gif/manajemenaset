@@ -95,11 +95,13 @@ const Sidebar = ({ isOpen = true }) => {
     const isSuperAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user?.role);
     
     const isKabidSarpras = ['KABID_SARPRAS', 'SUPER_ADMIN'].includes(role) || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    const isWorkshopUnit21 = user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop');
     
     const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
     const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'BIDANG_IT'].includes(role) || isWarehouseAdmin || isStaffSarpras;
-    const isRegularUnitUser = !['SUPER_ADMIN', 'ADMIN_ASET'].includes(role) && user?.unitId !== 21 && !isKabidSarpras;
-    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || role === 'AUDITOR';
+    const canAccessWorkshopBaru = isKabidSarpras || isAdminAset || isWorkshopUnit21;
+    const isRegularUnitUser = !['SUPER_ADMIN', 'ADMIN_ASET'].includes(role) && !isWorkshopUnit21 && !isKabidSarpras;
+    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || isWorkshopUnit21 || role === 'AUDITOR';
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR', 'BIDANG_IT'].includes(role) || isKabidSarpras || isStaffSarpras;
     const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
 
@@ -242,8 +244,8 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* Manajemen Workshop Baru (Unit 21) - Khusus Kepala Bidang Sarana */}
-                {isKabidSarpras && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (
+                {/* Manajemen Workshop Baru (Unit 21) */}
+                {canAccessWorkshopBaru && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (
                     <>
                         <Link to="/workshop-baru/dashboard" className={subNavItemClass('/workshop-baru/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard Unit 21
@@ -361,32 +363,6 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* Menu Khusus Unit untuk melihat Pesanan Workshop Unit mereka */}
-                {isRegularUnitUser && (
-                    <Link
-                        to="/workshop-baru/board"
-                        className={cn(
-                            navItemClass('/workshop-baru/board'),
-                            "border border-amber-500/30 bg-slate-800/60 hover:bg-slate-800 hover:border-amber-400 group flex items-center justify-between"
-                        )}
-                        title="Lihat status dan progres pekerjaan workshop untuk unit Anda"
-                    >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                            <HardHat size={18} className="text-amber-400 shrink-0 group-hover:rotate-12 transition-transform" />
-                            <span className={cn("transition-all duration-300 truncate font-semibold text-xs text-slate-200", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
-                                Pesanan Workshop
-                            </span>
-                        </div>
-                        {unitWorkshopOrderCount > 0 && (
-                            <span className={cn(
-                                "px-2 py-0.5 text-xs font-black bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/40 shrink-0",
-                                !isOpen ? "hidden" : "inline-block"
-                            )}>
-                                {unitWorkshopOrderCount}
-                            </span>
-                        )}
-                    </Link>
-                )}
 
 
 

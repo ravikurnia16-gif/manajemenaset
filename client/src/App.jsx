@@ -199,7 +199,9 @@ function App() {
   const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => pos.includes(kw));
 
   const isKabidSarpras = ['KABID_SARPRAS', 'SUPER_ADMIN'].includes(role) || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+  const isWorkshopUnit21 = user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop');
   const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
+  const canAccessWorkshopBaru = isKabidSarpras || isAdminAset || isWorkshopUnit21;
   const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
   const canViewEOffice = isAdminAset || pos.includes('kepala bidang sarana');
 
@@ -265,13 +267,13 @@ function App() {
           <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
 
           {/* Modul Baru: Manajemen Workshop Baru (Unit 21) */}
-          <Route path="workshop-baru/dashboard" element={isKabidSarpras ? <WorkshopBaruDashboard /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/dashboard" element={canAccessWorkshopBaru ? <WorkshopBaruDashboard /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/board" element={<WorkshopBaruBoard />} />
-          <Route path="workshop-baru/orders/new" element={isKabidSarpras ? <WorkshopBaruOrderForm /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/orders/new" element={canAccessWorkshopBaru ? <WorkshopBaruOrderForm /> : <Navigate to="/dashboard" replace />} />
           <Route path="workshop-baru/orders/:id" element={<WorkshopBaruDetail />} />
-          <Route path="workshop-baru/catalog" element={isKabidSarpras ? <WorkshopBaruCatalog /> : <Navigate to="/dashboard" replace />} />
-          <Route path="workshop-baru/export" element={isKabidSarpras ? <WorkshopBaruExport /> : <Navigate to="/dashboard" replace />} />
-          <Route path="workshop-baru/settings" element={isKabidSarpras ? <WorkshopBaruSettings /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/catalog" element={canAccessWorkshopBaru ? <WorkshopBaruCatalog /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/export" element={canAccessWorkshopBaru ? <WorkshopBaruExport /> : <Navigate to="/dashboard" replace />} />
+          <Route path="workshop-baru/settings" element={canAccessWorkshopBaru ? <WorkshopBaruSettings /> : <Navigate to="/dashboard" replace />} />
 
           <Route path="settings" element={<Settings />} />
 
