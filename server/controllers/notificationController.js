@@ -61,13 +61,29 @@ exports.deleteNotification = async (req, res) => {
 // Utility function to be used by other controllers
 exports.createNotification = async (userId, title, message, type = 'INFO', link = null) => {
     try {
+        let payload = { userId, title, message, type, link };
+        if (typeof userId === 'object' && userId !== null) {
+            payload = {
+                userId: userId.userId,
+                title: userId.title,
+                message: userId.message,
+                type: userId.type || 'INFO',
+                link: userId.link || null
+            };
+        }
+
+        if (!payload.userId || !payload.title || !payload.message) {
+            console.warn('[Notification] Incomplete notification payload:', payload);
+            return null;
+        }
+
         return await prisma.notification.create({
             data: {
-                userId,
-                title,
-                message,
-                type,
-                link
+                userId: parseInt(payload.userId),
+                title: String(payload.title),
+                message: String(payload.message),
+                type: payload.type || 'INFO',
+                link: payload.link || null
             }
         });
     } catch (error) {

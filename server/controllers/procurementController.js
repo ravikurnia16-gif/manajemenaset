@@ -2428,13 +2428,13 @@ exports.notifyPrintAssignmentOrder = async (req, res) => {
 
         // Kirim juga notifikasi internal ke web app
         try {
-            await createNotification({
-                userId: assignee.id,
-                title: 'Surat Perintah Pengadaan Dicetak',
-                message: `Surat Perintah No. ${orderData.orderNumber || '-'} (${procurement.code}) telah dicetak untuk diproses.`,
-                type: 'PROCUREMENT',
-                link: `/procurements/${procurement.id}`
-            });
+            await createNotification(
+                assignee.id,
+                'Surat Perintah Pengadaan Dicetak',
+                `Surat Perintah No. ${orderData.orderNumber || '-'} (${procurement.code}) telah dicetak untuk diproses.`,
+                'PROCUREMENT',
+                `/procurements/${procurement.id}`
+            );
         } catch (notifErr) {
             console.error('Error creating internal notification:', notifErr);
         }
