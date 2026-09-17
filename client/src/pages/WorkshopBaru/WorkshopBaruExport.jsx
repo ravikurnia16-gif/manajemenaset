@@ -13,7 +13,8 @@ import {
     DollarSign,
     Layers,
     FileText,
-    Loader2
+    Loader2,
+    UserCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
@@ -27,6 +28,11 @@ export default function WorkshopBaruExport() {
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [exportingPDF, setExportingPDF] = useState(false);
+    const [signatory, setSignatory] = useState({
+        name: '',
+        niy: '',
+        position: 'Kepala Workshop'
+    });
 
     // Filter states
     const [startDate, setStartDate] = useState('');
@@ -43,12 +49,93 @@ export default function WorkshopBaruExport() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [ordersRes, unitsRes] = await Promise.all([
+            const [ordersRes, unitsRes, settingsUnitRes, usersRes] = await Promise.allSettled([
                 api.get('/workshop/orders'),
-                api.get('/master/units')
+                api.get('/master/units'),
+                api.get('/workshop/settings-unit'),
+                api.get('/users')
             ]);
-            setOrders(ordersRes.data || []);
-            setUnits(unitsRes.data || []);
+
+            if (ordersRes.status === 'fulfilled') {
+                setOrders(ordersRes.value.data || []);
+            }
+            if (unitsRes.status === 'fulfilled') {
+                setUnits(unitsRes.value.data || []);
+            }
+
+            const allUnits = unitsRes.status === 'fulfilled' ? (unitsRes.value.data || []) : [];
+            const allUsers = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value.data) ? usersRes.value.data : [];
+            const unit21Data = settingsUnitRes.status === 'fulfilled' ? (settingsUnitRes.value.data?.unit21 || {}) : {};
+            const unit21Users = settingsUnitRes.status === 'fulfilled' ? (settingsUnitRes.value.data?.unit21Users || []) : [];
+
+            // Gabungkan user dari /users dan unit21Users
+            const mergedUsers = [...allUsers];
+            if (Array.isArray(unit21Users)) {
+                unit21Users.forEach(u => {
+                    if (!mergedUsers.some(ex => ex.id === u.id)) {
+                        mergedUsers.push(u);
+                    }
+                });
+            }
+
+            // Identifikasi Kepala Unit ID 21 (Workshop)
+            // 1. Prioritas utama: User di Unit 21 yang position-nya mengandung "Kepala Unit"
+            let head = mergedUsers.find(u => 
+                (u.unitId === 21 || (u.unit?.name || '').toLowerCase().includes('workshop')) &&
+                u.position && u.position.toLowerCase().includes('kepala unit')
+            );
+
+            // 2. Prioritas kedua: User di Unit 21 yang position-nya mengandung "Kepala Workshop" atau "Kepala"
+            if (!head) {
+                head = mergedUsers.find(u => 
+                    (u.unitId === 21 || (u.unit?.name || '').toLowerCase().includes('workshop')) &&
+                    u.position && (
+                        u.position.toLowerCase().includes('kepala workshop') ||
+                        u.position.toLowerCase().includes('kepala') ||
+                        u.position.toLowerCase().includes('pimpinan')
+                    )
+                );
+            }
+
+            // 3. Prioritas ketiga: User yang cocok dengan pengaturan headName/headNip di database Unit 21
+            if (!head && (unit21Data?.headName || unit21Data?.headNip)) {
+                head = mergedUsers.find(u => 
+                    (unit21Data.headName && u.name && u.name.trim().toLowerCase() === unit21Data.headName.trim().toLowerCase()) ||
+                    (unit21Data.headNip && unit21Data.headNip !== '-' && (u.nip === unit21Data.headNip || u.username === unit21Data.headNip))
+                );
+            }
+
+            // 4. Prioritas keempat: Cek data master unit jika ada headName/headNip
+            const masterUnit21 = allUnits.find(u => u.id === 21 || (u.name || '').toLowerCase().includes('workshop'));
+            if (!head && masterUnit21 && (masterUnit21.headName || masterUnit21.headNip)) {
+                head = mergedUsers.find(u => 
+                    (masterUnit21.headName && u.name && u.name.trim().toLowerCase() === masterUnit21.headName.trim().toLowerCase()) ||
+                    (masterUnit21.headNip && masterUnit21.headNip !== '-' && (u.nip === masterUnit21.headNip || u.username === masterUnit21.headNip))
+                );
+            }
+
+            // 5. Prioritas kelima: User di Unit 21 dengan role ADMIN_UNIT
+            if (!head) {
+                head = mergedUsers.find(u => 
+                    (u.unitId === 21 || (u.unit?.name || '').toLowerCase().includes('workshop')) &&
+                    u.role === 'ADMIN_UNIT'
+                );
+            }
+
+            // 6. Fallback: User mana pun di Unit 21
+            if (!head) {
+                head = mergedUsers.find(u => u.unitId === 21 || (u.unit?.name || '').toLowerCase().includes('workshop'));
+            }
+
+            const headName = head?.name || unit21Data?.headName || masterUnit21?.headName || 'Kepala Workshop';
+            const headNiy = head?.nip || head?.username || unit21Data?.headNip || masterUnit21?.headNip || '';
+            const headPosition = head?.position || 'Kepala Workshop';
+
+            setSignatory({
+                name: headName,
+                niy: headNiy && headNiy !== '-' ? headNiy : '',
+                position: headPosition
+            });
         } catch (error) {
             console.error('Failed to load orders for export:', error);
             Swal.fire('Error', 'Gagal memuat data pekerjaan workshop.', 'error');
@@ -160,11 +247,11 @@ export default function WorkshopBaruExport() {
             const pageW = doc.internal.pageSize.getWidth();
             const pageH = doc.internal.pageSize.getHeight();
 
-            // KOP SURAT BIDANG SARANA
+            // KOP SURAT BIDANG WORKSHOP
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(14);
             doc.setTextColor(15, 23, 42); // slate-900
-            doc.text('BIDANG SARANA', pageW / 2, 14, { align: 'center' });
+            doc.text('BIDANG WORKSHOP', pageW / 2, 14, { align: 'center' });
 
             doc.setFontSize(9);
             doc.setTextColor(30, 58, 138); // blue-900
@@ -173,21 +260,20 @@ export default function WorkshopBaruExport() {
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
             doc.setTextColor(71, 85, 105); // slate-600
-            doc.text('Unit Pelaksana Teknis Workshop & Fabrikasi (Unit 21)', pageW / 2, 23, { align: 'center' });
-            doc.text('Jl. Gunuang Juaro, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat', pageW / 2, 27, { align: 'center' });
+            doc.text('Jl. Gunuang Juaro, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat', pageW / 2, 24, { align: 'center' });
 
             // Garis pembatas kop
             doc.setDrawColor(15, 23, 42);
             doc.setLineWidth(0.7);
-            doc.line(14, 30, pageW - 14, 30);
+            doc.line(14, 27, pageW - 14, 27);
             doc.setLineWidth(0.2);
-            doc.line(14, 31, pageW - 14, 31);
+            doc.line(14, 28, pageW - 14, 28);
 
             // JUDUL DOKUMEN
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
             doc.setTextColor(15, 23, 42);
-            doc.text('REKAPITULASI LAPORAN PEKERJAAN WORKSHOP', pageW / 2, 38, { align: 'center' });
+            doc.text('REKAPITULASI LAPORAN PEKERJAAN WORKSHOP', pageW / 2, 35, { align: 'center' });
 
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
@@ -195,16 +281,16 @@ export default function WorkshopBaruExport() {
             const periodStr = (startDate || endDate) 
                 ? `Periode: ${startDate ? new Date(startDate).toLocaleDateString('id-ID') : 'Awal'} s.d. ${endDate ? new Date(endDate).toLocaleDateString('id-ID') : 'Sekarang'}`
                 : `Semua Periode Pengerjaan (Dicetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})`;
-            doc.text(periodStr, pageW / 2, 43, { align: 'center' });
+            doc.text(periodStr, pageW / 2, 40, { align: 'center' });
 
             // METRIC SUMMARY BOXES
             doc.setFillColor(248, 250, 252);
-            doc.roundedRect(14, 47, pageW - 28, 12, 2, 2, 'F');
+            doc.roundedRect(14, 44, pageW - 28, 12, 2, 2, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(8);
             doc.setTextColor(30, 41, 59);
 
-            const mY = 54;
+            const mY = 51;
             doc.text(`Total Pekerjaan: ${totalJobs}`, 20, mY);
             doc.text(`Selesai: ${completedJobs}`, 70, mY);
             doc.text(`Sedang Dikerjakan: ${inProgressJobs}`, 110, mY);
@@ -229,7 +315,7 @@ export default function WorkshopBaruExport() {
             ]);
 
             autoTable(doc, {
-                startY: 63,
+                startY: 60,
                 head: tableHeaders,
                 body: tableData,
                 theme: 'grid',
@@ -258,10 +344,10 @@ export default function WorkshopBaruExport() {
                 margin: { left: 14, right: 14, bottom: 45 }
             });
 
-            // BLOK TANDA TANGAN RESMI KEPALA BIDANG SARANA
+            // BLOK TANDA TANGAN RESMI KEPALA WORKSHOP
             const finalY = doc.lastAutoTable.finalY + 8;
-            const signY = (finalY + 35 > pageH) ? 14 : finalY;
-            if (finalY + 35 > pageH) {
+            const signY = (finalY + 38 > pageH) ? 14 : finalY;
+            if (finalY + 38 > pageH) {
                 doc.addPage();
             }
 
@@ -275,17 +361,29 @@ export default function WorkshopBaruExport() {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(15, 23, 42);
-            doc.text('Kepala Bidang Sarana', signX + 15, signY + 9, { align: 'center' });
+            doc.text('Kepala Workshop', signX + 15, signY + 9, { align: 'center' });
 
-            // Tanda tangan nama
+            // Tanda tangan nama (User dengan position Kepala Unit di Unit 21)
+            const signName = signatory.name || 'Kepala Workshop';
             doc.setFontSize(9);
-            doc.text('Ravi Kurnia', signX + 15, signY + 30, { align: 'center' });
+            doc.text(signName, signX + 15, signY + 30, { align: 'center' });
+
+            // Garis bawah nama
+            const nameWidth = doc.getTextWidth(signName);
+            const lineLen = Math.max(32, nameWidth + 2);
             doc.setLineWidth(0.3);
-            doc.line(signX, signY + 31, signX + 30, signY + 31);
+            doc.setDrawColor(15, 23, 42);
+            doc.line(signX + 15 - (lineLen / 2), signY + 31, signX + 15 + (lineLen / 2), signY + 31);
+
+            // Baris NIY Sesuai User
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(7.5);
-            doc.setTextColor(100, 116, 139);
-            doc.text('Yayasan Dar El-Iman', signX + 15, signY + 35, { align: 'center' });
+            doc.setTextColor(71, 85, 105);
+            const cleanNiy = (signatory.niy || '').trim();
+            const niyText = cleanNiy 
+                ? (cleanNiy.toUpperCase().startsWith('NIY') || cleanNiy.toUpperCase().startsWith('NIP') ? cleanNiy : `NIY. ${cleanNiy}`)
+                : 'NIY. -';
+            doc.text(niyText, signX + 15, signY + 35, { align: 'center' });
 
             // FOOTER & NOMOR HALAMAN
             const totalPages = doc.internal.getNumberOfPages();
@@ -294,7 +392,7 @@ export default function WorkshopBaruExport() {
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(7);
                 doc.setTextColor(148, 163, 184);
-                doc.text(`Halaman ${i} dari ${totalPages}  |  Sistem Informasi Manajemen Workshop Unit 21 - Bidang Sarana`, pageW / 2, pageH - 6, { align: 'center' });
+                doc.text(`Halaman ${i} dari ${totalPages}  |  Sistem Informasi Manajemen Workshop Unit 21`, pageW / 2, pageH - 6, { align: 'center' });
             }
 
             doc.save(`Rekap_Pekerjaan_Workshop_${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -323,7 +421,7 @@ export default function WorkshopBaruExport() {
                             <FileSpreadsheet className="text-emerald-600" size={24} /> Ekspor Laporan Pekerjaan Workshop
                         </h1>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Rekapitulasi resmi pekerjaan fabrikasi Unit 21 dengan Kop Bidang Sarana dan format PDF/Excel
+                            Rekapitulasi resmi pekerjaan fabrikasi Unit 21 dengan Kop Bidang Workshop dan format PDF/Excel
                         </p>
                     </div>
                 </div>
@@ -342,7 +440,7 @@ export default function WorkshopBaruExport() {
                         onClick={handleExportPDF}
                         disabled={exportingPDF}
                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50 hover:scale-105"
-                        title="Unduh Dokumen PDF Resmi Kop Bidang Sarana"
+                        title="Unduh Dokumen PDF Resmi Kop Bidang Workshop"
                     >
                         {exportingPDF ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
                         {exportingPDF ? 'Mengekspor PDF...' : 'Ekspor PDF Resmi'}
@@ -384,6 +482,37 @@ export default function WorkshopBaruExport() {
                         Rp {totalEstimated.toLocaleString('id-ID')}
                     </p>
                     <p className="text-[10px] text-slate-400">Estimasi biaya material</p>
+                </div>
+            </div>
+
+            {/* Informasi Penandatangan Dokumen (Kepala Workshop / Kepala Unit 21) */}
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/70 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <UserCheck size={18} />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Penandatangan Laporan PDF Resmi</span>
+                            <span className="px-2 py-0.5 text-[9px] font-extrabold bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300/60">
+                                Kepala Unit 21 Teridentifikasi
+                            </span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-800">
+                            {signatory.name || 'Kepala Workshop'}
+                            {signatory.niy && (
+                                <span className="text-slate-600 font-mono font-medium ml-2">
+                                    ({signatory.niy.toUpperCase().startsWith('NIY') ? signatory.niy : `NIY. ${signatory.niy}`})
+                                </span>
+                            )}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-600 self-start sm:self-auto">
+                    <span className="text-[11px] font-medium text-slate-500">Format Pengesahan Dokumen:</span>
+                    <span className="px-2.5 py-1 bg-white font-bold text-slate-800 rounded-lg border border-slate-200 shadow-2xs text-[11px]">
+                        Mengetahui, Kepala Workshop
+                    </span>
                 </div>
             </div>
 
