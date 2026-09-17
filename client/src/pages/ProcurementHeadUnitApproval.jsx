@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../lib/axios';
 import { 
     CheckCircle2, AlertCircle, FileText, Building2, User, Calendar, 
     ShieldCheck, Clock, ArrowRight, Printer, Sparkles 
 } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 import ProcurementLetterModal from '../components/ProcurementLetterModal';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const ProcurementHeadUnitApproval = () => {
     const { batchId } = useParams();
@@ -32,7 +30,7 @@ const ProcurementHeadUnitApproval = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await axios.get(`${API_URL}/procurements/public/head-unit-approval/${batchId}`);
+            const res = await api.get(`/procurements/public/head-unit-approval/${batchId}`);
             setData(res.data);
             if (res.data.letterData?.headUnitName) {
                 setHeadUnitName(res.data.letterData.headUnitName);
@@ -48,15 +46,9 @@ const ProcurementHeadUnitApproval = () => {
         }
     };
 
-    const handleSaveSignature = (sigDataUrl) => {
+    const handleSaveSignature = async (sigDataUrl) => {
+        if (!sigDataUrl) return;
         setSignature(sigDataUrl);
-    };
-
-    const handleSubmitApproval = async () => {
-        if (!signature) {
-            alert('Silakan bubuhkan atau muat tanda tangan Anda terlebih dahulu.');
-            return;
-        }
 
         if (!headUnitName.trim()) {
             alert('Nama Kepala Unit wajib diisi.');
@@ -65,8 +57,8 @@ const ProcurementHeadUnitApproval = () => {
 
         setSubmitting(true);
         try {
-            const res = await axios.post(`${API_URL}/procurements/public/head-unit-approval/${batchId}`, {
-                signature,
+            const res = await api.post(`/procurements/public/head-unit-approval/${batchId}`, {
+                signature: sigDataUrl,
                 headUnitName: headUnitName.trim()
             });
 

@@ -2455,11 +2455,12 @@ exports.notifyPrintAssignmentOrder = async (req, res) => {
  */
 exports.getPublicAssignmentOrder = async (req, res) => {
     const { orderId } = req.params;
+    const cleanOrderId = decodeURIComponent(orderId || '').trim();
     try {
         const progressEntry = await prisma.procurementProgress.findFirst({
             where: {
                 type: 'ASSIGNMENT_ORDER',
-                message: { contains: `"${orderId}"` }
+                message: { contains: cleanOrderId }
             },
             include: {
                 procurement: {
@@ -2528,6 +2529,7 @@ exports.getPublicAssignmentOrder = async (req, res) => {
 exports.signPublicAssignmentOrder = async (req, res) => {
     const { orderId } = req.params;
     const { signature } = req.body;
+    const cleanOrderId = decodeURIComponent(orderId || '').trim();
 
     if (!signature) {
         return res.status(400).json({ error: 'Tanda tangan wajib dibubuhkan.' });
@@ -2537,7 +2539,7 @@ exports.signPublicAssignmentOrder = async (req, res) => {
         const progressEntry = await prisma.procurementProgress.findFirst({
             where: {
                 type: 'ASSIGNMENT_ORDER',
-                message: { contains: `"${orderId}"` }
+                message: { contains: cleanOrderId }
             },
             include: {
                 procurement: true

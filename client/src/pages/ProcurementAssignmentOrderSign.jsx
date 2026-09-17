@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../lib/axios';
 import { 
     CheckCircle2, AlertCircle, FileText, Printer, Clock, 
     ShieldCheck, ArrowRight, Sparkles, PenTool, ExternalLink 
 } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const ProcurementAssignmentOrderSign = () => {
     const { orderId } = useParams();
@@ -30,7 +28,7 @@ const ProcurementAssignmentOrderSign = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await axios.get(`${API_URL}/procurements/public/assignment-orders/${orderId}`);
+            const res = await api.get(`/procurements/public/assignment-orders/${orderId}`);
             setOrderData(res.data.order);
             setProcurement(res.data.procurement);
             if (res.data.order?.assigneeSignature) {
@@ -48,7 +46,7 @@ const ProcurementAssignmentOrderSign = () => {
         if (!sigDataUrl) return;
         setSubmitting(true);
         try {
-            const res = await axios.post(`${API_URL}/procurements/public/assignment-orders/${orderId}/sign`, {
+            const res = await api.post(`/procurements/public/assignment-orders/${orderId}/sign`, {
                 signature: sigDataUrl
             });
             setOrderData(res.data.order);
