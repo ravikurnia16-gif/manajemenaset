@@ -84,7 +84,7 @@ const generateUnitLetterNumber = async (unitId) => {
                         maxSeq = seq;
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
     } catch (e) {
         console.error('Error querying letter logs for seq:', e);
@@ -97,7 +97,7 @@ const generateUnitLetterNumber = async (unitId) => {
                 where: { unitId: parseInt(unitId), createdAt: { gte: yearStart, lt: yearEnd } }
             });
             maxSeq = count;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     const nextSeq = maxSeq + 1;
@@ -319,7 +319,7 @@ exports.getProcurementById = async (req, res) => {
         if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
             try {
                 bastSignatures = JSON.parse(procurement.bastFile);
-            } catch (e) {}
+            } catch (e) { }
         }
 
         const letterProgress = procurement.progress?.find(p => p.type === 'LETTER' || p.message?.startsWith('[SURAT_PERMOHONAN]'));
@@ -327,7 +327,7 @@ exports.getProcurementById = async (req, res) => {
         if (letterProgress) {
             try {
                 requestLetter = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
-            } catch (e) {}
+            } catch (e) { }
         }
 
         res.json({
@@ -344,7 +344,7 @@ exports.getProcurementById = async (req, res) => {
 
 // Create Request
 exports.createProcurement = async (req, res) => {
-    const { 
+    const {
         title, type, items, rkbId, isDirectOrder, assignedStaffId, notes,
         requesterSignature, headUnitName, headUnitPhone, letterNumber: customLetterNumber,
         headUnitSignature, kabidName
@@ -363,7 +363,7 @@ exports.createProcurement = async (req, res) => {
         }
 
         const isDirect = (isDirectOrder === true || isDirectOrder === 'true') && (user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana');
-        
+
         // Cek apakah Kepala Unit sudah menandatangani saat submit
         const isHeadUnitSigned = !!headUnitSignature;
         // Jika Direct Order atau sudah di-approve Kepala Unit -> langsung SUBMITTED/APPROVED
@@ -533,11 +533,11 @@ exports.createProcurement = async (req, res) => {
             }
         }
 
-        res.json({ 
-            message: `${results.length} Request(s) submitted`, 
+        res.json({
+            message: `${results.length} Request(s) submitted`,
             batchId,
             letterNumber,
-            data: results 
+            data: results
         });
 
         // --- ASYNC NOTIFICATIONS & WA WORKFLOW ---
@@ -611,7 +611,7 @@ exports.createProcurement = async (req, res) => {
                         await whatsappService.sendMessage(headUnitPhoneTarget, msgHead).catch(console.error);
                         console.log(`[WA] Sent approval link to Kepala Unit (${headUnitPhoneTarget}) for batch ${batchId}`);
                     }
-                } 
+                }
                 // KASUS 2: Sudah ditandatangani Kepala Unit atau Direct Order
                 // -> Kirim notifikasi ke Kepala Bidang Sarana & Staff Manajemen Aset
                 else if (isDirect || isHeadUnitSigned) {
@@ -770,9 +770,8 @@ exports.importProcurement = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { position: 'Kepala Bidang Sarana' }, // Ravi Kurnia
-                            { position: 'Staff Manajemen Aset' }, // Eldo
-                            { position: 'Staff Keuangan' }  // Syafrian
+                            { position: 'Kepala Bidang Sarana' },
+                            { position: 'Staff Manajemen Aset' },
                         ],
                         phone: { not: null, not: '' }
                     }
@@ -1138,7 +1137,7 @@ exports.updateBASTSignatures = async (req, res) => {
 
         let existing = {};
         if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
-            try { existing = JSON.parse(procurement.bastFile); } catch (e) {}
+            try { existing = JSON.parse(procurement.bastFile); } catch (e) { }
         } else if (procurement.bastFile) {
             existing.fileUrl = procurement.bastFile;
         }
@@ -1217,7 +1216,7 @@ exports.processBAST = async (req, res) => {
 
         let parsedSigs = {};
         if (typeof bastSignatures === 'string') {
-            try { parsedSigs = JSON.parse(bastSignatures); } catch (e) {}
+            try { parsedSigs = JSON.parse(bastSignatures); } catch (e) { }
         } else if (typeof bastSignatures === 'object' && bastSignatures !== null) {
             parsedSigs = bastSignatures;
         }
@@ -1607,7 +1606,7 @@ exports.addProgress = async (req, res) => {
 
                 if (isUserReporter) {
                     const lastAdminMessage = await prisma.procurementProgress.findFirst({
-                        where: { 
+                        where: {
                             procurementId: parseInt(id),
                             userId: { not: user.id }
                         },
@@ -1733,7 +1732,7 @@ exports.getHeadUnitApprovalData = async (req, res) => {
         let letterData = {};
         try {
             letterData = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
-        } catch (e) {}
+        } catch (e) { }
 
         res.json({
             batchId,
@@ -1791,7 +1790,7 @@ exports.processHeadUnitApproval = async (req, res) => {
             let letterData = {};
             try {
                 letterData = JSON.parse(entry.message.replace('[SURAT_PERMOHONAN]', '').trim());
-            } catch (e) {}
+            } catch (e) { }
 
             letterData.headUnitSignature = signature;
             letterData.headUnitApprovedAt = approvedAt;
@@ -1896,7 +1895,7 @@ exports.updateRequestLetter = async (req, res) => {
         let letterData = {};
         try {
             letterData = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
-        } catch (e) {}
+        } catch (e) { }
 
         if (kabidTte !== undefined) {
             letterData.kabidTte = !!kabidTte;
@@ -1950,39 +1949,55 @@ exports.updateRequestLetter = async (req, res) => {
  * - If Staff Manajemen Aset assigns themselves, assigner is automatically Kepala Bidang Sarana.
  */
 const resolveAssigner = async (currentUser, assigneeId) => {
-    const pos = (currentUser.position || '').toLowerCase();
-    const role = (currentUser.role || '').toUpperCase();
-    const isKabid = pos.includes('kepala bidang sarana') || role === 'SUPER_ADMIN' || role === 'KEPALA_BIDANG';
+    const pos = (currentUser?.position || '').toLowerCase();
+    const role = (currentUser?.role || '').toUpperCase();
+    const isKabid = pos.includes('kepala bidang sarana') || role === 'SUPER_ADMIN' || role === 'KEPALA_BIDANG' || role === 'KABID_SARPRAS';
     const isStaffAset = pos.includes('staff manajemen aset') || role === 'ADMIN_ASET';
 
     if (!isKabid && !isStaffAset) {
         throw new Error('Hanya Kepala Bidang Sarana atau Staff Manajemen Aset yang berwenang memberikan surat perintah penugasan.');
     }
 
-    // Jika Staff Manajemen Aset menugaskan kepada dirinya sendiri -> pemberi tugas adalah Kepala Bidang Sarana
-    if (isStaffAset && parseInt(assigneeId) === currentUser.id) {
-        let kabidUser = await prisma.user.findFirst({
-            where: {
-                OR: [
-                    { position: 'Kepala Bidang Sarana' },
-                    { position: { contains: 'Kepala Bidang Sarana' } },
-                    { role: 'KEPALA_BIDANG' }
-                ]
-            }
-        });
-        if (!kabidUser) {
-            kabidUser = await prisma.user.findFirst({
-                where: { role: 'SUPER_ADMIN' }
-            });
+    // Selalu prioritaskan akun resmi Kepala Bidang Sarana dari database
+    let kabidUser = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { position: 'Kepala Bidang Sarana' },
+                { position: { contains: 'Kepala Bidang Sarana' } }
+            ]
         }
-        if (!kabidUser) {
-            throw new Error('User dengan jabatan Kepala Bidang Sarana tidak ditemukan untuk mengesahkan penugasan ini.');
+    });
+
+    // Jika currentUser memang Kepala Bidang Sarana, ambil data lengkapnya dari DB
+    if (currentUser?.id) {
+        const fullCurrent = await prisma.user.findUnique({ where: { id: currentUser.id } });
+        const curPos = (fullCurrent?.position || '').toLowerCase();
+        if (curPos.includes('kepala bidang sarana')) {
+            kabidUser = fullCurrent;
         }
-        return kabidUser;
     }
 
-    // Jika menugaskan staf lain, atau yang menugaskan adalah Kepala Bidang Sarana
-    return currentUser;
+    if (kabidUser) {
+        return {
+            id: kabidUser.id,
+            name: kabidUser.name || kabidUser.username || '',
+            nip: kabidUser.nip || '-',
+            position: 'Kepala Bidang Sarana'
+        };
+    }
+
+    // Fallback jika belum ada record akun Kepala Bidang Sarana di DB
+    let fallbackUser = null;
+    if (currentUser?.id) {
+        fallbackUser = await prisma.user.findUnique({ where: { id: currentUser.id } });
+    }
+
+    return {
+        id: fallbackUser?.id || currentUser?.id || null,
+        name: fallbackUser?.name || fallbackUser?.username || currentUser?.name || currentUser?.username || '',
+        nip: fallbackUser?.nip || currentUser?.nip || '-',
+        position: 'Kepala Bidang Sarana'
+    };
 };
 
 /**
@@ -2009,15 +2024,45 @@ exports.getAssignmentOrders = async (req, res) => {
 
         // Parse existing assignment orders
         const orders = [];
+        let defaultKabid = null;
         for (const p of procurement.progress) {
             try {
                 const data = JSON.parse(p.message.replace('[SURAT_PERINTAH]', '').trim());
+                // Pastikan nama dan NIY pemberi tugas diambil dari User yang berposisi Kepala Bidang Sarana
+                if (!data.assigner?.name || data.assigner.name === 'Pemberi Tugas' || data.assigner.name === 'Kepala Bidang Sarana' || !data.assigner.nip) {
+                    if (!defaultKabid) {
+                        defaultKabid = await prisma.user.findFirst({
+                            where: {
+                                OR: [
+                                    { position: 'Kepala Bidang Sarana' },
+                                    { position: { contains: 'Kepala Bidang Sarana' } }
+                                ]
+                            }
+                        });
+                    }
+                    if (defaultKabid) {
+                        data.assigner = {
+                            ...(data.assigner || {}),
+                            id: defaultKabid.id,
+                            name: defaultKabid.name || defaultKabid.username || '',
+                            nip: defaultKabid.nip || '-',
+                            position: 'Kepala Bidang Sarana'
+                        };
+                    } else {
+                        data.assigner = {
+                            ...(data.assigner || {}),
+                            name: data.assigner?.name || '',
+                            nip: data.assigner?.nip || '-',
+                            position: 'Kepala Bidang Sarana'
+                        };
+                    }
+                }
                 orders.push({
                     ...data,
                     progressId: p.id,
                     createdAt: p.createdAt
                 });
-            } catch (e) {}
+            } catch (e) { }
         }
 
         res.json(orders);
@@ -2087,7 +2132,7 @@ exports.createAssignmentOrder = async (req, res) => {
             try {
                 const lData = JSON.parse(procurement.progress[0].message.replace('[SURAT_PERMOHONAN]', '').trim());
                 if (lData.letterNumber) requestLetterNumber = lData.letterNumber;
-            } catch (e) {}
+            } catch (e) { }
         }
 
         // Generate E-Office Document Number for Category 'Perintah'
@@ -2117,9 +2162,9 @@ exports.createAssignmentOrder = async (req, res) => {
             createdAt: new Date().toISOString(),
             assigner: {
                 id: assigner.id,
-                name: assigner.name || assigner.username,
-                nip: assigner.nip || assigner.username || '-',
-                position: assigner.position || 'Kepala Bidang Sarana'
+                name: assigner.name || assigner.username || '',
+                nip: assigner.nip || '-',
+                position: 'Kepala Bidang Sarana'
             },
             assignee: {
                 id: assignee.id,
@@ -2252,7 +2297,7 @@ exports.signAssignmentOrder = async (req, res) => {
         let orderData = {};
         try {
             orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
-        } catch (e) {}
+        } catch (e) { }
 
         const signedAt = new Date().toISOString();
         orderData.assigneeSignature = signature;
@@ -2305,6 +2350,106 @@ exports.signAssignmentOrder = async (req, res) => {
 };
 
 /**
+ * POST /api/procurements/:id/assignment-orders/:orderId/notify-print
+ * Triggered when "Cetak SPP" is clicked.
+ * Sends WhatsApp notification to the assigned staff reminding them to review/sign the order if not signed yet.
+ */
+exports.notifyPrintAssignmentOrder = async (req, res) => {
+    const { id, orderId } = req.params;
+    const currentUser = req.user;
+
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: { unit: true }
+        });
+
+        if (!procurement) {
+            return res.status(404).json({ error: 'Pengadaan tidak ditemukan.' });
+        }
+
+        const progressEntry = await prisma.procurementProgress.findFirst({
+            where: {
+                procurementId: parseInt(id),
+                type: 'ASSIGNMENT_ORDER',
+                message: { contains: `"${orderId}"` }
+            }
+        });
+
+        if (!progressEntry) {
+            return res.status(404).json({ error: 'Surat Perintah Pengadaan tidak ditemukan.' });
+        }
+
+        let orderData = {};
+        try {
+            orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
+        } catch (e) {}
+
+        const assigneeId = orderData.assignee?.id;
+        if (!assigneeId) {
+            return res.json({ message: 'Petugas belum ditentukan.' });
+        }
+
+        const assignee = await prisma.user.findUnique({
+            where: { id: parseInt(assigneeId) }
+        });
+
+        if (!assignee) {
+            return res.json({ message: 'Data petugas tidak ditemukan.' });
+        }
+
+        // Kirim WhatsApp jika nomor telepon tersedia
+        if (assignee.phone) {
+            const clientUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+            const signUrl = `${clientUrl}/public/perintah-pengadaan/${orderId}`;
+            const isSigned = !!orderData.assigneeSignature;
+
+            let msg = `Bismillah.\n*Pemberitahuan Surat Perintah Pengadaan (SPP)* 🖨️📋\n\n` +
+                `Halo *${assignee.name || assignee.username}*,\n` +
+                `Surat Perintah Tugas Pengadaan Anda telah dicetak oleh *${currentUser?.name || currentUser?.username || 'Admin'}* untuk ditindaklanjuti:\n\n` +
+                `📄 *No. Surat* : ${orderData.orderNumber || '-'}\n` +
+                `🔖 *No. Pengadaan* : ${procurement.code}\n` +
+                `🏢 *Unit Pemohon* : ${procurement.unit?.name || 'Unit'}\n` +
+                `📋 *Perihal* : ${procurement.title || 'Pengadaan Barang'}\n\n`;
+
+            if (!isSigned) {
+                msg += `⚠️ *Status Tanda Tangan: Belum Ditandatangani*\n` +
+                    `Mohon untuk segera memeriksa dan menandatangani lembar Surat Perintah Pengadaan melalui tautan resmi berikut:\n` +
+                    `🔗 ${signUrl}\n\n`;
+            } else {
+                msg += `✅ *Status: Sudah Ditandatangani.*\n` +
+                    `🔗 Anda dapat melihat arsip Surat Perintah di:\n${signUrl}\n\n`;
+            }
+
+            msg += `Syukron wa barakallahu fiik.`;
+
+            await whatsappService.sendMessage(assignee.phone, msg);
+        }
+
+        // Kirim juga notifikasi internal ke web app
+        try {
+            await createNotification({
+                userId: assignee.id,
+                title: 'Surat Perintah Pengadaan Dicetak',
+                message: `Surat Perintah No. ${orderData.orderNumber || '-'} (${procurement.code}) telah dicetak untuk diproses.`,
+                type: 'PROCUREMENT',
+                link: `/procurements/${procurement.id}`
+            });
+        } catch (notifErr) {
+            console.error('Error creating internal notification:', notifErr);
+        }
+
+        res.json({
+            success: true,
+            message: `Pemberitahuan telah dikirim ke WhatsApp petugas ${assignee.name || assignee.username}.`
+        });
+    } catch (error) {
+        console.error('notifyPrintAssignmentOrder error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
  * GET /api/procurements/public/assignment-orders/:orderId
  * Fetch order data for public signing page
  */
@@ -2333,7 +2478,33 @@ exports.getPublicAssignmentOrder = async (req, res) => {
         let orderData = {};
         try {
             orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
-        } catch (e) {}
+            if (!orderData.assigner?.name || orderData.assigner.name === 'Pemberi Tugas' || orderData.assigner.name === 'Kepala Bidang Sarana' || !orderData.assigner.nip) {
+                const kabidUser = await prisma.user.findFirst({
+                    where: {
+                        OR: [
+                            { position: 'Kepala Bidang Sarana' },
+                            { position: { contains: 'Kepala Bidang Sarana' } }
+                        ]
+                    }
+                });
+                if (kabidUser) {
+                    orderData.assigner = {
+                        ...(orderData.assigner || {}),
+                        id: kabidUser.id,
+                        name: kabidUser.name || kabidUser.username || '',
+                        nip: kabidUser.nip || '-',
+                        position: 'Kepala Bidang Sarana'
+                    };
+                } else {
+                    orderData.assigner = {
+                        ...(orderData.assigner || {}),
+                        name: orderData.assigner?.name || '',
+                        nip: orderData.assigner?.nip || '-',
+                        position: 'Kepala Bidang Sarana'
+                    };
+                }
+            }
+        } catch (e) { }
 
         res.json({
             order: orderData,
@@ -2380,7 +2551,7 @@ exports.signPublicAssignmentOrder = async (req, res) => {
         let orderData = {};
         try {
             orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
-        } catch (e) {}
+        } catch (e) { }
 
         const signedAt = new Date().toISOString();
         orderData.assigneeSignature = signature;

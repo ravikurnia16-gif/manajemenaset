@@ -45,6 +45,7 @@ router.get('/:id/progress', verifyToken, procurementController.getProgress);
 router.get('/:id/assignment-orders', verifyToken, procurementController.getAssignmentOrders);
 router.post('/:id/assignment-orders', verifyToken, procurementController.createAssignmentOrder);
 router.post('/:id/assignment-orders/sign', verifyToken, procurementController.signAssignmentOrder);
+router.post('/:id/assignment-orders/:orderId/notify-print', verifyToken, procurementController.notifyPrintAssignmentOrder);
 
 // Delete
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.deleteProcurement);
