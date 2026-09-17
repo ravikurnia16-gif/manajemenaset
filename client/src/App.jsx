@@ -12,6 +12,8 @@ import RKBDetail from './pages/RKBDetail';
 import ProcurementList from './pages/ProcurementList';
 import ProcurementForm from './pages/ProcurementForm';
 import ProcurementDetail from './pages/ProcurementDetail';
+import ProcurementHeadUnitApproval from './pages/ProcurementHeadUnitApproval';
+import ProcurementAssignmentOrderSign from './pages/ProcurementAssignmentOrderSign';
 import MaintenanceList from './pages/MaintenanceList';
 import MaintenanceForm from './pages/MaintenanceForm';
 import MaintenanceDetail from './pages/MaintenanceDetail';
@@ -223,6 +225,8 @@ function App() {
         <Route path="/verify/:uuid" element={<PublicVerify />} />
         <Route path="/verify/bus-invoice/:id" element={<BusInvoiceVerify />} />
         <Route path="/public/survey" element={<PublicSurvey />} />
+        <Route path="/public/approval-pengadaan/:batchId" element={<ProcurementHeadUnitApproval />} />
+        <Route path="/public/perintah-pengadaan/:orderId" element={<ProcurementAssignmentOrderSign />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={

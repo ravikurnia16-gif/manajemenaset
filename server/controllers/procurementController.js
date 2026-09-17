@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const fs = require('fs');
@@ -5,6 +6,9 @@ const path = require('path');
 const { deleteFile, uploadFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
+const { sendPushToUser } = require('../services/pushService');
+const { generateDocumentNumber } = require('../services/documentNumberingService');
+const { generateVerificationQR } = require('../services/officePdfService');
 
 // Debounce map for assignment notifications: { "userId-procId": Timer }
 const assignmentTimers = new Map();
@@ -37,6 +41,79 @@ const generateCode = async () => {
 
     const sequence = nextSequence.toString().padStart(3, '0');
     return `REQ/${year}/${sequence}`;
+};
+
+// Helper to generate Unit Letter Number: {seq}/PP/{unitCode}/{romanMonth}/{year}
+const generateUnitLetterNumber = async (unitId) => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const ROMAN_MONTHS = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X', 11: 'XI', 12: 'XII' };
+    const romanMonth = ROMAN_MONTHS[month];
+
+    const unit = unitId ? await prisma.unit.findUnique({ where: { id: parseInt(unitId) } }) : null;
+    let unitCode = 'UNIT';
+    if (unit?.code) {
+        unitCode = unit.code.trim().toUpperCase();
+    } else if (unit?.name) {
+        unitCode = unit.name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5).toUpperCase();
+    }
+
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year + 1, 0, 1);
+
+    // Find progress with [SURAT_PERMOHONAN] for this unit in this year
+    let maxSeq = 0;
+    try {
+        const letterLogs = await prisma.procurementProgress.findMany({
+            where: {
+                type: 'LETTER',
+                createdAt: { gte: yearStart, lt: yearEnd },
+                message: { contains: `"/PP/${unitCode}/"` }
+            },
+            select: { message: true }
+        });
+
+        for (const log of letterLogs) {
+            try {
+                const data = JSON.parse(log.message.replace('[SURAT_PERMOHONAN]', '').trim());
+                if (data.letterNumber) {
+                    const parts = data.letterNumber.split('/');
+                    const seq = parseInt(parts[0], 10);
+                    if (!isNaN(seq) && seq > maxSeq) {
+                        maxSeq = seq;
+                    }
+                }
+            } catch (e) {}
+        }
+    } catch (e) {
+        console.error('Error querying letter logs for seq:', e);
+    }
+
+    // Fallback: count procurements for this unit in this year if maxSeq is still 0
+    if (maxSeq === 0 && unitId) {
+        try {
+            const count = await prisma.procurement.count({
+                where: { unitId: parseInt(unitId), createdAt: { gte: yearStart, lt: yearEnd } }
+            });
+            maxSeq = count;
+        } catch (e) {}
+    }
+
+    const nextSeq = maxSeq + 1;
+    const sequenceStr = String(nextSeq).padStart(3, '0');
+    return `${sequenceStr}/PP/${unitCode}/${romanMonth}/${year}`;
+};
+
+// GET /api/procurements/unit-letter-number?unitId=...
+exports.getUnitLetterNumber = async (req, res) => {
+    try {
+        const unitId = req.query.unitId || req.user?.unitId;
+        const letterNumber = await generateUnitLetterNumber(unitId);
+        res.json({ letterNumber });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // Get all procurements
@@ -245,11 +322,20 @@ exports.getProcurementById = async (req, res) => {
             } catch (e) {}
         }
 
+        const letterProgress = procurement.progress?.find(p => p.type === 'LETTER' || p.message?.startsWith('[SURAT_PERMOHONAN]'));
+        let requestLetter = null;
+        if (letterProgress) {
+            try {
+                requestLetter = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
+            } catch (e) {}
+        }
+
         res.json({
             ...procurement,
             items: formattedItems,
             notes: topNotes,
-            bastSignatures
+            bastSignatures,
+            requestLetter
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -258,7 +344,11 @@ exports.getProcurementById = async (req, res) => {
 
 // Create Request
 exports.createProcurement = async (req, res) => {
-    const { title, type, items, rkbId, isDirectOrder, assignedStaffId, notes } = req.body;
+    const { 
+        title, type, items, rkbId, isDirectOrder, assignedStaffId, notes,
+        requesterSignature, headUnitName, headUnitPhone, letterNumber: customLetterNumber,
+        headUnitSignature, kabidName
+    } = req.body;
     const user = req.user;
 
     try {
@@ -273,9 +363,62 @@ exports.createProcurement = async (req, res) => {
         }
 
         const isDirect = (isDirectOrder === true || isDirectOrder === 'true') && (user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana');
-        const initialStatus = isDirect ? 'APPROVED' : 'SUBMITTED';
+        
+        // Cek apakah Kepala Unit sudah menandatangani saat submit
+        const isHeadUnitSigned = !!headUnitSignature;
+        // Jika Direct Order atau sudah di-approve Kepala Unit -> langsung SUBMITTED/APPROVED
+        // Jika belum ditandatangani Kepala Unit -> status DRAFT (menunggu TTD Kepala Unit)
+        const initialStatus = isDirect ? 'APPROVED' : (isHeadUnitSigned ? 'SUBMITTED' : 'DRAFT');
+
+        const targetUnitId = req.body.unitId ? parseInt(req.body.unitId) : user.unitId;
+        const batchId = 'BATCH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+        const letterNumber = customLetterNumber || await generateUnitLetterNumber(targetUnitId);
 
         const results = [];
+        const userUnit = targetUnitId ? await prisma.unit.findUnique({ where: { id: targetUnitId } }) : null;
+        const unitCode = userUnit?.code ? userUnit.code.toUpperCase() : 'UNIT';
+
+        const consolidatedItems = items.map(it => ({
+            name: it.name,
+            spec: it.spec || '',
+            qty: parseInt(it.qty) || 1,
+            unit: it.unit || 'unit',
+            estPrice: parseFloat(it.estPrice || 0),
+            fundingSource: it.fundingSource || 'Yayasan',
+            notes: it.notes || ''
+        }));
+
+        const kabidUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { position: 'Kepala Bidang Sarana' },
+                    { position: { contains: 'Kepala Bidang Sarana' } }
+                ]
+            }
+        });
+        const defaultKabidName = kabidUser ? (kabidUser.name || kabidUser.username) : 'Kepala Bidang Sarana';
+
+        const letterMetadata = {
+            batchId,
+            letterNumber,
+            title: title || (items[0] ? items[0].name : 'Pengadaan Barang'),
+            unitId: targetUnitId,
+            unitName: userUnit?.name || 'Unit Pemohon',
+            unitCode,
+            requesterId: user.id,
+            requesterName: user.name || user.username,
+            requesterSignature: requesterSignature || null,
+            headUnitName: headUnitName || '',
+            headUnitPhone: headUnitPhone || '',
+            headUnitSignature: headUnitSignature || null,
+            headUnitApprovedAt: headUnitSignature ? new Date().toISOString() : null,
+            kabidName: kabidName || defaultKabidName,
+            kabidTte: isDirect ? true : null,
+            kabidTteAt: isDirect ? new Date().toISOString() : null,
+            notes: notes || '',
+            items: consolidatedItems,
+            createdAt: new Date().toISOString()
+        };
 
         for (const item of items) {
             const code = await generateCode();
@@ -293,7 +436,7 @@ exports.createProcurement = async (req, res) => {
                         code,
                         title: title ? (isDirect ? `[PERINTAH KABID] ${title} - ${item.name}` : `${title} - ${item.name}`) : `Permintaan: ${item.name}`,
                         userId: user.id,
-                        unitId: user.unitId,
+                        unitId: targetUnitId,
                         type: item.type || type || 'ASSET',
                         status: initialStatus,
                         rkbId: rkbId ? parseInt(rkbId) : null,
@@ -337,10 +480,23 @@ exports.createProcurement = async (req, res) => {
                     });
                 }
 
+                // Simpan log surat permohonan konsolidasi (LETTER)
+                await prisma.procurementProgress.create({
+                    data: {
+                        procurementId: procurement.id,
+                        userId: user.id,
+                        message: `[SURAT_PERMOHONAN] ${JSON.stringify(letterMetadata)}`,
+                        type: 'LETTER',
+                        stage: 1
+                    }
+                });
+
                 return {
                     ...procurement,
                     notes: effectiveNote || null,
                     assignedUser,
+                    batchId,
+                    letterNumber,
                     items: [{ ...createdItem, spec: item.spec || '', notes: itemNotes || null }]
                 };
             });
@@ -377,69 +533,98 @@ exports.createProcurement = async (req, res) => {
             }
         }
 
-        res.json({ message: `${results.length} Request(s) submitted`, data: results });
+        res.json({ 
+            message: `${results.length} Request(s) submitted`, 
+            batchId,
+            letterNumber,
+            data: results 
+        });
 
-        // --- In-App Notification (Phase 3) ---
-        (async () => {
-            try {
-                const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
-                const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
-                const notePreview = (notes && typeof notes === 'string' && notes.trim())
-                    ? ` (Catatan: "${notes.trim().length > 60 ? notes.trim().slice(0, 60) + '...' : notes.trim()}")`
-                    : '';
-
-                const admins = await prisma.user.findMany({
-                    where: {
-                        OR: [
-                            { position: 'Kepala Bidang Sarana' },
-                            { position: 'Staff Manajemen Aset' },
-                            { position: 'Staff Keuangan dan Administrasi' }
-                        ]
-                    }
-                });
-
-                for (const admin of admins) {
-                    await createNotification(
-                        admin.id,
-                        isDirect ? 'Perintah Pengadaan Auto-Approve' : 'Permintaan Pengadaan Baru',
-                        `${submitterName} ${isDirect ? 'memerintahkan' : 'mengajukan'} ${results.length} permintaan pengadaan.${notePreview}`,
-                        isDirect ? 'SUCCESS' : 'URGENT',
-                        '/procurements'
-                    );
-                }
-            } catch (err) {
-                console.error('Failed to send in-app notification for procurement:', err);
-            }
-        })();
-
-        // --- WhatsApp Notification (Async) ---
+        // --- ASYNC NOTIFICATIONS & WA WORKFLOW ---
         (async () => {
             try {
                 const submitter = await prisma.user.findUnique({
                     where: { id: user.id },
                     include: { unit: true }
                 });
-
                 if (!submitter) return;
 
+                const clientUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                 const itemList = (items || []).map((item, index) =>
                     `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
+                const noteMsgText = (notes && typeof notes === 'string' && notes.trim()) ? `\n*Catatan:* "${notes.trim()}"\n` : '';
 
-                const noteMsgText = (notes && typeof notes === 'string' && notes.trim()) ? `\n*Catatan Pemohon untuk Admin:*\n"${notes.trim()}"\n` : '';
+                // KASUS 1: Belum ditandatangani Kepala Unit (Bukan Direct Order)
+                // -> Kirim WA berisi link persetujuan HANYA kepada Kepala Unit!
+                if (!isDirect && !isHeadUnitSigned) {
+                    // 1. WhatsApp ke Pemohon: Konfirmasi telah diteruskan ke Kepala Unit
+                    if (submitter.phone) {
+                        const msgSubmitter = `Bismillah.\n*Info Permohonan Pengadaan*\n\n` +
+                            `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                            `Permohonan pengadaan Anda (*${letterNumber}*) telah dibuat:\n\n` +
+                            `${itemList}\n` +
+                            noteMsgText + `\n` +
+                            `⏳ *Status*: Menunggu tanda tangan persetujuan Kepala Unit.\n` +
+                            `Tautan persetujuan telah dikirimkan kepada Kepala Unit Anda. Setelah disetujui, permohonan akan otomatis diteruskan ke Bagian Sarana & Prasarana.`;
 
-                if (submitter.phone) {
-                    const msgSubmitter = `Bismillah.\n*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
-                        `${itemList}\n` +
-                        (notes && notes.trim() ? `\n*Catatan:* ${notes.trim()}\n` : '') + `\n` +
-                        `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) ✅\n` : `Pesanan Ustadz/Ustadzah akan segera kami proses.`}`;
+                        await whatsappService.sendMessage(submitter.phone, msgSubmitter).catch(console.error);
+                    }
 
-                    await whatsappService.sendMessage(submitter.phone, msgSubmitter);
-                }
+                    // 2. Cari Akun Kepala Unit
+                    let headUnitPhoneTarget = headUnitPhone || null;
+                    let targetHeadName = headUnitName || 'Kepala Unit';
 
-                if (!isDirect) {
-                    // 3. Notify Admins (Only if NOT direct, since direct already notifies the chosen admin)
+                    if (!headUnitPhoneTarget && targetUnitId) {
+                        const headUser = await prisma.user.findFirst({
+                            where: {
+                                unitId: targetUnitId,
+                                OR: [
+                                    { position: { contains: 'Kepala Unit' } },
+                                    { position: { contains: 'Kepala Sekolah' } },
+                                    { position: { contains: 'Pimpinan' } }
+                                ],
+                                phone: { not: null, not: '' }
+                            }
+                        });
+                        if (headUser) {
+                            headUnitPhoneTarget = headUser.phone;
+                            targetHeadName = headUser.name || headUser.username;
+                        } else if (userUnit?.phone) {
+                            headUnitPhoneTarget = userUnit.phone;
+                        }
+                    }
+
+                    if (headUnitPhoneTarget) {
+                        const approvalLink = `${clientUrl}/public/approval-pengadaan/${batchId}`;
+                        const msgHead = `Bismillah.\n*Persetujuan Permohonan Pengadaan Unit* 📋\n\n` +
+                            `Ustadz/Ustadzah *${targetHeadName}*,\n` +
+                            `Staf Anda *${submitter.name || submitter.username}* (${submitter.unit?.name || 'Unit'}) telah mengajukan permohonan pengadaan:\n\n` +
+                            `Nomor Surat: *${letterNumber}*\n` +
+                            `Perihal: *${title || 'Permohonan Pengadaan'}*\n\n` +
+                            `*Rincian Barang:*\n${itemList}\n` +
+                            noteMsgText + `\n` +
+                            `Mohon periksa dan bubuhkan tanda tangan persetujuan pada tautan berikut:\n` +
+                            `👉 ${approvalLink}\n\n` +
+                            `_Setelah Anda menandatangani, berkas akan otomatis diteruskan ke Kepala Bidang Sarana & Staff Manajemen Aset._`;
+
+                        await whatsappService.sendMessage(headUnitPhoneTarget, msgHead).catch(console.error);
+                        console.log(`[WA] Sent approval link to Kepala Unit (${headUnitPhoneTarget}) for batch ${batchId}`);
+                    }
+                } 
+                // KASUS 2: Sudah ditandatangani Kepala Unit atau Direct Order
+                // -> Kirim notifikasi ke Kepala Bidang Sarana & Staff Manajemen Aset
+                else if (isDirect || isHeadUnitSigned) {
+                    if (submitter.phone) {
+                        const msgSubmitter = `Bismillah.\n*Info Request Pengadaan*\n\n` +
+                            `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
+                            `${itemList}\n` +
+                            noteMsgText + `\n` +
+                            `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) ✅\n` : `Pesanan Ustadz/Ustadzah akan segera diproses oleh Bagian Sarpras.`}`;
+
+                        await whatsappService.sendMessage(submitter.phone, msgSubmitter).catch(console.error);
+                    }
+
                     const admins = await prisma.user.findMany({
                         where: {
                             OR: [
@@ -452,32 +637,24 @@ exports.createProcurement = async (req, res) => {
                     });
 
                     if (admins.length > 0) {
-                        const msgAdm = `Bismillah.\n*Info Request Pengadaan (URGENT)*\n\n` +
-                            `Ada ${results.length} pesanan baru dari:\n` +
-                            `👤 *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
-                            `🆔 *NIY* : ${submitter.username || '-'}\n` +
+                        const msgAdm = `Bismillah.\n*Info Request Pengadaan (Resmi)* 📦\n\n` +
+                            `Ada permohonan pengadaan baru (Telah Disetujui Kepala Unit):\n` +
+                            `📄 *No. Surat* : ${letterNumber}\n` +
+                            `👤 *Pemohon* : ${submitter.name || submitter.username}\n` +
                             `🏢 *Unit* : ${submitter.unit?.name || '-'}\n` +
+                            (headUnitName ? `✍️ *Kepala Unit* : ${headUnitName}\n` : '') +
                             noteMsgText + `\n` +
-                            `*Rincian Permintaan:*\n` +
+                            `*Rincian Barang:*\n` +
                             `${itemList}\n\n` +
-                            `Mohon segera di proses.`;
+                            `Mohon segera diproses.`;
 
-                        // Simple delay then staggering
-                        setTimeout(async () => {
-                            let cumulativeDelay = 0;
-                            for (const admin of admins) {
-                                const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
-                                cumulativeDelay += randomGap;
-
-                                setTimeout(async () => {
-                                    try {
-                                        await whatsappService.sendMessage(admin.phone, msgAdm);
-                                    } catch (e) {
-                                        console.error(`Failed sending to ${admin.username}:`, e);
-                                    }
-                                }, cumulativeDelay);
+                        for (const admin of admins) {
+                            try {
+                                await whatsappService.sendMessage(admin.phone, msgAdm);
+                            } catch (e) {
+                                console.error(`Failed sending to ${admin.username}:`, e);
                             }
-                        }, 30000);
+                        }
                     }
                 }
             } catch (err) {
@@ -645,10 +822,13 @@ exports.updateStatus = async (req, res) => {
             include: { user: true, items: true }
         });
 
-        // --- In-App Notification (Phase 3) ---
+        // --- In-App & Push Notification ---
         const title = procurement.title || procurement.code;
         let notifType = 'INFO';
         let notifMsg = '';
+        let notifSubject = 'Status Pengadaan Diperbarui';
+        const targetAsetUrl = procurement.unitId ? `/aset?unitId=${procurement.unitId}` : '/aset';
+        let notifLink = `/procurements/${id}`;
 
         if (status === 'VALIDATED' || status === 'APPROVED') {
             notifType = 'SUCCESS';
@@ -656,16 +836,27 @@ exports.updateStatus = async (req, res) => {
         } else if (status === 'REJECTED') {
             notifType = 'WARNING';
             notifMsg = `Permintaan pengadaan "${title}" ditolak. Alasan: ${rejectionReason || '-'}`;
+        } else if (status === 'COMPLETED') {
+            notifType = 'SUCCESS';
+            notifSubject = 'Pengadaan Selesai (BAST) — Silakan Pilih Ruangan Aset';
+            notifMsg = `Pengadaan "${title}" telah selesai (BAST). Mohon segera pilih/tentukan ruangan penempatan aset yang dibeli di unit Anda.`;
+            notifLink = targetAsetUrl;
         }
 
         if (notifMsg) {
             await createNotification(
                 procurement.userId,
-                'Status Pengadaan Diperbarui',
+                notifSubject,
                 notifMsg,
                 notifType,
-                `/procurements/${id}`
+                notifLink
             );
+            sendPushToUser(
+                procurement.userId,
+                notifSubject,
+                notifMsg,
+                notifLink
+            ).catch(err => console.error('[Push Status Error]:', err.message));
         }
 
         res.json(procurement);
@@ -685,6 +876,7 @@ exports.updateStatus = async (req, res) => {
 
                 let msg = '';
                 const title = procurement.title || procurement.code;
+                const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
 
                 if (status === 'VALIDATED' || status === 'APPROVED') {
                     msg = `Bismillah.\n*Info Request Pengadaan*\n\n` +
@@ -699,10 +891,18 @@ exports.updateStatus = async (req, res) => {
                         `Mohon maaf, permintaan Anda *"${title}"* *DITOLAK* \u274C\n\n` +
                         `*Alasan:* ${reason}\n\n` +
                         `Silakan hubungi Bidang Sarpras untuk informasi lebih lanjut.`;
+                } else if (status === 'COMPLETED') {
+                    msg = `Bismillah.\n*Info Request Pengadaan (SiMas)*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
+                        `Permintaan pengadaan Anda *"${title}"* telah *SELESAI (BAST)* \u2705\u2705\u2705\n\n` +
+                        `*Rincian Barang:*\n${itemList}\n\n` +
+                        `\uD83D\uDCCD *Tindakan Diperlukan:*\n` +
+                        `Barang telah diserahterimakan dan tercatat sebagai aset unit Anda. *Mohon segera pilih/tentukan ruangan penempatan aset yang dibeli* melalui tautan sistem SiMas berikut:\n` +
+                        `\uD83D\uDD17 ${appUrl}${targetAsetUrl}\n\n` +
+                        `Syukron, Jazaakumullahu Khairan.`;
                 }
 
                 if (msg) {
-                    // Delay 30 seconds
                     setTimeout(async () => {
                         try {
                             await whatsappService.sendMessage(submitter.phone, msg);
@@ -710,7 +910,7 @@ exports.updateStatus = async (req, res) => {
                         } catch (e) {
                             console.error(`[WA] Failed stage notification:`, e);
                         }
-                    }, 30000);
+                    }, status === 'COMPLETED' ? 3000 : 15000);
                 }
             } catch (err) {
                 console.error('WA Stage Notification Error:', err);
@@ -739,10 +939,10 @@ exports.updateItemDetail = async (req, res) => {
         const updateData = {
             fundingSource,
             brand,
-            usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
+            usefulLife: (usefulLife !== undefined && usefulLife !== null && usefulLife !== '') ? parseInt(usefulLife) : undefined,
             vendorId: vendorId ? parseInt(vendorId) : null,
             vendorName: vendorName || null,
-            finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+            finalPrice: (finalPrice !== undefined && finalPrice !== null && finalPrice !== '') ? parseFloat(finalPrice) : undefined,
             assignedTo,
             assignedToId: assignedToId ? parseInt(assignedToId) : null,
             assignmentNote: assignmentNote || undefined,
@@ -1199,14 +1399,25 @@ exports.processBAST = async (req, res) => {
             }
         });
 
-        // --- In-App Notification (Phase 3) ---
+        const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+        const targetAsetUrl = procurement.unitId ? `/aset?unitId=${procurement.unitId}` : '/aset';
+
+        // --- In-App Notification: Minta pemesan memilih ruangan aset ---
         await createNotification(
             procurement.userId,
-            'Aset Telah Diterima',
-            `Proses BAST untuk "${procurement.title || procurement.code}" selesai. Aset telah masuk ke Daftar Aset.`,
+            'Pengadaan Selesai (BAST) — Silakan Pilih Ruangan Aset',
+            `Proses serah terima (BAST) untuk pengadaan "${procurement.title || procurement.code}" telah selesai dan aset telah tercatat. Mohon segera tentukan/pilih ruangan penempatan aset di unit Anda.`,
             'SUCCESS',
-            '/aset'
+            targetAsetUrl
         );
+
+        // --- Web Push Notification ---
+        sendPushToUser(
+            procurement.userId,
+            'Pengadaan Selesai (BAST) — Pilih Ruangan Aset',
+            `Pengadaan "${procurement.title || procurement.code}" telah selesai BAST. Silakan tentukan ruangan penempatan aset yang dibeli.`,
+            targetAsetUrl
+        ).catch(err => console.error('[Push BAST Error]:', err.message));
 
         res.json({ message: 'BAST processed and Assets created.' });
 
@@ -1223,20 +1434,25 @@ exports.processBAST = async (req, res) => {
                     `${i + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
 
-                const msg = `Bismillah.\n*Info Request Pengadaan*\n\n` +
+                const appAsetUrl = `${appUrl}${targetAsetUrl}`;
+
+                const msg = `Bismillah.\n*Info Request Pengadaan (SiMas)*\n\n` +
                     `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
-                    `Permintaan Anda *"${procurement.title || procurement.code}"* telah *SELESAI (BAST)* \u2705\u2705\u2705\n\n` +
-                    `*Rincian:*\n${itemList}\n\n` +
-                    `Barang sudah diterima dan tercatat sebagai aset. Syukron Jazakumullahu Khairan.`;
+                    `Pengadaan barang Anda *"${procurement.title || procurement.code}"* telah melewati tahap *SERAH TERIMA (BAST)* \u2705\u2705\u2705\n\n` +
+                    `*Rincian Barang:*\n${itemList}\n\n` +
+                    `\uD83D\uDCCD *Tindakan Diperlukan:*\n` +
+                    `Barang telah resmi diterima dan terdaftar sebagai aset unit Anda. *Mohon segera pilih/tentukan ruangan penempatan aset yang dibeli* melalui tautan sistem SiMas berikut:\n` +
+                    `\uD83D\uDD17 ${appAsetUrl}\n\n` +
+                    `Syukron, Jazaakumullahu Khairan.`;
 
                 setTimeout(async () => {
                     try {
                         await whatsappService.sendMessage(submitter.phone, msg);
-                        console.log(`[WA] BAST notification sent to ${submitter.username}`);
+                        console.log(`[WA] BAST room assignment notification sent to ${submitter.username}`);
                     } catch (e) {
                         console.error('[WA] Failed BAST notification:', e);
                     }
-                }, 30000);
+                }, 3000);
             } catch (err) {
                 console.error('WA BAST Notification Error:', err);
             }
@@ -1484,6 +1700,734 @@ exports.getProgress = async (req, res) => {
         res.json(progress);
     } catch (error) {
         console.error('getProgress error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/procurements/public/head-unit-approval/:batchId
+ * Public endpoint to fetch letter and all items under batchId for Kepala Unit approval
+ */
+exports.getHeadUnitApprovalData = async (req, res) => {
+    const { batchId } = req.params;
+    try {
+        const letterProgress = await prisma.procurementProgress.findFirst({
+            where: {
+                type: 'LETTER',
+                message: { contains: `"${batchId}"` }
+            },
+            include: {
+                procurement: {
+                    include: {
+                        unit: true,
+                        user: { select: { id: true, name: true, username: true, phone: true } }
+                    }
+                }
+            }
+        });
+
+        if (!letterProgress) {
+            return res.status(404).json({ error: 'Permohonan pengadaan tidak ditemukan atau tautan tidak valid.' });
+        }
+
+        let letterData = {};
+        try {
+            letterData = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
+        } catch (e) {}
+
+        res.json({
+            batchId,
+            letterData,
+            unit: letterProgress.procurement?.unit,
+            requester: letterProgress.procurement?.user,
+            isApproved: !!letterData.headUnitSignature,
+            approvedAt: letterData.headUnitApprovedAt || null
+        });
+    } catch (error) {
+        console.error('getHeadUnitApprovalData error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/procurements/public/head-unit-approval/:batchId
+ * Public endpoint for Kepala Unit to sign and approve the batch of procurements
+ */
+exports.processHeadUnitApproval = async (req, res) => {
+    const { batchId } = req.params;
+    const { signature, headUnitName } = req.body;
+
+    if (!signature) {
+        return res.status(400).json({ error: 'Tanda tangan Kepala Unit wajib dibubuhkan.' });
+    }
+
+    try {
+        const progressEntries = await prisma.procurementProgress.findMany({
+            where: {
+                type: 'LETTER',
+                message: { contains: `"${batchId}"` }
+            },
+            include: {
+                procurement: {
+                    include: {
+                        user: true,
+                        unit: true,
+                        items: true
+                    }
+                }
+            }
+        });
+
+        if (progressEntries.length === 0) {
+            return res.status(404).json({ error: 'Permohonan pengadaan tidak ditemukan.' });
+        }
+
+        const approvedAt = new Date().toISOString();
+        let commonLetterData = null;
+        const procurementIds = [];
+
+        for (const entry of progressEntries) {
+            procurementIds.push(entry.procurementId);
+            let letterData = {};
+            try {
+                letterData = JSON.parse(entry.message.replace('[SURAT_PERMOHONAN]', '').trim());
+            } catch (e) {}
+
+            letterData.headUnitSignature = signature;
+            letterData.headUnitApprovedAt = approvedAt;
+            if (headUnitName) letterData.headUnitName = headUnitName;
+            commonLetterData = letterData;
+
+            // Update Progress record
+            await prisma.procurementProgress.update({
+                where: { id: entry.id },
+                data: {
+                    message: `[SURAT_PERMOHONAN] ${JSON.stringify(letterData)}`
+                }
+            });
+
+            // Update Procurement Status to SUBMITTED
+            await prisma.procurement.update({
+                where: { id: entry.procurementId },
+                data: { status: 'SUBMITTED' }
+            });
+        }
+
+        // --- Send Consolidated WhatsApp Notification to Kabid Sarpras & Staff Aset ---
+        (async () => {
+            try {
+                const firstProc = progressEntries[0]?.procurement;
+                const submitterName = firstProc?.user?.name || firstProc?.user?.username || 'Pemohon';
+                const unitName = firstProc?.unit?.name || 'Unit Pemohon';
+                const clientUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+
+                const itemsList = (commonLetterData?.items || []).map((it, idx) =>
+                    `${idx + 1}. *${it.name}* (${it.qty} ${it.unit})` + (it.spec && it.spec !== '-' ? ` - ${it.spec}` : '')
+                ).join('\n');
+
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { position: 'Kepala Bidang Sarana' },
+                            { position: 'Staff Manajemen Aset' },
+                            { position: 'Staff Keuangan dan Administrasi' }
+                        ],
+                        phone: { not: null, not: '' }
+                    }
+                });
+
+                if (admins.length > 0) {
+                    const msgAdm = `Bismillah.\n*Info Permohonan Pengadaan Baru (Disetujui Kepala Unit)* ✅\n\n` +
+                        `Pengajuan telah ditandatangani oleh Kepala Unit *${headUnitName || commonLetterData?.headUnitName || 'Kepala Unit'}*:\n` +
+                        `📄 *No. Surat* : ${commonLetterData?.letterNumber || '-'}\n` +
+                        `👤 *Pemohon* : ${submitterName}\n` +
+                        `🏢 *Unit* : ${unitName}\n` +
+                        `📋 *Perihal* : ${commonLetterData?.title || 'Pengadaan Barang'}\n\n` +
+                        `*Rincian Barang:*\n` +
+                        `${itemsList}\n\n` +
+                        `🔗 Detail: ${clientUrl}/procurements/${firstProc?.id || ''}\n\n` +
+                        `Mohon segera diproses oleh Bagian Sarpras. Syukron.`;
+
+                    for (const admin of admins) {
+                        try {
+                            await whatsappService.sendMessage(admin.phone, msgAdm);
+                        } catch (e) {
+                            console.error(`Failed sending to admin ${admin.username}:`, e);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error sending WA after head unit approval:', err);
+            }
+        })();
+
+        res.json({
+            message: 'Permohonan berhasil disetujui dan tanda tangan berhasil disimpan.',
+            batchId,
+            approvedAt,
+            procurementIds
+        });
+    } catch (error) {
+        console.error('processHeadUnitApproval error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * PUT /api/procurements/:id/request-letter
+ * Authenticated endpoint to update request letter metadata (e.g. TTE Kabid, signatures, etc.)
+ */
+exports.updateRequestLetter = async (req, res) => {
+    const { id } = req.params;
+    const { kabidTte, kabidName, headUnitSignature, headUnitName, requesterSignature } = req.body;
+
+    try {
+        const letterProgress = await prisma.procurementProgress.findFirst({
+            where: {
+                procurementId: parseInt(id),
+                type: 'LETTER'
+            }
+        });
+
+        if (!letterProgress) {
+            return res.status(404).json({ error: 'Data surat permohonan tidak ditemukan.' });
+        }
+
+        let letterData = {};
+        try {
+            letterData = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
+        } catch (e) {}
+
+        if (kabidTte !== undefined) {
+            letterData.kabidTte = !!kabidTte;
+            letterData.kabidTteAt = kabidTte ? new Date().toISOString() : null;
+        }
+        if (kabidName) letterData.kabidName = kabidName;
+        if (headUnitSignature !== undefined) letterData.headUnitSignature = headUnitSignature;
+        if (headUnitName) letterData.headUnitName = headUnitName;
+        if (requesterSignature !== undefined) letterData.requesterSignature = requesterSignature;
+
+        // If part of batch, update all progress in batch
+        if (letterData.batchId) {
+            const batchEntries = await prisma.procurementProgress.findMany({
+                where: {
+                    type: 'LETTER',
+                    message: { contains: `"${letterData.batchId}"` }
+                }
+            });
+            for (const bEntry of batchEntries) {
+                await prisma.procurementProgress.update({
+                    where: { id: bEntry.id },
+                    data: {
+                        message: `[SURAT_PERMOHONAN] ${JSON.stringify(letterData)}`
+                    }
+                });
+            }
+        } else {
+            await prisma.procurementProgress.update({
+                where: { id: letterProgress.id },
+                data: {
+                    message: `[SURAT_PERMOHONAN] ${JSON.stringify(letterData)}`
+                }
+            });
+        }
+
+        res.json({
+            message: 'Surat permohonan berhasil diperbarui.',
+            requestLetter: letterData
+        });
+    } catch (error) {
+        console.error('updateRequestLetter error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ==================== SURAT PERINTAH PENGADAAN (ASSIGNMENT ORDERS) ====================
+
+/**
+ * Helper to identify the assigner based on authorization rules:
+ * - Only Kepala Bidang Sarana or Staff Manajemen Aset can give assignment.
+ * - If Staff Manajemen Aset assigns themselves, assigner is automatically Kepala Bidang Sarana.
+ */
+const resolveAssigner = async (currentUser, assigneeId) => {
+    const pos = (currentUser.position || '').toLowerCase();
+    const role = (currentUser.role || '').toUpperCase();
+    const isKabid = pos.includes('kepala bidang sarana') || role === 'SUPER_ADMIN' || role === 'KEPALA_BIDANG';
+    const isStaffAset = pos.includes('staff manajemen aset') || role === 'ADMIN_ASET';
+
+    if (!isKabid && !isStaffAset) {
+        throw new Error('Hanya Kepala Bidang Sarana atau Staff Manajemen Aset yang berwenang memberikan surat perintah penugasan.');
+    }
+
+    // Jika Staff Manajemen Aset menugaskan kepada dirinya sendiri -> pemberi tugas adalah Kepala Bidang Sarana
+    if (isStaffAset && parseInt(assigneeId) === currentUser.id) {
+        let kabidUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { position: 'Kepala Bidang Sarana' },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { role: 'KEPALA_BIDANG' }
+                ]
+            }
+        });
+        if (!kabidUser) {
+            kabidUser = await prisma.user.findFirst({
+                where: { role: 'SUPER_ADMIN' }
+            });
+        }
+        if (!kabidUser) {
+            throw new Error('User dengan jabatan Kepala Bidang Sarana tidak ditemukan untuk mengesahkan penugasan ini.');
+        }
+        return kabidUser;
+    }
+
+    // Jika menugaskan staf lain, atau yang menugaskan adalah Kepala Bidang Sarana
+    return currentUser;
+};
+
+/**
+ * GET /api/procurements/:id/assignment-orders
+ * Get assignment orders for a procurement
+ */
+exports.getAssignmentOrders = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                items: true,
+                unit: true,
+                user: true,
+                progress: {
+                    where: { type: 'ASSIGNMENT_ORDER' },
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
+        });
+
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan.' });
+
+        // Parse existing assignment orders
+        const orders = [];
+        for (const p of procurement.progress) {
+            try {
+                const data = JSON.parse(p.message.replace('[SURAT_PERINTAH]', '').trim());
+                orders.push({
+                    ...data,
+                    progressId: p.id,
+                    createdAt: p.createdAt
+                });
+            } catch (e) {}
+        }
+
+        res.json(orders);
+    } catch (error) {
+        console.error('getAssignmentOrders error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/procurements/:id/assignment-orders
+ * Create and issue Surat Perintah Pengadaan with E-Office integration
+ */
+exports.createAssignmentOrder = async (req, res) => {
+    const { id } = req.params;
+    const { assigneeId, itemIds, instructions, notes } = req.body;
+    const currentUser = req.user;
+
+    try {
+        if (!assigneeId) {
+            return res.status(400).json({ error: 'Petugas yang ditugaskan (assigneeId) wajib dipilih.' });
+        }
+
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                items: true,
+                unit: true,
+                user: true,
+                progress: {
+                    where: { type: 'LETTER' },
+                    take: 1
+                }
+            }
+        });
+
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan.' });
+
+        const assignee = await prisma.user.findUnique({
+            where: { id: parseInt(assigneeId) },
+            include: { unit: true }
+        });
+        if (!assignee) return res.status(404).json({ error: 'Petugas tidak ditemukan.' });
+
+        // Identify assigner based on strict authorization rules
+        const assigner = await resolveAssigner(currentUser, assignee.id);
+
+        // Filter items for this order
+        let assignedItems = procurement.items.filter(it => it.assignedToId === assignee.id);
+        if (itemIds && Array.isArray(itemIds) && itemIds.length > 0) {
+            const idSet = new Set(itemIds.map(i => parseInt(i)));
+            assignedItems = procurement.items.filter(it => idSet.has(it.id));
+        }
+
+        if (assignedItems.length === 0) {
+            if (itemIds && Array.isArray(itemIds) && itemIds.length > 0) {
+                const idSet = new Set(itemIds.map(i => parseInt(i)));
+                assignedItems = procurement.items.filter(it => idSet.has(it.id));
+            } else {
+                assignedItems = procurement.items;
+            }
+        }
+
+        // Get Letter reference if available
+        let requestLetterNumber = '-';
+        if (procurement.progress && procurement.progress.length > 0) {
+            try {
+                const lData = JSON.parse(procurement.progress[0].message.replace('[SURAT_PERMOHONAN]', '').trim());
+                if (lData.letterNumber) requestLetterNumber = lData.letterNumber;
+            } catch (e) {}
+        }
+
+        // Generate E-Office Document Number for Category 'Perintah'
+        const docNumber = await generateDocumentNumber('Perintah', 'SURAT_KELUAR');
+        const docUuid = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9));
+        const qrCodeData = await generateVerificationQR(docUuid);
+        const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+        const verifyUrl = `${baseUrl}/verify/${docUuid}`;
+
+        const defaultInstructions = [
+            'Melaksanakan survei pasar, pemilihan vendor pembanding, dan negosiasi harga terbaik.',
+            'Memastikan mutu, spesifikasi teknis, dan waktu pengiriman sesuai kebutuhan unit pemohon.',
+            'Mengunggah bukti transaksi/penawaran serta menyelesaikan proses Berita Acara Serah Terima (BAST).'
+        ];
+
+        const orderId = 'SPO-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+        const orderData = {
+            orderId,
+            uuid: docUuid,
+            orderNumber: docNumber,
+            procurementId: procurement.id,
+            procurementCode: procurement.code,
+            procurementTitle: procurement.title,
+            unitName: procurement.unit?.name || 'Unit Pemohon',
+            requestLetterNumber,
+            createdAt: new Date().toISOString(),
+            assigner: {
+                id: assigner.id,
+                name: assigner.name || assigner.username,
+                nip: assigner.nip || assigner.username || '-',
+                position: assigner.position || 'Kepala Bidang Sarana'
+            },
+            assignee: {
+                id: assignee.id,
+                name: assignee.name || assignee.username,
+                nip: assignee.nip || assignee.username || '-',
+                position: assignee.position || 'Staff Pelaksana',
+                unitName: assignee.unit?.name || 'Bidang Sarana dan Prasarana'
+            },
+            items: assignedItems.map(it => ({
+                id: it.id,
+                name: it.name,
+                spec: it.spec || '-',
+                qty: it.qty,
+                unit: it.unit,
+                estPrice: it.estPrice,
+                notes: it.notes || ''
+            })),
+            instructions: (instructions && Array.isArray(instructions) && instructions.length > 0) ? instructions : defaultInstructions,
+            notes: notes || '',
+            assignerTte: true,
+            assignerTteAt: new Date().toISOString(),
+            qrCodeData,
+            verifyUrl,
+            assigneeSignature: null,
+            assigneeSignedAt: null
+        };
+
+        // 1. Create OfficeDocument in E-Office (Surat Keluar)
+        const officeDoc = await prisma.officeDocument.create({
+            data: {
+                uuid: docUuid,
+                type: 'SURAT_KELUAR',
+                category: 'Perintah',
+                number: docNumber,
+                subject: `Surat Perintah Pengadaan: ${procurement.title || procurement.code} (${assignee.name || assignee.username})`,
+                content: JSON.stringify(orderData),
+                priority: 'BIASA',
+                authorId: assigner.id,
+                status: 'SIGNED',
+                signedById: assigner.id,
+                signedAt: new Date(),
+                qrCodeData
+            }
+        });
+
+        orderData.officeDocumentId = officeDoc.id;
+
+        // 2. Save in ProcurementProgress
+        await prisma.procurementProgress.create({
+            data: {
+                procurementId: procurement.id,
+                userId: currentUser.id,
+                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`,
+                type: 'ASSIGNMENT_ORDER',
+                stage: 2
+            }
+        });
+
+        // 3. Make sure the items are assigned to this staff in DB
+        for (const item of assignedItems) {
+            await prisma.procurementItem.update({
+                where: { id: item.id },
+                data: {
+                    assignedToId: assignee.id,
+                    assignedTo: assignee.name || assignee.username
+                }
+            });
+        }
+
+        // 4. Send WhatsApp Notification to the Assigned Staff
+        if (assignee.phone) {
+            (async () => {
+                try {
+                    const clientUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+                    const signUrl = `${clientUrl}/public/perintah-pengadaan/${orderId}`;
+                    const itemsText = assignedItems.map((it, idx) => `${idx + 1}. *${it.name}* (${it.qty} ${it.unit})`).join('\n');
+                    const msg = `Bismillah.\n*Surat Perintah Pengadaan Resmi (SPP)* 📋\n\n` +
+                        `Halo *${assignee.name || assignee.username}*,\n` +
+                        `Anda menerima Surat Perintah Pengadaan dari *${assigner.name || assigner.username}* (${assigner.position}):\n\n` +
+                        `📄 *No. Surat Perintah* : ${docNumber}\n` +
+                        `🔖 *No. Pengadaan* : ${procurement.code}\n` +
+                        `🏢 *Unit Pemohon* : ${procurement.unit?.name || 'Unit'}\n` +
+                        `📋 *Perihal* : ${procurement.title || 'Pengadaan Barang'}\n\n` +
+                        `*Daftar Barang yang Ditugaskan:*\n${itemsText}\n\n` +
+                        `🔗 Silakan akses link berikut untuk memeriksa dan menandatangani Surat Perintah Pengadaan:\n${signUrl}\n\n` +
+                        `Syukron wa barakallahu fiik.`;
+                    await whatsappService.sendMessage(assignee.phone, msg);
+                } catch (err) {
+                    console.error('Error sending WA to assignee:', err);
+                }
+            })();
+        }
+
+        res.status(201).json({
+            message: 'Surat Perintah Pengadaan berhasil diterbitkan dan dicatat di E-Office Surat Keluar.',
+            order: orderData
+        });
+    } catch (error) {
+        console.error('createAssignmentOrder error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/procurements/:id/assignment-orders/sign
+ * Assigned staff signs the Surat Perintah Pengadaan
+ */
+exports.signAssignmentOrder = async (req, res) => {
+    const { id } = req.params;
+    const { orderId, signature } = req.body;
+    const currentUser = req.user;
+
+    if (!orderId || !signature) {
+        return res.status(400).json({ error: 'ID Surat Perintah dan Tanda Tangan wajib disertakan.' });
+    }
+
+    try {
+        const progressEntry = await prisma.procurementProgress.findFirst({
+            where: {
+                procurementId: parseInt(id),
+                type: 'ASSIGNMENT_ORDER',
+                message: { contains: `"${orderId}"` }
+            }
+        });
+
+        if (!progressEntry) {
+            return res.status(404).json({ error: 'Surat Perintah Pengadaan tidak ditemukan.' });
+        }
+
+        let orderData = {};
+        try {
+            orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
+        } catch (e) {}
+
+        const signedAt = new Date().toISOString();
+        orderData.assigneeSignature = signature;
+        orderData.assigneeSignedAt = signedAt;
+
+        // Update progress entry
+        await prisma.procurementProgress.update({
+            where: { id: progressEntry.id },
+            data: {
+                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`
+            }
+        });
+
+        // Also update OfficeDocument if exists
+        if (orderData.officeDocumentId) {
+            try {
+                await prisma.officeDocument.update({
+                    where: { id: orderData.officeDocumentId },
+                    data: {
+                        party2Signature: signature,
+                        party2SignedAt: new Date(signedAt),
+                        party2Name: orderData.assignee?.name,
+                        party2Title: orderData.assignee?.position
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to update office document party2 signature:', e);
+            }
+        }
+
+        // Add timeline note
+        await prisma.procurementProgress.create({
+            data: {
+                procurementId: parseInt(id),
+                userId: currentUser.id,
+                message: `✍️ Petugas *${orderData.assignee?.name || currentUser.username}* telah menandatangani Surat Perintah Tugas Pengadaan No. ${orderData.orderNumber || '-'}`,
+                type: 'MANUAL',
+                stage: 2
+            }
+        });
+
+        res.json({
+            message: 'Surat Perintah Pengadaan berhasil ditandatangani.',
+            order: orderData
+        });
+    } catch (error) {
+        console.error('signAssignmentOrder error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/procurements/public/assignment-orders/:orderId
+ * Fetch order data for public signing page
+ */
+exports.getPublicAssignmentOrder = async (req, res) => {
+    const { orderId } = req.params;
+    try {
+        const progressEntry = await prisma.procurementProgress.findFirst({
+            where: {
+                type: 'ASSIGNMENT_ORDER',
+                message: { contains: `"${orderId}"` }
+            },
+            include: {
+                procurement: {
+                    include: {
+                        unit: true,
+                        items: true
+                    }
+                }
+            }
+        });
+
+        if (!progressEntry) {
+            return res.status(404).json({ error: 'Surat Perintah Pengadaan tidak ditemukan.' });
+        }
+
+        let orderData = {};
+        try {
+            orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
+        } catch (e) {}
+
+        res.json({
+            order: orderData,
+            procurement: {
+                id: progressEntry.procurement.id,
+                code: progressEntry.procurement.code,
+                title: progressEntry.procurement.title,
+                unit: progressEntry.procurement.unit
+            }
+        });
+    } catch (error) {
+        console.error('getPublicAssignmentOrder error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/procurements/public/assignment-orders/:orderId/sign
+ * Public endpoint to sign Surat Perintah Pengadaan
+ */
+exports.signPublicAssignmentOrder = async (req, res) => {
+    const { orderId } = req.params;
+    const { signature } = req.body;
+
+    if (!signature) {
+        return res.status(400).json({ error: 'Tanda tangan wajib dibubuhkan.' });
+    }
+
+    try {
+        const progressEntry = await prisma.procurementProgress.findFirst({
+            where: {
+                type: 'ASSIGNMENT_ORDER',
+                message: { contains: `"${orderId}"` }
+            },
+            include: {
+                procurement: true
+            }
+        });
+
+        if (!progressEntry) {
+            return res.status(404).json({ error: 'Surat Perintah Pengadaan tidak ditemukan.' });
+        }
+
+        let orderData = {};
+        try {
+            orderData = JSON.parse(progressEntry.message.replace('[SURAT_PERINTAH]', '').trim());
+        } catch (e) {}
+
+        const signedAt = new Date().toISOString();
+        orderData.assigneeSignature = signature;
+        orderData.assigneeSignedAt = signedAt;
+
+        // Update progress entry
+        await prisma.procurementProgress.update({
+            where: { id: progressEntry.id },
+            data: {
+                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`
+            }
+        });
+
+        // Also update OfficeDocument if exists
+        if (orderData.officeDocumentId) {
+            try {
+                await prisma.officeDocument.update({
+                    where: { id: orderData.officeDocumentId },
+                    data: {
+                        party2Signature: signature,
+                        party2SignedAt: new Date(signedAt),
+                        party2Name: orderData.assignee?.name,
+                        party2Title: orderData.assignee?.position
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to update office document party2 signature:', e);
+            }
+        }
+
+        // Add timeline note
+        await prisma.procurementProgress.create({
+            data: {
+                procurementId: progressEntry.procurementId,
+                userId: progressEntry.userId,
+                message: `✍️ Petugas *${orderData.assignee?.name || 'Penerima Tugas'}* telah menandatangani Surat Perintah Tugas Pengadaan No. ${orderData.orderNumber || '-'} secara digital`,
+                type: 'MANUAL',
+                stage: 2
+            }
+        });
+
+        res.json({
+            message: 'Surat Perintah Pengadaan berhasil ditandatangani.',
+            order: orderData
+        });
+    } catch (error) {
+        console.error('signPublicAssignmentOrder error:', error);
         res.status(500).json({ error: error.message });
     }
 };

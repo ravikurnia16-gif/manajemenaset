@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight, Store, Tag, Snowflake, Fan, Laptop, Monitor, Table2, User, Projector, Droplets, LayoutGrid, Sparkles } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
 import KIRPrint from '../components/KIRPrint';
@@ -59,9 +59,20 @@ const AssetList = ({ validationMode = false }) => {
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
     const canProposeDisposal = isGlobalAdmin || currentUser.role === 'KEPALA_BIDANG' || currentUser.role === 'ADMIN_UNIT';
 
-    const [selectedUnit, setSelectedUnit] = useState(isGlobalAdmin ? '' : (currentUser.unitId?.toString() || ''));
+    const [searchParams] = useSearchParams();
+    const queryUnitId = searchParams.get('unitId');
+
+    const [selectedUnit, setSelectedUnit] = useState(
+        isGlobalAdmin ? (queryUnitId || '') : (currentUser.unitId?.toString() || '')
+    );
     const [selectedRoom, setSelectedRoom] = useState('');
     const isReadOnlyUser = currentUser.role === 'USER';
+
+    useEffect(() => {
+        if (queryUnitId && isGlobalAdmin) {
+            setSelectedUnit(queryUnitId);
+        }
+    }, [queryUnitId, isGlobalAdmin]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);

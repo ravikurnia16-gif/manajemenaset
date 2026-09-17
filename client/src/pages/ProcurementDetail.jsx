@@ -12,6 +12,10 @@ import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 import SearchableSelect from '../components/SearchableSelect';
 import SignaturePad from '../components/SignaturePad';
+import ProcurementLetterModal from '../components/ProcurementLetterModal';
+import ProcurementAssignmentOrderModal from '../components/ProcurementAssignmentOrderModal';
+import ProcurementPriceComparisonModal from '../components/ProcurementPriceComparisonModal';
+import ProcurementPurchaseOrderModal from '../components/ProcurementPurchaseOrderModal';
 
 /* ─────────────────────────────────────────────
    DESIGN TOKENS  (inline style helpers)
@@ -460,12 +464,96 @@ const ProcurementDetail = () => {
     };
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userPos = (user?.position || '').toLowerCase();
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
+    const isKabid = user?.role === 'SUPER_ADMIN' || userPos.includes('kepala bidang sarana') || user?.role === 'KEPALA_BIDANG';
+    const isStaffAset = user?.role === 'ADMIN_ASET' || userPos.includes('staff manajemen aset');
+    const canIssueAssignmentOrder = isKabid || isStaffAset;
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
     const isRequester = req?.userId === user?.id;
 
-    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); fetchSettings(); fetchInvItems(); fetchInvWarehouses(); }, [id]);
+    // Unit Request Letter States
+    const [showRequestLetterModal, setShowRequestLetterModal] = useState(false);
+    const [isSigningKabidTte, setIsSigningKabidTte] = useState(false);
+
+    // Assignment Orders (Surat Perintah Pengadaan) States
+    const [assignmentOrders, setAssignmentOrders] = useState([]);
+    const [selectedAssignmentOrder, setSelectedAssignmentOrder] = useState(null);
+    const [showAssignmentOrderModal, setShowAssignmentOrderModal] = useState(false);
+    const [issuingOrderForStaffId, setIssuingOrderForStaffId] = useState(null);
+
+    // Price Comparison Sheet (Lembar Perbandingan Harga) States
+    const [showPriceComparisonModal, setShowPriceComparisonModal] = useState(false);
+    const [showPoModal, setShowPoModal] = useState(false);
+
+    const hasPriceComparison = Boolean(
+        req?.items && req.items.some(i => i.needComparison || (i.comparisonVendors && i.comparisonVendors.length > 0))
+    );
+
+    const fetchAssignmentOrders = async () => {
+        try {
+            const res = await api.get(`/procurements/${id}/assignment-orders`);
+            const list = Array.isArray(res.data) ? res.data : (res.data?.orders || []);
+            setAssignmentOrders(list);
+        } catch (e) {
+            console.error('fetchAssignmentOrders error', e);
+        }
+    };
+
+    const handleCreateAssignmentOrder = async (assigneeId, customNotes = '') => {
+        if (!confirm('Terbitkan Surat Perintah Pengadaan resmi (E-Office) untuk petugas ini?')) return;
+        setIssuingOrderForStaffId(assigneeId);
+        try {
+            const res = await api.post(`/procurements/${id}/assignment-orders`, {
+                assigneeId,
+                notes: customNotes
+            });
+            alert('Surat Perintah Pengadaan berhasil diterbitkan dan dicatat di E-Office Surat Keluar.');
+            await fetchAssignmentOrders();
+            if (res.data?.order) {
+                setSelectedAssignmentOrder(res.data.order);
+                setShowAssignmentOrderModal(true);
+            }
+        } catch (err) {
+            console.error('handleCreateAssignmentOrder error', err);
+            alert(err.response?.data?.error || 'Gagal menerbitkan Surat Perintah Pengadaan.');
+        } finally {
+            setIssuingOrderForStaffId(null);
+        }
+    };
+
+    const handleKabidTte = async () => {
+        if (!confirm('Berikan TTE (Tanda Tangan Elektronik) Kepala Bidang Sarana pada Surat Permohonan ini?')) return;
+        setIsSigningKabidTte(true);
+        try {
+            const res = await api.put(`/procurements/${id}/request-letter`, {
+                kabidTte: true,
+                kabidName: user.name || user.username || 'Ravi Kurnia, S.T.'
+            });
+            setReq(prev => ({
+                ...prev,
+                requestLetter: res.data.requestLetter
+            }));
+            alert('TTE Kepala Bidang Sarana berhasil dibubuhkan.');
+        } catch (e) {
+            console.error('handleKabidTte error', e);
+            alert(e.response?.data?.error || 'Gagal membubuhkan TTE.');
+        } finally {
+            setIsSigningKabidTte(false);
+        }
+    };
+
+    useEffect(() => { 
+        fetchDetail(); 
+        fetchUsers(); 
+        fetchUnits(); 
+        fetchCategories(); 
+        fetchSettings(); 
+        fetchInvItems(); 
+        fetchInvWarehouses();
+        fetchAssignmentOrders();
+    }, [id]);
 
     const fetchSettings = async () => {
         try { const res = await api.get('/settings'); setSettings(res.data); }
@@ -533,7 +621,7 @@ const ProcurementDetail = () => {
                     brand: item.brand || '',
                     usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
                     finalPrice: item.finalPrice || item.estPrice,
-                    fundingSource: item.fundingSource || 'Mandiri',
+                    fundingSource: (item.fundingSource && item.fundingSource !== 'Mandiri') ? item.fundingSource : 'Yayasan',
                     vendorId: item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : ''),
                     vendorName: item.vendorName || '',
                     comparisonVendors: safeJSON(item.comparisonVendors),
@@ -704,10 +792,85 @@ const ProcurementDetail = () => {
         } catch (e) { alert(e.response?.data?.error); }
     };
 
-    const handleItemChange = (index, field, value) => {
+    const handleItemChange = (index, fieldOrObj, value) => {
+        setReq(prev => {
+            if (!prev || !prev.items || !prev.items[index]) return prev;
+            const nextItems = [...prev.items];
+            if (typeof fieldOrObj === 'object' && fieldOrObj !== null) {
+                nextItems[index] = { ...nextItems[index], ...fieldOrObj };
+            } else {
+                nextItems[index] = { ...nextItems[index], [fieldOrObj]: value };
+            }
+            return { ...prev, items: nextItems };
+        });
+    };
+
+    const handleSelectWinnerVendor = async (itemIndex, cvIndex) => {
         const next = { ...req };
-        next.items[index][field] = value;
+        const item = next.items[itemIndex];
+        const vendors = (item.comparisonVendors || []).map((v, i) => ({
+            ...v,
+            selected: i === cvIndex
+        }));
+        const chosen = vendors[cvIndex];
+        item.comparisonVendors = vendors;
+        if (chosen && chosen.name) {
+            item.vendorName = chosen.name;
+            item.vendorId = `CV-${chosen.name}`;
+            if (chosen.price) {
+                item.finalPrice = parseFloat(chosen.price) || 0;
+            }
+        }
         setReq(next);
+        await handleSaveItem(item, true);
+    };
+
+    const handleApplyAllComparisons = async () => {
+        if (!req?.items) return;
+        const next = { ...req };
+        next.items = [...next.items];
+        let appliedCount = 0;
+        const updatedItems = [];
+
+        for (let i = 0; i < next.items.length; i++) {
+            const item = { ...next.items[i] };
+            const isWh = item.vendorId === 'GUDANG' || item.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[item.id]?.enabled;
+            if (isWh) continue;
+
+            const cvs = item.comparisonVendors || [];
+            if (cvs.length > 0) {
+                // Cari vendor yang ditandai selected atau vendor dengan harga termurah (> 0)
+                const chosen = cvs.find(v => v.selected) ||
+                    [...cvs].filter(v => parseFloat(v.price) > 0).sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0] ||
+                    cvs[0];
+                if (chosen && chosen.name) {
+                    item.vendorName = chosen.name;
+                    item.vendorId = `CV-${chosen.name}`;
+                    if (chosen.price) {
+                        item.finalPrice = parseFloat(chosen.price) || 0;
+                    }
+                    next.items[i] = item;
+                    updatedItems.push(item);
+                    appliedCount++;
+                }
+            }
+        }
+        setReq(next);
+        if (appliedCount > 0) {
+            setLoading(true);
+            try {
+                for (const it of updatedItems) {
+                    await handleSaveItem(it, true);
+                }
+                alert(`Berhasil menerapkan vendor & harga terpilih/termurah untuk ${appliedCount} item.`);
+            } catch (e) {
+                alert('Sebagian data gagal disimpan ke server, silakan periksa kembali.');
+            } finally {
+                setLoading(false);
+            }
+        } else {
+            alert('Tidak ditemukan item yang memerlukan penerapan vendor pembanding.');
+        }
     };
 
     const handleSaveDraftItem = (itemId) => {
@@ -1012,7 +1175,47 @@ const ProcurementDetail = () => {
                     <ArrowLeft size={15} /> Kembali ke Daftar
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {req.requestLetter && (
+                        <button
+                            onClick={() => setShowRequestLetterModal(true)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                background: '#ffffff', border: '1.5px solid #cbd5e1',
+                                borderRadius: 8, padding: '5px 12px', fontSize: 12,
+                                fontWeight: 700, color: '#1e293b', cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                            }}
+                        >
+                            <FileText size={14} color="#2563eb" />
+                            Surat Permohonan Unit
+                            {req.requestLetter.kabidTte ? (
+                                <span style={{ background: '#dcfce7', color: '#15803d', fontSize: 10, padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                                    TTE ✓
+                                </span>
+                            ) : (
+                                <span style={{ background: '#fef3c7', color: '#b45309', fontSize: 10, padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                                    Menunggu TTE
+                                </span>
+                            )}
+                        </button>
+                    )}
+                    {hasPriceComparison && (
+                        <button
+                            onClick={() => setShowPriceComparisonModal(true)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                background: '#ffffff', border: '1.5px solid #0d9488',
+                                borderRadius: 8, padding: '5px 12px', fontSize: 12,
+                                fontWeight: 700, color: '#0f766e', cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                            }}
+                            title="Buka & Cetak Lembar Perbandingan Harga Resmi"
+                        >
+                            <Store size={14} color="#0d9488" />
+                            Lembar Perbandingan Harga
+                        </button>
+                    )}
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.slate, letterSpacing: '0.05em' }}>
                         {req.code}
                     </span>
@@ -1290,6 +1493,68 @@ const ProcurementDetail = () => {
                         <CardHeader icon={FileText} title="Tahap 1 — Verifikasi Request" />
 
                         <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* Surat Permohonan Unit Card */}
+                            {req.requestLetter && (
+                                <div style={{
+                                    background: '#f8fafc', border: '1.5px solid #cbd5e1',
+                                    borderRadius: 12, padding: '16px 20px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    flexWrap: 'wrap', gap: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                        <div style={{
+                                            width: 44, height: 44, borderRadius: 10,
+                                            background: '#eff6ff', color: '#2563eb',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                            <FileText size={22} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>
+                                                Surat Permohonan Unit: {req.requestLetter.letterNumber || '-'}
+                                            </div>
+                                            <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 2 }}>
+                                                Pemohon: <b style={{ color: '#334155' }}>{req.requestLetter.requesterName}</b> • Menyetujui: <b style={{ color: '#334155' }}>{req.requestLetter.headUnitName || 'Kepala Unit'}</b>
+                                                {req.requestLetter.headUnitSignature ? (
+                                                    <span style={{ color: '#16a34a', fontWeight: 700, marginLeft: 8 }}>✓ TTD Kepala Unit Ada</span>
+                                                ) : (
+                                                    <span style={{ color: '#d97706', fontWeight: 700, marginLeft: 8 }}>⏳ Menunggu TTD Kepala Unit</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {isKabid && !req.requestLetter.kabidTte && (
+                                            <button
+                                                onClick={handleKabidTte}
+                                                disabled={isSigningKabidTte}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    background: '#059669', color: '#fff', border: 'none',
+                                                    borderRadius: 8, padding: '8px 14px', fontSize: 12,
+                                                    fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(5,150,105,0.2)'
+                                                }}
+                                            >
+                                                <ShieldCheck size={15} />
+                                                {isSigningKabidTte ? 'Memproses TTE...' : 'Beri TTE Kabid Sarana'}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setShowRequestLetterModal(true)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                background: '#fff', color: '#334155', border: '1px solid #cbd5e1',
+                                                borderRadius: 8, padding: '8px 14px', fontSize: 12,
+                                                fontWeight: 700, cursor: 'pointer'
+                                            }}
+                                        >
+                                            <Printer size={15} /> Lihat / Cetak Surat
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {req.status === 'SUBMITTED' && (
                                 <Notice type="warning">
                                     <strong>Menunggu persetujuan.</strong> Request ini belum diproses. Silakan tinjau dan setujui or tolak.
@@ -1406,19 +1671,33 @@ const ProcurementDetail = () => {
             {activeTab === 2 && (
                 <Card>
                     <CardHeader icon={UserCheck} title="Tahap 2 — Penugasan Internal">
-                        {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
-                            <Btn variant="primary"
-                                onClick={async () => {
-                                    const missing = req.items.find(i => !i.assignedToId);
-                                    if (missing) return alert(`Harap pilih petugas untuk: ${missing.name}`);
-                                    setLoading(true);
-                                    try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(3); }
-                                    catch { alert('Gagal menyimpan.'); }
-                                    finally { setLoading(false); }
-                                }}>
-                                {loading ? 'Memproses…' : <>Lanjut ke Pemilihan Vendor <ChevronRight size={14} /></>}
-                            </Btn>
-                        )}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {assignmentOrders.length > 0 && (
+                                <Btn
+                                    variant="outline"
+                                    onClick={() => {
+                                        const myOrder = assignmentOrders.find(o => o.assignee?.id === user?.id) || assignmentOrders[0];
+                                        setSelectedAssignmentOrder(myOrder);
+                                        setShowAssignmentOrderModal(true);
+                                    }}
+                                >
+                                    <FileText size={14} /> Surat Tugas ({assignmentOrders.length})
+                                </Btn>
+                            )}
+                            {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
+                                <Btn variant="primary"
+                                    onClick={async () => {
+                                        const missing = req.items.find(i => !i.assignedToId);
+                                        if (missing) return alert(`Harap pilih petugas untuk: ${missing.name}`);
+                                        setLoading(true);
+                                        try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(3); }
+                                        catch { alert('Gagal menyimpan.'); }
+                                        finally { setLoading(false); }
+                                    }}>
+                                    {loading ? 'Memproses…' : <>Lanjut ke Pemilihan Vendor <ChevronRight size={14} /></>}
+                                </Btn>
+                            )}
+                        </div>
                     </CardHeader>
 
                     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1528,6 +1807,266 @@ const ProcurementDetail = () => {
                                 );
                             })}
                         </div>
+
+                        {/* SURAT PERINTAH PENGADAAN (ASSIGNMENT ORDERS) SECTION */}
+                        {req.items.some(i => i.assignedToId) && (
+                            <div style={{
+                                marginTop: 10,
+                                padding: 20,
+                                borderRadius: 14,
+                                border: '1.5px solid #dbeafe',
+                                background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 16
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <div style={{
+                                            padding: 8,
+                                            borderRadius: 10,
+                                            background: '#2563eb',
+                                            color: '#ffffff',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <FileText size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e3a8a' }}>
+                                                Surat Perintah Tugas Pengadaan
+                                            </h4>
+                                            <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#64748b' }}>
+                                                Pemberi perintah: <strong style={{ color: '#1e293b' }}>Kepala Bidang Sarana</strong> atau <strong style={{ color: '#1e293b' }}>Staff Manajemen Aset</strong> (TTE &amp; Terhubung E-Office).
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {assignmentOrders.length > 0 && (
+                                        <div style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '4px 12px',
+                                            borderRadius: 20,
+                                            background: '#dcfce7',
+                                            border: '1px solid #86efac',
+                                            color: '#15803d',
+                                            fontSize: 11,
+                                            fontWeight: 700
+                                        }}>
+                                            <ShieldCheck size={14} />
+                                            {assignmentOrders.length} Surat Perintah Aktif
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* List of distinct assigned staff members */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {Array.from(new Map(req.items.filter(it => it.assignedToId).map(it => [it.assignedToId, { id: it.assignedToId, name: it.assignedTo }])).values()).map(staff => {
+                                        const staffItems = req.items.filter(it => it.assignedToId === staff.id);
+                                        const order = assignmentOrders.find(o => o.assignee?.id === staff.id);
+                                        const isCurrentAssignee = user?.id === staff.id;
+
+                                        return (
+                                            <div
+                                                key={staff.id}
+                                                style={{
+                                                    background: '#ffffff',
+                                                    border: order ? '1.5px solid #bfdbfe' : '1px solid #e2e8f0',
+                                                    borderRadius: 12,
+                                                    padding: '16px 20px',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    flexWrap: 'wrap',
+                                                    gap: 14
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                                                    <div style={{
+                                                        width: 42,
+                                                        height: 42,
+                                                        borderRadius: 10,
+                                                        background: order ? '#eff6ff' : '#f1f5f9',
+                                                        color: order ? '#2563eb' : '#64748b',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        border: order ? '1px solid #bfdbfe' : '1px solid #cbd5e1'
+                                                    }}>
+                                                        <UserCheck size={22} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ fontWeight: 700, fontSize: 13.5, color: '#0f172a' }}>
+                                                                {staff.name}
+                                                            </span>
+                                                            {isCurrentAssignee && (
+                                                                <span style={{
+                                                                    fontSize: 10,
+                                                                    fontWeight: 700,
+                                                                    padding: '2px 8px',
+                                                                    background: '#dbeafe',
+                                                                    color: '#1e40af',
+                                                                    borderRadius: 12
+                                                                }}>
+                                                                    Anda
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3 }}>
+                                                            Ditugaskan untuk <strong>{staffItems.length} barang</strong>: {staffItems.map(i => i.name).join(', ')}
+                                                        </div>
+                                                        {order && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+                                                                <span style={{
+                                                                    fontSize: 11,
+                                                                    fontFamily: 'monospace',
+                                                                    fontWeight: 700,
+                                                                    color: '#1e40af',
+                                                                    background: '#eff6ff',
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: 6,
+                                                                    border: '1px solid #bfdbfe'
+                                                                }}>
+                                                                    No: {order.orderNumber}
+                                                                </span>
+                                                                <span style={{
+                                                                    fontSize: 11,
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 4,
+                                                                    color: '#15803d',
+                                                                    fontWeight: 600
+                                                                }}>
+                                                                    <ShieldCheck size={13} /> TTE: {order.assigner?.name || 'Kabid Sarana'}
+                                                                </span>
+                                                                {order.assigneeSignature ? (
+                                                                    <span style={{
+                                                                        fontSize: 11,
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 4,
+                                                                        color: '#15803d',
+                                                                        fontWeight: 600
+                                                                    }}>
+                                                                        <CheckCircle size={13} /> TTD Petugas Sah
+                                                                    </span>
+                                                                ) : (
+                                                                    <span style={{
+                                                                        fontSize: 11,
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 4,
+                                                                        color: '#b45309',
+                                                                        fontWeight: 600
+                                                                    }}>
+                                                                        <Clock size={13} /> Menunggu TTD Petugas
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Action buttons */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    {order ? (
+                                                        <>
+                                                            {isCurrentAssignee && !order.assigneeSignature && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedAssignmentOrder(order);
+                                                                        setShowAssignmentOrderModal(true);
+                                                                    }}
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 6,
+                                                                        padding: '8px 14px',
+                                                                        background: '#2563eb',
+                                                                        color: '#ffffff',
+                                                                        borderRadius: 8,
+                                                                        fontSize: 12,
+                                                                        fontWeight: 700,
+                                                                        border: 'none',
+                                                                        cursor: 'pointer',
+                                                                        boxShadow: '0 2px 6px rgba(37,99,235,0.25)'
+                                                                    }}
+                                                                >
+                                                                    <PenTool size={14} /> Tandatangani
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedAssignmentOrder(order);
+                                                                    setShowAssignmentOrderModal(true);
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 6,
+                                                                    padding: '8px 14px',
+                                                                    background: '#f8fafc',
+                                                                    color: '#0f172a',
+                                                                    borderRadius: 8,
+                                                                    fontSize: 12,
+                                                                    fontWeight: 600,
+                                                                    border: '1px solid #cbd5e1',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                <Eye size={14} /> Lihat Surat Tugas
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {canIssueAssignmentOrder ? (
+                                                                <button
+                                                                    disabled={issuingOrderForStaffId === staff.id}
+                                                                    onClick={() => handleCreateAssignmentOrder(staff.id)}
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 6,
+                                                                        padding: '8px 16px',
+                                                                        background: 'linear-gradient(135deg, #1e3a8a, #2563eb)',
+                                                                        color: '#ffffff',
+                                                                        borderRadius: 8,
+                                                                        fontSize: 12,
+                                                                        fontWeight: 700,
+                                                                        border: 'none',
+                                                                        cursor: issuingOrderForStaffId === staff.id ? 'not-allowed' : 'pointer',
+                                                                        boxShadow: '0 2px 8px rgba(30,58,138,0.25)',
+                                                                        opacity: issuingOrderForStaffId === staff.id ? 0.7 : 1
+                                                                    }}
+                                                                >
+                                                                    {issuingOrderForStaffId === staff.id ? (
+                                                                        <>
+                                                                            <Loader2 size={14} className="animate-spin" /> Menerbitkan…
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <FileText size={14} /> Terbitkan Surat Perintah (E-Office)
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            ) : (
+                                                                <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>
+                                                                    Menunggu penerbitan Surat Tugas
+                                                                </span>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Card>
             )}
@@ -1538,6 +2077,24 @@ const ProcurementDetail = () => {
             {activeTab === 3 && (
                 <Card>
                     <CardHeader icon={Store} title="Tahap 3 — Pemilihan Vendor Pembanding">
+                        {assignmentOrders.length > 0 && (
+                            <Btn variant="outline" onClick={() => {
+                                const myOrder = assignmentOrders.find(o => o.assignee?.id === user?.id) || assignmentOrders[0];
+                                setSelectedAssignmentOrder(myOrder);
+                                setShowAssignmentOrderModal(true);
+                            }}>
+                                <FileText size={14} /> Surat Tugas ({assignmentOrders.length})
+                            </Btn>
+                        )}
+                        {hasPriceComparison && (
+                            <Btn
+                                variant="outline"
+                                onClick={() => setShowPriceComparisonModal(true)}
+                                style={{ borderColor: '#0d9488', color: '#0f766e', background: '#f0fdfa' }}
+                            >
+                                <Printer size={14} /> Cetak Lembar Perbandingan
+                            </Btn>
+                        )}
                         {req.status === 'APPROVED' && (isAdmin || isAssignedToAny) && (
                             <>
                                 <Btn variant="gold" onClick={() => {
@@ -1557,158 +2114,473 @@ const ProcurementDetail = () => {
                         )}
                     </CardHeader>
 
-                    <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        {req.items.map((item, index) => (
-                            <div key={item.id} style={{
-                                border: `1px solid ${T.border}`,
-                                borderRadius: 14, overflow: 'hidden'
-                            }}>
-                                {/* Item header */}
+                    {(() => {
+                        const comparisonItems = (req.items || []).filter(i => i.needComparison);
+                        const totalSurveyed = (req.items || []).reduce((acc, it) => acc + (it.comparisonVendors || []).length, 0);
+                        const totalPaguComp = comparisonItems.reduce((acc, it) => acc + ((parseFloat(it.qty) || 1) * (parseFloat(it.estPrice) || 0)), 0);
+
+                        let totalBestOffer = 0;
+                        comparisonItems.forEach(it => {
+                            const q = parseFloat(it.qty) || 1;
+                            const vendors = it.comparisonVendors || [];
+                            const chosen = vendors.find(v => v.selected);
+                            if (chosen && parseFloat(chosen.price) > 0) {
+                                totalBestOffer += q * parseFloat(chosen.price);
+                            } else if (vendors.length > 0) {
+                                const valid = vendors.map(v => parseFloat(v.price) || 0).filter(p => p > 0);
+                                totalBestOffer += valid.length > 0 ? q * Math.min(...valid) : q * (parseFloat(it.estPrice) || 0);
+                            } else {
+                                totalBestOffer += q * (parseFloat(it.estPrice) || 0);
+                            }
+                        });
+
+                        const hematComp = totalPaguComp > totalBestOffer ? (totalPaguComp - totalBestOffer) : 0;
+                        const persenHematComp = totalPaguComp > 0 ? Math.round((hematComp / totalPaguComp) * 100) : 0;
+
+                        return (
+                            <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                {/* Top Summary Banner */}
                                 <div style={{
-                                    padding: '16px 20px', background: T.cream,
-                                    borderBottom: `1px solid ${T.border}`,
+                                    background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
+                                    border: '1.5px solid #99f6e4',
+                                    borderRadius: 14, padding: '16px 20px',
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                    flexWrap: 'wrap', gap: 12
+                                    flexWrap: 'wrap', gap: 14
                                 }}>
-                                    <div>
-                                        <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{item.name}</span>
-                                        <span style={{ fontSize: 12, color: T.slate, marginLeft: 10 }}>{item.spec || '—'} · {item.qty} {item.unit}</span>
-                                        {item.notes && (
-                                            <span style={{
-                                                marginLeft: 10,
-                                                fontSize: 11,
-                                                color: '#8a6519',
-                                                background: '#fef9ed',
-                                                padding: '2px 8px',
-                                                borderRadius: 6,
-                                                border: '1px solid #f2e2ba',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 4
-                                            }}>
-                                                <span style={{ fontWeight: 700 }}>Catatan:</span>
-                                                <span>{item.notes}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
-                                            <>
-                                                <label style={{
-                                                    display: 'flex', alignItems: 'center', gap: 6,
-                                                    cursor: 'pointer', fontSize: 12, fontWeight: 600, color: T.text
-                                                }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={item.needComparison}
-                                                        onChange={e => {
-                                                            handleItemChange(index, 'needComparison', e.target.checked);
-                                                            handleSaveItem({ ...item, needComparison: e.target.checked }, true);
-                                                        }}
-                                                    />
-                                                    Perlu Perbandingan
-                                                </label>
-                                                {item.needComparison && (
-                                                    <Btn variant="ghost" style={{ padding: '6px 12px', fontSize: 11.5 }}
-                                                        onClick={() => {
-                                                            const next = [...(item.comparisonVendors || []), { name: '', price: 0, notes: '' }];
-                                                            handleItemChange(index, 'comparisonVendors', next);
-                                                            handleSaveItem({ ...item, comparisonVendors: next }, true);
-                                                        }}>
-                                                        <Plus size={12} /> Tambah Vendor
-                                                    </Btn>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div style={{ padding: 20 }}>
-                                    {item.needComparison ? (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
-                                            {(item.comparisonVendors || []).map((cv, cvIndex) => (
-                                                <div key={cvIndex} style={{
-                                                    background: T.white, border: `1px solid ${T.border}`,
-                                                    borderRadius: 10, padding: 16, position: 'relative',
-                                                    boxShadow: '0 1px 6px rgba(15,31,61,0.05)'
-                                                }}>
-                                                    <div style={{
-                                                        position: 'absolute', top: 8, right: 8,
-                                                        width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        borderRadius: 6, background: T.creamDk, cursor: 'pointer'
-                                                    }}
-                                                        onClick={() => {
-                                                            const next = item.comparisonVendors.filter((_, i) => i !== cvIndex);
-                                                            handleItemChange(index, 'comparisonVendors', next);
-                                                            handleSaveItem({ ...item, comparisonVendors: next }, true);
-                                                        }}>
-                                                        <Trash2 size={11} color={T.danger} />
-                                                    </div>
-
-                                                    <div style={{ marginBottom: 12 }}>
-                                                        <Label>Nama Vendor</Label>
-                                                        <input
-                                                            style={{
-                                                                width: '100%', border: 'none', borderBottom: `2px solid ${T.creamDk}`,
-                                                                background: 'transparent', padding: '4px 0',
-                                                                fontSize: 13, fontWeight: 600, color: T.navy,
-                                                                outline: 'none', transition: 'border-color .2s'
-                                                            }}
-                                                            value={cv.name} placeholder="Nama vendor…"
-                                                            onFocus={e => e.target.style.borderBottomColor = T.navy}
-                                                            onBlur={e => { e.target.style.borderBottomColor = T.creamDk; handleSaveItem(item, true); }}
-                                                            onChange={e => {
-                                                                const next = [...item.comparisonVendors];
-                                                                next[cvIndex].name = e.target.value;
-                                                                handleItemChange(index, 'comparisonVendors', next);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <Label>Penawaran Harga (Rp)</Label>
-                                                        <input
-                                                            type="number"
-                                                            style={{
-                                                                width: '100%', border: 'none', borderBottom: `2px solid ${T.creamDk}`,
-                                                                background: 'transparent', padding: '4px 0',
-                                                                fontFamily: "'DM Mono', monospace", fontSize: 13, color: T.navy,
-                                                                outline: 'none', transition: 'border-color .2s'
-                                                            }}
-                                                            value={cv.price} placeholder="0"
-                                                            onFocus={e => e.target.style.borderBottomColor = T.navy}
-                                                            onBlur={e => { e.target.style.borderBottomColor = T.creamDk; handleSaveItem(item, true); }}
-                                                            onChange={e => {
-                                                                const next = [...item.comparisonVendors];
-                                                                next[cvIndex].price = e.target.value;
-                                                                handleItemChange(index, 'comparisonVendors', next);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {(item.comparisonVendors || []).length === 0 && (
-                                                <div style={{
-                                                    padding: '32px 20px', textAlign: 'center',
-                                                    border: `2px dashed ${T.border}`, borderRadius: 10,
-                                                    color: T.slate, fontSize: 13, gridColumn: '1/-1'
-                                                }}>
-                                                    Belum ada kandidat vendor. Klik "Tambah Vendor" untuk menambahkan.
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                         <div style={{
-                                            padding: '20px', textAlign: 'center',
-                                            border: `1px dashed ${T.border}`, borderRadius: 10,
-                                            color: T.slate, fontSize: 12
+                                            width: 42, height: 42, borderRadius: 12,
+                                            background: '#0d9488', color: '#ffffff',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            flexShrink: 0, boxShadow: '0 4px 12px rgba(13,148,136,0.2)'
                                         }}>
-                                            Perbandingan harga tidak diperlukan untuk item ini.
+                                            <Store size={20} />
                                         </div>
-                                    )}
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: 14.5, color: '#134e4a', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                Evaluasi &amp; Komparasi Penawaran Vendor
+                                                <span style={{ fontSize: 11, background: '#ccfbf1', color: '#0f766e', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>
+                                                    {comparisonItems.length} dari {req.items.length} Item Dibandingkan
+                                                </span>
+                                            </div>
+                                            <p style={{ fontSize: 12, color: '#115e59', margin: '4px 0 0 0' }}>
+                                                {totalSurveyed} penawaran vendor tercatat
+                                                {hematComp > 0 && (
+                                                    <span style={{ marginLeft: 8, fontWeight: 700, color: '#047857' }}>
+                                                        · Potensi Efisiensi: Rp {hematComp.toLocaleString('id-ID')} ({persenHematComp}%)
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        {isAdmin && req.status === 'APPROVED' && (
+                                            <button
+                                                onClick={() => {
+                                                    const allNeeded = req.items.every(i => i.needComparison);
+                                                    const nextState = !allNeeded;
+                                                    const next = { ...req };
+                                                    next.items.forEach(i => { i.needComparison = nextState; });
+                                                    setReq(next);
+                                                    next.items.forEach(i => handleSaveItem(i, true));
+                                                }}
+                                                style={{
+                                                    background: '#ffffff', border: '1px solid #cbd5e1',
+                                                    borderRadius: 8, padding: '6px 12px', fontSize: 11.5,
+                                                    fontWeight: 600, color: '#475569', cursor: 'pointer'
+                                                }}
+                                            >
+                                                {req.items.every(i => i.needComparison) ? 'Batalkan Semua Perbandingan' : 'Bandingkan Semua Item'}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setShowPriceComparisonModal(true)}
+                                            style={{
+                                                background: '#0d9488', border: 'none',
+                                                borderRadius: 8, padding: '6px 14px', fontSize: 12,
+                                                fontWeight: 700, color: '#ffffff', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                boxShadow: '0 2px 6px rgba(13,148,136,0.3)',
+                                                transition: 'all .2s'
+                                            }}
+                                            onMouseOver={e => e.currentTarget.style.background = '#0f766e'}
+                                            onMouseOut={e => e.currentTarget.style.background = '#0d9488'}
+                                        >
+                                            <Printer size={14} /> Cetak Lembar Perbandingan
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {/* Items List */}
+                                {req.items.map((item, index) => {
+                                    const qty = parseFloat(item.qty || item.quantity || 1) || 1;
+                                    const estPrice = parseFloat(item.estPrice || item.estimatedPrice || 0) || 0;
+                                    const estTotal = qty * estPrice;
+                                    const vendors = item.comparisonVendors || [];
+                                    const validPrices = vendors.map(v => parseFloat(v.price) || 0).filter(p => p > 0);
+                                    const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : 0;
+                                    const chosenVendor = vendors.find(v => v.selected) || vendors.find(v => item.vendorName && item.vendorName.trim().toLowerCase() === (v.name || '').trim().toLowerCase());
+
+                                    return (
+                                        <div key={item.id} style={{
+                                            border: `1px solid ${item.needComparison ? '#cbd5e1' : T.border}`,
+                                            borderRadius: 14, overflow: 'hidden',
+                                            background: '#ffffff',
+                                            boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
+                                        }}>
+                                            {/* Item Header */}
+                                            <div style={{
+                                                padding: '16px 20px', background: item.needComparison ? '#f8fafc' : T.cream,
+                                                borderBottom: `1px solid ${T.border}`,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                flexWrap: 'wrap', gap: 12
+                                            }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                                        <span style={{ fontWeight: 800, fontSize: 14, color: T.navy }}>{item.name}</span>
+                                                        <span style={{ fontSize: 12, color: T.slate }}>
+                                                            {item.spec || '—'} · {qty} {item.unit}
+                                                        </span>
+                                                        {estPrice > 0 && (
+                                                            <span style={{
+                                                                fontSize: 11.5, fontWeight: 700, color: '#0f766e',
+                                                                background: '#f0fdfa', border: '1px solid #ccfbf1',
+                                                                padding: '2px 8px', borderRadius: 6
+                                                            }}>
+                                                                Pagu: Rp {estPrice.toLocaleString('id-ID')}
+                                                                <span style={{ fontWeight: 400, color: '#64748b', marginLeft: 4 }}>
+                                                                    (Total: Rp {estTotal.toLocaleString('id-ID')})
+                                                                </span>
+                                                            </span>
+                                                        )}
+                                                        {chosenVendor && (
+                                                            <span style={{
+                                                                fontSize: 11, fontWeight: 700, color: '#166534',
+                                                                background: '#dcfce7', border: '1px solid #bbf7d0',
+                                                                padding: '2px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4
+                                                            }}>
+                                                                <CheckCircle size={12} />
+                                                                Vendor Terpilih: {chosenVendor.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {item.notes && (
+                                                        <div style={{
+                                                            marginTop: 6,
+                                                            fontSize: 11,
+                                                            color: '#8a6519',
+                                                            background: '#fef9ed',
+                                                            padding: '2px 8px',
+                                                            borderRadius: 6,
+                                                            border: '1px solid #f2e2ba',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 4
+                                                        }}>
+                                                            <span style={{ fontWeight: 700 }}>Catatan Kebutuhan:</span>
+                                                            <span>{item.notes}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
+                                                        <>
+                                                            <label style={{
+                                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                                cursor: 'pointer', fontSize: 12, fontWeight: 600, color: T.text
+                                                            }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={item.needComparison}
+                                                                    onChange={e => {
+                                                                        handleItemChange(index, 'needComparison', e.target.checked);
+                                                                        handleSaveItem({ ...item, needComparison: e.target.checked }, true);
+                                                                    }}
+                                                                />
+                                                                Perlu Perbandingan
+                                                            </label>
+                                                            {item.needComparison && (
+                                                                <Btn variant="ghost" style={{ padding: '6px 12px', fontSize: 11.5 }}
+                                                                    onClick={() => {
+                                                                        const next = [...(item.comparisonVendors || []), { name: '', price: 0, notes: '', contact: '', selected: false }];
+                                                                        handleItemChange(index, 'comparisonVendors', next);
+                                                                        handleSaveItem({ ...item, comparisonVendors: next }, true);
+                                                                    }}>
+                                                                    <Plus size={12} /> Tambah Vendor
+                                                                </Btn>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Item Body: Candidate Vendor Cards */}
+                                            <div style={{ padding: 20 }}>
+                                                {item.needComparison ? (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+                                                        {(item.comparisonVendors || []).map((cv, cvIndex) => {
+                                                            const cvPrice = parseFloat(cv.price) || 0;
+                                                            const cvTotal = qty * cvPrice;
+                                                            const isMin = cvPrice > 0 && cvPrice === minPrice;
+                                                            const isChosen = cv.selected || (item.vendorName && item.vendorName.trim().toLowerCase() === (cv.name || '').trim().toLowerCase());
+                                                            const diff = estPrice - cvPrice;
+
+                                                            return (
+                                                                <div key={cvIndex} style={{
+                                                                    background: isChosen ? '#f0fdf4' : (isMin ? '#f0fdfa' : '#ffffff'),
+                                                                    border: `1.5px solid ${isChosen ? '#059669' : (isMin ? '#0d9488' : '#e2e8f0')}`,
+                                                                    borderRadius: 12, padding: 16, position: 'relative',
+                                                                    boxShadow: isChosen ? '0 4px 14px rgba(5,150,105,0.12)' : '0 1px 6px rgba(15,31,61,0.04)',
+                                                                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                                                                    transition: 'all .2s'
+                                                                }}>
+                                                                    <div>
+                                                                        {/* Top Badges & Trash */}
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                                                <span style={{
+                                                                                    width: 22, height: 22, borderRadius: '50%',
+                                                                                    background: isChosen ? '#059669' : '#e2e8f0',
+                                                                                    color: isChosen ? '#ffffff' : '#334155',
+                                                                                    fontSize: 11, fontWeight: 700,
+                                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                                                }}>
+                                                                                    {String.fromCharCode(65 + cvIndex)}
+                                                                                </span>
+                                                                                {isChosen ? (
+                                                                                    <span style={{ fontSize: 10.5, fontWeight: 800, background: '#059669', color: '#ffffff', padding: '2px 8px', borderRadius: 6 }}>
+                                                                                        TERPILIH
+                                                                                    </span>
+                                                                                ) : isMin ? (
+                                                                                    <span style={{ fontSize: 10.5, fontWeight: 800, background: '#0d9488', color: '#ffffff', padding: '2px 8px', borderRadius: 6 }}>
+                                                                                        ⭐ TERMURAH
+                                                                                    </span>
+                                                                                ) : null}
+                                                                            </div>
+
+                                                                            {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
+                                                                                <div style={{
+                                                                                    width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                                    borderRadius: 6, background: '#fee2e2', cursor: 'pointer', transition: 'background .2s'
+                                                                                }}
+                                                                                    title="Hapus Vendor Ini"
+                                                                                    onClick={() => {
+                                                                                        if (!confirm(`Hapus vendor ${cv.name || 'ini'} dari perbandingan?`)) return;
+                                                                                        const next = item.comparisonVendors.filter((_, i) => i !== cvIndex);
+                                                                                        handleItemChange(index, 'comparisonVendors', next);
+                                                                                        handleSaveItem({ ...item, comparisonVendors: next }, true);
+                                                                                    }}>
+                                                                                    <Trash2 size={13} color="#dc2626" />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Field: Nama Vendor */}
+                                                                        <div style={{ marginBottom: 12 }}>
+                                                                            <Label>Nama Vendor / Penyedia *</Label>
+                                                                            <input
+                                                                                style={{
+                                                                                    width: '100%', border: '1px solid #cbd5e1',
+                                                                                    borderRadius: 6, padding: '7px 10px',
+                                                                                    fontSize: 13, fontWeight: 600, color: T.navy,
+                                                                                    background: '#ffffff', outline: 'none',
+                                                                                    transition: 'border-color .2s'
+                                                                                }}
+                                                                                value={cv.name || ''}
+                                                                                placeholder="contoh: CV. Sumber Makmur"
+                                                                                disabled={!(isAdmin || isAssignedToItem(item)) || req.status !== 'APPROVED'}
+                                                                                onFocus={e => e.target.style.borderColor = '#0d9488'}
+                                                                                onBlur={e => { e.target.style.borderColor = '#cbd5e1'; handleSaveItem(item, true); }}
+                                                                                onChange={e => {
+                                                                                    const next = (item.comparisonVendors || []).map((v, i) => i === cvIndex ? { ...v, name: e.target.value } : v);
+                                                                                    handleItemChange(index, 'comparisonVendors', next);
+                                                                                }}
+                                                                            />
+                                                                        </div>
+
+                                                                        {/* Field: Penawaran Harga */}
+                                                                        <div style={{ marginBottom: 12 }}>
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                                                <Label>Penawaran Satuan (Rp) *</Label>
+                                                                                {cvPrice > 0 && (
+                                                                                    <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#0f766e', fontWeight: 700 }}>
+                                                                                        Rp {cvPrice.toLocaleString('id-ID')}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <input
+                                                                                type="number"
+                                                                                style={{
+                                                                                    width: '100%', border: '1px solid #cbd5e1',
+                                                                                    borderRadius: 6, padding: '7px 10px',
+                                                                                    fontFamily: "'DM Mono', monospace", fontSize: 13, color: T.navy,
+                                                                                    background: '#ffffff', outline: 'none',
+                                                                                    transition: 'border-color .2s'
+                                                                                }}
+                                                                                value={cv.price || ''}
+                                                                                placeholder="0"
+                                                                                disabled={!(isAdmin || isAssignedToItem(item)) || req.status !== 'APPROVED'}
+                                                                                onFocus={e => e.target.style.borderColor = '#0d9488'}
+                                                                                onBlur={e => { e.target.style.borderColor = '#cbd5e1'; handleSaveItem(item, true); }}
+                                                                                onChange={e => {
+                                                                                    const next = (item.comparisonVendors || []).map((v, i) => i === cvIndex ? { ...v, price: e.target.value } : v);
+                                                                                    handleItemChange(index, 'comparisonVendors', next);
+                                                                                }}
+                                                                            />
+                                                                            {/* Subtotal & Deviation */}
+                                                                            <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 11.5, flexWrap: 'wrap', gap: 4 }}>
+                                                                                <span style={{ color: '#64748b' }}>
+                                                                                    Subtotal: <strong style={{ color: '#1e293b' }}>Rp {cvTotal.toLocaleString('id-ID')}</strong>
+                                                                                </span>
+                                                                                {diff > 0 ? (
+                                                                                    <span style={{ color: '#059669', fontWeight: 700 }}>
+                                                                                        Hemat Rp {diff.toLocaleString('id-ID')}/unit
+                                                                                    </span>
+                                                                                ) : diff < 0 ? (
+                                                                                    <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                                                                                        +Rp {Math.abs(diff).toLocaleString('id-ID')}/unit
+                                                                                    </span>
+                                                                                ) : null}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Field: Catatan / Keterangan Penawaran */}
+                                                                        <div style={{ marginBottom: 12 }}>
+                                                                            <Label>Catatan / Garansi / Waktu Kirim</Label>
+                                                                            <input
+                                                                                style={{
+                                                                                    width: '100%', border: '1px solid #e2e8f0',
+                                                                                    borderRadius: 6, padding: '6px 10px',
+                                                                                    fontSize: 12, color: '#334155',
+                                                                                    background: '#ffffff', outline: 'none'
+                                                                                }}
+                                                                                value={cv.notes || ''}
+                                                                                placeholder="misal: Garansi 1 thn, gratis ongkir…"
+                                                                                disabled={!(isAdmin || isAssignedToItem(item)) || req.status !== 'APPROVED'}
+                                                                                onBlur={() => handleSaveItem(item, true)}
+                                                                                onChange={e => {
+                                                                                    const next = (item.comparisonVendors || []).map((v, i) => i === cvIndex ? { ...v, notes: e.target.value } : v);
+                                                                                    handleItemChange(index, 'comparisonVendors', next);
+                                                                                }}
+                                                                            />
+                                                                        </div>
+
+                                                                        {/* Field: Kontak / Info Toko */}
+                                                                        <div style={{ marginBottom: 14 }}>
+                                                                            <Label>Kontak / Link Toko (Opsional)</Label>
+                                                                            <input
+                                                                                style={{
+                                                                                    width: '100%', border: '1px solid #e2e8f0',
+                                                                                    borderRadius: 6, padding: '6px 10px',
+                                                                                    fontSize: 12, color: '#334155',
+                                                                                    background: '#ffffff', outline: 'none'
+                                                                                }}
+                                                                                value={cv.contact || ''}
+                                                                                placeholder="No HP / link online shop…"
+                                                                                disabled={!(isAdmin || isAssignedToItem(item)) || req.status !== 'APPROVED'}
+                                                                                onBlur={() => handleSaveItem(item, true)}
+                                                                                onChange={e => {
+                                                                                    const next = (item.comparisonVendors || []).map((v, i) => i === cvIndex ? { ...v, contact: e.target.value } : v);
+                                                                                    handleItemChange(index, 'comparisonVendors', next);
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Bottom Action: Pilih Sebagai Pemenang */}
+                                                                    {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
+                                                                        <div style={{ paddingTop: 8, borderTop: '1px solid #f1f5f9' }}>
+                                                                            {isChosen ? (
+                                                                                <div style={{
+                                                                                    background: '#dcfce7', color: '#15803d',
+                                                                                    padding: '7px 12px', borderRadius: 8,
+                                                                                    fontSize: 12, fontWeight: 700, textAlign: 'center',
+                                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                                                                                }}>
+                                                                                    <CheckCircle size={14} /> Terpilih untuk Finalisasi
+                                                                                </div>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={() => handleSelectWinnerVendor(index, cvIndex)}
+                                                                                    style={{
+                                                                                        width: '100%', background: '#0f766e', color: '#ffffff',
+                                                                                        padding: '7px 12px', borderRadius: 8,
+                                                                                        fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+                                                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                                                        transition: 'background .2s'
+                                                                                    }}
+                                                                                    onMouseOver={e => e.currentTarget.style.background = '#115e59'}
+                                                                                    onMouseOut={e => e.currentTarget.style.background = '#0f766e'}
+                                                                                >
+                                                                                    <Check size={14} /> Pilih Vendor Ini
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+
+                                                        {(item.comparisonVendors || []).length === 0 && (
+                                                            <div style={{
+                                                                padding: '36px 20px', textAlign: 'center',
+                                                                border: `2px dashed ${T.border}`, borderRadius: 12,
+                                                                color: T.slate, fontSize: 13, gridColumn: '1/-1',
+                                                                background: '#fafafa'
+                                                            }}>
+                                                                <Store size={28} style={{ margin: '0 auto 8px auto', opacity: 0.4 }} />
+                                                                <div style={{ fontWeight: 600, color: '#475569' }}>Belum ada kandidat vendor pembanding</div>
+                                                                <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 12px 0' }}>
+                                                                    Tambahkan minimal 2–3 penyedia untuk mendapatkan perbandingan harga terbaik.
+                                                                </p>
+                                                                {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
+                                                                    <Btn variant="primary" style={{ padding: '6px 14px', fontSize: 12 }}
+                                                                        onClick={() => {
+                                                                            const next = [{ name: '', price: 0, notes: '', contact: '', selected: false }];
+                                                                            handleItemChange(index, 'comparisonVendors', next);
+                                                                            handleSaveItem({ ...item, comparisonVendors: next }, true);
+                                                                        }}>
+                                                                        <Plus size={13} /> Tambah Vendor Pertama
+                                                                    </Btn>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{
+                                                        padding: '24px 20px', textAlign: 'center',
+                                                        border: `1px dashed ${T.border}`, borderRadius: 10,
+                                                        color: T.slate, fontSize: 12.5,
+                                                        background: '#fafafa',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
+                                                    }}>
+                                                        <span>Perbandingan harga tidak diperlukan untuk item ini.</span>
+                                                        {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    handleItemChange(index, 'needComparison', true);
+                                                                    handleSaveItem({ ...item, needComparison: true }, true);
+                                                                }}
+                                                                style={{
+                                                                    background: 'transparent', border: '1px solid #0d9488',
+                                                                    borderRadius: 6, padding: '4px 10px', fontSize: 11.5,
+                                                                    color: '#0f766e', fontWeight: 600, cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                Aktifkan Perbandingan
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })()}
                 </Card>
             )}
 
@@ -1718,33 +2590,170 @@ const ProcurementDetail = () => {
             {activeTab === 4 && (
                 <Card>
                     <CardHeader icon={DollarSign} title="Tahap 4 — Finalisasi Harga & Vendor">
-                        {isAdmin && req.status === 'PROCESS' && (
-                            <Btn variant="primary"
-                                onClick={async () => {
-                                    const inc = req.items.find(i => {
-                                        const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
-                                        if (isWh) {
-                                            const f = warehouseFulfillments[i.id];
-                                            return !f?.enabled || !f?.invItemId || !f?.warehouseId || !f?.quantity;
-                                        }
-                                        return (!i.vendorId && !i.vendorName) || !i.finalPrice;
-                                    });
-                                    if (inc) {
-                                        const isWh = inc.vendorId === 'GUDANG' || inc.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[inc.id]?.enabled;
-                                        if (isWh) return alert(`Lengkapi data barang gudang & lokasi gudang untuk: ${inc.name}`);
-                                        return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
-                                    }
-                                    setLoading(true);
-                                    try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(5); }
-                                    catch { alert('Gagal menyimpan.'); }
-                                    finally { setLoading(false); }
-                                }}>
-                                Lanjut ke Serah Terima <ChevronRight size={14} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <Btn
+                                variant="outline"
+                                style={{ borderColor: T.navy, color: T.navy, background: '#fff', fontSize: 12, padding: '7px 12px' }}
+                                onClick={() => setShowPoModal(true)}
+                                title="Cetak Surat Pesanan (PO) resmi untuk vendor penyedia"
+                            >
+                                <Printer size={14} style={{ color: T.gold }} />
+                                Cetak PO (Surat Pesanan)
                             </Btn>
-                        )}
+
+                            {isAdmin && req.status === 'PROCESS' && (
+                                <Btn variant="primary"
+                                    onClick={async () => {
+                                        const inc = req.items.find(i => {
+                                            const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
+                                            if (isWh) {
+                                                const f = warehouseFulfillments[i.id];
+                                                return !f?.enabled || !f?.invItemId || !f?.warehouseId || !f?.quantity;
+                                            }
+                                            return (!i.vendorId && !i.vendorName) || !i.finalPrice;
+                                        });
+                                        if (inc) {
+                                            const isWh = inc.vendorId === 'GUDANG' || inc.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[inc.id]?.enabled;
+                                            if (isWh) return alert(`Lengkapi data barang gudang & lokasi gudang untuk: ${inc.name}`);
+                                            return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
+                                        }
+                                        setLoading(true);
+                                        try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(5); }
+                                        catch { alert('Gagal menyimpan.'); }
+                                        finally { setLoading(false); }
+                                    }}>
+                                    Lanjut ke Serah Terima <ChevronRight size={14} />
+                                </Btn>
+                            )}
+                        </div>
                     </CardHeader>
 
                     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {/* ── FINANCIAL SUMMARY & QUICK ACTIONS BANNER ── */}
+                        {(() => {
+                            const totalPagu = (req.items || []).reduce((sum, it) => sum + ((parseFloat(it.estPrice) || 0) * (parseFloat(it.qty) || 1)), 0);
+                            const totalFinal = (req.items || []).reduce((sum, it) => {
+                                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[it.id]?.enabled;
+                                if (isWh) return sum;
+                                const p = parseFloat(it.finalPrice) || parseFloat(it.estPrice) || 0;
+                                return sum + (p * (parseFloat(it.qty) || 1));
+                            }, 0);
+                            const diff = totalPagu - totalFinal;
+                            const isEfficient = diff >= 0;
+                            const percent = totalPagu > 0 ? Math.abs((diff / totalPagu) * 100).toFixed(1) : '0';
+
+                            const readyCount = (req.items || []).filter(it => {
+                                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[it.id]?.enabled;
+                                if (isWh) return warehouseFulfillments[it.id]?.invItemId && warehouseFulfillments[it.id]?.warehouseId;
+                                return (it.vendorName || it.vendorId) && parseFloat(it.finalPrice) > 0;
+                            }).length;
+                            const isAllReady = readyCount === (req.items || []).length;
+                            const hasAnyComparison = (req.items || []).some(it => it.comparisonVendors && it.comparisonVendors.length > 0);
+
+                            return (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #0f1f3d 0%, #1a3160 100%)',
+                                    borderRadius: 14,
+                                    padding: '18px 22px',
+                                    color: '#fff',
+                                    boxShadow: '0 4px 14px rgba(15,31,61,0.12)',
+                                    marginBottom: 6
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#f5e9cc' }}>
+                                                <DollarSign size={16} /> Ikhtisar Anggaran & Realisasi Belanja
+                                            </div>
+                                            <div style={{ fontSize: 11.5, color: '#a0aec0', marginTop: 2 }}>
+                                                Perbandingan total pagu estimasi awal vs total harga belanja realisasi final
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            {hasAnyComparison && req.status === 'PROCESS' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleApplyAllComparisons}
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 6,
+                                                        background: 'rgba(201, 164, 83, 0.2)',
+                                                        border: '1px solid #c9a453',
+                                                        color: '#f5e9cc',
+                                                        borderRadius: 8,
+                                                        padding: '6px 12px',
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s ease'
+                                                    }}
+                                                    title="Terapkan vendor terpilih atau harga termurah dari Tahap 3 ke seluruh item"
+                                                >
+                                                    <Sparkles size={13} style={{ color: '#c9a453' }} /> Terapkan Hasil Perbandingan
+                                                </button>
+                                            )}
+                                            <div style={{
+                                                background: isAllReady ? 'rgba(45, 122, 95, 0.35)' : 'rgba(176, 125, 42, 0.35)',
+                                                border: `1px solid ${isAllReady ? '#4ade80' : '#fcd34d'}`,
+                                                borderRadius: 20,
+                                                padding: '4px 12px',
+                                                fontSize: 11.5,
+                                                fontWeight: 700,
+                                                color: isAllReady ? '#86efac' : '#fde68a',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 5
+                                            }}>
+                                                {isAllReady ? <Check size={13} /> : <AlertCircle size={13} />}
+                                                {readyCount} dari {(req.items || []).length} Item Siap
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 3 Metric Boxes */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ fontSize: 11, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Pagu (Est. Awal)</div>
+                                            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: '#ffffff', marginTop: 4 }}>
+                                                Rp {totalPagu.toLocaleString('id-ID')}
+                                            </div>
+                                            <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>{(req.items || []).length} item pengadaan</div>
+                                        </div>
+
+                                        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ fontSize: 11, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Belanja Final</div>
+                                            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: '#67e8f9', marginTop: 4 }}>
+                                                Rp {totalFinal.toLocaleString('id-ID')}
+                                            </div>
+                                            <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>Biaya belanja eksternal vendor</div>
+                                        </div>
+
+                                        <div style={{
+                                            background: isEfficient ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                            borderRadius: 10,
+                                            padding: '12px 14px',
+                                            border: `1px solid ${isEfficient ? 'rgba(74, 222, 128, 0.4)' : 'rgba(248, 113, 113, 0.4)'}`
+                                        }}>
+                                            <div style={{ fontSize: 11, color: isEfficient ? '#bbf7d0' : '#fecaca', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                {isEfficient ? 'Efisiensi / Penghematan' : 'Kelebihan dari Pagu'}
+                                            </div>
+                                            <div style={{
+                                                fontSize: 16,
+                                                fontWeight: 700,
+                                                fontFamily: "'DM Mono', monospace",
+                                                color: isEfficient ? '#4ade80' : '#f87171',
+                                                marginTop: 4
+                                            }}>
+                                                {isEfficient ? '+ ' : '- '}Rp {Math.abs(diff).toLocaleString('id-ID')}
+                                            </div>
+                                            <div style={{ fontSize: 10.5, color: isEfficient ? '#86efac' : '#fca5a5', marginTop: 2 }}>
+                                                {isEfficient ? `Hemat ${percent}% dari estimasi` : `Melebihi estimasi sebesar ${percent}%`}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                         {req.items.map((item, index) => {
                             const disabled = req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item));
                             const isWarehouseFulfilled = warehouseFulfillments[item.id]?.enabled || item.vendorId === 'GUDANG';
@@ -1933,17 +2942,33 @@ const ProcurementDetail = () => {
                                             <Select value={item.vendorId || ''} disabled={disabled}
                                                 onChange={e => {
                                                     const val = e.target.value;
-                                                    handleItemChange(index, 'vendorId', val);
                                                     if (val === 'GUDANG') {
                                                         updateWarehouseFulfillment(item.id, {
                                                             enabled: true,
                                                             quantity: warehouseFulfillments[item.id]?.quantity || item.qty
                                                         });
-                                                        handleItemChange(index, 'vendorName', 'Gudang Sarpras (Internal)');
-                                                        if (!item.finalPrice) handleItemChange(index, 'finalPrice', 0);
+                                                        handleItemChange(index, {
+                                                            vendorId: 'GUDANG',
+                                                            vendorName: 'Gudang Sarpras (Internal)',
+                                                            finalPrice: item.finalPrice || 0
+                                                        });
                                                     } else {
                                                         if (warehouseFulfillments[item.id]?.enabled) {
                                                             updateWarehouseFulfillment(item.id, { enabled: false });
+                                                        }
+                                                        if (typeof val === 'string' && val.startsWith('CV-')) {
+                                                            const candidateName = val.replace('CV-', '');
+                                                            const chosenCv = (item.comparisonVendors || []).find(cv => cv.name === candidateName);
+                                                            handleItemChange(index, {
+                                                                vendorId: val,
+                                                                vendorName: candidateName,
+                                                                finalPrice: chosenCv?.price ? (parseFloat(chosenCv.price) || 0) : (item.finalPrice || 0)
+                                                            });
+                                                        } else {
+                                                            handleItemChange(index, {
+                                                                vendorId: val,
+                                                                vendorName: val === 'OTHER' ? (item.newVendorName || '') : ''
+                                                            });
                                                         }
                                                     }
                                                 }}>
@@ -1958,8 +2983,63 @@ const ProcurementDetail = () => {
                                                 <Input style={{ marginTop: 8 }}
                                                     placeholder="Ketik nama vendor…"
                                                     value={item.newVendorName || ''}
-                                                    onChange={e => handleItemChange(index, 'newVendorName', e.target.value)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        handleItemChange(index, { newVendorName: val, vendorName: val });
+                                                    }}
                                                 />
+                                            )}
+
+                                            {/* Quick-Fill Chips dari Hasil Perbandingan Tahap 3 */}
+                                            {item.comparisonVendors && item.comparisonVendors.length > 0 && (
+                                                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 600, color: T.slate, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <Sparkles size={12} style={{ color: T.gold }} /> Kandidat Tahap 3:
+                                                    </span>
+                                                    {item.comparisonVendors.map((cv, cvIdx) => {
+                                                        const isSelected = (item.vendorName === cv.name) || (item.vendorId === `CV-${cv.name}`);
+                                                        const validPrices = item.comparisonVendors.map(v => parseFloat(v.price) || 0).filter(p => p > 0);
+                                                        const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : 0;
+                                                        const isCheapest = cv.price && parseFloat(cv.price) === minPrice;
+
+                                                        return (
+                                                            <button
+                                                                key={cvIdx}
+                                                                type="button"
+                                                                disabled={disabled}
+                                                                onClick={() => {
+                                                                    handleItemChange(index, {
+                                                                        vendorId: `CV-${cv.name}`,
+                                                                        vendorName: cv.name,
+                                                                        finalPrice: cv.price ? (parseFloat(cv.price) || 0) : item.finalPrice
+                                                                    });
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 5,
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: 20,
+                                                                    fontSize: 11,
+                                                                    cursor: disabled ? 'default' : 'pointer',
+                                                                    border: `1px solid ${isSelected ? T.navy : isCheapest ? '#86efac' : T.border}`,
+                                                                    background: isSelected ? T.navy : isCheapest ? '#f0fdf4' : '#fff',
+                                                                    color: isSelected ? '#fff' : isCheapest ? '#166534' : T.text,
+                                                                    fontWeight: isSelected || isCheapest ? 700 : 500,
+                                                                    transition: 'all 0.15s ease'
+                                                                }}
+                                                                title={`Klik untuk mengisi ${cv.name} (Rp ${(parseFloat(cv.price) || 0).toLocaleString('id-ID')})`}
+                                                            >
+                                                                <span>{cv.name}</span>
+                                                                <span style={{ opacity: 0.85, fontFamily: "'DM Mono', monospace" }}>
+                                                                    · Rp {(parseFloat(cv.price) || 0).toLocaleString('id-ID')}
+                                                                </span>
+                                                                {isCheapest && <span style={{ fontSize: 10 }}>⭐ Termurah</span>}
+                                                                {isSelected && <Check size={12} style={{ color: '#fff' }} />}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
                                             )}
                                         </div>
 
@@ -2010,7 +3090,7 @@ const ProcurementDetail = () => {
                                         <div>
                                             <Label>Sumber Dana</Label>
                                             <Select disabled={disabled}
-                                                value={item.fundingSource || 'Mandiri'}
+                                                value={(item.fundingSource && item.fundingSource !== 'Mandiri') ? item.fundingSource : 'Yayasan'}
                                                 onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}>
                                                 {['Yayasan', 'Hibah', 'Wakaf', 'Cashback', 'BOS', 'Lainnya'].map(s => (
                                                     <option key={s} value={s}>{s}</option>
@@ -3915,30 +4995,73 @@ const ProcurementDetail = () => {
                 </div>
             )}
 
-            {/* Print CSS Styles */}
-            <style>{`
-                @media print {
-                    body * {
-                        visibility: hidden !important;
+            {/* Procurement Request Letter Modal */}
+            {req?.requestLetter && (
+                <ProcurementLetterModal
+                    isOpen={showRequestLetterModal}
+                    onClose={() => setShowRequestLetterModal(false)}
+                    letterData={req.requestLetter}
+                    isKabidUser={isKabid}
+                    onKabidTte={handleKabidTte}
+                />
+            )}
+
+            {/* Procurement Assignment Order Modal (Surat Perintah Pengadaan) */}
+            {selectedAssignmentOrder && (
+                <ProcurementAssignmentOrderModal
+                    isOpen={showAssignmentOrderModal}
+                    onClose={() => setShowAssignmentOrderModal(false)}
+                    order={selectedAssignmentOrder}
+                    currentUser={user}
+                    onOrderUpdated={(updatedOrder) => {
+                        setSelectedAssignmentOrder(updatedOrder);
+                        setAssignmentOrders(prev => prev.map(o => o.orderId === updatedOrder.orderId ? updatedOrder : o));
+                    }}
+                />
+            )}
+
+            {/* Price Comparison Sheet Modal (Lembar Perbandingan Harga) */}
+            <ProcurementPriceComparisonModal
+                isOpen={showPriceComparisonModal}
+                onClose={() => setShowPriceComparisonModal(false)}
+                req={req}
+                currentUser={user}
+            />
+
+            {/* Purchase Order (PO) Modal (Surat Pesanan Vendor) */}
+            <ProcurementPurchaseOrderModal
+                isOpen={showPoModal}
+                onClose={() => setShowPoModal(false)}
+                req={req}
+                currentUser={user}
+            />
+
+            {/* Print CSS Styles for BAST Modal */}
+            {showBastDocModal && (
+                <style>{`
+                    @media print {
+                        body * {
+                            visibility: hidden !important;
+                        }
+                        #bast-print-sheet, #bast-print-sheet * {
+                            visibility: visible !important;
+                        }
+                        #bast-print-sheet {
+                            position: absolute !important;
+                            left: 0 !important;
+                            top: 0 !important;
+                            width: 100% !important;
+                            max-width: 100% !important;
+                            padding: 20px 25px !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                        }
+                        .no-print {
+                            display: none !important;
+                        }
                     }
-                    #bast-print-sheet, #bast-print-sheet * {
-                        visibility: visible !important;
-                    }
-                    #bast-print-sheet {
-                        position: absolute !important;
-                        left: 0 !important;
-                        top: 0 !important;
-                        width: 100% !important;
-                        max-width: 100% !important;
-                        padding: 20px 25px !important;
-                        box-shadow: none !important;
-                        border: none !important;
-                    }
-                    .no-print {
-                        display: none !important;
-                    }
-                }
-            `}</style>
+                `}</style>
+            )}
         </div>
     );
 };

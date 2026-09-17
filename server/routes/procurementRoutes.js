@@ -5,10 +5,18 @@ const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
 const { handleUpload } = require('../middleware/uploadMiddleware');
 
+// Public Approval Routes (No Token Required)
+router.get('/public/head-unit-approval/:batchId', procurementController.getHeadUnitApprovalData);
+router.post('/public/head-unit-approval/:batchId', procurementController.processHeadUnitApproval);
+router.get('/public/assignment-orders/:orderId', procurementController.getPublicAssignmentOrder);
+router.post('/public/assignment-orders/:orderId/sign', procurementController.signPublicAssignmentOrder);
+
 router.get('/', verifyToken, procurementController.getAllProcurements);
 router.get('/dashboard', verifyToken, procurementController.getDashboardStats);
+router.get('/unit-letter-number', verifyToken, procurementController.getUnitLetterNumber);
 router.get('/:id', verifyToken, procurementController.getProcurementById);
 router.post('/', verifyToken, procurementController.createProcurement);
+router.put('/:id/request-letter', verifyToken, procurementController.updateRequestLetter);
 
 // Import
 router.post('/import', verifyToken, procurementController.importProcurement);
@@ -32,6 +40,11 @@ router.post('/:id/notify-assignees', verifyToken, procurementController.notifyAs
 // Progress Timeline
 router.post('/:id/progress', verifyToken, procurementController.addProgress);
 router.get('/:id/progress', verifyToken, procurementController.getProgress);
+
+// Surat Perintah Pengadaan (Tahap 2 Assignment Order)
+router.get('/:id/assignment-orders', verifyToken, procurementController.getAssignmentOrders);
+router.post('/:id/assignment-orders', verifyToken, procurementController.createAssignmentOrder);
+router.post('/:id/assignment-orders/sign', verifyToken, procurementController.signAssignmentOrder);
 
 // Delete
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.deleteProcurement);

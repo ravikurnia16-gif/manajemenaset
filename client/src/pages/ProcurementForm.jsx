@@ -1,14 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Upload, FileSpreadsheet, Download } from 'lucide-react';
+import { 
+    ArrowLeft, Plus, Trash2, Upload, FileSpreadsheet, Download,
+    FileText, PenTool, Printer, CheckCircle2, Building2, User as UserIcon, Clock
+} from 'lucide-react';
 import * as XLSX from 'xlsx'; // Import XLSX for reading
 import ExcelJS from 'exceljs'; // Import ExcelJS for writing with validation
 import api from '../lib/axios';
+import SignaturePad from '../components/SignaturePad';
+import ProcurementLetterModal from '../components/ProcurementLetterModal';
 
 const ProcurementForm = () => {
     const navigate = useNavigate();
     const [header, setHeader] = useState({ title: '', notes: '', rkbId: '', isDirectOrder: false, assignedStaffId: '', type: 'ASSET' });
-    const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
+    const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'BOS', 'Cashback', 'Lainnya']);
     const [categories, setCategories] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [items, setItems] = useState([
@@ -20,6 +25,73 @@ const ProcurementForm = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAuthorizedForDirectOrder = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana';
 
+    // Letter & Unit States
+    const [units, setUnits] = useState([]);
+    const [usersList, setUsersList] = useState([]);
+    const [selectedUnitId, setSelectedUnitId] = useState(user.unitId ? String(user.unitId) : '');
+    const [letterNumber, setLetterNumber] = useState('');
+    const [headUnitName, setHeadUnitName] = useState('');
+    const [headUnitPhone, setHeadUnitPhone] = useState('');
+    const [isAutoDetectedHead, setIsAutoDetectedHead] = useState(false);
+    const [requesterSignature, setRequesterSignature] = useState(() => {
+        try {
+            return localStorage.getItem('saved_user_signature') || null;
+        } catch (e) {
+            return null;
+        }
+    });
+    const [showSignaturePad, setShowSignaturePad] = useState(false);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+    useEffect(() => {
+        api.get('/master/units')
+            .then(res => setUnits(res.data || []))
+            .catch(err => console.error("Failed to fetch units:", err));
+
+        api.get('/users')
+            .then(res => setUsersList(res.data || []))
+            .catch(err => console.error("Failed to fetch users:", err));
+    }, []);
+
+    useEffect(() => {
+        const uId = selectedUnitId || user.unitId;
+        if (!uId) return;
+
+        // 1. Fetch next unit letter number
+        api.get('/procurements/unit-letter-number', { params: { unitId: uId } })
+            .then(res => {
+                if (res.data?.letterNumber) {
+                    setLetterNumber(res.data.letterNumber);
+                }
+            })
+            .catch(err => console.error("Failed to fetch unit letter number:", err));
+
+        // 2. Auto-detect Kepala Unit from users in this unit
+        const parsedUnitId = parseInt(uId);
+        const head = usersList.find(u => 
+            u.unitId === parsedUnitId && 
+            u.position && (
+                u.position.toLowerCase().includes('kepala unit') ||
+                u.position.toLowerCase().includes('kepala sekolah') ||
+                u.position.toLowerCase().includes('pimpinan')
+            )
+        );
+
+        if (head) {
+            setHeadUnitName(head.name || head.username);
+            setHeadUnitPhone(head.phone || '');
+            setIsAutoDetectedHead(true);
+        } else {
+            const unitObj = units.find(u => u.id === parsedUnitId);
+            if (unitObj?.headName) {
+                setHeadUnitName(unitObj.headName);
+                setIsAutoDetectedHead(true);
+            } else {
+                setIsAutoDetectedHead(false);
+            }
+        }
+    }, [selectedUnitId, usersList, units]);
+
     useEffect(() => {
         api.get('/assets/funding-sources')
             .then(res => {
@@ -29,12 +101,12 @@ const ProcurementForm = () => {
                     const uniqueSources = [...new Set([...defaults, ...res.data])];
                     setFundingSources(uniqueSources);
                 } else {
-                    setFundingSources(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
+                    setFundingSources(['Yayasan', 'Hibah', 'Wakaf', 'BOS', 'Cashback', 'Lainnya']);
                 }
             })
             .catch(err => {
                 console.error("Failed to fetch funding sources:", err);
-                setFundingSources(['Mandiri']);
+                setFundingSources(['Yayasan']);
             });
 
         if (isAuthorizedForDirectOrder) {
@@ -165,18 +237,45 @@ const ProcurementForm = () => {
         e.preventDefault();
         if (!header.title) return alert('Mohon isi Judul Pengajuan');
 
-        if (!confirm('Kirim pengajuan ini?')) return;
+        const isDirect = header.isDirectOrder && isAuthorizedForDirectOrder;
+
+        if (!isDirect) {
+            if (!requesterSignature) {
+                setShowSignaturePad(true);
+                return alert('Tanda tangan pemohon wajib dibubuhkan pada formulir surat permohonan.');
+            }
+            if (!headUnitName || !headUnitName.trim()) {
+                return alert('Nama Kepala Unit (Menyetujui) wajib diisi.');
+            }
+        }
+
+        const confirmMsg = isDirect
+            ? 'Kirim instruksi langsung pengadaan (Mandat Kabid)?'
+            : 'Kirim pengajuan dan buat Surat Permohonan Pengadaan?\n\nTautan tanda tangan persetujuan akan otomatis dikirimkan ke WhatsApp Kepala Unit terlebih dahulu.';
+
+        if (!confirm(confirmMsg)) return;
+
         setLoading(true);
         try {
-            await api.post('/procurements', { ...header, items });
-            alert('Pengajuan berhasil dikirim!');
+            await api.post('/procurements', {
+                ...header,
+                unitId: selectedUnitId || user.unitId,
+                letterNumber,
+                headUnitName: headUnitName.trim(),
+                headUnitPhone: headUnitPhone ? headUnitPhone.trim() : null,
+                requesterSignature,
+                items
+            });
+            alert('Alhamdulillah, pengajuan dan Surat Permohonan berhasil dibuat!\n\nTautan persetujuan telah diteruskan kepada Kepala Unit.');
             navigate('/procurements');
         } catch (error) {
-            alert(error.response?.data?.error || 'Gagal mengirim');
+            alert(error.response?.data?.error || 'Gagal mengirim pengajuan');
         } finally {
             setLoading(false);
         }
     };
+
+    const activeUnit = units.find(u => u.id === parseInt(selectedUnitId || user.unitId)) || user.unit || { name: 'Unit Pemohon' };
 
     return (
         <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-20 px-2 sm:px-0 animate-in slide-in-from-bottom-4">
@@ -223,6 +322,160 @@ const ProcurementForm = () => {
                             <p className="text-[11px] text-slate-500 mt-1">
                                 Keterangan ini akan disampaikan kepada Admin Aset untuk mempermudah peninjauan dan tindak lanjut pengadaan.
                             </p>
+                        </div>
+                    </div>
+
+                    {/* Surat Permohonan Unit Section */}
+                    <div className="bg-white p-4 sm:p-6 rounded-xl border border-blue-200 shadow-sm space-y-5">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <FileText size={18} className="text-blue-600" />
+                                    Surat Permohonan Pengadaan Unit
+                                </h3>
+                                <p className="text-xs text-slate-500">
+                                    Surat resmi berkop unit pemohon untuk seluruh item dalam pengajuan ini. Tanda tangan pemohon akan diteruskan ke Kepala Unit.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowPreviewModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors shadow-xs"
+                            >
+                                <Printer size={14} /> Pratinjau Surat Permohonan
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Unit Selector */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                                    Unit Pemohon *
+                                </label>
+                                {user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET' ? (
+                                    <select
+                                        className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={selectedUnitId}
+                                        onChange={e => setSelectedUnitId(e.target.value)}
+                                    >
+                                        <option value="">-- Pilih Unit Pemohon --</option>
+                                        {units.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between">
+                                        <span className="flex items-center gap-2">
+                                            <Building2 size={16} className="text-blue-600" />
+                                            {activeUnit.name}
+                                        </span>
+                                        <span className="text-[11px] font-normal text-slate-400 bg-white px-2 py-0.5 rounded border">Unit Anda</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Nomor Surat */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                                        Nomor Surat (Otomatis per Unit)
+                                    </label>
+                                    <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                        Per Unit / Tahun
+                                    </span>
+                                </div>
+                                <input
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-mono font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={letterNumber}
+                                    onChange={e => setLetterNumber(e.target.value)}
+                                    placeholder="Contoh: 001/PP/UNIT/IX/2026"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100">
+                            {/* Menyetujui: Kepala Unit */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                                        Menyetujui: Kepala Unit *
+                                    </label>
+                                    {isAutoDetectedHead && (
+                                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                            Otomatis Terdeteksi
+                                        </span>
+                                    )}
+                                </div>
+                                <input
+                                    type="text"
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Nama Lengkap Kepala Unit"
+                                    value={headUnitName}
+                                    onChange={e => {
+                                        setHeadUnitName(e.target.value);
+                                        setIsAutoDetectedHead(false);
+                                    }}
+                                    required={!header.isDirectOrder}
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    {headUnitPhone ? `Kontak WA: ${headUnitPhone} • ` : ''}Tautan tanda tangan persetujuan akan dikirimkan otomatis ke WhatsApp Kepala Unit.
+                                </p>
+                            </div>
+
+                            {/* Tanda Tangan Pemohon */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                                        Tanda Tangan Pemohon (Yang Memohon) *
+                                    </label>
+                                    {requesterSignature && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSignaturePad(true)}
+                                            className="text-[11px] text-blue-600 font-bold hover:underline"
+                                        >
+                                            Ganti TTD
+                                        </button>
+                                    )}
+                                </div>
+
+                                {requesterSignature ? (
+                                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-16 h-12 bg-white rounded-lg border border-slate-300 p-1 flex items-center justify-center">
+                                                <img src={requesterSignature} alt="TTD Pemohon" className="max-h-full max-w-full object-contain" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-800">{user.name || user.username}</p>
+                                                <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                                                    <CheckCircle2 size={12} /> Tanda tangan siap digunakan
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRequesterSignature(null)}
+                                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                            title="Hapus tanda tangan"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSignaturePad(true)}
+                                            className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border-2 border-dashed border-blue-300 hover:border-blue-400 rounded-xl text-xs font-bold text-blue-700 flex items-center justify-center gap-2 transition-all shadow-xs"
+                                        >
+                                            <PenTool size={15} /> Bubuhkan Tanda Tangan Pemohon
+                                        </button>
+                                        <p className="text-[11px] text-slate-500 mt-1">
+                                            Goreskan tanda tangan di sini. Dapat disimpan agar tidak perlu digambar ulang nanti.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -416,9 +669,16 @@ const ProcurementForm = () => {
                             Batal
                         </button>
                         <button
+                            type="button"
+                            onClick={() => setShowPreviewModal(true)}
+                            className="px-5 py-2.5 rounded-xl font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Printer size={16} /> Pratinjau Surat Permohonan
+                        </button>
+                        <button
                             type="submit"
                             disabled={loading}
-                            className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-1 flex items-center gap-2"
+                            className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
                         >
                             {loading ? 'Mengirim...' : 'Kirim Request'} <Upload size={18} />
                         </button>
@@ -431,6 +691,52 @@ const ProcurementForm = () => {
                     </datalist>
                 </form>
             </div>
+
+            {/* SignaturePad Modal for Pemohon */}
+            {showSignaturePad && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md animate-in zoom-in-95">
+                        <SignaturePad
+                            title="Tanda Tangan Pemohon"
+                            storageKey="saved_user_signature"
+                            onSave={(dataUrl) => {
+                                setRequesterSignature(dataUrl);
+                                setShowSignaturePad(false);
+                            }}
+                            onCancel={() => setShowSignaturePad(false)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Procurement Letter Print & Preview Modal */}
+            <ProcurementLetterModal
+                isOpen={showPreviewModal}
+                onClose={() => setShowPreviewModal(false)}
+                letterData={{
+                    letterNumber: letterNumber || '001/PP/UNIT/IX/2026',
+                    createdAt: new Date(),
+                    title: header.title || 'Permohonan Pengadaan Barang / Jasa',
+                    unitName: activeUnit.name || 'Unit Pemohon',
+                    unitAddress: activeUnit.address || 'Kota Padang, Sumatera Barat',
+                    unitPhone: activeUnit.phone || '',
+                    requesterName: user.name || user.username || 'Pemohon',
+                    requesterPosition: user.position || 'Staff Unit',
+                    requesterSignature: requesterSignature,
+                    headUnitName: headUnitName || '',
+                    headUnitSignature: null,
+                    kabidName: (usersList.find(u => u.position && u.position.toLowerCase().includes('kepala bidang sarana'))?.name || usersList.find(u => u.position && u.position.toLowerCase().includes('kepala bidang sarana'))?.username || ''),
+                    kabidTte: header.isDirectOrder,
+                    items: items.map(it => ({
+                        name: it.name || 'Nama Barang',
+                        spec: it.spec || '-',
+                        qty: it.qty || 1,
+                        unit: it.unit || 'Unit',
+                        estimatedPrice: it.estPrice || 0
+                    })),
+                    notes: header.notes
+                }}
+            />
         </div>
     );
 };
