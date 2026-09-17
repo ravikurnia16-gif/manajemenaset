@@ -1537,7 +1537,7 @@ exports.notifyAssignees = async (req, res) => {
  */
 exports.addProgress = async (req, res) => {
     const { id } = req.params;
-    const { message, stage } = req.body;
+    const { message, stage, type } = req.body;
     const user = req.user;
 
     try {
@@ -1554,12 +1554,13 @@ exports.addProgress = async (req, res) => {
         });
         if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan.' });
 
+        const progressType = type || 'MANUAL';
         const progress = await prisma.procurementProgress.create({
             data: {
                 procurementId: parseInt(id),
                 userId: user.id,
                 message: message.trim(),
-                type: 'MANUAL',
+                type: progressType,
                 stage: stage ? parseInt(stage) : null
             },
             include: {
@@ -1572,7 +1573,10 @@ exports.addProgress = async (req, res) => {
             try {
                 const isUserReporter = procurement.userId === user.id;
                 const senderName = progress.user?.name || progress.user?.username || 'Seseorang';
-                const notifMsg = `[Chat Baru] ${senderName} membalas di pengadaan "${procurement.title || procurement.code}": "${message}"`;
+                const isStageUpdate = progressType === 'STAGE_PROGRESS';
+                const notifMsg = isStageUpdate
+                    ? `[Update ${stage ? 'Tahap ' + stage : 'Progres'}] ${senderName} mencatat: "${message}"`
+                    : `[Chat Baru] ${senderName} membalas di pengadaan "${procurement.title || procurement.code}": "${message}"`;
                 const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                 const procurementUrl = `${baseUrl}/procurements/${id}`;
 
@@ -2212,12 +2216,13 @@ exports.createAssignmentOrder = async (req, res) => {
 
         orderData.officeDocumentId = officeDoc.id;
 
-        // 2. Save in ProcurementProgress
+        // 2. Save in ProcurementProgress (exclude bulky base64 qrCodeData from message text)
+        const { qrCodeData: _qr, ...progressOrderData } = orderData;
         await prisma.procurementProgress.create({
             data: {
                 procurementId: procurement.id,
                 userId: currentUser.id,
-                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`,
+                message: `[SURAT_PERINTAH] ${JSON.stringify(progressOrderData)}`,
                 type: 'ASSIGNMENT_ORDER',
                 stage: 2
             }
@@ -2303,11 +2308,12 @@ exports.signAssignmentOrder = async (req, res) => {
         orderData.assigneeSignature = signature;
         orderData.assigneeSignedAt = signedAt;
 
-        // Update progress entry
+        // Update progress entry (exclude bulky base64 qrCodeData)
+        const { qrCodeData: _qr, ...progressOrderData } = orderData;
         await prisma.procurementProgress.update({
             where: { id: progressEntry.id },
             data: {
-                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`
+                message: `[SURAT_PERINTAH] ${JSON.stringify(progressOrderData)}`
             }
         });
 
@@ -2334,7 +2340,7 @@ exports.signAssignmentOrder = async (req, res) => {
                 procurementId: parseInt(id),
                 userId: currentUser.id,
                 message: `✍️ Petugas *${orderData.assignee?.name || currentUser.username}* telah menandatangani Surat Perintah Tugas Pengadaan No. ${orderData.orderNumber || '-'}`,
-                type: 'MANUAL',
+                type: 'SYSTEM',
                 stage: 2
             }
         });
@@ -2559,11 +2565,12 @@ exports.signPublicAssignmentOrder = async (req, res) => {
         orderData.assigneeSignature = signature;
         orderData.assigneeSignedAt = signedAt;
 
-        // Update progress entry
+        // Update progress entry (exclude bulky base64 qrCodeData)
+        const { qrCodeData: _qr, ...progressOrderData } = orderData;
         await prisma.procurementProgress.update({
             where: { id: progressEntry.id },
             data: {
-                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`
+                message: `[SURAT_PERINTAH] ${JSON.stringify(progressOrderData)}`
             }
         });
 
@@ -2590,7 +2597,7 @@ exports.signPublicAssignmentOrder = async (req, res) => {
                 procurementId: progressEntry.procurementId,
                 userId: progressEntry.userId,
                 message: `✍️ Petugas *${orderData.assignee?.name || 'Penerima Tugas'}* telah menandatangani Surat Perintah Tugas Pengadaan No. ${orderData.orderNumber || '-'} secara digital`,
-                type: 'MANUAL',
+                type: 'SYSTEM',
                 stage: 2
             }
         });

@@ -428,6 +428,13 @@ const ProcurementDetail = () => {
     const [progressLogs, setProgressLogs] = useState([]);
     const [newProgressMessage, setNewProgressMessage] = useState('');
     const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
+
+    // Tabbed Progress & Chat States
+    const [activeProgressTab, setActiveProgressTab] = useState('timeline'); // 'timeline' | 'chat'
+    const [showAddStageNote, setShowAddStageNote] = useState(false);
+    const [newStageNumber, setNewStageNumber] = useState(1);
+    const [newStageMessage, setNewStageMessage] = useState('');
+    const [isSubmittingStageNote, setIsSubmittingStageNote] = useState(false);
     
     // Mention States
     const [showMentionList, setShowMentionList] = useState(false);
@@ -1102,6 +1109,194 @@ const ProcurementDetail = () => {
         });
     };
 
+    const handleAddStageNote = async () => {
+        if (!newStageMessage.trim()) return;
+        setIsSubmittingStageNote(true);
+        try {
+            const res = await api.post(`/procurements/${id}/progress`, {
+                message: newStageMessage.trim(),
+                stage: newStageNumber,
+                type: 'STAGE_PROGRESS'
+            });
+            setProgressLogs([res.data, ...progressLogs]);
+            setNewStageMessage('');
+            setShowAddStageNote(false);
+        } catch (e) {
+            alert('Gagal menambahkan update tahap: ' + (e.response?.data?.error || e.message));
+        } finally {
+            setIsSubmittingStageNote(false);
+        }
+    };
+
+    const isSystemDoc = (msg) => {
+        const text = msg?.message || '';
+        return (
+            msg?.type === 'ASSIGNMENT_ORDER' ||
+            msg?.type === 'LETTER' ||
+            msg?.type === 'SYSTEM' ||
+            msg?.type === 'STAGE_PROGRESS' ||
+            text.startsWith('[SURAT_PERINTAH]') ||
+            text.startsWith('[SURAT_PERMOHONAN]') ||
+            text.startsWith('{"orderId"') ||
+            text.startsWith('[Catatan Pemohon untuk Admin Aset]')
+        );
+    };
+
+    // Chat Logs: HANYA percakapan murni
+    const chatLogs = progressLogs.filter(msg => !isSystemDoc(msg));
+
+    // Timeline / Update Tahap Logs:
+    const timelineLogs = progressLogs.filter(msg => {
+        return isSystemDoc(msg) || Boolean(msg.stage);
+    });
+
+    const renderTimelineItem = (item, idx) => {
+        const msg = item.message || '';
+        const isOrderDoc = item.type === 'ASSIGNMENT_ORDER' || msg.startsWith('[SURAT_PERINTAH]') || msg.startsWith('{"orderId"');
+        const isLetterDoc = item.type === 'LETTER' || msg.startsWith('[SURAT_PERMOHONAN]');
+        const isInitialNote = msg.startsWith('📋 [Catatan Pemohon') || msg.startsWith('[Catatan Pemohon');
+
+        if (isOrderDoc) {
+            let order = null;
+            try {
+                order = JSON.parse(msg.replace('[SURAT_PERINTAH]', '').trim());
+            } catch (e) { }
+
+            const isSigned = Boolean(order?.assigneeSignature);
+            return (
+                <div key={item.id || idx} className="p-4 rounded-xl border border-blue-200 bg-blue-50/60 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                            <FileText size={18} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">
+                                    Surat Perintah Tugas (SPO)
+                                </span>
+                                <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${
+                                    isSigned ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                }`}>
+                                    {isSigned ? '✓ Sudah Ditandatangani' : '⏳ Menunggu TTD Petugas'}
+                                </span>
+                            </div>
+                            <div className="text-xs font-semibold text-slate-800 mt-1">
+                                No. Surat: <span className="font-mono text-blue-700">{order?.orderNumber || '-'}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 mt-0.5">
+                                Ditugaskan kepada: <b className="text-slate-800">{order?.assignee?.name || 'Petugas'}</b> ({order?.assignee?.position || 'Staff'})
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1">
+                                {new Date(item.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end md:self-center">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const foundOrder = assignmentOrders.find(o => o.orderId === order?.orderId) || order;
+                                setSelectedAssignmentOrder(foundOrder);
+                                setShowAssignmentOrderModal(true);
+                            }}
+                            className="px-3 py-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                            <Eye size={13} /> Lihat / Cetak SPO
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        if (isLetterDoc) {
+            let letter = null;
+            try {
+                letter = JSON.parse(msg.replace('[SURAT_PERMOHONAN]', '').trim());
+            } catch (e) { }
+
+            return (
+                <div key={item.id || idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-slate-700 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                            <FileText size={18} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
+                                    Surat Permohonan Pengadaan Unit
+                                </span>
+                                {letter?.headUnitSignature && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        ✓ Disetujui Kepala Unit
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-xs font-semibold text-slate-800 mt-1">
+                                No. Surat: <span className="font-mono text-slate-700">{letter?.letterNumber || '-'}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-600 mt-0.5">
+                                Pemohon: <b>{letter?.requesterName || '-'}</b> • Kepala Unit: <b>{letter?.headUnitName || '-'}</b>
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1">
+                                {new Date(item.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </div>
+                        </div>
+                    </div>
+                    {req?.requestLetter && (
+                        <button
+                            type="button"
+                            onClick={() => setShowRequestLetterModal(true)}
+                            className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-800 hover:text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 self-end md:self-center"
+                        >
+                            <Eye size={13} /> Lihat Surat
+                        </button>
+                    )}
+                </div>
+            );
+        }
+
+        if (isInitialNote) {
+            const cleanNote = msg.replace('📋 [Catatan Pemohon untuk Admin Aset]:\n', '').replace('[Catatan Pemohon untuk Admin Aset]:', '').trim();
+            return (
+                <div key={item.id || idx} className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 text-xs text-amber-950 shadow-xs">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-bold text-amber-900 flex items-center gap-1">
+                            📋 Catatan Awal Pemohon
+                        </span>
+                        <span className="text-[10px] text-amber-700/80">
+                            {new Date(item.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                    </div>
+                    <div className="whitespace-pre-wrap font-medium">{cleanNote}</div>
+                </div>
+            );
+        }
+
+        // Regular stage note / system event
+        return (
+            <div key={item.id || idx} className="p-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50/80 transition-colors shadow-xs">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                        {item.stage && (
+                            <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-bold">
+                                Tahap {item.stage}
+                            </span>
+                        )}
+                        <span className="text-xs font-bold text-slate-800">
+                            {item.user?.name || item.user?.username || 'Sistem'}
+                        </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                        {new Date(item.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                    </span>
+                </div>
+                <p className="text-xs text-slate-700 whitespace-pre-wrap m-0 leading-relaxed font-normal">
+                    {renderChatMessage(item.message)}
+                </p>
+            </div>
+        );
+    };
+
     const handleCreateWorkshopOrder = async (e) => {
         e.preventDefault();
         const itemIds = Object.keys(selectedWorkshopItems).filter(k => selectedWorkshopItems[k]).map(Number);
@@ -1341,7 +1536,7 @@ const ProcurementDetail = () => {
                 />
             </div>
 
-            {/* ── DISKUSI / CHAT (Collapsible) ── */}
+            {/* ── RIWAYAT TAHAPAN & DISKUSI (DIPISAH DENGAN TAB) ── */}
             {req.status !== 'REJECTED' && (
                 <div style={{ marginBottom: 24 }}>
                     <div style={{
@@ -1351,131 +1546,266 @@ const ProcurementDetail = () => {
                         boxShadow: '0 2px 10px rgba(15,31,61,0.04)',
                         overflow: 'hidden'
                     }}>
-                        {/* Header Bar with Toggle */}
+                        {/* Header Bar with Tab Switches and Collapse Toggle */}
                         <div
-                            onClick={() => setIsChatOpen(!isChatOpen)}
                             style={{
-                                padding: '14px 20px',
+                                padding: '12px 20px',
                                 background: isChatOpen ? T.cream : T.white,
                                 borderBottom: isChatOpen ? `1px solid ${T.border}` : 'none',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                cursor: 'pointer',
+                                flexWrap: 'wrap',
+                                gap: 12,
                                 userSelect: 'none',
                                 transition: 'background .2s'
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{
-                                    width: 32, height: 32, borderRadius: 8,
-                                    background: isChatOpen ? T.navy : '#eef3fc',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                }}>
-                                    <MessageSquare size={16} color={isChatOpen ? T.gold : '#2563eb'} />
-                                </div>
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontSize: 13.5, fontWeight: 700, color: T.navy }}>Diskusi &amp; Catatan Pengadaan</span>
-                                        <span style={{
-                                            fontSize: 11, fontWeight: 700,
-                                            padding: '2px 8px', borderRadius: 12,
-                                            background: progressLogs.length > 0 ? '#e0e7ff' : T.creamDk,
-                                            color: progressLogs.length > 0 ? '#3730a3' : T.slate
-                                        }}>
-                                            {progressLogs.length} pesan
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                {/* Tab Selector: Update Tahap vs Diskusi */}
+                                <div className="inline-flex bg-slate-200/80 p-1 rounded-xl gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveProgressTab('timeline');
+                                            if (!isChatOpen) setIsChatOpen(true);
+                                        }}
+                                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                            activeProgressTab === 'timeline'
+                                                ? 'bg-white text-blue-900 shadow-sm'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <Clock size={14} className={activeProgressTab === 'timeline' ? 'text-blue-600' : 'text-slate-500'} />
+                                        <span>Update Tahap &amp; Riwayat</span>
+                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                                            activeProgressTab === 'timeline' ? 'bg-blue-100 text-blue-700' : 'bg-slate-300 text-slate-700'
+                                        }`}>
+                                            {timelineLogs.length}
                                         </span>
-                                    </div>
-                                    {!isChatOpen && progressLogs.length > 0 && (
-                                        <div style={{ fontSize: 11.5, color: T.slate, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 600 }}>
-                                            Terakhir: <b>{progressLogs[0]?.user?.name || progressLogs[0]?.user?.username}</b>: "{progressLogs[0]?.message?.slice(0, 70)}..."
-                                        </div>
-                                    )}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveProgressTab('chat');
+                                            if (!isChatOpen) setIsChatOpen(true);
+                                        }}
+                                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                            activeProgressTab === 'chat'
+                                                ? 'bg-white text-blue-900 shadow-sm'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <MessageSquare size={14} className={activeProgressTab === 'chat' ? 'text-blue-600' : 'text-slate-500'} />
+                                        <span>Diskusi &amp; Catatan</span>
+                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                                            activeProgressTab === 'chat' ? 'bg-blue-100 text-blue-700' : 'bg-slate-300 text-slate-700'
+                                        }`}>
+                                            {chatLogs.length}
+                                        </span>
+                                    </button>
                                 </div>
+
+                                {!isChatOpen && (
+                                    <div style={{ fontSize: 11.5, color: T.slate, marginLeft: 6 }}>
+                                        {activeProgressTab === 'timeline' ? (
+                                            <span>Riwayat tahapan pengadaan ({timelineLogs.length} catatan)</span>
+                                        ) : (
+                                            <span>
+                                                {chatLogs.length > 0 
+                                                    ? `Pesan terakhir: ${chatLogs[0]?.user?.name || chatLogs[0]?.user?.username}: "${chatLogs[0]?.message?.slice(0, 50)}..."` 
+                                                    : 'Belum ada pesan diskusi'}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.slate, fontSize: 12, fontWeight: 600 }}>
-                                <span>{isChatOpen ? 'Tutup Diskusi' : 'Buka Diskusi'}</span>
+
+                            <div 
+                                onClick={() => setIsChatOpen(!isChatOpen)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.slate, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                            >
+                                <span>{isChatOpen ? 'Sembunyikan' : 'Tampilkan'}</span>
                                 {isChatOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </div>
                         </div>
 
                         {/* Collapsible Content */}
                         {isChatOpen && (
-                            <div className="flex flex-col h-[400px]">
-                                <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-                                    {progressLogs.length > 0 ? (
-                                        progressLogs.slice().reverse().map((msg, idx) => {
-                                            const isMine = msg.userId === user?.id;
-                                            const isStaff = msg.user?.role !== 'USER' && msg.user?.role !== 'ADMIN_UNIT';
-                                            
-                                            return (
-                                                <div key={msg.id || idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isStaff ? 'text-orange-600' : 'text-slate-500')}`}>
-                                                            {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isStaff && !isMine && '(Admin/Petugas)'}
-                                                        </span>
-                                                        <span className="text-[9px] text-slate-400">
-                                                            {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
-                                                        </span>
-                                                    </div>
-                                                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
-                                                        isMine 
-                                                            ? 'bg-blue-600 text-white rounded-tr-sm' 
-                                                            : (isStaff ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
-                                                    }`}>
-                                                        <p className="whitespace-pre-wrap m-0">{renderChatMessage(msg.message)}</p>
-                                                        {msg.stage && (
-                                                            <div className="mt-2 inline-block px-2 py-0.5 bg-white/20 rounded text-[10px] font-semibold opacity-80">
-                                                                Tahap {msg.stage}
-                                                            </div>
-                                                        )}
-                                                    </div>
+                            <div>
+                                {/* ── TAB 1: UPDATE TAHAP & RIWAYAT PROGRESS ── */}
+                                {activeProgressTab === 'timeline' && (
+                                    <div className="flex flex-col max-h-[500px]">
+                                        {/* Sub-header with Add Stage Note Button for Staff/Admin */}
+                                        {(isAdmin || isKabid || isStaffAset) && (
+                                            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+                                                <div className="text-xs text-slate-600 flex items-center gap-1.5">
+                                                    <Sparkles size={14} className="text-amber-500" />
+                                                    <span>Kelola &amp; pantau alur tahapan pengadaan dari awal hingga selesai</span>
                                                 </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="text-center py-6 text-sm text-slate-400 italic flex items-center justify-center h-full">
-                                            Belum ada pesan diskusi.
-                                        </div>
-                                    )}
-                                </div>
-
-                                {req.status !== 'COMPLETED' && (
-                                    <div className="p-4 bg-white border-t flex items-end gap-2 relative">
-                                        {showMentionList && (
-                                            <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
-                                                {users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
-                                                    <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
-                                                ) : (
-                                                    users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
-                                                        <button
-                                                            key={u.id}
-                                                            onClick={() => handleSelectMention(u.mentionName)}
-                                                            className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
-                                                        >
-                                                            <div className="font-bold text-slate-800">{u.name}</div>
-                                                            <div className="text-[10px] text-slate-500">{u.username}</div>
-                                                        </button>
-                                                    ))
-                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNewStageNumber(activeTab || 1);
+                                                        setShowAddStageNote(!showAddStageNote);
+                                                    }}
+                                                    className="px-3 py-1 bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 rounded-lg text-xs font-bold text-slate-700 transition-all shadow-xs flex items-center gap-1"
+                                                >
+                                                    <Plus size={13} /> {showAddStageNote ? 'Tutup Form' : 'Catat Update Tahap'}
+                                                </button>
                                             </div>
                                         )}
-                                        <textarea
-                                            id="chat-input-proc"
-                                            value={newProgressMessage}
-                                            onChange={handleChatChange}
-                                            onKeyDown={handleChatKeyDown}
-                                            placeholder="Ketik pesan... (@username untuk mention)"
-                                            rows={1}
-                                            className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        />
-                                        <button
-                                            onClick={handleAddProgress}
-                                            disabled={isSubmittingProgress || !newProgressMessage.trim()}
-                                            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
-                                        >
-                                            {isSubmittingProgress ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                                        </button>
+
+                                        {/* Form Tambah Catatan Tahap (if open) */}
+                                        {showAddStageNote && (
+                                            <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex flex-col gap-2.5">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-xs font-bold text-blue-950">Pilih Tahapan Terkait:</span>
+                                                    <select
+                                                        value={newStageNumber}
+                                                        onChange={(e) => setNewStageNumber(parseInt(e.target.value))}
+                                                        className="px-2.5 py-1 text-xs bg-white border border-blue-200 rounded-lg font-bold text-blue-900 outline-none focus:ring-1 focus:ring-blue-500"
+                                                    >
+                                                        <option value={1}>Tahap 1 — Verifikasi Permohonan</option>
+                                                        <option value={2}>Tahap 2 — Penugasan Internal (SPO)</option>
+                                                        <option value={3}>Tahap 3 — Survei &amp; Perbandingan Harga</option>
+                                                        <option value={4}>Tahap 4 — Purchase Order (PO)</option>
+                                                        <option value={5}>Tahap 5 — Serah Terima Barang (BAST)</option>
+                                                        <option value={6}>Tahap 6 — Selesai &amp; Distribusi Ruangan</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-end gap-2">
+                                                    <textarea
+                                                        value={newStageMessage}
+                                                        onChange={(e) => setNewStageMessage(e.target.value)}
+                                                        placeholder="Tuliskan catatan kemajuan progres tahapan ini... (misal: penawaran vendor telah lengkap / barang sedang dipacking)"
+                                                        rows={2}
+                                                        className="flex-1 px-3 py-2 bg-white border border-blue-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-y"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAddStageNote}
+                                                        disabled={isSubmittingStageNote || !newStageMessage.trim()}
+                                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm shrink-0"
+                                                    >
+                                                        {isSubmittingStageNote ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                                        <span>Simpan Progres</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Timeline Content */}
+                                        <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+                                            {timelineLogs.length > 0 ? (
+                                                timelineLogs.map((item, idx) => renderTimelineItem(item, idx))
+                                            ) : (
+                                                <div className="text-center py-8 text-sm text-slate-400 italic">
+                                                    Belum ada catatan tahapan pengadaan tercatat.
+                                                </div>
+                                            )}
+
+                                            {/* Milestone Awal: Dibuatnya Pengadaan */}
+                                            {req.createdAt && (
+                                                <div className="p-3.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 flex items-center justify-between gap-2 text-xs text-slate-500">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                                                        <span>
+                                                            Permintaan diajukan oleh <b className="text-slate-700">{req.user?.name || req.user?.username}</b> ({req.unit?.name || 'Unit'})
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {new Date(req.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── TAB 2: DISKUSI & CHAT (HANYA PESAN PERCAKAPAN) ── */}
+                                {activeProgressTab === 'chat' && (
+                                    <div className="flex flex-col h-[400px]">
+                                        <div className="flex-1 p-4 space-y-3.5 overflow-y-auto">
+                                            {chatLogs.length > 0 ? (
+                                                chatLogs.slice().reverse().map((msg, idx) => {
+                                                    const isMine = msg.userId === user?.id;
+                                                    const isStaff = msg.user?.role !== 'USER' && msg.user?.role !== 'ADMIN_UNIT';
+
+                                                    return (
+                                                        <div key={msg.id || idx} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className={`text-[10px] font-bold ${isMine ? 'text-blue-600' : (isStaff ? 'text-orange-600' : 'text-slate-500')}`}>
+                                                                    {isMine ? 'Anda' : (msg.user?.name || msg.user?.username)} {isStaff && !isMine && '(Admin/Petugas)'}
+                                                                </span>
+                                                                <span className="text-[9px] text-slate-400">
+                                                                    {new Date(msg.createdAt).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                                                </span>
+                                                            </div>
+                                                            <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm shadow-sm ${
+                                                                isMine 
+                                                                    ? 'bg-blue-600 text-white rounded-tr-sm' 
+                                                                    : (isStaff ? 'bg-amber-50 text-amber-900 border border-amber-200 rounded-tl-sm' : 'bg-slate-100 text-slate-700 border border-slate-200 rounded-tl-sm')
+                                                            }`}>
+                                                                <p className="whitespace-pre-wrap m-0 leading-relaxed">{renderChatMessage(msg.message)}</p>
+                                                                {msg.stage && (
+                                                                    <div className="mt-2 inline-block px-2 py-0.5 bg-white/20 rounded text-[10px] font-semibold opacity-80">
+                                                                        Tahap {msg.stage}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="text-center py-10 text-sm text-slate-400 italic flex items-center justify-center h-full">
+                                                    Belum ada pesan obrolan. Gunakan kolom di bawah untuk berdiskusi.
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Input Chat */}
+                                        {req.status !== 'COMPLETED' && (
+                                            <div className="p-4 bg-white border-t flex items-end gap-2 relative">
+                                                {showMentionList && (
+                                                    <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col max-h-48">
+                                                        {users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 ? (
+                                                            <div className="p-3 text-sm text-slate-500 italic text-center">User tidak ditemukan</div>
+                                                        ) : (
+                                                            users.filter(u => (u.mentionName||'').toLowerCase().includes(mentionFilter.toLowerCase()) || (u.name||'').toLowerCase().includes(mentionFilter.toLowerCase())).map((u, i) => (
+                                                                <button
+                                                                    key={u.id}
+                                                                    onClick={() => handleSelectMention(u.mentionName)}
+                                                                    className={`px-4 py-2 text-left text-sm hover:bg-blue-50 transition-colors ${i === mentionIndex ? 'bg-blue-50' : ''}`}
+                                                                >
+                                                                    <div className="font-bold text-slate-800">{u.name}</div>
+                                                                    <div className="text-[10px] text-slate-500">{u.username}</div>
+                                                                </button>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <textarea
+                                                    id="chat-input-proc"
+                                                    value={newProgressMessage}
+                                                    onChange={handleChatChange}
+                                                    onKeyDown={handleChatKeyDown}
+                                                    placeholder="Ketik pesan diskusi... (@username untuk mention)"
+                                                    rows={1}
+                                                    className="flex-1 max-h-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-y focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                                />
+                                                <button
+                                                    onClick={handleAddProgress}
+                                                    disabled={isSubmittingProgress || !newProgressMessage.trim()}
+                                                    className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0 flex items-center justify-center"
+                                                >
+                                                    {isSubmittingProgress ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
