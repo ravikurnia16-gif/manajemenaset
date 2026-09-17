@@ -33,6 +33,7 @@ router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);
 // BAST & Completion (Admin + Assigned users can finalize)
 router.post('/:id/bast', verifyToken, handleUpload('bastFile', 'procurement'), procurementController.processBAST);
 router.put('/:id/bast-signatures', verifyToken, procurementController.updateBASTSignatures);
+router.post('/:id/bast-document', verifyToken, procurementController.getOrCreateBASTDocument);
 
 // Notify Assignees
 router.post('/:id/notify-assignees', verifyToken, procurementController.notifyAssignees);

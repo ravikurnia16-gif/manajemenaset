@@ -16,6 +16,7 @@ import ProcurementLetterModal from '../components/ProcurementLetterModal';
 import ProcurementAssignmentOrderModal from '../components/ProcurementAssignmentOrderModal';
 import ProcurementPriceComparisonModal from '../components/ProcurementPriceComparisonModal';
 import ProcurementPurchaseOrderModal from '../components/ProcurementPurchaseOrderModal';
+import QRCode from 'react-qr-code';
 
 /* ─────────────────────────────────────────────
    DESIGN TOKENS  (inline style helpers)
@@ -413,6 +414,8 @@ const ProcurementDetail = () => {
     const [bastNotes, setBastNotes] = useState('');
     const [sigModal, setSigModal] = useState({ open: false, type: null, title: '' });
     const [showBastDocModal, setShowBastDocModal] = useState(false);
+    const [bastDoc, setBastDoc] = useState(null);
+    const [loadingBastDoc, setLoadingBastDoc] = useState(false);
     const [isSavingSignatures, setIsSavingSignatures] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [allRooms, setAllRooms] = useState([]);
@@ -584,7 +587,16 @@ const ProcurementDetail = () => {
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username, username: u.username, mentionName: (u.name || u.username).replace(/\s+/g, '_'), unitId: u.unitId })));
+            setUsers(res.data.map(u => ({
+                id: u.id,
+                name: u.name || u.username,
+                username: u.username,
+                mentionName: (u.name || u.username).replace(/\s+/g, '_'),
+                unitId: u.unitId,
+                position: u.position,
+                nip: u.nip,
+                role: u.role
+            })));
         } catch (e) { console.error(e); }
     };
 
@@ -629,8 +641,12 @@ const ProcurementDetail = () => {
                     usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
                     finalPrice: item.finalPrice || item.estPrice,
                     fundingSource: (item.fundingSource && item.fundingSource !== 'Mandiri') ? item.fundingSource : 'Yayasan',
-                    vendorId: item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : ''),
-                    vendorName: item.vendorName || '',
+                    vendorId: (item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana' || item.vendorName === 'Gudang Sarpras (Internal)' || item.vendorName === 'Gudang Sarpras')
+                        ? 'GUDANG'
+                        : (item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : '')),
+                    vendorName: (item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana' || item.vendorName === 'Gudang Sarpras (Internal)' || item.vendorName === 'Gudang Sarpras')
+                        ? 'Bidang Sarana'
+                        : (item.vendorName || ''),
                     comparisonVendors: safeJSON(item.comparisonVendors),
                     needComparison: item.needComparison !== false,
                     assignedTo: item.assignedTo || '',
@@ -691,7 +707,8 @@ const ProcurementDetail = () => {
                 try { initialWh = JSON.parse(savedWhStr) || {}; } catch (e) {}
             }
             (data.items || []).forEach(it => {
-                if (it.vendorId === 'GUDANG' || it.vendorName === 'Gudang Sarpras (Internal)') {
+                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Bidang Sarana' || it.vendorName === 'Gudang Sarpras (Internal)' || it.vendorName === 'Gudang Sarpras';
+                if (isWh) {
                     if (!initialWh[it.id]) {
                         initialWh[it.id] = { enabled: true, quantity: it.qty };
                     }
@@ -730,6 +747,10 @@ const ProcurementDetail = () => {
                 setStaffName(defaultStaff);
             }
 
+            if (data.bastDoc) {
+                setBastDoc(data.bastDoc);
+            }
+
             // Smart activeTab default based on procurement status
             if (data.status === 'COMPLETED') {
                 setActiveTab(5);
@@ -744,6 +765,24 @@ const ProcurementDetail = () => {
         finally { setLoading(false); }
     };
 
+    const handleOpenBastDocModal = async () => {
+        setShowBastDocModal(true);
+        setLoadingBastDoc(true);
+        try {
+            const res = await api.post(`/procurements/${id}/bast-document`, {
+                bastDate: bastDate || new Date().toISOString(),
+                receiverName: receiverName || req?.user?.name || req?.user?.username || 'Penerima Barang'
+            });
+            if (res.data?.bastDoc) {
+                setBastDoc(res.data.bastDoc);
+            }
+        } catch (e) {
+            console.error('Failed to get/create BAST document:', e);
+        } finally {
+            setLoadingBastDoc(false);
+        }
+    };
+
     const handleSaveItem = async (item, silent = false) => {
         try {
             if (!silent) setSavingItems(prev => ({ ...prev, [item.id]: true }));
@@ -752,8 +791,15 @@ const ProcurementDetail = () => {
             let resolvedVendorName = item.vendorName || null;
             if (item.vendorId === 'OTHER') {
                 resolvedVendorName = item.newVendorName || null;
-            } else if (item.vendorId === 'GUDANG' || item.vendorId === 'Gudang Sarpras') {
-                resolvedVendorName = 'Gudang Sarpras (Internal)';
+            } else if (
+                item.vendorId === 'GUDANG' || 
+                item.vendorId === 'Gudang Sarpras' || 
+                warehouseFulfillments[item.id]?.enabled || 
+                resolvedVendorName === 'Bidang Sarana' || 
+                resolvedVendorName === 'Gudang Sarpras (Internal)' || 
+                resolvedVendorName === 'Gudang Sarpras'
+            ) {
+                resolvedVendorName = 'Bidang Sarana';
             } else if (typeof item.vendorId === 'string' && item.vendorId.startsWith('CV-')) {
                 resolvedVendorName = item.vendorId.replace('CV-', '');
             }
@@ -841,7 +887,7 @@ const ProcurementDetail = () => {
 
         for (let i = 0; i < next.items.length; i++) {
             const item = { ...next.items[i] };
-            const isWh = item.vendorId === 'GUDANG' || item.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[item.id]?.enabled;
+            const isWh = item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana' || item.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[item.id]?.enabled;
             if (isWh) continue;
 
             const cvs = item.comparisonVendors || [];
@@ -1511,7 +1557,7 @@ const ProcurementDetail = () => {
                         }
                         if (activeTab === 4 && targetStep > 4) {
                             const incomplete = req.items.find(i => {
-                                const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
+                                const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Bidang Sarana' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
                                 if (isWh) {
                                     const f = warehouseFulfillments[i.id];
                                     return !f?.enabled || !f?.invItemId || !f?.warehouseId || !f?.quantity;
@@ -1519,7 +1565,7 @@ const ProcurementDetail = () => {
                                 return (!i.vendorId && !i.vendorName) || !i.finalPrice;
                             });
                             if (incomplete) {
-                                const isWh = incomplete.vendorId === 'GUDANG' || incomplete.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[incomplete.id]?.enabled;
+                                const isWh = incomplete.vendorId === 'GUDANG' || incomplete.vendorName === 'Bidang Sarana' || incomplete.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[incomplete.id]?.enabled;
                                 if (isWh) return alert(`Lengkapi data barang gudang & lokasi gudang untuk: ${incomplete.name}`);
                                 return alert(`Lengkapi Vendor & Harga untuk: ${incomplete.name}`);
                             }
@@ -2935,7 +2981,7 @@ const ProcurementDetail = () => {
                                 <Btn variant="primary"
                                     onClick={async () => {
                                         const inc = req.items.find(i => {
-                                            const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
+                                            const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Bidang Sarana' || i.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[i.id]?.enabled;
                                             if (isWh) {
                                                 const f = warehouseFulfillments[i.id];
                                                 return !f?.enabled || !f?.invItemId || !f?.warehouseId || !f?.quantity;
@@ -2943,7 +2989,7 @@ const ProcurementDetail = () => {
                                             return (!i.vendorId && !i.vendorName) || !i.finalPrice;
                                         });
                                         if (inc) {
-                                            const isWh = inc.vendorId === 'GUDANG' || inc.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[inc.id]?.enabled;
+                                            const isWh = inc.vendorId === 'GUDANG' || inc.vendorName === 'Bidang Sarana' || inc.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[inc.id]?.enabled;
                                             if (isWh) return alert(`Lengkapi data barang gudang & lokasi gudang untuk: ${inc.name}`);
                                             return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
                                         }
@@ -2963,7 +3009,7 @@ const ProcurementDetail = () => {
                         {(() => {
                             const totalPagu = (req.items || []).reduce((sum, it) => sum + ((parseFloat(it.estPrice) || 0) * (parseFloat(it.qty) || 1)), 0);
                             const totalFinal = (req.items || []).reduce((sum, it) => {
-                                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[it.id]?.enabled;
+                                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Bidang Sarana' || it.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[it.id]?.enabled;
                                 if (isWh) return sum;
                                 const p = parseFloat(it.finalPrice) || parseFloat(it.estPrice) || 0;
                                 return sum + (p * (parseFloat(it.qty) || 1));
@@ -2973,7 +3019,7 @@ const ProcurementDetail = () => {
                             const percent = totalPagu > 0 ? Math.abs((diff / totalPagu) * 100).toFixed(1) : '0';
 
                             const readyCount = (req.items || []).filter(it => {
-                                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[it.id]?.enabled;
+                                const isWh = it.vendorId === 'GUDANG' || it.vendorName === 'Bidang Sarana' || it.vendorName === 'Gudang Sarpras (Internal)' || warehouseFulfillments[it.id]?.enabled;
                                 if (isWh) return warehouseFulfillments[it.id]?.invItemId && warehouseFulfillments[it.id]?.warehouseId;
                                 return (it.vendorName || it.vendorId) && parseFloat(it.finalPrice) > 0;
                             }).length;
@@ -3086,7 +3132,10 @@ const ProcurementDetail = () => {
                         })()}
                         {req.items.map((item, index) => {
                             const disabled = req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item));
-                            const isWarehouseFulfilled = warehouseFulfillments[item.id]?.enabled || item.vendorId === 'GUDANG';
+                            const isWarehouseFulfilled = warehouseFulfillments[item.id]?.enabled || 
+                                                         item.vendorId === 'GUDANG' || 
+                                                         item.vendorName === 'Bidang Sarana' || 
+                                                         item.vendorName === 'Gudang Sarpras (Internal)';
                             return (
                                 <div key={item.id} style={{
                                     border: `1.5px solid ${isWarehouseFulfilled ? '#a3d9c0' : ((item.vendorName || item.vendorId) && item.finalPrice ? '#bbf7d0' : T.border)}`,
@@ -3148,10 +3197,10 @@ const ProcurementDetail = () => {
                                                 </div>
                                                 <div>
                                                     <div style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>
-                                                        Penuhi dari Stok Gudang Sarpras (Internal)
+                                                        Penuhi dari Stok Gudang (Bidang Sarana)
                                                     </div>
                                                     <div style={{ fontSize: 11, color: T.slate }}>
-                                                        Ambil barang dari inventaris gudang yang ada, otomatis potong stok gudang saat BAST
+                                                        Ambil barang dari inventaris gudang yang ada (Vendor: Bidang Sarana), otomatis potong stok gudang saat BAST
                                                     </div>
                                                 </div>
                                             </div>
@@ -3168,10 +3217,10 @@ const ProcurementDetail = () => {
                                                     });
                                                     if (nextEnabled) {
                                                         handleItemChange(index, 'vendorId', 'GUDANG');
-                                                        handleItemChange(index, 'vendorName', 'Gudang Sarpras (Internal)');
+                                                        handleItemChange(index, 'vendorName', 'Bidang Sarana');
                                                         if (!item.finalPrice) handleItemChange(index, 'finalPrice', 0);
                                                     } else {
-                                                        if (item.vendorId === 'GUDANG') {
+                                                        if (item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana') {
                                                             handleItemChange(index, 'vendorId', '');
                                                             handleItemChange(index, 'vendorName', '');
                                                         }
@@ -3239,10 +3288,62 @@ const ProcurementDetail = () => {
                                                         }}
                                                     >
                                                         <option value="">— Pilih Gudang —</option>
-                                                        {invWarehouses.map(w => (
-                                                            <option key={w.id} value={w.id}>{w.name}</option>
-                                                        ))}
+                                                        {invWarehouses.map(w => {
+                                                            const currentInv = invItems.find(inv => String(inv.id) === String(warehouseFulfillments[item.id]?.invItemId));
+                                                            const stockObj = currentInv?.stocks?.find(s => String(s.warehouseId) === String(w.id));
+                                                            const stockInWh = stockObj ? (stockObj.quantity || 0) : 0;
+                                                            return (
+                                                                <option key={w.id} value={w.id}>
+                                                                    {w.name} {currentInv ? `(Stok: ${stockInWh} ${currentInv.unit || 'unit'})` : ''}
+                                                                </option>
+                                                            );
+                                                        })}
                                                     </select>
+
+                                                    {/* Keterangan Angka Stok di Lokasi Gudang Terpilih */}
+                                                    {(() => {
+                                                        const currentInv = invItems.find(inv => String(inv.id) === String(warehouseFulfillments[item.id]?.invItemId));
+                                                        const currentWhId = warehouseFulfillments[item.id]?.warehouseId;
+                                                        if (!currentWhId) return null;
+                                                        const currentWh = invWarehouses.find(w => String(w.id) === String(currentWhId));
+                                                        if (!currentInv) {
+                                                            return (
+                                                                <div style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
+                                                                    Pilih barang gudang terlebih dahulu untuk melihat angka stok di {currentWh?.name || 'gudang ini'}.
+                                                                </div>
+                                                            );
+                                                        }
+                                                        const stockObj = currentInv.stocks?.find(s => String(s.warehouseId) === String(currentWhId));
+                                                        const stockQty = stockObj ? (stockObj.quantity || 0) : 0;
+                                                        const neededQty = parseInt(warehouseFulfillments[item.id]?.quantity || item.qty) || 0;
+                                                        const isInsufficient = stockQty < neededQty;
+
+                                                        return (
+                                                            <div style={{
+                                                                marginTop: 6, padding: '6px 10px', borderRadius: 6,
+                                                                background: stockQty === 0 ? '#fef2f2' : (isInsufficient ? '#fffbeb' : '#f0fdf4'),
+                                                                border: `1px solid ${stockQty === 0 ? '#fecaca' : (isInsufficient ? '#fef3c7' : '#bbf7d0')}`,
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6
+                                                            }}>
+                                                                <div style={{ fontSize: 11.5, fontWeight: 700, color: stockQty === 0 ? '#b91c1c' : (isInsufficient ? '#b45309' : '#15803d') }}>
+                                                                    Stok di {currentWh?.name || 'Gudang'}: <span style={{ fontSize: 13, textDecoration: stockQty === 0 ? 'line-through' : 'none' }}>{stockQty}</span> {currentInv.unit || 'unit'}
+                                                                </div>
+                                                                {stockQty === 0 ? (
+                                                                    <span style={{ fontSize: 10, fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: 4 }}>
+                                                                        STOK KOSONG
+                                                                    </span>
+                                                                ) : isInsufficient ? (
+                                                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>
+                                                                        Kurang {neededQty - stockQty} {currentInv.unit || 'unit'}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '1px 6px', borderRadius: 4 }}>
+                                                                        ✓ Stok Tersedia
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
 
                                                 <div>
@@ -3279,7 +3380,7 @@ const ProcurementDetail = () => {
                                                         });
                                                         handleItemChange(index, {
                                                             vendorId: 'GUDANG',
-                                                            vendorName: 'Gudang Sarpras (Internal)',
+                                                            vendorName: 'Bidang Sarana',
                                                             finalPrice: item.finalPrice || 0
                                                         });
                                                     } else {
@@ -3303,7 +3404,7 @@ const ProcurementDetail = () => {
                                                     }
                                                 }}>
                                                 <option value="">— Pilih Vendor —</option>
-                                                <option value="GUDANG">📦 Ambil dari Stok Gudang Sarpras (Internal)</option>
+                                                <option value="GUDANG">📦 Ambil dari Stok Gudang (Bidang Sarana)</option>
                                                 {item.needComparison && (item.comparisonVendors || []).map((cv, i) => (
                                                     <option key={i} value={`CV-${cv.name}`}>{cv.name} (Kandidat)</option>
                                                 ))}
@@ -3666,7 +3767,7 @@ const ProcurementDetail = () => {
                                                                     {idx + 1}. {item.name}
                                                                 </div>
                                                                 <div style={{ fontSize: 11, color: T.slate }}>
-                                                                    {item.qty} {item.unit} {item.brand ? `· ${item.brand}` : ''} · {item.vendorName || (item.vendorId === 'GUDANG' ? 'Gudang Sarpras' : 'Vendor Terpilih')}
+                                                                    {item.qty} {item.unit} {item.brand ? `· ${item.brand}` : ''} · {item.vendorName || (item.vendorId === 'GUDANG' ? 'Bidang Sarana' : 'Vendor Terpilih')}
                                                                 </div>
                                                             </div>
                                                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -3718,7 +3819,7 @@ const ProcurementDetail = () => {
                                                     <Btn
                                                         variant="primary"
                                                         style={{ width: '100%', justifyContent: 'center', fontSize: 12.5 }}
-                                                        onClick={() => setShowBastDocModal(true)}
+                                                        onClick={handleOpenBastDocModal}
                                                     >
                                                         <Printer size={14} /> Lihat &amp; Cetak Dokumen BAST Resmi
                                                     </Btn>
@@ -3776,7 +3877,7 @@ const ProcurementDetail = () => {
                                                 <Btn
                                                     type="button"
                                                     variant="ghost"
-                                                    onClick={() => setShowBastDocModal(true)}
+                                                    onClick={handleOpenBastDocModal}
                                                     style={{ fontSize: 12, padding: '7px 14px' }}
                                                 >
                                                     <Printer size={14} /> Pratinjau Dokumen BAST
@@ -4226,7 +4327,7 @@ const ProcurementDetail = () => {
                                         <Btn
                                             variant="gold"
                                             style={{ flex: 1, justifyContent: 'center', minWidth: 220 }}
-                                            onClick={() => setShowBastDocModal(true)}
+                                            onClick={handleOpenBastDocModal}
                                         >
                                             <Printer size={15} /> Cetak / Lihat Dokumen BAST Resmi
                                         </Btn>
@@ -4363,7 +4464,10 @@ const ProcurementDetail = () => {
                                                 }));
                                             };
 
-                                            const isWarehouseFulfilled = warehouseFulfillments[it.id]?.enabled;
+                                            const isWarehouseFulfilled = warehouseFulfillments[it.id]?.enabled || 
+                                                                         it.vendorId === 'GUDANG' || 
+                                                                         it.vendorName === 'Bidang Sarana' || 
+                                                                         it.vendorName === 'Gudang Sarpras (Internal)';
                                             const isRoomReady = det.allocationType === 'SAME' ? !!det.roomId : (det.units || []).length > 0 && (det.units || []).every(u => !!u.roomId);
 
                                             return (
@@ -5137,191 +5241,257 @@ const ProcurementDetail = () => {
                     </div>
 
                     {/* Printable Paper */}
-                    <div id="bast-print-sheet" style={{
-                        width: '100%', maxWidth: 850,
-                        background: '#ffffff', color: '#111827',
-                        padding: '44px 50px', borderRadius: 4,
-                        boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
-                        fontFamily: "'Times New Roman', Times, serif",
-                        lineHeight: 1.6, fontSize: 13.5
-                    }}>
-                        {/* Header / Kop Surat */}
-                        <div style={{ textAlign: 'center', borderBottom: '2.5px solid #111827', paddingBottom: 14, marginBottom: 20 }}>
-                            <div style={{ fontSize: 18, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                YAYASAN DARELIMAN
-                            </div>
-                            <div style={{ fontSize: 15, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                BAGIAN SARANA DAN PRASARANA (MANAJEMEN ASET)
-                            </div>
-                            <div style={{ fontSize: 11, fontStyle: 'italic', color: '#4b5563', marginTop: 2 }}>
-                                Sistem Informasi Manajemen Sarana &amp; Prasarana (SIMAS)
-                            </div>
-                        </div>
+                    {(() => {
+                        const kabidUser = users.find(u =>
+                            (u.position && (u.position.toLowerCase().includes('sarana') || u.position.toLowerCase().includes('kabid'))) ||
+                            u.role === 'KEPALA_BIDANG' || u.role === 'KABID_SARPRAS'
+                        ) || { name: 'Ravi Kurnia', position: 'Kepala Bidang Sarana', nip: '-' };
 
-                        {/* Document Title */}
-                        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                            <div style={{ fontSize: 16, fontWeight: 900, textDecoration: 'underline', textTransform: 'uppercase' }}>
-                                BERITA ACARA SERAH TERIMA BARANG (BAST)
-                            </div>
-                            <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4 }}>
-                                Nomor Pengadaan: {req.code}
-                            </div>
-                            {req.title && (
-                                <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#374151' }}>
-                                    Perihal: {req.title}
-                                </div>
-                            )}
-                        </div>
+                        const effectiveBastDate = bastDoc?.date || bastDate || bastSignatures?.bastDate || req.bastDate || req.createdAt;
+                        const bastDateParsed = formatIndonesianDate(effectiveBastDate);
 
-                        {/* Pembuka */}
-                        <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 14px' }}>
-                            Pada hari ini, <strong>{formatIndonesianDate(bastDate).dayName || '—'}</strong> tanggal <strong>{formatIndonesianDate(bastDate).dateNum || '—'}</strong> bulan <strong>{formatIndonesianDate(bastDate).monthName || '—'}</strong> tahun <strong>{formatIndonesianDate(bastDate).year || '—'}</strong> ({new Date(bastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}), kami yang bertanda tangan di bawah ini:
-                        </p>
+                        const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+                        const bastDateObj = new Date(effectiveBastDate);
+                        const bastSeq = String(req.id || 1).padStart(3, '0');
+                        const bastRomanMonth = romanMonths[bastDateObj.getMonth()] || 'IX';
+                        const bastYear = bastDateObj.getFullYear() || 2026;
+                        const fallbackBastNumber = `${bastSeq}/BA/SRN/${bastRomanMonth}/${bastYear}`;
+                        const displayBastNumber = bastDoc?.number || fallbackBastNumber;
+                        const verifyUrl = bastDoc?.uuid ? `https://sarpras.dareliman.or.id/verify/${bastDoc.uuid}` : `https://sarpras.dareliman.or.id/verify/BAST-${req.code}`;
 
-                        {/* Pihak 1 & Pihak 2 List */}
-                        <div style={{ marginLeft: 20, marginBottom: 16 }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                                <tbody>
-                                    <tr>
-                                        <td style={{ width: 24, verticalAlign: 'top', fontWeight: 'bold' }}>1.</td>
-                                        <td style={{ width: 150, verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
-                                        <td style={{ width: 12, verticalAlign: 'top' }}>:</td>
-                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{staffName || 'Staff Manajemen Aset'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td></td>
-                                        <td style={{ verticalAlign: 'top' }}>Jabatan</td>
-                                        <td style={{ verticalAlign: 'top' }}>:</td>
-                                        <td style={{ verticalAlign: 'top' }}>Staff Manajemen Aset / Sarana Prasarana</td>
-                                    </tr>
-                                    <tr>
-                                        <td></td>
-                                        <td style={{ verticalAlign: 'top' }}>Unit Kerja</td>
-                                        <td style={{ verticalAlign: 'top' }}>:</td>
-                                        <td style={{ verticalAlign: 'top' }}>Bagian Sarana dan Prasarana Yayasan</td>
-                                    </tr>
-                                    <tr>
-                                        <td></td>
-                                        <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 3, paddingBottom: 10 }}>
-                                            Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong> (Yang Menyerahkan).
-                                        </td>
-                                    </tr>
-
-                                    <tr>
-                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>2.</td>
-                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
-                                        <td style={{ verticalAlign: 'top' }}>:</td>
-                                        <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td></td>
-                                        <td style={{ verticalAlign: 'top' }}>Jabatan / Status</td>
-                                        <td style={{ verticalAlign: 'top' }}>:</td>
-                                        <td style={{ verticalAlign: 'top' }}>Penerima / Pemohon Barang</td>
-                                    </tr>
-                                    <tr>
-                                        <td></td>
-                                        <td style={{ verticalAlign: 'top' }}>Unit Kerja / Divisi</td>
-                                        <td style={{ verticalAlign: 'top' }}>:</td>
-                                        <td style={{ verticalAlign: 'top' }}>{req.unit?.name || '—'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td></td>
-                                        <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 3 }}>
-                                            Selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong> (Yang Menerima).
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <p style={{ textAlign: 'justify', margin: '0 0 14px' }}>
-                            Dengan ini menyatakan bahwa <strong>PIHAK PERTAMA</strong> telah menyerahkan barang pengadaan kepada <strong>PIHAK KEDUA</strong>, dan <strong>PIHAK KEDUA</strong> telah memeriksa serta menerima barang tersebut dalam keadaan baik, lengkap, dan sesuai spesifikasi dengan rincian sebagai berikut:
-                        </p>
-
-                        {/* Tabel Rincian Barang */}
-                        <table style={{
-                            width: '100%', borderCollapse: 'collapse', marginBottom: 18,
-                            fontSize: 12.5, border: '1px solid #111827'
-                        }}>
-                            <thead>
-                                <tr style={{ background: '#f3f4f6' }}>
-                                    <th style={{ border: '1px solid #111827', padding: '6px 8px', width: 36, textAlign: 'center' }}>No</th>
-                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'left' }}>Nama Barang</th>
-                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'left' }}>Spesifikasi / Merk</th>
-                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', width: 60, textAlign: 'center' }}>Qty</th>
-                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', width: 65, textAlign: 'center' }}>Satuan</th>
-                                    <th style={{ border: '1px solid #111827', padding: '6px 10px', width: 85, textAlign: 'center' }}>Kondisi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {req.items.map((it, idx) => (
-                                    <tr key={it.id}>
-                                        <td style={{ border: '1px solid #111827', padding: '6px 8px', textAlign: 'center' }}>{idx + 1}</td>
-                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', fontWeight: 'bold' }}>{it.name}</td>
-                                        <td style={{ border: '1px solid #111827', padding: '6px 10px' }}>
-                                            {it.spec || '—'} {it.brand ? `(${it.brand})` : ''}
-                                        </td>
-                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'center' }}>{it.qty}</td>
-                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'center' }}>{it.unit}</td>
-                                        <td style={{ border: '1px solid #111827', padding: '6px 10px', textAlign: 'center', color: '#15803d', fontWeight: 600 }}>Baik</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        {/* Penutup */}
-                        <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 32px' }}>
-                            Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh kedua belah pihak dengan sebenar-benarnya tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.
-                        </p>
-
-                        {/* Kolom Tanda Tangan */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pageBreakInside: 'avoid' }}>
-                            {/* Pihak Pertama */}
-                            <div style={{ width: '45%', textAlign: 'center' }}>
-                                <div style={{ fontWeight: 'bold' }}>PIHAK PERTAMA</div>
-                                <div style={{ fontSize: 12, color: '#374151' }}>Yang Menyerahkan,</div>
-                                <div style={{
-                                    height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    margin: '6px 0'
-                                }}>
-                                    {staffSignature ? (
-                                        <img src={staffSignature} alt="TTD Staff" style={{ maxHeight: 85, maxWidth: '90%', objectFit: 'contain' }} />
-                                    ) : (
-                                        <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
-                                            (Belum Ditandatangani)
+                        return (
+                            <div id="bast-print-sheet" style={{
+                                width: '100%', maxWidth: 850,
+                                background: '#ffffff', color: '#111827',
+                                padding: '36px 44px', borderRadius: 4,
+                                boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+                                fontFamily: "'Times New Roman', Times, serif",
+                                lineHeight: 1.5, fontSize: 13
+                            }}>
+                                {/* Header / Kop Surat dengan 2 Logo: Yayasan & Bidang Sarana (SIMAS Dihilangkan) */}
+                                <div style={{ paddingBottom: 10, marginBottom: 16, borderBottom: '3px double #111827' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+                                        <div style={{ width: 85, flexShrink: 0, textAlign: 'left' }}>
+                                            <img
+                                                src="/logo_yayasan.jpg"
+                                                alt="Logo Yayasan"
+                                                style={{ height: 64, width: 'auto', objectFit: 'contain' }}
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
                                         </div>
-                                    )}
-                                </div>
-                                <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13.5 }}>
-                                    {staffName || 'Staff Manajemen Aset'}
-                                </div>
-                                <div style={{ fontSize: 11.5, color: '#4b5563' }}>Staff Manajemen Aset</div>
-                            </div>
-
-                            {/* Pihak Kedua */}
-                            <div style={{ width: '45%', textAlign: 'center' }}>
-                                <div style={{ fontWeight: 'bold' }}>PIHAK KEDUA</div>
-                                <div style={{ fontSize: 12, color: '#374151' }}>Yang Menerima,</div>
-                                <div style={{
-                                    height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    margin: '6px 0'
-                                }}>
-                                    {receiverSignature ? (
-                                        <img src={receiverSignature} alt="TTD Penerima" style={{ maxHeight: 85, maxWidth: '90%', objectFit: 'contain' }} />
-                                    ) : (
-                                        <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
-                                            (Belum Ditandatangani)
+                                        <div style={{ flex: 1, textAlign: 'center', padding: '0 4px' }}>
+                                            <div style={{ fontSize: 15.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#065f46', fontFamily: 'sans-serif' }}>
+                                                YAYASAN DAR EL-IMAN
+                                            </div>
+                                            <div style={{ fontSize: 19, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#b45309', fontFamily: 'sans-serif', marginTop: 1 }}>
+                                                BIDANG SARANA
+                                            </div>
+                                            <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#4b5563', marginTop: 1, fontFamily: "'Times New Roman', serif" }}>
+                                                &ldquo;Merawat dengan Ikhlas, Melayani dengan Sunnah&rdquo;
+                                            </div>
+                                            <div style={{ fontSize: 9.5, color: '#4b5563', fontFamily: 'sans-serif', marginTop: 2, lineHeight: 1.3 }}>
+                                                Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat 25173
+                                            </div>
+                                            <div style={{ fontSize: 9, color: '#4b5563', fontFamily: 'sans-serif' }}>
+                                                WA: 0895-3202-42508 • Email: dar.el.imansarpras@gmail.com
+                                            </div>
                                         </div>
-                                    )}
+                                        <div style={{ width: 85, flexShrink: 0, textAlign: 'right' }}>
+                                            <img
+                                                src="/Sarpras.jpeg"
+                                                alt="Logo Sarpras"
+                                                style={{ height: 64, width: 'auto', objectFit: 'contain', marginLeft: 'auto' }}
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13.5 }}>
-                                    {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
+
+                                {/* Document Title & E-Office Number (Perihal Dihilangkan) */}
+                                <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                                    <div style={{ fontSize: 15, fontWeight: 900, textDecoration: 'underline', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                        BERITA ACARA SERAH TERIMA BARANG (BAST)
+                                    </div>
+                                    <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'monospace', marginTop: 3 }}>
+                                        Nomor : {displayBastNumber}
+                                    </div>
                                 </div>
-                                <div style={{ fontSize: 11.5, color: '#4b5563' }}>{req.unit?.name || 'Penerima Barang'}</div>
+
+                                {/* Pembuka (Tanggal disesuaikan dengan awal penandatanganan) */}
+                                <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 12px' }}>
+                                    Pada hari ini, <strong>{bastDateParsed.dayName || '—'}</strong> tanggal <strong>{bastDateParsed.dateNum || '—'}</strong> bulan <strong>{bastDateParsed.monthName || '—'}</strong> tahun <strong>{bastDateParsed.year || '—'}</strong> ({new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}), kami yang bertanda tangan di bawah ini:
+                                </p>
+
+                                {/* Pihak 1 & Pihak 2 List */}
+                                <div style={{ marginLeft: 16, marginBottom: 14 }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                                        <tbody>
+                                            <tr>
+                                                <td style={{ width: 22, verticalAlign: 'top', fontWeight: 'bold' }}>1.</td>
+                                                <td style={{ width: 140, verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
+                                                <td style={{ width: 12, verticalAlign: 'top' }}>:</td>
+                                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}</td>
+                                            </tr>
+                                            <tr>
+                                                <td></td>
+                                                <td style={{ verticalAlign: 'top' }}>Jabatan</td>
+                                                <td style={{ verticalAlign: 'top' }}>:</td>
+                                                <td style={{ verticalAlign: 'top' }}>{bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}</td>
+                                            </tr>
+                                            <tr>
+                                                <td></td>
+                                                <td style={{ verticalAlign: 'top' }}>Unit Kerja</td>
+                                                <td style={{ verticalAlign: 'top' }}>:</td>
+                                                <td style={{ verticalAlign: 'top' }}>{bastDoc?.party1Org || 'Bidang Sarana'}</td>
+                                            </tr>
+                                            <tr>
+                                                <td></td>
+                                                <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 2, paddingBottom: 8 }}>
+                                                    Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong> (Yang Menyerahkan).
+                                                </td>
+                                            </tr>
+
+                                            <tr>
+                                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>2.</td>
+                                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
+                                                <td style={{ verticalAlign: 'top' }}>:</td>
+                                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}</td>
+                                            </tr>
+                                            <tr>
+                                                <td></td>
+                                                <td style={{ verticalAlign: 'top' }}>Jabatan / Status</td>
+                                                <td style={{ verticalAlign: 'top' }}>:</td>
+                                                <td style={{ verticalAlign: 'top' }}>Penerima / Pemohon Barang</td>
+                                            </tr>
+                                            <tr>
+                                                <td></td>
+                                                <td style={{ verticalAlign: 'top' }}>Unit Kerja / Divisi</td>
+                                                <td style={{ verticalAlign: 'top' }}>:</td>
+                                                <td style={{ verticalAlign: 'top' }}>{req.unit?.name || '—'}</td>
+                                            </tr>
+                                            <tr>
+                                                <td></td>
+                                                <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 2 }}>
+                                                    Selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong> (Yang Menerima).
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <p style={{ textAlign: 'justify', margin: '0 0 12px' }}>
+                                    Dengan ini menyatakan bahwa <strong>PIHAK PERTAMA</strong> telah menyerahkan barang pengadaan kepada <strong>PIHAK KEDUA</strong>, dan <strong>PIHAK KEDUA</strong> telah memeriksa serta menerima barang tersebut dalam keadaan baik, lengkap, dan sesuai spesifikasi dengan rincian sebagai berikut:
+                                </p>
+
+                                {/* Tabel Rincian Barang */}
+                                <table style={{
+                                    width: '100%', borderCollapse: 'collapse', marginBottom: 14,
+                                    fontSize: 12, border: '1px solid #111827'
+                                }}>
+                                    <thead>
+                                        <tr style={{ background: '#f3f4f6' }}>
+                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 34, textAlign: 'center' }}>No</th>
+                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'left' }}>Nama Barang</th>
+                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'left' }}>Spesifikasi / Merk</th>
+                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 55, textAlign: 'center' }}>Qty</th>
+                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 60, textAlign: 'center' }}>Satuan</th>
+                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 80, textAlign: 'center' }}>Kondisi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {req.items.map((it, idx) => (
+                                            <tr key={it.id}>
+                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center' }}>{idx + 1}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', fontWeight: 'bold' }}>{it.name}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '5px 8px' }}>
+                                                    {it.spec || '—'} {it.brand ? `(${it.brand})` : ''}
+                                                </td>
+                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center' }}>{it.qty}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center' }}>{it.unit}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center', color: '#15803d', fontWeight: 600 }}>Baik</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {/* Penutup */}
+                                <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 20px' }}>
+                                    Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh kedua belah pihak dengan sebenar-benarnya tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.
+                                </p>
+
+                                {/* Kolom Tanda Tangan */}
+                                <div style={{ pageBreakInside: 'avoid' }}>
+                                    <div style={{ textAlign: 'right', fontSize: 12.5, marginBottom: 8 }}>
+                                        Padang, {new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        {/* Pihak Pertama (TTE Elektronik Terverifikasi) */}
+                                        <div style={{ width: '48%', textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 'bold' }}>PIHAK PERTAMA</div>
+                                            <div style={{ fontSize: 11.5, color: '#374151' }}>Yang Menyerahkan,</div>
+                                            <div style={{
+                                                minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                margin: '6px 0', padding: '4px 6px'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
+                                                    <div style={{ padding: 2, background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 4, display: 'inline-block' }}>
+                                                        <QRCode
+                                                            value={verifyUrl}
+                                                            size={64}
+                                                            level="M"
+                                                        />
+                                                    </div>
+                                                    <div style={{ textAlign: 'left', fontFamily: 'sans-serif' }}>
+                                                        <div style={{ color: '#15803d', fontWeight: 'bold', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                                            <ShieldCheck size={12} color="#16a34a" /> TTE SAH ELEKTRONIK
+                                                        </div>
+                                                        <div style={{ fontSize: 7.5, color: '#4b5563', lineHeight: 1.2, marginTop: 1 }}>
+                                                            Tercatat pada E-Office
+                                                        </div>
+                                                        <div style={{ fontSize: 7, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>
+                                                            UUID: {(bastDoc?.uuid || req.code)?.substring(0, 13)}...
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
+                                                {bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#4b5563' }}>
+                                                {bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}
+                                            </div>
+                                            <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                                {bastDoc?.party1Org || 'Bidang Sarana'}
+                                            </div>
+                                        </div>
+
+                                        {/* Pihak Kedua */}
+                                        <div style={{ width: '48%', textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 'bold' }}>PIHAK KEDUA</div>
+                                            <div style={{ fontSize: 11.5, color: '#374151' }}>Yang Menerima,</div>
+                                            <div style={{
+                                                minHeight: 90, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                margin: '6px 0'
+                                            }}>
+                                                {receiverSignature ? (
+                                                    <img src={receiverSignature} alt="TTD Penerima" style={{ maxHeight: 80, maxWidth: '90%', objectFit: 'contain' }} />
+                                                ) : (
+                                                    <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
+                                                        (Belum Ditandatangani)
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
+                                                {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#4b5563' }}>Penerima / Pemohon Barang</div>
+                                            <div style={{ fontSize: 10, color: '#6b7280' }}>{req.unit?.name || 'Unit Pemohon'}</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
                 </div>
             )}
 

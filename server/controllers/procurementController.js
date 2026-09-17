@@ -330,12 +330,21 @@ exports.getProcurementById = async (req, res) => {
             } catch (e) { }
         }
 
+        let bastDoc = await prisma.officeDocument.findFirst({
+            where: {
+                category: 'BAST',
+                subject: { contains: procurement.code }
+            },
+            include: { signedBy: true }
+        });
+
         res.json({
             ...procurement,
             items: formattedItems,
             notes: topNotes,
             bastSignatures,
-            requestLetter
+            requestLetter,
+            bastDoc
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1168,6 +1177,95 @@ exports.updateBASTSignatures = async (req, res) => {
         res.json({ message: 'Tanda tangan BAST berhasil disimpan', bastSignatures: updated });
     } catch (e) {
         console.error('Update BAST Signatures Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
+// Get or Create BAST Document in E-Office
+exports.getOrCreateBASTDocument = async (req, res) => {
+    const { id } = req.params;
+    const { bastDate, receiverName } = req.body || {};
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: { unit: true, items: true, user: true }
+        });
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan' });
+
+        // Find Kepala Bidang Sarana
+        const kabidUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { position: { contains: 'Sarana' } },
+                    { position: { contains: 'Kabid' } },
+                    { role: 'KEPALA_BIDANG' },
+                    { role: 'KABID_SARPRAS' }
+                ]
+            }
+        }) || { id: 1, name: 'Ravi Kurnia', position: 'Kepala Bidang Sarana', nip: '-' };
+
+        // Check if BAST OfficeDocument already exists
+        let bastDoc = await prisma.officeDocument.findFirst({
+            where: {
+                category: 'BAST',
+                subject: { contains: procurement.code }
+            },
+            include: { signedBy: true }
+        });
+
+        if (!bastDoc) {
+            const docUuid = crypto.randomUUID();
+            const docNumber = await generateDocumentNumber('BAST', 'BAST');
+            const verifyUrl = `https://sarpras.dareliman.or.id/verify/${docUuid}`;
+            const qrCodeData = await generateVerificationQR(docUuid);
+
+            const effectiveDate = bastDate ? new Date(bastDate) : (procurement.bastDate || new Date());
+            const finalReceiver = receiverName || procurement.receiverName || procurement.user?.name || procurement.user?.username || 'Penerima Barang';
+
+            bastDoc = await prisma.officeDocument.create({
+                data: {
+                    uuid: docUuid,
+                    type: 'BAST',
+                    category: 'BAST',
+                    number: docNumber,
+                    subject: `Berita Acara Serah Terima (BAST): ${procurement.title || procurement.code} (${procurement.code})`,
+                    content: JSON.stringify({
+                        procurementId: procurement.id,
+                        procurementCode: procurement.code,
+                        procurementTitle: procurement.title,
+                        unitName: procurement.unit?.name || 'Unit Pemohon',
+                        kabidName: kabidUser.name,
+                        kabidPosition: kabidUser.position || 'Kepala Bidang Sarana',
+                        unitKerja: 'Bidang Sarana',
+                        receiverName: finalReceiver,
+                        receiverUnit: procurement.unit?.name || 'Unit Pemohon',
+                        date: effectiveDate.toISOString()
+                    }),
+                    priority: 'BIASA',
+                    authorId: kabidUser.id,
+                    status: 'SIGNED',
+                    signedById: kabidUser.id,
+                    signedAt: effectiveDate,
+                    party1Name: kabidUser.name,
+                    party1Title: kabidUser.position || 'Kepala Bidang Sarana',
+                    party1Org: 'Bidang Sarana',
+                    party1SignedAt: effectiveDate,
+                    party2Name: finalReceiver,
+                    party2Title: 'Penerima / Pemohon Barang',
+                    party2Org: procurement.unit?.name || 'Unit Pemohon',
+                    date: effectiveDate,
+                    qrCodeData
+                },
+                include: { signedBy: true }
+            });
+        }
+
+        res.json({
+            bastDoc,
+            verifyUrl: `https://sarpras.dareliman.or.id/verify/${bastDoc.uuid}`
+        });
+    } catch (e) {
+        console.error('getOrCreateBASTDocument Error:', e);
         res.status(500).json({ error: e.message });
     }
 };
@@ -2061,6 +2159,32 @@ exports.getAssignmentOrders = async (req, res) => {
                         };
                     }
                 }
+
+                // Pastikan verifyUrl dan qrCodeData selalu tersedia untuk scan verifikasi
+                if (!data.verifyUrl && data.uuid) {
+                    data.verifyUrl = `https://sarpras.dareliman.or.id/verify/${data.uuid}`;
+                }
+
+                if (!data.qrCodeData && (data.verifyUrl || data.uuid)) {
+                    if (data.officeDocumentId) {
+                        try {
+                            const offDoc = await prisma.officeDocument.findUnique({
+                                where: { id: data.officeDocumentId },
+                                select: { qrCodeData: true }
+                            });
+                            if (offDoc?.qrCodeData) {
+                                data.qrCodeData = offDoc.qrCodeData;
+                            }
+                        } catch (docErr) { }
+                    }
+                    if (!data.qrCodeData) {
+                        try {
+                            const vUrl = data.verifyUrl || `https://sarpras.dareliman.or.id/verify/${data.uuid}`;
+                            data.qrCodeData = await generateVerificationQR(vUrl);
+                        } catch (qrErr) { }
+                    }
+                }
+
                 orders.push({
                     ...data,
                     progressId: p.id,
@@ -2216,13 +2340,12 @@ exports.createAssignmentOrder = async (req, res) => {
 
         orderData.officeDocumentId = officeDoc.id;
 
-        // 2. Save in ProcurementProgress (exclude bulky base64 qrCodeData from message text)
-        const { qrCodeData: _qr, ...progressOrderData } = orderData;
+        // 2. Save in ProcurementProgress
         await prisma.procurementProgress.create({
             data: {
                 procurementId: procurement.id,
                 userId: currentUser.id,
-                message: `[SURAT_PERINTAH] ${JSON.stringify(progressOrderData)}`,
+                message: `[SURAT_PERINTAH] ${JSON.stringify(orderData)}`,
                 type: 'ASSIGNMENT_ORDER',
                 stage: 2
             }
@@ -2512,6 +2635,31 @@ exports.getPublicAssignmentOrder = async (req, res) => {
                 }
             }
         } catch (e) { }
+
+        // Pastikan verifyUrl dan qrCodeData selalu tersedia untuk verifikasi publik
+        if (!orderData.verifyUrl && orderData.uuid) {
+            orderData.verifyUrl = `https://sarpras.dareliman.or.id/verify/${orderData.uuid}`;
+        }
+
+        if (!orderData.qrCodeData && (orderData.verifyUrl || orderData.uuid)) {
+            if (orderData.officeDocumentId) {
+                try {
+                    const offDoc = await prisma.officeDocument.findUnique({
+                        where: { id: orderData.officeDocumentId },
+                        select: { qrCodeData: true }
+                    });
+                    if (offDoc?.qrCodeData) {
+                        orderData.qrCodeData = offDoc.qrCodeData;
+                    }
+                } catch (docErr) { }
+            }
+            if (!orderData.qrCodeData) {
+                try {
+                    const vUrl = orderData.verifyUrl || `https://sarpras.dareliman.or.id/verify/${orderData.uuid}`;
+                    orderData.qrCodeData = await generateVerificationQR(vUrl);
+                } catch (qrErr) { }
+            }
+        }
 
         res.json({
             order: orderData,

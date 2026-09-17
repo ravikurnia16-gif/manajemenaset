@@ -2927,11 +2927,226 @@ async function generateBAKerusakanPDF(doc, setting) {
     return await pdfDoc.save();
 }
 
+/**
+ * Generate PDF for Surat Perintah Tugas Pengadaan (matching ProcurementAssignmentOrderModal)
+ */
+async function generateSuratPerintahPengadaanPDF(doc, setting) {
+    let { pdfDoc, page, fontRegular, fontBold, fontItalic, margin, width, height, rgb } = await createBasePDF();
+    const kopImages = await embedKopSuratImages(pdfDoc);
+    const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+
+    const bottomMargin = 50;
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+            return true;
+        }
+        return false;
+    };
+
+    let y = startY - 8;
+    const centerX = width / 2;
+
+    let order = {};
+    try {
+        order = typeof doc.content === 'string' ? JSON.parse(doc.content || '{}') : (doc.content || {});
+    } catch (e) {
+        order = {};
+    }
+
+    const orderNumber = order.orderNumber || doc.number || '-';
+    const procurementCode = order.procurementCode || '-';
+    const procurementTitle = sanitizeTextForWinAnsi(order.procurementTitle || 'Pengadaan Barang / Jasa');
+    const unitName = sanitizeTextForWinAnsi(order.unitName || 'Unit Pemohon');
+    const assignerName = sanitizeTextForWinAnsi(order.assigner?.name || doc.signedBy?.name || 'Kepala Bidang Sarana');
+    const assignerPosition = sanitizeTextForWinAnsi(order.assigner?.position || 'Kepala Bidang Sarana');
+    const assignerNiy = order.assigner?.nip || doc.signedBy?.nip || '-';
+    const assigneeName = sanitizeTextForWinAnsi(order.assignee?.name || 'Petugas Pengadaan');
+    const assigneePosition = sanitizeTextForWinAnsi(order.assignee?.position || 'Staf Pelaksana Pengadaan');
+    const assigneeNiy = order.assignee?.nip || '-';
+    const assignedItems = order.items || [];
+    const notes = order.notes || '';
+
+    const formatCurrency = (val) => {
+        if (!val || isNaN(val)) return 'Rp 0';
+        return `Rp ${Number(val).toLocaleString('id-ID')}`;
+    };
+
+    const totalEstimate = (assignedItems || []).reduce((acc, it) => {
+        const p = parseFloat(it.estPrice || it.estimatedPrice || it.price || 0) || 0;
+        const q = parseFloat(it.qty || it.quantity || 1) || 1;
+        return acc + (p * q);
+    }, 0);
+
+    // Judul Surat
+    const title = 'SURAT PERINTAH TUGAS PENGADAAN';
+    const titleWidth = fontBold.widthOfTextAtSize(title, 13);
+    page.drawText(title, { x: centerX - (titleWidth / 2), y, size: 13, font: fontBold });
+    y -= 3;
+    page.drawLine({ start: { x: centerX - (titleWidth / 2), y }, end: { x: centerX + (titleWidth / 2), y }, thickness: 1 });
+    y -= 13;
+
+    // Nomor
+    const numText = `Nomor: ${orderNumber}`;
+    const numWidth = fontBold.widthOfTextAtSize(numText, 10.5);
+    page.drawText(numText, { x: centerX - (numWidth / 2), y, size: 10.5, font: fontBold });
+    y -= 18;
+
+    // Konsideran
+    const preamble = `Menindaklanjuti permohonan pengadaan barang/jasa yang diajukan oleh ${unitName} dengan nomor registrasi ${procurementCode} perihal "${procurementTitle}", maka bersama ini:`;
+    y = drawJustifiedText(page, preamble, margin + 20, y, width - (margin * 2) - 20, 10.5, fontRegular);
+    y -= 10;
+
+    // Pemberi Tugas
+    page.drawText('Nama Pemberi Tugas', { x: margin, y, size: 10.5, font: fontBold });
+    page.drawText(':', { x: margin + 120, y, size: 10.5, font: fontBold });
+    page.drawText(assignerName, { x: margin + 130, y, size: 10.5, font: fontBold });
+    y -= 14;
+    page.drawText('Jabatan', { x: margin, y, size: 10.5, font: fontRegular });
+    page.drawText(':', { x: margin + 120, y, size: 10.5, font: fontRegular });
+    page.drawText(assignerPosition, { x: margin + 130, y, size: 10.5, font: fontRegular });
+    y -= 16;
+
+    // Penerima Perintah
+    page.drawText('MEMBERIKAN PERINTAH KEPADA:', { x: margin, y, size: 10.5, font: fontBold });
+    y -= 14;
+    page.drawText('Nama Petugas', { x: margin, y, size: 10.5, font: fontBold });
+    page.drawText(':', { x: margin + 120, y, size: 10.5, font: fontBold });
+    page.drawText(assigneeName, { x: margin + 130, y, size: 10.5, font: fontBold });
+    y -= 14;
+    page.drawText('Jabatan', { x: margin, y, size: 10.5, font: fontRegular });
+    page.drawText(':', { x: margin + 120, y, size: 10.5, font: fontRegular });
+    page.drawText(assigneePosition, { x: margin + 130, y, size: 10.5, font: fontRegular });
+    y -= 16;
+
+    // Untuk
+    page.drawText('UNTUK:', { x: margin, y, size: 10.5, font: fontBold });
+    y -= 14;
+    const task1 = '1. Melaksanakan survei perbandingan harga pasar, evaluasi vendor/penyedia terpercaya, dan proses pengadaan barang/jasa sesuai dengan rincian kebutuhan berikut:';
+    y = drawJustifiedText(page, task1, margin + 10, y, width - (margin * 2) - 10, 10, fontRegular);
+    y -= 8;
+
+    // Table of Items
+    const contentWidth = width - (margin * 2);
+    const colW = { no: 24, name: 150, spec: 140, vol: 50, price: 65, total: 66 };
+    const remainingW = contentWidth - (colW.no + colW.name + colW.vol + colW.price + colW.total);
+    colW.spec = Math.max(100, remainingW);
+
+    const tableX = margin;
+    // Header row
+    page.drawRectangle({ x: tableX, y: y - 5, width: contentWidth, height: 18, color: rgb(0.93, 0.94, 0.96) });
+    page.drawRectangle({ x: tableX, y: y - 5, width: contentWidth, height: 18, borderColor: rgb(0, 0, 0), borderWidth: 0.5 });
+    
+    let curX = tableX;
+    page.drawText('No', { x: curX + 6, y, size: 8.5, font: fontBold }); curX += colW.no;
+    page.drawText('Nama Barang / Uraian', { x: curX + 5, y, size: 8.5, font: fontBold }); curX += colW.name;
+    page.drawText('Spesifikasi', { x: curX + 5, y, size: 8.5, font: fontBold }); curX += colW.spec;
+    page.drawText('Volume', { x: curX + 8, y, size: 8.5, font: fontBold }); curX += colW.vol;
+    page.drawText('Est. Harga', { x: curX + 5, y, size: 8.5, font: fontBold }); curX += colW.price;
+    page.drawText('Total Est.', { x: curX + 8, y, size: 8.5, font: fontBold });
+    y -= 19;
+
+    assignedItems.forEach((it, idx) => {
+        checkPage(24);
+        const qty = parseFloat(it.qty || it.quantity || 1) || 1;
+        const price = parseFloat(it.estPrice || it.estimatedPrice || it.price || 0) || 0;
+        const subtotal = qty * price;
+
+        const rowH = 18;
+        page.drawRectangle({ x: tableX, y: y - 4, width: contentWidth, height: rowH, borderColor: rgb(0, 0, 0), borderWidth: 0.5 });
+        
+        let cx = tableX;
+        page.drawText(String(idx + 1), { x: cx + 8, y, size: 8.5, font: fontRegular }); cx += colW.no;
+        page.drawText(sanitizeTextForWinAnsi((it.name || '-').substring(0, 28)), { x: cx + 5, y, size: 8.5, font: fontBold }); cx += colW.name;
+        page.drawText(sanitizeTextForWinAnsi((it.spec || '-').substring(0, 30)), { x: cx + 5, y, size: 8, font: fontRegular }); cx += colW.spec;
+        page.drawText(`${qty} ${sanitizeTextForWinAnsi(it.unit || 'Unit')}`, { x: cx + 5, y, size: 8.5, font: fontRegular }); cx += colW.vol;
+        page.drawText(price > 0 ? formatCurrency(price) : '-', { x: cx + 5, y, size: 8, font: fontRegular }); cx += colW.price;
+        page.drawText(subtotal > 0 ? formatCurrency(subtotal) : '-', { x: cx + 5, y, size: 8, font: fontBold });
+        y -= rowH;
+    });
+
+    if (totalEstimate > 0) {
+        checkPage(20);
+        page.drawRectangle({ x: tableX, y: y - 4, width: contentWidth, height: 18, color: rgb(0.97, 0.98, 0.99), borderColor: rgb(0, 0, 0), borderWidth: 0.5 });
+        page.drawText('Total Perkiraan Biaya Pengadaan:', { x: tableX + contentWidth - colW.total - 160, y, size: 8.5, font: fontBold });
+        page.drawText(formatCurrency(totalEstimate), { x: tableX + contentWidth - colW.total + 5, y, size: 8.5, font: fontBold });
+        y -= 22;
+    } else {
+        y -= 10;
+    }
+
+    // Additional instructions
+    checkPage(60);
+    const instr2 = '2. Menginput sekurang-kurangnya vendor pembanding (jika dibutuhkan) serta harga penawaran resmi sesuai SOP.';
+    const instr3 = '3. Menjaga kesesuaian mutu, spesifikasi, kuantitas barang, dan serah terima barang (BAST) bersama pemohon.';
+    const instr4 = '4. Melaporkan seluruh tahapan pelaksanaan tugas kepada Kepala Bidang Sarana.';
+    y = drawJustifiedText(page, instr2, margin + 10, y, width - (margin * 2) - 10, 9.5, fontRegular); y -= 4;
+    y = drawJustifiedText(page, instr3, margin + 10, y, width - (margin * 2) - 10, 9.5, fontRegular); y -= 4;
+    y = drawJustifiedText(page, instr4, margin + 10, y, width - (margin * 2) - 10, 9.5, fontRegular); y -= 8;
+
+    // Catatan Khusus
+    if (notes) {
+        checkPage(30);
+        page.drawText(`Catatan / Instruksi Khusus: ${sanitizeTextForWinAnsi(notes)}`, { x: margin, y, size: 9, font: fontItalic, maxWidth: contentWidth });
+        y -= 14;
+    }
+
+    // Penutup
+    checkPage(40);
+    const closing = 'Surat perintah ini berlaku sejak tanggal diterbitkan hingga proses serah terima pengadaan barang/jasa selesai dilaksanakan dengan penuh rasa tanggung jawab dan amanah.';
+    y = drawJustifiedText(page, closing, margin + 20, y, width - (margin * 2) - 20, 9.5, fontRegular);
+    y -= 14;
+
+    // Tanggal & Tanda Tangan
+    checkPage(120);
+    const dateObj = new Date(order.createdAt || doc.date || Date.now());
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const formattedDate = `${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+    
+    page.drawText(`Padang, ${formattedDate}`, { x: width - margin - 150, y, size: 10, font: fontRegular });
+    y -= 16;
+
+    const col1X = margin + 30;
+    const col2X = width - margin - 180;
+
+    page.drawText('Penerima Perintah,', { x: col1X, y, size: 10, font: fontBold });
+    page.drawText('Pemberi Perintah,', { x: col2X, y, size: 10, font: fontBold });
+    y -= 12;
+    page.drawText('Petugas Pengadaan', { x: col1X, y, size: 9, font: fontRegular });
+    page.drawText(assignerPosition, { x: col2X, y, size: 9, font: fontRegular });
+    y -= 55;
+
+    // Draw Assignee Signature if exists
+    if (order.assigneeSignature && order.assigneeSignature.startsWith('data:')) {
+        try {
+            const sigBase64 = order.assigneeSignature.replace(/^data:image\/\w+;base64,/, '');
+            const sigImg = await pdfDoc.embedPng(Buffer.from(sigBase64, 'base64'));
+            page.drawImage(sigImg, { x: col1X - 5, y: y, width: 90, height: 45 });
+        } catch (sigErr) {
+            console.error('Assignee sig embed error:', sigErr);
+        }
+    }
+
+    // Draw Assigner Digital QR Signature
+    await drawDigitalSignature(page, doc, col2X, y - 5, 55);
+
+    y -= 12;
+    page.drawText(assigneeName, { x: col1X, y, size: 10, font: fontBold });
+    page.drawText(assignerName, { x: col2X, y, size: 10, font: fontBold });
+    y -= 11;
+    page.drawText(`NIY. ${assigneeNiy}`, { x: col1X, y, size: 9, font: fontRegular });
+    page.drawText(`NIY. ${assignerNiy}`, { x: col2X, y, size: 9, font: fontRegular });
+
+    return await pdfDoc.save();
+}
+
 module.exports = {
     generateVerificationQR,
     generateSuratPDF,
     generateBASTMouPDF,
     generateSuratTugasPDF,
+    generateSuratPerintahPengadaanPDF,
     generateSuratPesananPDF,
     generateInvoicePDF,
     generateSuratEdaranPDF,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import QRCode from 'react-qr-code';
 import api from '../lib/axios';
 import { 
     CheckCircle2, AlertCircle, FileText, Printer, Clock, 
@@ -288,10 +289,10 @@ const ProcurementAssignmentOrderSign = () => {
                                 />
                             </div>
                             <div className="flex-1 text-center px-2">
-                                <h4 className="text-xs sm:text-sm font-bold tracking-wider text-emerald-800 uppercase font-sans">
-                                    YAYASAN DAR EL-IMAN PADANG
+                                <h4 className="text-base sm:text-lg font-bold tracking-wider text-emerald-800 uppercase font-sans">
+                                    YAYASAN DAR EL-IMAN
                                 </h4>
-                                <h2 className="text-base sm:text-xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
+                                <h2 className="text-xl sm:text-2xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
                                     BIDANG SARANA
                                 </h2>
                                 <p className="text-[9.5pt] text-slate-600 italic font-serif mt-0.5">
@@ -520,6 +521,28 @@ const ProcurementAssignmentOrderSign = () => {
                                                 alt="QR Code Verifikasi E-Office"
                                                 className="w-15 h-15 sm:w-16 sm:h-16 object-contain border border-slate-200 bg-white p-0.5 rounded shadow-xs"
                                             />
+                                            <div className="text-left font-sans">
+                                                <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">
+                                                    <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />
+                                                    <span>TTE SAH ELEKTRONIK</span>
+                                                </div>
+                                                <p className="text-[6.5pt] text-slate-600 leading-tight mt-0.5">
+                                                    Tercatat pada E-Office Surat Keluar
+                                                </p>
+                                                <p className="text-[6pt] font-mono text-slate-500 mt-0.5">
+                                                    UUID: {docUuid?.substring(0, 13)}...
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (verifyUrl || docUuid) ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                <QRCode
+                                                    value={verifyUrl || `https://sarpras.dareliman.or.id/verify/${docUuid}`}
+                                                    size={56}
+                                                    level="M"
+                                                />
+                                            </div>
                                             <div className="text-left font-sans">
                                                 <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">
                                                     <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />

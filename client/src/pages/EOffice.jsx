@@ -4,6 +4,7 @@ import api from '../lib/axios';
 import * as XLSX from 'xlsx';
 import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save, MessageSquare, Phone, Users, ListOrdered } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
+import ProcurementAssignmentOrderModal from '../components/ProcurementAssignmentOrderModal';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -77,7 +78,47 @@ const getPaymentStatus = (doc) => {
     }
 };
 
-const handleOpenDocument = (doc) => {
+let openAssignmentOrderModal = null;
+
+const handleOpenDocument = (doc, onOpenAssignmentOrder = null) => {
+    if (!doc) return;
+    const isAssignmentOrder = doc.category === 'Perintah' ||
+        doc.category === 'Surat Perintah' ||
+        doc.category === 'Surat Tugas' ||
+        (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
+        (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH'))) ||
+        (typeof doc.content === 'object' && doc.content !== null && (doc.content.orderId || (doc.content.items && doc.content.assigner)));
+
+    if (isAssignmentOrder) {
+        try {
+            let parsed = typeof doc.content === 'string' ? JSON.parse(doc.content) : doc.content;
+            if (typeof parsed === 'string') {
+                try { parsed = JSON.parse(parsed); } catch (e) {}
+            }
+            if (parsed && typeof parsed === 'object') {
+                parsed.orderNumber = parsed.orderNumber || doc.number;
+                parsed.uuid = parsed.uuid || doc.uuid;
+                parsed.verifyUrl = parsed.verifyUrl || `https://sarpras.dareliman.or.id/verify/${doc.uuid}`;
+                parsed.assignerTte = true;
+                if (!parsed.qrCodeData && doc.qrCodeData) {
+                    parsed.qrCodeData = doc.qrCodeData;
+                }
+                if (onOpenAssignmentOrder) {
+                    onOpenAssignmentOrder(parsed);
+                    return;
+                }
+                if (openAssignmentOrderModal) {
+                    openAssignmentOrderModal(parsed);
+                    return;
+                }
+                window.dispatchEvent(new CustomEvent('open-assignment-order-modal', { detail: parsed }));
+                return;
+            }
+        } catch (e) {
+            console.error('Failed to parse assignment order:', e);
+        }
+    }
+
     const isManual = doc.category === 'Lainnya' || (typeof doc.content === 'string' && doc.content.includes('"isManual":true'));
     const hasPdfUrl = doc.fileUrl && doc.fileUrl.toLowerCase().includes('.pdf');
     if ((isManual && doc.fileUrl) || hasPdfUrl) {
@@ -1246,7 +1287,82 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
 
                     <div className="space-y-4">
                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
-                        {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
+                        {(viewingDoc.category === 'Perintah' || (typeof viewingDoc.content === 'string' && (viewingDoc.content.includes('"orderId"') || viewingDoc.content.includes('SPO-')))) ? (
+                            <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white border-2 border-emerald-200 rounded-2xl space-y-4 shadow-sm">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+                                            <FileText size={22} />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-800">
+                                                Surat Perintah Tugas Pengadaan
+                                            </span>
+                                            <h4 className="font-black text-slate-900 text-base sm:text-lg mt-1 leading-snug">
+                                                Surat Perintah Tugas Pengadaan Resmi
+                                            </h4>
+                                            <p className="text-xs text-slate-600 font-medium">Dokumen format resmi A4 terintegrasi modul Manajemen Aset &amp; Pengadaan</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            handleOpenDocument(viewingDoc);
+                                            setViewingDoc(null);
+                                        }}
+                                        className="px-4 sm:px-5 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-700/20 flex items-center justify-center gap-2 cursor-pointer shrink-0 active:scale-95"
+                                        title="Buka pratinjau surat dan cetak dokumen resmi A4"
+                                    >
+                                        <Printer size={15} /> Buka &amp; Cetak Surat Perintah
+                                    </button>
+                                </div>
+                                {(() => {
+                                    try {
+                                        const parsed = typeof viewingDoc.content === 'string' ? JSON.parse(viewingDoc.content || '{}') : viewingDoc.content;
+                                        const items = parsed.items || [];
+                                        return (
+                                            <div className="space-y-3 pt-1">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pemberi Tugas</span>
+                                                        <span className="font-bold text-slate-800 text-sm block mt-0.5">{parsed.assigner?.name || 'Kepala Bidang Sarana'}</span>
+                                                        <span className="text-slate-500 block text-[11px]">{parsed.assigner?.position || 'Kepala Bidang Sarana'}</span>
+                                                    </div>
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Petugas Penerima Perintah</span>
+                                                        <span className="font-bold text-slate-800 text-sm block mt-0.5">{parsed.assignee?.name || '-'}</span>
+                                                        <span className="text-slate-500 block text-[11px]">{parsed.assignee?.position || '-'} ({parsed.assignee?.unitName || 'Bidang Sarana'})</span>
+                                                    </div>
+                                                </div>
+                                                {items.length > 0 && (
+                                                    <div className="border border-emerald-200/80 rounded-xl overflow-hidden bg-white shadow-2xs">
+                                                        <table className="w-full text-xs text-left border-collapse">
+                                                            <thead className="bg-emerald-100/60 text-emerald-950 font-bold border-b border-emerald-200">
+                                                                <tr>
+                                                                    <th className="p-2.5 w-10 text-center">No</th>
+                                                                    <th className="p-2.5">Nama Barang / Uraian</th>
+                                                                    <th className="p-2.5">Spesifikasi</th>
+                                                                    <th className="p-2.5 text-center w-20">Volume</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-emerald-50">
+                                                                {items.map((it, idx) => (
+                                                                    <tr key={idx} className="hover:bg-emerald-50/40 transition-colors">
+                                                                        <td className="p-2.5 text-center text-slate-500 font-medium">{idx + 1}</td>
+                                                                        <td className="p-2.5 font-bold text-slate-900">{it.name}</td>
+                                                                        <td className="p-2.5 text-slate-600">{it.spec || '-'}</td>
+                                                                        <td className="p-2.5 text-center font-bold text-emerald-800">{it.qty} {it.unit || 'Unit'}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    } catch (e) { return null; }
+                                })()}
+                            </div>
+                        ) : ['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
                             <div className="space-y-4">
                                 {/* Lokasi */}
                                 {(() => {
@@ -1853,7 +1969,17 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                     <div className="flex flex-wrap items-center gap-2">
                         {viewingDoc.type !== 'SURAT_MASUK' && (
                             <button
-                                onClick={() => handleOpenDocument(viewingDoc)}
+                                onClick={() => {
+                                    const isAssignmentOrder = viewingDoc.category === 'Perintah' ||
+                                        viewingDoc.category === 'Surat Perintah' ||
+                                        (viewingDoc.subject && viewingDoc.subject.toLowerCase().includes('perintah')) ||
+                                        (typeof viewingDoc.content === 'string' && (viewingDoc.content.includes('"orderId"') || viewingDoc.content.includes('SPO-') || viewingDoc.content.includes('SURAT_PERINTAH'))) ||
+                                        (typeof viewingDoc.content === 'object' && viewingDoc.content !== null && (viewingDoc.content.orderId || viewingDoc.content.items));
+                                    if (isAssignmentOrder) {
+                                        setViewingDoc(null);
+                                    }
+                                    handleOpenDocument(viewingDoc);
+                                }}
                                 className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
                             >
                                 <Printer size={18} /> {viewingDoc.category === 'Lainnya' || (typeof viewingDoc.content === 'string' && viewingDoc.content.includes('"isManual":true')) ? 'Lihat Dokumen Final' : 'Cetak PDF'}
@@ -2221,10 +2347,29 @@ const EOffice = () => {
     const [isAgendaModalOpen, setIsAgendaModalOpen] = useState(false);
     const [dispositionTargetDoc, setDispositionTargetDoc] = useState(null);
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [selectedAssignmentOrder, setSelectedAssignmentOrder] = useState(null);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'KEPALA_BIDANG' || user?.role === 'SUPER_ADMIN';
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+    useEffect(() => {
+        const handleCustomEvent = (e) => {
+            if (e.detail) {
+                setViewingDoc(null);
+                setSelectedAssignmentOrder(e.detail);
+            }
+        };
+        window.addEventListener('open-assignment-order-modal', handleCustomEvent);
+        openAssignmentOrderModal = (order) => {
+            setViewingDoc(null);
+            setSelectedAssignmentOrder(order);
+        };
+        return () => {
+            window.removeEventListener('open-assignment-order-modal', handleCustomEvent);
+            openAssignmentOrderModal = null;
+        };
+    }, []);
 
     useEffect(() => {
         fetchStats();
@@ -2527,6 +2672,18 @@ const EOffice = () => {
                     if (updatedDoc) setViewingDoc(updatedDoc);
                 }}
             />
+            {selectedAssignmentOrder && (
+                <ProcurementAssignmentOrderModal
+                    isOpen={!!selectedAssignmentOrder}
+                    onClose={() => setSelectedAssignmentOrder(null)}
+                    order={selectedAssignmentOrder}
+                    currentUser={user}
+                    onOrderUpdated={(updated) => {
+                        setSelectedAssignmentOrder(updated);
+                        fetchDocuments();
+                    }}
+                />
+            )}
             <TypeSelectionModal
                 isOpen={isTypeModalOpen}
                 onClose={() => setIsTypeModalOpen(false)}

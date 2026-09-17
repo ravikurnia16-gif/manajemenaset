@@ -34,7 +34,7 @@ const ProcurementPurchaseOrderModal = ({
 
     // Filter items: hanya yang dibeli ke vendor (bukan dipenuhi dari gudang internal)
     const externalItems = (req.items || []).filter(i => {
-        const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Gudang Sarpras (Internal)';
+        const isWh = i.vendorId === 'GUDANG' || i.vendorName === 'Bidang Sarana' || i.vendorName === 'Gudang Sarpras (Internal)' || i.vendorName === 'Gudang Sarpras';
         return !isWh && (i.vendorName || i.vendorId);
     });
 
@@ -211,10 +211,10 @@ const ProcurementPurchaseOrderModal = ({
                                     />
                                 </div>
                                 <div className="flex-1 text-center px-2">
-                                    <h4 className="text-sm sm:text-base font-bold tracking-wider text-emerald-800 uppercase font-sans">
-                                        YAYASAN DAR EL-IMAN PADANG
+                                    <h4 className="text-base sm:text-lg font-bold tracking-wider text-emerald-800 uppercase font-sans">
+                                        YAYASAN DAR EL-IMAN
                                     </h4>
-                                    <h2 className="text-base sm:text-xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
+                                    <h2 className="text-xl sm:text-2xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
                                         BIDANG SARANA
                                     </h2>
                                     <p className="text-[10pt] text-slate-600 italic font-serif mt-0.5">

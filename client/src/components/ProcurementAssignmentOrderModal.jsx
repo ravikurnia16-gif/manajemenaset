@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { X, Printer, CheckCircle2, ShieldCheck, Clock, FileText, AlertCircle, PenTool, ExternalLink, Send } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import api from '../lib/axios';
 import SignaturePad from './SignaturePad';
 
@@ -116,7 +117,7 @@ const ProcurementAssignmentOrderModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0">
             {/* Embedded Print Styling - A4 Single Page Optimized */}
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
@@ -240,10 +241,10 @@ const ProcurementAssignmentOrderModal = ({
                                     />
                                 </div>
                                 <div className="flex-1 text-center px-2">
-                                    <h4 className="text-xs sm:text-sm font-bold tracking-wider text-emerald-800 uppercase font-sans">
-                                        YAYASAN DAR EL-IMAN PADANG
+                                    <h4 className="text-base sm:text-lg font-bold tracking-wider text-emerald-800 uppercase font-sans">
+                                        YAYASAN DAR EL-IMAN
                                     </h4>
-                                    <h2 className="text-base sm:text-xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
+                                    <h2 className="text-xl sm:text-2xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
                                         BIDANG SARANA
                                     </h2>
                                     <p className="text-[9.5pt] text-slate-600 italic font-serif mt-0.5">
@@ -481,6 +482,28 @@ const ProcurementAssignmentOrderModal = ({
                                                     alt="QR Code Verifikasi E-Office"
                                                     className="w-15 h-15 sm:w-16 sm:h-16 object-contain border border-slate-200 bg-white p-0.5 rounded shadow-xs"
                                                 />
+                                                <div className="text-left font-sans">
+                                                    <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">
+                                                        <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />
+                                                        <span>TTE SAH ELEKTRONIK</span>
+                                                    </div>
+                                                    <p className="text-[6.5pt] text-slate-600 leading-tight mt-0.5">
+                                                        Tercatat pada E-Office Surat Keluar
+                                                    </p>
+                                                    <p className="text-[6pt] font-mono text-slate-500 mt-0.5">
+                                                        UUID: {docUuid?.substring(0, 13)}...
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : (verifyUrl || docUuid) ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                    <QRCode
+                                                        value={verifyUrl || `https://sarpras.dareliman.or.id/verify/${docUuid}`}
+                                                        size={56}
+                                                        level="M"
+                                                    />
+                                                </div>
                                                 <div className="text-left font-sans">
                                                     <div className="flex items-center gap-1 text-emerald-700 font-bold text-[8pt]">
                                                         <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />

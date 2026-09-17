@@ -16,7 +16,8 @@ const {
     generateSuratLainnyaPDF,
     generateDispositionSheetPDF,
     generateSPKPDF,
-    generateBAKerusakanPDF
+    generateBAKerusakanPDF,
+    generateSuratPerintahPengadaanPDF
 } = require('../services/officePdfService');
 const mammoth = require('mammoth');
 const crypto = require('crypto');
@@ -646,7 +647,15 @@ exports.generatePDF = async (req, res) => {
             }
         }
 
-        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
+        const isAssignmentOrderDoc = doc.category === 'Perintah' ||
+            doc.category === 'Surat Perintah' ||
+            (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
+            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH'))) ||
+            (typeof doc.content === 'object' && doc.content !== null && (doc.content.orderId || doc.content.items));
+
+        if (isAssignmentOrderDoc) {
+            pdfBytes = await generateSuratPerintahPengadaanPDF(doc, setting);
+        } else if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
@@ -1022,7 +1031,15 @@ exports.generatePublicPDF = async (req, res) => {
             }
         }
 
-        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
+        const isAssignmentOrderDoc = doc.category === 'Perintah' ||
+            doc.category === 'Surat Perintah' ||
+            (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
+            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH'))) ||
+            (typeof doc.content === 'object' && doc.content !== null && (doc.content.orderId || doc.content.items));
+
+        if (isAssignmentOrderDoc) {
+            pdfBytes = await generateSuratPerintahPengadaanPDF(doc, setting);
+        } else if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
