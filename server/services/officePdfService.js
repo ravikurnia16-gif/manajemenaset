@@ -325,14 +325,15 @@ function drawJustifiedText(page, text, x, y, maxWidth, size, font) {
  * 1. JSON structure: { pembukaan, points: [{ text, subs: [] }], penutup }
  * 2. Raw text strings with automatically detected numbered lists (1., 2., a., b., •, -)
  */
-function drawStructuredBodyText(page, contentObj, startY, width, margin, fontRegular, fontBold, checkPage, fontItalic = fontRegular) {
-    let y = startY;
+function drawStructuredBodyText(pageOrCtx, contentObj, startY, width, margin, fontRegular, fontBold, checkPage, fontItalic = fontRegular) {
+    const isCtx = typeof pageOrCtx === 'object' && pageOrCtx !== null && typeof pageOrCtx.y === 'number';
+    const ctx = isCtx ? pageOrCtx : { page: pageOrCtx, y: startY };
     const contentWidth = width - margin * 2;
     const fontSize = 11;
     const lineSpacing = 15;
 
-    // Internal block drawer for lines with fixed wrap indent (hanging indent)
-    const drawIndentedBlock = (text, blockX, maxW, isBold = false, isItalic = false) => {
+    // Helper for drawing justified blocks at an arbitrary x position and width
+    const drawBlock = (text, blockX, maxW, font = fontRegular, isBold = false) => {
         if (!text) return;
         const plain = sanitizeTextForWinAnsi(text).trim();
         if (!plain) return;
@@ -340,88 +341,145 @@ function drawStructuredBodyText(page, contentObj, startY, width, margin, fontReg
         const words = plain.split(/\s+/).filter(w => w.length > 0);
         if (words.length === 0) return;
 
-        let currentLine = words[0];
-        const font = isBold ? fontBold : (isItalic ? fontItalic : fontRegular);
-
+        let lines = [];
+        let currentLine = [words[0]];
         for (let i = 1; i < words.length; i++) {
             const word = words[i];
-            const testLine = currentLine + " " + word;
+            const testLine = [...currentLine, word].join(' ');
             const w = font.widthOfTextAtSize(testLine, fontSize);
             if (w < maxW) {
-                currentLine = testLine;
+                currentLine.push(word);
             } else {
-                if (checkPage) checkPage(20);
-                page.drawText(currentLine, { x: blockX, y, size: fontSize, font });
-                y -= lineSpacing;
-                currentLine = word;
+                lines.push(currentLine);
+                currentLine = [word];
             }
         }
-        if (currentLine) {
-            if (checkPage) checkPage(20);
-            page.drawText(currentLine, { x: blockX, y, size: fontSize, font });
-            y -= lineSpacing;
-        }
+        lines.push(currentLine);
+
+        lines.forEach((lineWords, i) => {
+            const isLast = i === lines.length - 1;
+            if (checkPage) checkPage(lineSpacing + 2);
+            if (isLast || lineWords.length <= 1) {
+                ctx.page.drawText(lineWords.join(' '), { x: blockX, y: ctx.y, size: fontSize, font });
+            } else {
+                const totalW = lineWords.reduce((acc, word) => acc + font.widthOfTextAtSize(word, fontSize), 0);
+                const spaceW = (maxW - totalW) / (lineWords.length - 1);
+                let curX = blockX;
+                lineWords.forEach((word) => {
+                    ctx.page.drawText(word, { x: curX, y: ctx.y, size: fontSize, font });
+                    curX += font.widthOfTextAtSize(word, fontSize) + spaceW;
+                });
+            }
+            ctx.y -= lineSpacing;
+        });
     };
 
-    // Case 1: Structured Object with points
-    if (contentObj && (contentObj.points || contentObj.pembukaan || contentObj.penutup)) {
-        if (contentObj.pembukaan) {
-            const paras = contentObj.pembukaan.split('\n');
-            paras.forEach(p => {
-                if (p.trim()) {
-                    drawIndentedBlock(p, margin, contentWidth);
-                    y -= 5;
+    // Helper to draw a biodata line (e.g. "Nama : Ravi Kurnia" or "Jabatan : Kepala Bidang Sarana")
+    const drawBiodata = (label, value) => {
+        if (checkPage) checkPage(lineSpacing + 2);
+        const font = fontRegular;
+        const labelX = margin + 20;
+        const colonX = margin + 95;
+        const valX = margin + 105;
+        const valMaxW = contentWidth - 105;
+
+        ctx.page.drawText(label, { x: labelX, y: ctx.y, size: fontSize, font });
+        ctx.page.drawText(':', { x: colonX, y: ctx.y, size: fontSize, font: fontBold });
+
+        // Draw value with hanging indent at valX
+        drawBlock(value, valX, valMaxW, font);
+    };
+
+    // Unpack contentObj in case it's a string, wrapped in body, or JSON-stringified
+    let target = contentObj;
+    if (typeof target === 'string') {
+        try {
+            const p = JSON.parse(target);
+            if (p && typeof p === 'object') target = p;
+        } catch (e) {}
+    }
+    if (target && target.body) {
+        if (typeof target.body === 'object' && target.body !== null) {
+            target = { ...target, ...target.body };
+        } else if (typeof target.body === 'string') {
+            try {
+                const pb = JSON.parse(target.body);
+                if (pb && typeof pb === 'object') {
+                    target = { ...target, ...pb };
                 }
-            });
+            } catch (e) {}
+        }
+    }
+
+    // Function to render multiline paragraphs with smart biodata alignment
+    const renderParagraphWithBiodata = (text) => {
+        if (!text) return;
+        const lines = sanitizeTextForWinAnsi(text).split('\n');
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                ctx.y -= 6;
+                return;
+            }
+            // Check for biodata: label : value (label between 2 and 22 chars, no http or sentences)
+            const bioMatch = trimmed.match(/^([A-Za-z\s\/]{2,22})\s*:\s*(.+)$/);
+            if (bioMatch && !trimmed.toLowerCase().startsWith('http') && !trimmed.toLowerCase().startsWith('catatan') && !trimmed.toLowerCase().startsWith('yth') && !trimmed.toLowerCase().startsWith('di ')) {
+                drawBiodata(bioMatch[1].trim(), bioMatch[2].trim());
+            } else {
+                drawBlock(trimmed, margin, contentWidth, fontRegular);
+                ctx.y -= 4;
+            }
+        });
+    };
+
+    // Case 1: Structured Object with points / pembukaan / penutup
+    if (target && (target.points || target.pembukaan || target.penutup)) {
+        if (target.pembukaan) {
+            renderParagraphWithBiodata(target.pembukaan);
+            ctx.y -= 4;
         }
 
-        const points = Array.isArray(contentObj.points) ? contentObj.points : [];
+        const points = Array.isArray(target.points) ? target.points : [];
         points.forEach((p, idx) => {
             const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
             if (!pt || (!pt.text && (!pt.subs || pt.subs.length === 0))) return;
 
-            if (checkPage) checkPage(24);
+            if (checkPage) checkPage(lineSpacing + 4);
             const numLabel = `${idx + 1}.`;
-            page.drawText(numLabel, { x: margin + 10, y, size: fontSize, font: fontBold });
+            ctx.page.drawText(numLabel, { x: margin + 12, y: ctx.y, size: fontSize, font: fontBold });
 
-            const pointX = margin + 28;
-            const pointW = contentWidth - 28;
-            drawIndentedBlock(pt.text || '', pointX, pointW);
+            const pointX = margin + 32;
+            const pointW = contentWidth - 32;
+            drawBlock(pt.text || '', pointX, pointW, fontRegular);
 
-            const subs = (pt.subs || []).filter(s => s && s.trim());
+            const subs = (pt.subs || []).filter(s => s && String(s).trim());
             if (subs.length > 0) {
                 subs.forEach((sub, sIdx) => {
-                    if (checkPage) checkPage(20);
+                    if (checkPage) checkPage(lineSpacing + 2);
                     const subLabel = `${String.fromCharCode(97 + sIdx)}.`;
-                    page.drawText(subLabel, { x: margin + 28, y, size: fontSize, font: fontRegular });
+                    ctx.page.drawText(subLabel, { x: margin + 32, y: ctx.y, size: fontSize, font: fontRegular });
 
-                    const subX = margin + 46;
-                    const subW = contentWidth - 46;
-                    drawIndentedBlock(sub, subX, subW);
+                    const subX = margin + 48;
+                    const subW = contentWidth - 48;
+                    drawBlock(String(sub), subX, subW, fontRegular);
                 });
             }
-            y -= 4;
+            ctx.y -= 4;
         });
 
-        if (contentObj.penutup) {
-            y -= 4;
-            const paras = contentObj.penutup.split('\n');
-            paras.forEach(p => {
-                if (p.trim()) {
-                    drawIndentedBlock(p, margin, contentWidth);
-                    y -= 5;
-                }
-            });
+        if (target.penutup) {
+            ctx.y -= 4;
+            renderParagraphWithBiodata(target.penutup);
         }
-        return y;
+        return ctx.y;
     }
 
     // Case 2: Plain text string or content.text / content.body
     let rawText = '';
-    if (typeof contentObj === 'string') rawText = contentObj;
-    else if (contentObj && (contentObj.text || contentObj.body)) rawText = contentObj.text || contentObj.body;
+    if (typeof target === 'string') rawText = target;
+    else if (target && (target.text || target.body)) rawText = target.text || target.body;
 
-    if (!rawText) return y;
+    if (!rawText) return ctx.y;
 
     const plain = rawText
         .replace(/<br\s*\/?>/gi, '\n')
@@ -434,7 +492,7 @@ function drawStructuredBodyText(page, contentObj, startY, width, margin, fontReg
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.trim() === '') {
-            y -= 8;
+            ctx.y -= 6;
             continue;
         }
 
@@ -442,25 +500,31 @@ function drawStructuredBodyText(page, contentObj, startY, width, margin, fontReg
         const subMatch = line.match(/^(\s*)([a-zA-Z][\.\)]|[ivxLCDM]+[\.\)])\s+(.*)/i);
         // Main point e.g. "1. ", "2) ", "• ", "- "
         const mainMatch = line.match(/^(\s*)(\d+[\.\)]|[•\-\*])\s+(.*)/);
+        // Biodata e.g. "Nama : Ravi Kurnia"
+        const bioMatch = line.trim().match(/^([A-Za-z\s\/]{2,22})\s*:\s*(.+)$/);
 
         if (subMatch && (line.startsWith(' ') || line.startsWith('\t') || subMatch[1].length > 0 || (subMatch[2].length <= 3 && !line.startsWith('Yth')))) {
             const label = subMatch[2];
             const text = subMatch[3];
-            if (checkPage) checkPage(20);
-            page.drawText(label, { x: margin + 28, y, size: fontSize, font: fontRegular });
-            drawIndentedBlock(text, margin + 46, contentWidth - 46);
+            if (checkPage) checkPage(lineSpacing + 2);
+            ctx.page.drawText(label, { x: margin + 32, y: ctx.y, size: fontSize, font: fontRegular });
+            drawBlock(text, margin + 48, contentWidth - 48, fontRegular);
         } else if (mainMatch) {
             const label = mainMatch[2];
             const text = mainMatch[3];
-            if (checkPage) checkPage(24);
-            page.drawText(label, { x: margin + 10, y, size: fontSize, font: fontBold });
-            drawIndentedBlock(text, margin + 28, contentWidth - 28);
+            if (checkPage) checkPage(lineSpacing + 4);
+            ctx.page.drawText(label, { x: margin + 12, y: ctx.y, size: fontSize, font: fontBold });
+            drawBlock(text, margin + 32, contentWidth - 32, fontRegular);
+            ctx.y -= 3;
+        } else if (bioMatch && !line.trim().toLowerCase().startsWith('http') && !line.trim().toLowerCase().startsWith('catatan') && !line.trim().toLowerCase().startsWith('yth') && !line.trim().toLowerCase().startsWith('di ')) {
+            drawBiodata(bioMatch[1].trim(), bioMatch[2].trim());
         } else {
-            drawIndentedBlock(line, margin, contentWidth);
+            drawBlock(line, margin, contentWidth, fontRegular);
+            ctx.y -= 3;
         }
     }
 
-    return y;
+    return ctx.y;
 }
 
 async function generateSuratPDF(doc, setting) {
@@ -468,7 +532,6 @@ async function generateSuratPDF(doc, setting) {
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
-    const images = await embedKopSuratImages(pdfDoc);
     
     let content = {};
     try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
@@ -481,49 +544,50 @@ async function generateSuratPDF(doc, setting) {
         
         const margin = 56;
         const bottomMargin = 60;
+        const ctx = {
+            page,
+            y: drawKopSuratSync(page, fontBold, fontRegular, kopImages)
+        };
         const checkPage = (needed = 30) => {
-            if (y - needed < bottomMargin) {
-                page = pdfDoc.addPage([595.28, 841.89]);
-                y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+            if (ctx.y - needed < bottomMargin) {
+                ctx.page = pdfDoc.addPage([595.28, 841.89]);
+                ctx.y = drawKopSuratSync(ctx.page, fontBold, fontRegular, kopImages);
             }
         };
 
-        const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
-        let y = startY;
-
         // === HEADER DOKUMEN ===
         if (doc.number) {
-            page.drawText(`Nomor     : ${doc.number}`, { x: margin, y, size: 11, font: fontRegular });
-            y -= 14;
+            ctx.page.drawText(`Nomor     : ${doc.number}`, { x: margin, y: ctx.y, size: 11, font: fontRegular });
+            ctx.y -= 14;
         }
-        page.drawText(`Lampiran : ${content.lampiranText ? '1 (Satu) Berkas' : '-'}`, { x: margin, y, size: 11, font: fontRegular });
-        y -= 14;
-        page.drawText(`Perihal    : ${doc.subject || '-'}`, { x: margin, y, size: 11, font: fontBold });
-        y -= 30;
+        ctx.page.drawText(`Lampiran : ${content.lampiranText ? '1 (Satu) Berkas' : '-'}`, { x: margin, y: ctx.y, size: 11, font: fontRegular });
+        ctx.y -= 14;
+        ctx.page.drawText(`Perihal    : ${doc.subject || '-'}`, { x: margin, y: ctx.y, size: 11, font: fontBold });
+        ctx.y -= 30;
 
         // === RECIPIENT ===
         if (recipient) doc._currentRecipient = recipient;
-        y = drawRecipientBlock(page, doc, recipientsData, margin, y, fontRegular, fontBold, margin, width);
+        ctx.y = drawRecipientBlock(ctx.page, doc, recipientsData, margin, ctx.y, fontRegular, fontBold, margin, width);
 
         // === ISI SURAT (BERSTRUKTUR DENGAN HANGING INDENT) ===
-        y = drawStructuredBodyText(page, content, y, width, margin, fontRegular, fontBold, checkPage, fontItalic);
+        ctx.y = drawStructuredBodyText(ctx, content, ctx.y, width, margin, fontRegular, fontBold, checkPage, fontItalic);
 
         // === TANDA TANGAN ===
         checkPage(150);
-        y -= 30;
+        ctx.y -= 30;
         const sigX = width - margin - 180;
         const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
         const d = new Date(doc.date);
-        page.drawText(`Padang, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`, { x: sigX, y, size: 11, font: fontRegular });
-        y -= 18;
+        ctx.page.drawText(`Padang, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`, { x: sigX, y: ctx.y, size: 11, font: fontRegular });
+        ctx.y -= 18;
 
-        page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
-        y -= 65;
+        ctx.page.drawText('Kepala Bidang Sarpras,', { x: sigX, y: ctx.y, size: 11, font: fontBold });
+        ctx.y -= 65;
 
-        await drawDigitalSignature(page, doc, sigX + 20, y, 60);
-        y -= 10;
+        await drawDigitalSignature(ctx.page, doc, sigX + 20, ctx.y, 60);
+        ctx.y -= 10;
         const signerName = doc.signedBy?.name || '____________________';
-        page.drawText(signerName, { x: sigX, y, size: 11, font: fontBold });
+        ctx.page.drawText(signerName, { x: sigX, y: ctx.y, size: 11, font: fontBold });
     };
 
     if (recipientsData && recipientsData.isMultiple && recipientsData.mode === 'MASSAL' && recipientsData.list.length > 0) {
@@ -1914,10 +1978,22 @@ async function generatePemberitahuanPDF(doc, setting) {
 
             points.forEach((point, idx) => {
                 checkPage(25);
+                const ptText = typeof point === 'string' ? point : (point?.text || '');
+                const subs = typeof point === 'object' && point !== null && Array.isArray(point.subs) ? point.subs : [];
                 const label = `${idx + 1}. `;
                 const labelWidth = fontBold.widthOfTextAtSize(label, 11);
                 page.drawText(label, { x: margin + 15, y, size: 11, font: fontBold });
-                drawJustified(point, margin + 15 + labelWidth + 3, contentWidth - 15 - labelWidth - 3, fontRegular, 11);
+                drawJustified(ptText, margin + 15 + labelWidth + 3, contentWidth - 15 - labelWidth - 3, fontRegular, 11);
+                if (subs.length > 0) {
+                    subs.filter(s => s && String(s).trim()).forEach((sub, sIdx) => {
+                        checkPage(20);
+                        const sLabel = `${String.fromCharCode(97 + sIdx)}. `;
+                        const sLabelWidth = fontRegular.widthOfTextAtSize(sLabel, 11);
+                        page.drawText(sLabel, { x: margin + 35, y, size: 11, font: fontRegular });
+                        drawJustified(String(sub), margin + 35 + sLabelWidth + 3, contentWidth - 35 - sLabelWidth - 3, fontRegular, 11);
+                        y -= 3;
+                    });
+                }
                 y -= 5;
             });
             y -= 5;
@@ -2449,127 +2525,121 @@ async function generateSuratUmumPDF(doc, setting) {
     const { pdfDoc, fontBold, fontRegular, fontItalic, width, height, margin } = await createBasePDF(setting);
     let page = pdfDoc.getPages()[0];
     const contentWidth = width - (2 * margin);
-    const cursor = { y: height - 145 };
+    const kopImages = await embedKopSuratImages(pdfDoc);
+
+    const ctx = {
+        page,
+        y: height - 145
+    };
 
     // Draw Kop Surat
-    await drawKopSurat(page, fontBold, fontRegular);
+    await drawKopSurat(ctx.page, fontBold, fontRegular);
 
-    const content = typeof doc.content === 'string' ? JSON.parse(doc.content) : (doc.content || {});
+    let content = {};
+    try {
+        content = typeof doc.content === 'string' ? JSON.parse(doc.content) : (doc.content || {});
+    } catch (e) {
+        content = {};
+    }
+
+    // Function to check page overflow
+    const checkPage = (needed = 30) => {
+        if (ctx.y < 60 + needed) {
+            ctx.page = pdfDoc.addPage([595.28, 841.89]);
+            ctx.y = height - 60;
+        }
+    };
 
     // Header Title (SubCategory)
-    const title = content.subCategory || "SURAT";
+    const title = (content.subCategory || "SURAT").toUpperCase();
     const titleWidth = fontBold.widthOfTextAtSize(title, 14);
-    page.drawText(title, { x: (width - titleWidth) / 2, y: cursor.y, size: 14, font: fontBold });
-    cursor.y -= 2;
-    page.drawLine({ start: { x: (width - titleWidth) / 2, y: cursor.y }, end: { x: (width + titleWidth) / 2, y: cursor.y }, thickness: 1.5 });
-    cursor.y -= 15;
+    ctx.page.drawText(title, { x: (width - titleWidth) / 2, y: ctx.y, size: 14, font: fontBold });
+    ctx.y -= 2;
+    ctx.page.drawLine({ start: { x: (width - titleWidth) / 2, y: ctx.y }, end: { x: (width + titleWidth) / 2, y: ctx.y }, thickness: 1.5 });
+    ctx.y -= 15;
 
     // Number
     if (doc.number) {
         const numberText = `Nomor: ${doc.number}`;
         const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
-        page.drawText(numberText, { x: (width - numWidth) / 2, y: cursor.y, size: 11, font: fontRegular });
-        cursor.y -= 25;
+        ctx.page.drawText(numberText, { x: (width - numWidth) / 2, y: ctx.y, size: 11, font: fontRegular });
+        ctx.y -= 22;
     }
 
     // Perihal
     const perihalLabel = "Perihal:";
-    page.drawText(perihalLabel, { x: margin, y: cursor.y, size: 11, font: fontBold });
+    ctx.page.drawText(perihalLabel, { x: margin, y: ctx.y, size: 11, font: fontBold });
     const perihalValueX = margin + fontBold.widthOfTextAtSize(perihalLabel, 11) + 8;
     const subjectLines = wrapText(doc.subject || '', contentWidth - (perihalValueX - margin), fontBold, 11);
     subjectLines.forEach((line) => {
-        page.drawText(line, { x: perihalValueX, y: cursor.y, size: 11, font: fontBold });
-        cursor.y -= 14;
+        ctx.page.drawText(line, { x: perihalValueX, y: ctx.y, size: 11, font: fontBold });
+        ctx.y -= 14;
     });
-    cursor.y -= 15;
+    ctx.y -= 15;
 
     // Recipient
-    page.drawText(`Yth. ${doc.party2Name || '....................'}`, { x: margin, y: cursor.y, size: 11, font: fontBold });
-    cursor.y -= 15;
-    page.drawText('di', { x: margin, y: cursor.y, size: 11, font: fontRegular });
-    cursor.y -= 15;
-    page.drawText(doc.party2Address || 'Tempat', { x: margin, y: cursor.y, size: 11, font: fontBold });
-    cursor.y -= 30;
-
-    // Function to check page overflow
-    const checkPage = (needed) => {
-        if (cursor.y < 60 + needed) {
-            page = pdfDoc.addPage([595.28, 841.89]);
-            cursor.y = height - 60;
-        }
-    };
-
-    const drawJustified = (text, x, w, font, size) => {
-        const lines = wrapText(text, w, font, size);
-        lines.forEach((line, i) => {
-            const isLast = i === lines.length - 1;
-            checkPage(20);
-            if (isLast || line.split(' ').length <= 1) {
-                page.drawText(line, { x, y: cursor.y, size, font });
-            } else {
-                const words = line.split(' ');
-                const totalW = words.reduce((acc, word) => acc + font.widthOfTextAtSize(word, size), 0);
-                const spaceW = (w - totalW) / (words.length - 1);
-                let curX = x;
-                words.forEach((word) => {
-                    page.drawText(word, { x: curX, y: cursor.y, size, font });
-                    curX += font.widthOfTextAtSize(word, size) + spaceW;
-                });
-            }
-            cursor.y -= 15;
-        });
-    };
+    ctx.page.drawText(`Yth. ${doc.party2Name || '....................'}`, { x: margin, y: ctx.y, size: 11, font: fontBold });
+    ctx.y -= 15;
+    ctx.page.drawText('di', { x: margin, y: ctx.y, size: 11, font: fontRegular });
+    ctx.y -= 15;
+    ctx.page.drawText(doc.party2Address || 'Tempat', { x: margin, y: ctx.y, size: 11, font: fontBold });
+    ctx.y -= 26;
 
     // Salam Pembuka
     checkPage(20);
-    page.drawText("Assalamu'alaikum Warahmatullahi Wabarakatuh,", { x: margin, y: cursor.y, size: 11, font: fontItalic });
-    cursor.y -= 25;
+    ctx.page.drawText("Assalamu'alaikum Warahmatullahi Wabarakatuh,", { x: margin, y: ctx.y, size: 11, font: fontItalic });
+    ctx.y -= 18;
 
-    // Opening Text (Fixed)
+    // Opening Text (Mukadimah)
     const openingText = "Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin.";
-    drawJustified(openingText, margin, contentWidth, fontRegular, 11);
-    cursor.y -= 10;
+    ctx.y = drawJustifiedText(ctx.page, openingText, margin, ctx.y, contentWidth, 11, fontRegular);
+    ctx.y -= 8;
 
-    // Body Text (User Input)
-    if (content.body) {
-        const paragraphs = content.body.split('\n');
-        paragraphs.forEach(p => {
-            if (p.trim()) {
-                drawJustified(p.trim(), margin, contentWidth, fontRegular, 11);
-                cursor.y -= 8;
-            } else {
-                cursor.y -= 12;
-            }
-        });
+    // Body Text (Structured or Free Text)
+    ctx.y = drawStructuredBodyText(ctx, content.body || content, ctx.y, width, margin, fontRegular, fontBold, checkPage, fontItalic);
+
+    // Closing Text (Fixed / Contextual)
+    let bodyObj = content.body;
+    if (typeof bodyObj === 'string') {
+        try { bodyObj = JSON.parse(bodyObj); } catch (e) {}
     }
+    const hasCustomPenutup = bodyObj && typeof bodyObj === 'object' && bodyObj.penutup && bodyObj.penutup.trim();
+    const penutupContainsClosing = hasCustomPenutup && (bodyObj.penutup.toLowerCase().includes('demikian') || bodyObj.penutup.toLowerCase().includes('terima kasih'));
 
-    cursor.y -= 10;
-
-    // Closing Text (Fixed)
-    const closingText = "Demikianlah surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih. Jazakumullahu khairan.";
-    drawJustified(closingText, margin, contentWidth, fontRegular, 11);
-    cursor.y -= 10;
+    if (!penutupContainsClosing) {
+        checkPage(25);
+        const closingText = "Demikianlah surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih. Jazakumullahu khairan.";
+        ctx.y = drawJustifiedText(ctx.page, closingText, margin, ctx.y, contentWidth, 11, fontRegular);
+        ctx.y -= 8;
+    }
 
     // Salam Penutup
     checkPage(20);
-    page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y: cursor.y, size: 11, font: fontItalic });
-    cursor.y -= 40;
+    ctx.page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y: ctx.y, size: 11, font: fontItalic });
+    ctx.y -= 30;
 
-    // Signature
-    const sigX = width - 250;
-    checkPage(100);
-    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana,', { x: sigX, y: cursor.y, size: 10, font: fontBold });
-    cursor.y -= 65;
+    // Signature Block
+    checkPage(120);
+    const sigX = width - margin - 180;
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const d = new Date(doc.date || Date.now());
+    const dateFormatted = isNaN(d.getTime()) ? '-' : `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    ctx.page.drawText(`Padang, ${dateFormatted}`, { x: sigX, y: ctx.y, size: 10, font: fontRegular });
+    ctx.y -= 15;
 
-    await drawDigitalSignature(page, doc, sigX, cursor.y, 60);
-    cursor.y -= 10;
+    ctx.page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana,', { x: sigX, y: ctx.y, size: 10, font: fontBold });
+    ctx.y -= 65;
 
-    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y: cursor.y, size: 10, font: fontBold });
-    cursor.y -= 14;
+    await drawDigitalSignature(ctx.page, doc, sigX + 15, ctx.y, 60);
+    ctx.y -= 10;
+
+    ctx.page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y: ctx.y, size: 10, font: fontBold });
+    ctx.y -= 14;
     if (doc.signedBy?.nip || doc.party1Nip) {
-        page.drawText(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`, { x: sigX, y: cursor.y, size: 10, font: fontRegular });
+        ctx.page.drawText(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`, { x: sigX, y: ctx.y, size: 9, font: fontRegular });
     }
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     return await pdfDoc.save();
 }
 

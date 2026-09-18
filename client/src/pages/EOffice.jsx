@@ -236,40 +236,115 @@ const LampiranPreview = ({ doc }) => {
 };
 
 /**
- * FormattedContentRenderer: Renders structured or plain text letter bodies with beautiful hanging indents
+ * FormattedContentRenderer: Renders structured or plain text letter bodies with beautiful hanging indents,
+ * aligned biodata fields (Nama :, Jabatan :, etc.), and multi-level points (1., 2., a., b.).
  */
 const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
-    let parsed = null;
+    // 1. Recursive / robust unpack of content
+    let target = null;
     if (typeof content === 'object' && content !== null) {
-        parsed = content;
+        target = content;
     } else if (typeof content === 'string' && content.trim()) {
         try {
-            parsed = JSON.parse(content);
-        } catch (e) {}
+            target = JSON.parse(content);
+        } catch (e) {
+            target = content;
+        }
     }
 
-    if (parsed && (parsed.points || parsed.pembukaan || parsed.penutup)) {
-        const points = Array.isArray(parsed.points) ? parsed.points : [];
+    // If target has a .body property that is itself a JSON string or object, merge it
+    if (target && typeof target === 'object' && target.body) {
+        if (typeof target.body === 'object' && target.body !== null) {
+            target = { ...target, ...target.body };
+        } else if (typeof target.body === 'string') {
+            try {
+                const pb = JSON.parse(target.body);
+                if (pb && typeof pb === 'object') {
+                    target = { ...target, ...pb };
+                }
+            } catch (e) {}
+        }
+    }
+
+    // Helper: render paragraphs that might contain biodata lines ("Nama : ...", "Jabatan : ...")
+    const renderTextWithBiodata = (text) => {
+        if (!text) return null;
+        const lines = String(text).split('\n');
         return (
-            <div className="space-y-3 text-slate-700 leading-relaxed text-xs sm:text-sm">
-                {parsed.pembukaan && <div className="whitespace-pre-wrap">{parsed.pembukaan}</div>}
+            <div className="space-y-1.5 leading-relaxed text-slate-700">
+                {lines.map((line, idx) => {
+                    const trimmed = line.trim();
+                    if (!trimmed) return <div key={idx} className="h-2" />;
+
+                    // Biodata check: Label : Value (Label length 2-25 chars, no http or sentences)
+                    const bioMatch = trimmed.match(/^([A-Za-z0-9\s\/\.\-]{2,25})\s*:\s*(.+)$/);
+                    if (bioMatch && !trimmed.toLowerCase().startsWith('http') && !trimmed.toLowerCase().startsWith('catatan') && !trimmed.toLowerCase().startsWith('yth') && !trimmed.toLowerCase().startsWith('di ')) {
+                        return (
+                            <div key={idx} className="grid grid-cols-[120px_16px_1fr] sm:grid-cols-[150px_20px_1fr] items-baseline text-xs sm:text-sm pl-2 sm:pl-4 py-0.5">
+                                <span className="text-slate-600 font-semibold">{bioMatch[1].trim()}</span>
+                                <span className="text-slate-400 font-bold text-center">:</span>
+                                <span className="text-slate-800 font-medium">{bioMatch[2].trim()}</span>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div key={idx} className="text-xs sm:text-sm text-slate-700 text-justify leading-relaxed">
+                            {line}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    // Helper: render point text highlighting title prefix if present (e.g. "Kesesuaian Titik Lokasi: Penempatan...")
+    const renderPointText = (text) => {
+        if (!text) return '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 2 && colonIdx <= 45) {
+            const label = text.substring(0, colonIdx + 1);
+            const rest = text.substring(colonIdx + 1);
+            return (
+                <span>
+                    <strong className="text-slate-800 font-bold">{label}</strong>
+                    {rest}
+                </span>
+            );
+        }
+        return text;
+    };
+
+    // Case 1: Structured Object with points, pembukaan, or penutup
+    if (target && typeof target === 'object' && (target.points || target.pembukaan || target.penutup)) {
+        const points = Array.isArray(target.points) ? target.points : [];
+        return (
+            <div className="space-y-3.5 text-slate-700 leading-relaxed text-xs sm:text-sm">
+                {target.pembukaan && renderTextWithBiodata(target.pembukaan)}
+
                 {points.length > 0 && (
-                    <div className="space-y-2 pl-1">
+                    <div className="space-y-2.5 my-2">
                         {points.map((p, idx) => {
                             const pt = typeof p === 'string' ? { text: p, subs: [] } : (p || { text: '', subs: [] });
                             if (!pt.text && (!pt.subs || pt.subs.length === 0)) return null;
                             return (
-                                <div key={idx} className="space-y-1">
-                                    <div className="flex items-start gap-2">
-                                        <span className="font-bold text-slate-800 min-w-[22px] shrink-0 text-right">{idx + 1}.</span>
-                                        <span className="flex-1 text-slate-700">{pt.text}</span>
+                                <div key={idx} className="space-y-1.5">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="font-bold text-slate-800 min-w-[24px] shrink-0 text-right">{idx + 1}.</span>
+                                        <div className="flex-1 text-slate-700 text-justify leading-relaxed">
+                                            {renderPointText(pt.text)}
+                                        </div>
                                     </div>
                                     {pt.subs && pt.subs.length > 0 && (
-                                        <div className="pl-6 space-y-1">
+                                        <div className="pl-8 sm:pl-10 space-y-1">
                                             {pt.subs.filter(s => s && String(s).trim()).map((sub, sIdx) => (
                                                 <div key={sIdx} className="flex items-start gap-2">
-                                                    <span className="font-medium text-slate-600 min-w-[18px] shrink-0 text-right">{String.fromCharCode(97 + sIdx)}.</span>
-                                                    <span className="flex-1 text-slate-600">{sub}</span>
+                                                    <span className="font-semibold text-slate-600 min-w-[20px] shrink-0 text-right">
+                                                        {String.fromCharCode(97 + sIdx)}.
+                                                    </span>
+                                                    <div className="flex-1 text-slate-600 text-justify leading-relaxed">
+                                                        {sub}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -279,51 +354,71 @@ const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
                         })}
                     </div>
                 )}
-                {parsed.penutup && <div className="whitespace-pre-wrap pt-1">{parsed.penutup}</div>}
+
+                {target.penutup && renderTextWithBiodata(target.penutup)}
             </div>
         );
     }
 
+    // Case 2: Plain text (or string extracted from target.body / target.text)
     let rawText = '';
-    if (typeof content === 'string') {
-        rawText = content;
-    } else if (parsed && typeof parsed.body === 'string') {
-        rawText = parsed.body;
-    } else if (parsed && typeof parsed.text === 'string') {
-        rawText = parsed.text;
+    if (typeof target === 'string') {
+        rawText = target;
+    } else if (target && typeof target === 'object') {
+        rawText = target.body || target.text || '';
     } else if (typeof fallbackText === 'string') {
         rawText = fallbackText;
-    } else {
-        rawText = '';
     }
 
-    if (!rawText || !rawText.trim()) return <span className="text-slate-400 italic">(Tanpa isi)</span>;
+    // If rawText is itself a JSON string of points / pembukaan, try once more
+    if (typeof rawText === 'string' && rawText.trim().startsWith('{') && rawText.trim().endsWith('}')) {
+        try {
+            const nested = JSON.parse(rawText);
+            if (nested && (nested.points || nested.pembukaan || nested.penutup)) {
+                return <FormattedContentRenderer content={nested} fallbackText={fallbackText} />;
+            }
+        } catch (e) {}
+    }
 
-    const lines = rawText.split('\n');
+    if (!rawText || !String(rawText).trim()) return <span className="text-slate-400 italic">(Tanpa isi)</span>;
+
+    const lines = String(rawText).split('\n');
     return (
         <div className="space-y-1.5 text-slate-700 leading-relaxed text-xs sm:text-sm">
             {lines.map((line, idx) => {
-                if (!line.trim()) return <div key={idx} className="h-2" />;
+                const trimmed = line.trim();
+                if (!trimmed) return <div key={idx} className="h-2" />;
+
                 const subMatch = line.match(/^(\s*)([a-zA-Z][\.\)]|[ivxLCDM]+[\.\)])\s+(.*)/i);
                 const mainMatch = line.match(/^(\s*)(\d+[\.\)]|[•\-\*])\s+(.*)/);
+                const bioMatch = trimmed.match(/^([A-Za-z0-9\s\/\.\-]{2,25})\s*:\s*(.+)$/);
 
                 if (subMatch && (line.startsWith(' ') || line.startsWith('\t') || subMatch[1].length > 0 || subMatch[2].length <= 3)) {
                     return (
-                        <div key={idx} className="flex items-start gap-2 pl-6">
-                            <span className="font-medium text-slate-600 min-w-[18px] shrink-0 text-right">{subMatch[2]}</span>
-                            <span className="flex-1 text-slate-600">{subMatch[3]}</span>
+                        <div key={idx} className="flex items-start gap-2 pl-6 sm:pl-8">
+                            <span className="font-semibold text-slate-600 min-w-[20px] shrink-0 text-right">{subMatch[2]}</span>
+                            <span className="flex-1 text-slate-600 text-justify">{subMatch[3]}</span>
                         </div>
                     );
                 }
                 if (mainMatch) {
                     return (
-                        <div key={idx} className="flex items-start gap-2 pl-1">
-                            <span className="font-bold text-slate-800 min-w-[22px] shrink-0 text-right">{mainMatch[2]}</span>
-                            <span className="flex-1 text-slate-700">{mainMatch[3]}</span>
+                        <div key={idx} className="flex items-start gap-2.5 pl-1">
+                            <span className="font-bold text-slate-800 min-w-[24px] shrink-0 text-right">{mainMatch[2]}</span>
+                            <span className="flex-1 text-slate-700 text-justify leading-relaxed">{renderPointText(mainMatch[3])}</span>
                         </div>
                     );
                 }
-                return <div key={idx} className="text-slate-700">{line}</div>;
+                if (bioMatch && !trimmed.toLowerCase().startsWith('http') && !trimmed.toLowerCase().startsWith('catatan') && !trimmed.toLowerCase().startsWith('yth') && !trimmed.toLowerCase().startsWith('di ')) {
+                    return (
+                        <div key={idx} className="grid grid-cols-[120px_16px_1fr] sm:grid-cols-[150px_20px_1fr] items-baseline text-xs sm:text-sm pl-2 sm:pl-4 py-0.5">
+                            <span className="text-slate-600 font-semibold">{bioMatch[1].trim()}</span>
+                            <span className="text-slate-400 font-bold text-center">:</span>
+                            <span className="text-slate-800 font-medium">{bioMatch[2].trim()}</span>
+                        </div>
+                    );
+                }
+                return <div key={idx} className="text-slate-700 text-justify leading-relaxed">{line}</div>;
             })}
         </div>
     );
@@ -335,39 +430,44 @@ const FormattedContentRenderer = ({ content, fallbackText = '' }) => {
  */
 const PointListEditor = ({ value, onChange, label = "Isi Dokumen & Butir Poin" }) => {
     const [editorMode, setEditorMode] = useState('structured'); // 'structured' or 'raw'
+
+    const unpackEditorValue = (val) => {
+        if (!val) return null;
+        let v = val;
+        if (typeof v === 'string') {
+            try { v = JSON.parse(v); } catch (e) {}
+        }
+        if (v && typeof v === 'object' && v.body) {
+            if (typeof v.body === 'object' && v.body !== null) return { ...v, ...v.body };
+            if (typeof v.body === 'string') {
+                try {
+                    const pb = JSON.parse(v.body);
+                    if (pb && typeof pb === 'object') return { ...v, ...pb };
+                } catch (e) {}
+            }
+        }
+        return v;
+    };
     
     // Parse initial value
     const [pembukaan, setPembukaan] = useState(() => {
-        if (typeof value === 'object' && value !== null) return value.pembukaan || '';
-        try {
-            const p = JSON.parse(value);
-            return p?.pembukaan || '';
-        } catch (e) {
-            return '';
-        }
+        const unpacked = unpackEditorValue(value);
+        if (typeof unpacked === 'object' && unpacked !== null) return unpacked.pembukaan || '';
+        return '';
     });
 
     const [points, setPoints] = useState(() => {
-        if (typeof value === 'object' && value !== null && Array.isArray(value.points)) {
-            return value.points.map(p => typeof p === 'string' ? { text: p, subs: [] } : { text: p.text || '', subs: p.subs || [] });
+        const unpacked = unpackEditorValue(value);
+        if (typeof unpacked === 'object' && unpacked !== null && Array.isArray(unpacked.points)) {
+            return unpacked.points.map(p => typeof p === 'string' ? { text: p, subs: [] } : { text: p.text || '', subs: p.subs || [] });
         }
-        try {
-            const p = JSON.parse(value);
-            if (p && Array.isArray(p.points)) {
-                return p.points.map(pt => typeof pt === 'string' ? { text: pt, subs: [] } : { text: pt.text || '', subs: pt.subs || [] });
-            }
-        } catch (e) {}
         return [{ text: '', subs: [] }];
     });
 
     const [penutup, setPenutup] = useState(() => {
-        if (typeof value === 'object' && value !== null) return value.penutup || '';
-        try {
-            const p = JSON.parse(value);
-            return p?.penutup || '';
-        } catch (e) {
-            return '';
-        }
+        const unpacked = unpackEditorValue(value);
+        if (typeof unpacked === 'object' && unpacked !== null) return unpacked.penutup || '';
+        return '';
     });
 
     const [rawText, setRawText] = useState(() => {
@@ -1960,6 +2060,110 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                     } catch (e) {
                                         return <p className="text-red-500 italic">Gagal memuat rincian kunjungan</p>;
                                     }
+                                })()}
+                            </div>
+                        ) : viewingDoc.category === 'Umum' ? (
+                            <div className="space-y-6">
+                                {(() => {
+                                    let data = {};
+                                    try {
+                                        data = typeof viewingDoc.content === 'string' ? JSON.parse(viewingDoc.content) : (viewingDoc.content || {});
+                                    } catch (e) {
+                                        data = {};
+                                    }
+                                    const title = (data.subCategory || 'SURAT UMUM').toUpperCase();
+                                    return (
+                                        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5 font-serif">
+                                            {/* Header Kop Surat Mini */}
+                                            <div className="text-center pb-4 border-b border-slate-200 space-y-1">
+                                                <div className="text-xs font-black tracking-widest text-emerald-700 uppercase font-sans">Yayasan Dar el-Iman</div>
+                                                <div className="text-[11px] font-extrabold tracking-wider text-orange-600 uppercase font-sans">Bidang Sarana</div>
+                                                <div className="pt-2 text-base sm:text-lg font-bold uppercase tracking-wider text-slate-900 underline underline-offset-4 decoration-2">
+                                                    {title}
+                                                </div>
+                                                {viewingDoc.number && (
+                                                    <div className="text-xs sm:text-sm font-medium text-slate-600 font-mono">
+                                                        Nomor: {viewingDoc.number}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Metadata: Perihal & Tanggal */}
+                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-xs sm:text-sm pb-3 border-b border-slate-100">
+                                                <div className="space-y-1">
+                                                    <div>
+                                                        <span className="font-bold text-slate-800">Perihal:</span>{' '}
+                                                        <span className="text-slate-700 font-semibold">{viewingDoc.subject || '-'}</span>
+                                                    </div>
+                                                    <div className="text-slate-600">
+                                                        <span className="font-medium">Lampiran:</span> {data.lampiranText ? '1 (Satu) Berkas' : '-'}
+                                                    </div>
+                                                </div>
+                                                <div className="sm:text-right text-slate-600 font-sans">
+                                                    Padang, {formatDate(viewingDoc.date || viewingDoc.createdAt, 'full')}
+                                                </div>
+                                            </div>
+
+                                            {/* Recipient */}
+                                            <div className="text-xs sm:text-sm space-y-0.5">
+                                                <div className="text-slate-600">Kepada Yth.</div>
+                                                <div className="font-bold text-slate-900">{viewingDoc.party2Name || '....................'}</div>
+                                                <div className="text-slate-600">di</div>
+                                                <div className="font-bold text-slate-800">{viewingDoc.party2Address || 'Tempat'}</div>
+                                            </div>
+
+                                            {/* Salam Pembuka */}
+                                            <div className="italic text-slate-700 text-xs sm:text-sm pt-1">
+                                                Assalamu'alaikum Warahmatullahi Wabarakatuh,
+                                            </div>
+
+                                            {/* Mukadimah */}
+                                            <div className="text-xs sm:text-sm text-slate-700 leading-relaxed text-justify">
+                                                Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin.
+                                            </div>
+
+                                            {/* Structured Body via FormattedContentRenderer */}
+                                            <div className="pt-2 font-sans">
+                                                <FormattedContentRenderer content={viewingDoc.content} />
+                                            </div>
+
+                                            {/* Penutup */}
+                                            <div className="text-xs sm:text-sm text-slate-700 leading-relaxed text-justify pt-2">
+                                                Demikianlah surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih. Jazakumullahu khairan.
+                                            </div>
+
+                                            {/* Salam Penutup */}
+                                            <div className="italic text-slate-700 text-xs sm:text-sm">
+                                                Wassalamu'alaikum Warahmatullahi Wabarakatuh.
+                                            </div>
+
+                                            {/* Signature Block */}
+                                            <div className="pt-4 flex justify-end font-sans">
+                                                <div className="text-center w-56 space-y-1 text-xs">
+                                                    <div className="font-bold text-slate-800">{viewingDoc.signedBy?.position || viewingDoc.party1Title || 'Kepala Bidang Sarana,'}</div>
+                                                    <div className="py-2 flex justify-center">
+                                                        {viewingDoc.status === 'SIGNED' ? (
+                                                            <div className="w-24 h-24 border border-emerald-300 bg-emerald-50/50 rounded-xl p-2 flex flex-col items-center justify-center text-center">
+                                                                <CheckCircle2 size={26} className="text-emerald-600 mb-1" />
+                                                                <span className="text-[10px] font-bold text-emerald-800 uppercase leading-tight">TTE Sah Elektronik</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="h-16 flex items-center justify-center text-slate-300 italic text-[11px] border border-dashed border-slate-200 rounded-lg w-full">
+                                                                [ Belum Ditandatangani ]
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="font-bold underline text-slate-900">{viewingDoc.signedBy?.name || viewingDoc.party1Name || 'Ravi Kurnia'}</div>
+                                                    {(viewingDoc.signedBy?.nip || viewingDoc.party1Nip) && (
+                                                        <div className="text-[11px] text-slate-500 font-mono">NIY. {viewingDoc.signedBy?.nip || viewingDoc.party1Nip}</div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Lampiran Section */}
+                                            <LampiranPreview doc={viewingDoc} />
+                                        </div>
+                                    );
                                 })()}
                             </div>
                         ) : viewingDoc.category === 'Lainnya' || (viewingDoc.content && typeof viewingDoc.content === 'string' && viewingDoc.content.includes('"isManual":true')) ? (
@@ -5216,6 +5420,7 @@ const LivePreviewPanel = ({ formData, taskData, purchasingItems, bastItems, edar
                          cat === 'Undangan' ? 'SURAT UNDANGAN' :
                          cat === 'Rekomendasi' ? 'SURAT REKOMENDASI' :
                          cat === 'Surat Teguran' || cat === 'Surat Peringatan' ? 'SURAT TEGURAN' :
+                         cat === 'Umum' ? (umumData?.subCategory ? umumData.subCategory.toUpperCase() : 'SURAT UMUM') :
                          `SURAT ${cat.toUpperCase()}`}
                     </div>
                     <div className="text-[11px] font-mono text-slate-500 font-bold">
@@ -5244,6 +5449,12 @@ const LivePreviewPanel = ({ formData, taskData, purchasingItems, bastItems, edar
                 {/* Document Body */}
                 <div className="pt-2 text-[11px] leading-relaxed space-y-2.5">
                     <div className="italic text-slate-600">Assalamu'alaikum Warahmatullahi Wabarakatuh,</div>
+
+                    {cat === 'Umum' && (
+                        <div className="text-slate-700 text-justify leading-relaxed">
+                            Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin.
+                        </div>
+                    )}
 
                     {cat === 'Tugas' && taskData && (
                         <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -5280,9 +5491,15 @@ const LivePreviewPanel = ({ formData, taskData, purchasingItems, bastItems, edar
                     {cat !== 'Tugas' && cat !== 'SPK' && cat !== 'Perjanjian Kerja' && cat !== 'Berita Acara Kerusakan' && (
                         <div className="text-slate-700">
                             <FormattedContentRenderer
-                                content={formData.content || (cat === 'Pemberitahuan' ? pemberitahuanData : (cat === 'Umum' ? umumData.body : null))}
+                                content={cat === 'Umum' ? (umumData?.body || formData.content) : (cat === 'Pemberitahuan' ? pemberitahuanData : formData.content)}
                                 fallbackText={formData.subject || '<Isi naskah surat resmi akan terformat secara otomatis di sini...>'}
                             />
+                        </div>
+                    )}
+
+                    {cat === 'Umum' && (
+                        <div className="text-slate-700 text-justify leading-relaxed pt-1">
+                            Demikianlah surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih. Jazakumullahu khairan.
                         </div>
                     )}
 
