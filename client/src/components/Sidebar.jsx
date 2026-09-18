@@ -232,8 +232,8 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* Manajemen Workshop (Lama / Umum) - Hanya untuk Admin */}
-                {isAdminAsetOrSuper && renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
+                {/* Manajemen Workshop (Lama / Umum) - Dihide sementara */}
+                {/* {isAdminAsetOrSuper && renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
                     <>
                         <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
@@ -242,7 +242,7 @@ const Sidebar = ({ isOpen = true }) => {
                             <ClipboardList size={16} /> Pesanan Workshop
                         </Link>
                     </>
-                ))}
+                ))} */}
 
                 {/* Manajemen Workshop Baru (Unit 21) */}
                 {canAccessWorkshopBaru && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (

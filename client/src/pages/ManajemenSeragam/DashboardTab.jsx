@@ -79,6 +79,8 @@ export const DashboardTab = ({
       const q = restockSearch.toLowerCase();
       list = list.filter(i => 
         i.itemName?.toLowerCase().includes(q) ||
+        i.clothingTypeName?.toLowerCase().includes(q) ||
+        i.gender?.toLowerCase().includes(q) ||
         i.unitName?.toLowerCase().includes(q) ||
         i.sizeName?.toLowerCase().includes(q) ||
         i.sku?.toLowerCase().includes(q)
@@ -89,11 +91,26 @@ export const DashboardTab = ({
 
   const handleExportRestockCSV = () => {
     if (filteredUrgentItems.length === 0) return;
-    let csv = "No,Nama Seragam,Jenjang/Unit,Kategori,Ukuran,Sisa Stok,Kebutuhan Inden,Batas Min,Rekomendasi Pesan (Qty PO),Urgensi,Sebaran Gudang\n";
+    let csv = "No,Nama Seragam,Jenis Pakaian,Gender,Jenjang/Unit,Kategori,Ukuran,Sisa Stok,Kebutuhan Inden,Batas Min,Rekomendasi Pesan (Qty PO),Urgensi,Sebaran Gudang\n";
     filteredUrgentItems.forEach((i, idx) => {
-      csv += `"${idx + 1}","${i.itemName}","${i.unitName}","${i.categoryName}","${i.sizeName}","${i.currentStock}","${i.totalIndentDemand}","${i.minStock}","${i.recommendedQty}","${i.urgencyLabel}","${i.warehouseBreakdown}"\n`;
+      const escapeCsv = (val) => `"${String(val ?? '-').replace(/"/g, '""')}"`;
+      csv += [
+        idx + 1,
+        escapeCsv(i.itemName),
+        escapeCsv(i.clothingTypeName),
+        escapeCsv(i.gender),
+        escapeCsv(i.unitName),
+        escapeCsv(i.categoryName),
+        escapeCsv(i.sizeName),
+        i.currentStock ?? 0,
+        i.totalIndentDemand ?? 0,
+        i.minStock ?? 0,
+        i.recommendedQty ?? 0,
+        escapeCsv(i.urgencyLabel),
+        escapeCsv(i.warehouseBreakdown)
+      ].join(',') + '\n';
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -683,8 +700,11 @@ export const DashboardTab = ({
                         <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
                         <td className="p-3">
                           <div className="font-bold text-slate-800 text-xs sm:text-sm">{item.itemName}</div>
-                          <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-semibold">{item.unitName}</span>
+                          <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-semibold">{item.unitName}</span>
+                            {item.clothingTypeName && item.clothingTypeName !== '-' && (
+                              <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">{item.clothingTypeName}</span>
+                            )}
                             <span>• {item.gender}</span>
                             {item.sku && <span>• SKU: {item.sku}</span>}
                           </div>

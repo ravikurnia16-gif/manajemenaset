@@ -1687,6 +1687,92 @@ ATURAN TINDAKAN:
             };
         }
     }
+
+    /**
+     * Diagnose maintenance report and provide AI troubleshooting & cost recommendations.
+     * @param {Object} reportData
+     * @returns {Promise<Object>}
+     */
+    async diagnoseMaintenanceIssue(reportData) {
+        if (!this.genAI) {
+            throw new Error("AI Service is not configured (missing API Key)");
+        }
+
+        const {
+            title,
+            description,
+            targetDept,
+            urgency,
+            location,
+            assets = [],
+            assetHistories = []
+        } = reportData;
+
+        const assetDetails = assets.length > 0
+            ? assets.map(a => `- Kode: ${a.code}, Nama: ${a.name}, Kondisi Sekarang: ${a.condition || 'BAIK'}, Kategori: ${a.category || '-'}, Lokasi: ${a.location || '-'}`).join('\n')
+            : "Non-Aset / Fasilitas Umum";
+
+        const historyDetails = assetHistories.length > 0
+            ? assetHistories.slice(0, 5).map(h => `- [${h.date || '-'}] ${h.assetCode || ''}: ${h.description || ''} (Tindakan: ${h.note || '-'})`).join('\n')
+            : "Tidak ada catatan riwayat perbaikan sebelumnya.";
+
+        const prompt = `
+            Anda adalah seorang Asisten AI Ahli Rekayasa Pemeliharaan Fasilitas & Aset Profesional (Senior Facility & Maintenance Specialist) di lingkungan yayasan / institusi pendidikan.
+            Tugas Anda adalah menganalisis keluhan kerusakan berikut ini secara mendalam, menentukan kemungkinan akar masalah teknis, menyusun langkah perbaikan terarah untuk teknisi, serta mengestimasi kebutuhan suku cadang dan rentang biaya wajar di Indonesia (dalam Rupiah).
+
+            DATA LAPORAN KELUHAN:
+            - Judul Laporan: ${title || '-'}
+            - Deskripsi Gejala/Masalah: ${description || '-'}
+            - Departemen Tujuan: ${targetDept === 'PEMBANGUNAN' ? 'Pembangunan & Konstruksi' : 'Sarana & Prasarana'}
+            - Tingkat Urgensi Dilaporkan: ${urgency || 'NORMAL'}
+            - Lokasi Fisik: ${location || '-'}
+
+            DATA ASET TERKAIT:
+            ${assetDetails}
+
+            RIWAYAT PERBAIKAN SEBELUMNYA PADA ASET:
+            ${historyDetails}
+
+            TUGAS ANALISIS ANDA:
+            Berikan hasil diagnosis dalam bentuk JSON MURNI tanpa format markdown (\`\`\`json).
+            Struktur JSON wajib tepat seperti ini:
+            {
+                "summary": "Ringkasan diagnosis 1-2 kalimat padat dan informatif",
+                "rootCause": "Penjelasan kemungkinan besar akar kerusakan teknis",
+                "severity": "NORMAL / URGENT / CRITICAL",
+                "severityReason": "Alasan penilaian tingkat keparahan",
+                "recommendedActions": [
+                    "Langkah 1 pemeriksaan/penanganan",
+                    "Langkah 2 perbaikan teknis",
+                    "Langkah 3 pengujian hasil"
+                ],
+                "neededParts": [
+                    { "name": "Nama suku cadang/material yang diperkirakan perlu", "estimatedQty": "Jumlah perkiraan misal 1 pcs / 1 kg" }
+                ],
+                "estimatedCost": {
+                    "min": 100000,
+                    "max": 300000,
+                    "note": "Catatan asumsi estimasi biaya jasa dan material"
+                },
+                "recommendedSpecialist": "Spesialisasi teknisi yang disarankan (misal: Teknisi AC / Pendingin, Teknisi Listrik, Tukang Kayu / Sipil, Teknisi Jaringan)",
+                "preventiveAdvice": "Saran tindakan preventif untuk mencegah kerusakan serupa di masa mendatang"
+            }
+
+            Catatan:
+            - Format mata uang untuk "min" dan "max" harus angka bulat murni (number integer) tanpa titik/koma.
+            - Hanya berikan JSON murni.
+        `;
+
+        try {
+            const result = await this.generateContentWithFallback(prompt);
+            const responseText = result.response.text().trim();
+            const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(cleanJson);
+        } catch (err) {
+            console.error("[AIService] Error diagnosing maintenance issue:", err.message);
+            throw err;
+        }
+    }
 }
 
 module.exports = new AIService();

@@ -4,6 +4,7 @@ const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 const predictiveService = require('../services/predictiveService');
+const aiService = require('../services/aiService');
 const crypto = require('crypto');
 
 // --- Business Day & Working Hours Helpers for SLA Respon Awal (07:15 - 16:15 WIB, Senin - Jumat) ---
@@ -736,10 +737,13 @@ exports.addMedia = async (req, res) => {
 // Update Status (Workflow Transitions)
 exports.updateStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost, costDetails } = req.body;
+    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost, costDetails, assetActions } = req.body;
 
     try {
-        const oldReport = await prisma.maintenance.findUnique({ where: { id: parseInt(id) } });
+        const oldReport = await prisma.maintenance.findUnique({ 
+            where: { id: parseInt(id) },
+            include: { assets: true }
+        });
         if (!oldReport) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
 
         const updateData = { status };
@@ -750,10 +754,75 @@ exports.updateStatus = async (req, res) => {
         if (actionTaken) updateData.actionTaken = actionTaken;
         if (completionNote) updateData.completionNote = completionNote;
         if (cost !== undefined) updateData.cost = parseFloat(cost);
-        if (costDetails !== undefined) updateData.costDetails = costDetails; // Add this line
+        if (costDetails !== undefined) updateData.costDetails = costDetails;
         if (status === 'COMPLETED') {
             updateData.completionDate = new Date();
             updateData.quickToken = null; // Clear token after use
+        }
+
+        // Process assetActions (Tindakan per-aset / massal per kelompok)
+        let metadata = oldReport.aiDiagnosis || {};
+        if (typeof metadata !== 'object' || Array.isArray(metadata) || !metadata) {
+            metadata = {};
+        }
+
+        const completedAssetIds = new Set(Array.isArray(metadata.completedAssets) ? metadata.completedAssets : []);
+        const newlyCompletedAssetIds = [];
+
+        if (Array.isArray(assetActions) && assetActions.length > 0) {
+            const existingActions = Array.isArray(metadata.assetActions) ? metadata.assetActions : [];
+            const actionMap = new Map();
+            existingActions.forEach(a => {
+                if (a && a.assetId) actionMap.set(parseInt(a.assetId), a);
+            });
+
+            for (const act of assetActions) {
+                const aId = parseInt(act.assetId);
+                if (!aId) continue;
+
+                const prev = actionMap.get(aId) || {};
+                const isMarkedCompleted = act.isCompleted !== undefined ? Boolean(act.isCompleted) : (status === 'COMPLETED');
+
+                actionMap.set(aId, {
+                    ...prev,
+                    assetId: aId,
+                    actionTaken: act.actionTaken !== undefined ? act.actionTaken : (prev.actionTaken || ''),
+                    condition: act.condition || prev.condition || undefined,
+                    isCompleted: isMarkedCompleted,
+                    updatedAt: new Date().toISOString()
+                });
+
+                if (isMarkedCompleted && !completedAssetIds.has(aId)) {
+                    completedAssetIds.add(aId);
+                    newlyCompletedAssetIds.push(aId);
+                }
+
+                // Update condition in database if provided
+                if (act.condition && ['BAIK', 'RUSAK_RINGAN', 'RUSAK_BERAT'].includes(act.condition)) {
+                    try {
+                        await prisma.asset.update({
+                            where: { id: aId },
+                            data: { condition: act.condition }
+                        });
+                    } catch (err) {
+                        console.error(`[Maintenance] Failed to update asset ${aId} condition:`, err);
+                    }
+                }
+            }
+
+            metadata.assetActions = Array.from(actionMap.values());
+            metadata.completedAssets = Array.from(completedAssetIds);
+            updateData.aiDiagnosis = metadata;
+        } else if (status === 'COMPLETED' && oldReport.assets && oldReport.assets.length > 0) {
+            // Mark all assets completed in metadata
+            oldReport.assets.forEach(a => {
+                if (!completedAssetIds.has(a.id)) {
+                    completedAssetIds.add(a.id);
+                    newlyCompletedAssetIds.push(a.id);
+                }
+            });
+            metadata.completedAssets = Array.from(completedAssetIds);
+            updateData.aiDiagnosis = metadata;
         }
 
         // Record first response time (for SLA Respon Awal)
@@ -775,6 +844,20 @@ exports.updateStatus = async (req, res) => {
                 assets: true // Include assets for prediction logic
             }
         });
+
+        // Trigger predictive maintenance for newly completed assets
+        if (newlyCompletedAssetIds.length > 0) {
+            (async () => {
+                for (const aId of newlyCompletedAssetIds) {
+                    try {
+                        await predictiveService.predictNextMaintenance(aId);
+                        console.log(`[Predictive] Updated prediction for Asset ID: ${aId}`);
+                    } catch (err) {
+                        console.error(`[Predictive] Error for Asset ${aId}:`, err);
+                    }
+                }
+            })();
+        }
 
         // Check if status changed
         const statusDidUnchange = oldReport.status === status; // New logic for detail updates
@@ -1314,6 +1397,8 @@ exports.checkUnrespondedReports = async () => {
 // Complete a single asset in a maintenance report
 exports.completeAssetMaintenance = async (req, res) => {
     const { id, assetId } = req.params;
+    const { actionTaken, condition } = req.body || {};
+    const parsedAssetId = parseInt(assetId);
     
     try {
         const report = await prisma.maintenance.findUnique({
@@ -1324,40 +1409,84 @@ exports.completeAssetMaintenance = async (req, res) => {
         if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
         
         // Ensure the asset belongs to this report
-        const isAssetInReport = report.assets.some(a => a.id === parseInt(assetId));
+        const isAssetInReport = report.assets.some(a => a.id === parsedAssetId);
         if (!isAssetInReport) {
             return res.status(400).json({ error: 'Aset tidak terkait dengan laporan ini' });
         }
 
-        // We use aiDiagnosis field to store generic metadata since it's unused now
+        // We use aiDiagnosis field to store generic metadata
         let metadata = report.aiDiagnosis || {};
-        if (typeof metadata !== 'object' || Array.isArray(metadata)) {
+        if (typeof metadata !== 'object' || Array.isArray(metadata) || !metadata) {
             metadata = {};
         }
 
-        const completedIds = metadata.completedAssets || [];
+        const completedIds = Array.isArray(metadata.completedAssets) ? [...metadata.completedAssets] : [];
         
-        if (completedIds.includes(parseInt(assetId))) {
-            return res.status(400).json({ error: 'Aset ini sudah ditandai selesai' });
+        if (!completedIds.includes(parsedAssetId)) {
+            completedIds.push(parsedAssetId);
+        }
+        metadata.completedAssets = completedIds;
+
+        // Record or update assetActions
+        const existingActions = Array.isArray(metadata.assetActions) ? metadata.assetActions : [];
+        const existingIdx = existingActions.findIndex(a => parseInt(a.assetId) === parsedAssetId);
+        const actionObj = {
+            assetId: parsedAssetId,
+            actionTaken: actionTaken !== undefined ? actionTaken : (existingIdx >= 0 ? existingActions[existingIdx].actionTaken : ''),
+            condition: condition || (existingIdx >= 0 ? existingActions[existingIdx].condition : undefined),
+            isCompleted: true,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (existingIdx >= 0) {
+            existingActions[existingIdx] = actionObj;
+        } else {
+            existingActions.push(actionObj);
+        }
+        metadata.assetActions = existingActions;
+
+        // Update database condition if provided
+        if (condition && ['BAIK', 'RUSAK_RINGAN', 'RUSAK_BERAT'].includes(condition)) {
+            try {
+                await prisma.asset.update({
+                    where: { id: parsedAssetId },
+                    data: { condition }
+                });
+            } catch (err) {
+                console.error(`[Maintenance] Error updating asset ${parsedAssetId} condition:`, err);
+            }
         }
 
-        completedIds.push(parseInt(assetId));
-        metadata.completedAssets = completedIds;
+        // Optional log in report.actionTaken
+        let newActionTaken = report.actionTaken;
+        if (actionTaken && actionTaken.trim()) {
+            const targetAsset = report.assets.find(a => a.id === parsedAssetId);
+            const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+            const logEntry = `[${now}] ${targetAsset?.code || 'Aset'}: ${actionTaken.trim()}${condition ? ` (Kondisi: ${condition})` : ''}`;
+            newActionTaken = newActionTaken ? `${newActionTaken}\n\n${logEntry}` : logEntry;
+        }
 
         await prisma.maintenance.update({
             where: { id: parseInt(id) },
-            data: { aiDiagnosis: metadata }
+            data: { 
+                aiDiagnosis: metadata,
+                actionTaken: newActionTaken
+            }
         });
 
         // Trigger predictive maintenance for this specific asset
         try {
-            await predictiveService.predictNextMaintenance(parseInt(assetId));
-            console.log(`[Predictive] Updated prediction for Asset ID: ${assetId} (Partial Completion)`);
+            await predictiveService.predictNextMaintenance(parsedAssetId);
+            console.log(`[Predictive] Updated prediction for Asset ID: ${parsedAssetId} (Partial Completion)`);
         } catch (err) {
-            console.error(`[Predictive] Error for Asset ${assetId}:`, err);
+            console.error(`[Predictive] Error for Asset ${parsedAssetId}:`, err);
         }
 
-        res.json({ message: 'Aset berhasil ditandai selesai', completedAssets: completedIds });
+        res.json({ 
+            message: 'Aset berhasil ditandai selesai & tindakan diperbarui', 
+            completedAssets: completedIds,
+            assetAction: actionObj
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1520,3 +1649,95 @@ exports.addProgress = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+/**
+ * AI Diagnosis for Maintenance Issue
+ */
+exports.diagnoseMaintenanceAI = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const report = await prisma.maintenance.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                assets: {
+                    include: {
+                        room: true,
+                        category: true,
+                    }
+                },
+                unit: true,
+                media: true
+            }
+        });
+
+        if (!report) {
+            return res.status(404).json({ error: 'Laporan pemeliharaan tidak ditemukan' });
+        }
+
+        // Fetch past maintenance timelines for these assets
+        let assetHistories = [];
+        if (report.assets && report.assets.length > 0) {
+            const assetIds = report.assets.map(a => a.id);
+            const pastMaintenances = await prisma.maintenance.findMany({
+                where: {
+                    id: { not: report.id },
+                    assets: { some: { id: { in: assetIds } } },
+                    status: 'COMPLETED'
+                },
+                orderBy: { completionDate: 'desc' },
+                take: 5,
+                include: { assets: true }
+            });
+
+            assetHistories = pastMaintenances.map(pm => ({
+                assetCode: pm.assets.map(a => a.code).join(', '),
+                date: pm.completionDate ? new Date(pm.completionDate).toLocaleDateString('id-ID') : '',
+                description: pm.title,
+                note: pm.actionTaken || pm.completionNote || ''
+            }));
+        }
+
+        const reportData = {
+            title: report.title,
+            description: report.description,
+            targetDept: report.targetDept,
+            urgency: report.urgency,
+            location: report.location || (report.assets?.[0]?.room?.name) || '-',
+            assets: (report.assets || []).map(a => ({
+                code: a.code,
+                name: a.name,
+                category: a.category?.name || '-',
+                condition: a.condition || 'BAIK',
+                location: a.room?.name || '-',
+                specs: a.description || ''
+            })),
+            assetHistories
+        };
+
+        const diagnosisResult = await aiService.diagnoseMaintenanceIssue(reportData);
+
+        // Save diagnosis to report.aiDiagnosis metadata
+        let metadata = report.aiDiagnosis || {};
+        if (typeof metadata !== 'object' || Array.isArray(metadata)) {
+            metadata = {};
+        }
+        metadata.smartAnalysis = {
+            ...diagnosisResult,
+            diagnosedAt: new Date().toISOString()
+        };
+
+        await prisma.maintenance.update({
+            where: { id: parseInt(id) },
+            data: { aiDiagnosis: metadata }
+        });
+
+        res.json({
+            message: 'Diagnosis AI berhasil disusun',
+            diagnosis: metadata.smartAnalysis
+        });
+    } catch (error) {
+        console.error('[Maintenance AI Diagnosis Error]:', error);
+        res.status(500).json({ error: error.message || 'Gagal melakukan analisis AI' });
+    }
+};
+

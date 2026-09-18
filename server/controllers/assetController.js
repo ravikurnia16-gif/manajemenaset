@@ -436,6 +436,16 @@ exports.getAssetById = async (req, res) => {
             let noteStr = m.completionNote || m.actionTaken || '';
             if (m.status === 'REJECTED') noteStr = m.rejectionReason || '';
 
+            // Check if there is a specific action recorded for this asset
+            const metadata = m.aiDiagnosis || {};
+            const assetActions = Array.isArray(metadata.assetActions) ? metadata.assetActions : [];
+            const specificAction = assetActions.find(a => parseInt(a.assetId) === asset.id);
+
+            if (specificAction && specificAction.actionTaken) {
+                const condBadge = specificAction.condition ? ` [Kondisi: ${specificAction.condition}]` : '';
+                noteStr = `Tindakan Spesifik Aset: ${specificAction.actionTaken}${condBadge}${m.completionNote ? `\nCatatan Tambahan: ${m.completionNote}` : ''}`;
+            }
+
             history.push({
                 id: m.id,
                 type: 'MAINTENANCE',
