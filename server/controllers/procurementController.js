@@ -1209,8 +1209,10 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
         const itemsList = (procurement.items || []).map(it => ({
             name: it.name,
             spec: it.spec || '-',
+            brand: it.brand || '',
             qty: it.qty,
-            unit: it.unit || 'Unit'
+            unit: it.unit || 'Unit',
+            condition: 'Baik'
         }));
 
         const contentObj = {

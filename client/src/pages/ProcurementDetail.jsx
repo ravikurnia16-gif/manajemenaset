@@ -1460,8 +1460,10 @@ const ProcurementDetail = () => {
             {/* Google Fonts */}
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');`}</style>
 
-            {/* ── TOP NAV ── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+            {/* Main Procurement Page Content (hidden during BAST print) */}
+            <div className="procurement-page-content">
+                {/* ── TOP NAV ── */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
                 <button
                     onClick={() => navigate('/procurements')}
                     style={{
@@ -5310,12 +5312,13 @@ const ProcurementDetail = () => {
                     </div>
                 </div>
             )}
+            </div>
 
             {/* ══════════════════════════════════════════════════════════════════
                 MODAL DOKUMEN CETAK BAST RESMI
             ══════════════════════════════════════════════════════════════════ */}
             {showBastDocModal && (
-                <div style={{
+                <div className="bast-modal-backdrop" style={{
                     position: 'fixed', inset: 0, zIndex: 9999,
                     background: 'rgba(15,31,61,0.7)', backdropFilter: 'blur(5px)',
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -5382,75 +5385,75 @@ const ProcurementDetail = () => {
 
                         return (
                             <div id="bast-print-sheet" style={{
-                                width: '100%', maxWidth: 850,
+                                width: '100%', maxWidth: 820,
                                 background: '#ffffff', color: '#111827',
-                                padding: '36px 44px', borderRadius: 4,
+                                padding: '24px 32px', borderRadius: 4,
                                 boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
                                 fontFamily: "'Times New Roman', Times, serif",
-                                lineHeight: 1.5, fontSize: 13
+                                lineHeight: 1.35, fontSize: 11.5
                             }}>
-                                {/* Header / Kop Surat dengan 2 Logo: Yayasan & Bidang Sarana (SIMAS Dihilangkan) */}
-                                <div style={{ paddingBottom: 10, marginBottom: 16, borderBottom: '3px double #111827' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
-                                        <div style={{ width: 85, flexShrink: 0, textAlign: 'left' }}>
+                                {/* Header / Kop Surat dengan 2 Logo: Yayasan & Bidang Sarana */}
+                                <div style={{ paddingBottom: 6, marginBottom: 12, borderBottom: '2px double #111827' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                        <div style={{ width: 75, flexShrink: 0, textAlign: 'left' }}>
                                             <img
                                                 src="/logo_yayasan.jpg"
                                                 alt="Logo Yayasan"
-                                                style={{ height: 64, width: 'auto', objectFit: 'contain' }}
+                                                style={{ height: 52, width: 'auto', objectFit: 'contain' }}
                                                 onError={(e) => { e.target.style.display = 'none'; }}
                                             />
                                         </div>
                                         <div style={{ flex: 1, textAlign: 'center', padding: '0 4px' }}>
-                                            <div style={{ fontSize: 15.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#065f46', fontFamily: 'sans-serif' }}>
+                                            <div style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#065f46', fontFamily: 'sans-serif' }}>
                                                 YAYASAN DAR EL-IMAN
                                             </div>
-                                            <div style={{ fontSize: 19, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#b45309', fontFamily: 'sans-serif', marginTop: 1 }}>
+                                            <div style={{ fontSize: 17, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#b45309', fontFamily: 'sans-serif', marginTop: 1 }}>
                                                 BIDANG SARANA
                                             </div>
-                                            <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#4b5563', marginTop: 1, fontFamily: "'Times New Roman', serif" }}>
+                                            <div style={{ fontSize: 9.5, fontStyle: 'italic', color: '#4b5563', marginTop: 1, fontFamily: "'Times New Roman', serif" }}>
                                                 &ldquo;Merawat dengan Ikhlas, Melayani dengan Sunnah&rdquo;
                                             </div>
-                                            <div style={{ fontSize: 9.5, color: '#4b5563', fontFamily: 'sans-serif', marginTop: 2, lineHeight: 1.3 }}>
+                                            <div style={{ fontSize: 8.5, color: '#4b5563', fontFamily: 'sans-serif', marginTop: 2, lineHeight: 1.25 }}>
                                                 Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat 25173
                                             </div>
-                                            <div style={{ fontSize: 9, color: '#4b5563', fontFamily: 'sans-serif' }}>
+                                            <div style={{ fontSize: 8.5, color: '#4b5563', fontFamily: 'sans-serif' }}>
                                                 WA: 0895-3202-42508 • Email: dar.el.imansarpras@gmail.com
                                             </div>
                                         </div>
-                                        <div style={{ width: 85, flexShrink: 0, textAlign: 'right' }}>
+                                        <div style={{ width: 75, flexShrink: 0, textAlign: 'right' }}>
                                             <img
                                                 src="/Sarpras.jpeg"
                                                 alt="Logo Sarpras"
-                                                style={{ height: 64, width: 'auto', objectFit: 'contain', marginLeft: 'auto' }}
+                                                style={{ height: 52, width: 'auto', objectFit: 'contain', marginLeft: 'auto' }}
                                                 onError={(e) => { e.target.style.display = 'none'; }}
                                             />
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Document Title & E-Office Number (Perihal Dihilangkan) */}
-                                <div style={{ textAlign: 'center', marginBottom: 18 }}>
-                                    <div style={{ fontSize: 15, fontWeight: 900, textDecoration: 'underline', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                {/* Document Title & E-Office Number */}
+                                <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                                    <div style={{ fontSize: 13.5, fontWeight: 900, textDecoration: 'underline', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                                         BERITA ACARA SERAH TERIMA BARANG (BAST)
                                     </div>
-                                    <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'monospace', marginTop: 3 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', marginTop: 2 }}>
                                         Nomor : {displayBastNumber}
                                     </div>
                                 </div>
 
-                                {/* Pembuka (Tanggal disesuaikan dengan awal penandatanganan) */}
-                                <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 12px' }}>
+                                {/* Pembuka */}
+                                <p style={{ textIndent: 30, textAlign: 'justify', margin: '0 0 8px' }}>
                                     Pada hari ini, <strong>{bastDateParsed.dayName || '—'}</strong> tanggal <strong>{bastDateParsed.dateNum || '—'}</strong> bulan <strong>{bastDateParsed.monthName || '—'}</strong> tahun <strong>{bastDateParsed.year || '—'}</strong> ({new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}), kami yang bertanda tangan di bawah ini:
                                 </p>
 
                                 {/* Pihak 1 & Pihak 2 List */}
-                                <div style={{ marginLeft: 16, marginBottom: 14 }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                                <div style={{ marginLeft: 14, marginBottom: 10 }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, lineHeight: 1.3 }}>
                                         <tbody>
                                             <tr>
-                                                <td style={{ width: 22, verticalAlign: 'top', fontWeight: 'bold' }}>1.</td>
-                                                <td style={{ width: 140, verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
-                                                <td style={{ width: 12, verticalAlign: 'top' }}>:</td>
+                                                <td style={{ width: 20, verticalAlign: 'top', fontWeight: 'bold' }}>1.</td>
+                                                <td style={{ width: 130, verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
+                                                <td style={{ width: 10, verticalAlign: 'top' }}>:</td>
                                                 <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}</td>
                                             </tr>
                                             <tr>
@@ -5467,7 +5470,7 @@ const ProcurementDetail = () => {
                                             </tr>
                                             <tr>
                                                 <td></td>
-                                                <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 2, paddingBottom: 8 }}>
+                                                <td colSpan={3} style={{ fontStyle: 'italic', paddingTop: 2, paddingBottom: 6 }}>
                                                     Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong> (Yang Menyerahkan).
                                                 </td>
                                             </tr>
@@ -5500,98 +5503,98 @@ const ProcurementDetail = () => {
                                     </table>
                                 </div>
 
-                                <p style={{ textAlign: 'justify', margin: '0 0 12px' }}>
+                                <p style={{ textAlign: 'justify', margin: '0 0 8px' }}>
                                     Dengan ini menyatakan bahwa <strong>PIHAK PERTAMA</strong> telah menyerahkan barang pengadaan kepada <strong>PIHAK KEDUA</strong>, dan <strong>PIHAK KEDUA</strong> telah memeriksa serta menerima barang tersebut dalam keadaan baik, lengkap, dan sesuai spesifikasi dengan rincian sebagai berikut:
                                 </p>
 
                                 {/* Tabel Rincian Barang */}
                                 <table style={{
-                                    width: '100%', borderCollapse: 'collapse', marginBottom: 14,
-                                    fontSize: 12, border: '1px solid #111827'
+                                    width: '100%', borderCollapse: 'collapse', marginBottom: 10,
+                                    fontSize: 10.5, border: '1px solid #111827'
                                 }}>
                                     <thead>
                                         <tr style={{ background: '#f3f4f6' }}>
-                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 34, textAlign: 'center' }}>No</th>
-                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'left' }}>Nama Barang</th>
-                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'left' }}>Spesifikasi / Merk</th>
-                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 55, textAlign: 'center' }}>Qty</th>
-                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 60, textAlign: 'center' }}>Satuan</th>
-                                            <th style={{ border: '1px solid #111827', padding: '5px 8px', width: 80, textAlign: 'center' }}>Kondisi</th>
+                                            <th style={{ border: '1px solid #111827', padding: '3px 6px', width: 30, textAlign: 'center' }}>No</th>
+                                            <th style={{ border: '1px solid #111827', padding: '3px 6px', textAlign: 'left' }}>Nama Barang</th>
+                                            <th style={{ border: '1px solid #111827', padding: '3px 6px', textAlign: 'left' }}>Spesifikasi / Merk</th>
+                                            <th style={{ border: '1px solid #111827', padding: '3px 6px', width: 45, textAlign: 'center' }}>Qty</th>
+                                            <th style={{ border: '1px solid #111827', padding: '3px 6px', width: 50, textAlign: 'center' }}>Satuan</th>
+                                            <th style={{ border: '1px solid #111827', padding: '3px 6px', width: 65, textAlign: 'center' }}>Kondisi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {req.items.map((it, idx) => (
                                             <tr key={it.id}>
-                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center' }}>{idx + 1}</td>
-                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', fontWeight: 'bold' }}>{it.name}</td>
-                                                <td style={{ border: '1px solid #111827', padding: '5px 8px' }}>
+                                                <td style={{ border: '1px solid #111827', padding: '3px 6px', textAlign: 'center' }}>{idx + 1}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '3px 6px', fontWeight: 'bold' }}>{it.name}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '3px 6px' }}>
                                                     {it.spec || '—'} {it.brand ? `(${it.brand})` : ''}
                                                 </td>
-                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center' }}>{it.qty}</td>
-                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center' }}>{it.unit}</td>
-                                                <td style={{ border: '1px solid #111827', padding: '5px 8px', textAlign: 'center', color: '#15803d', fontWeight: 600 }}>Baik</td>
+                                                <td style={{ border: '1px solid #111827', padding: '3px 6px', textAlign: 'center' }}>{it.qty}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '3px 6px', textAlign: 'center' }}>{it.unit}</td>
+                                                <td style={{ border: '1px solid #111827', padding: '3px 6px', textAlign: 'center', color: '#15803d', fontWeight: 600 }}>Baik</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
 
                                 {/* Penutup */}
-                                <p style={{ textIndent: 36, textAlign: 'justify', margin: '0 0 20px' }}>
+                                <p style={{ textIndent: 30, textAlign: 'justify', margin: '0 0 10px' }}>
                                     Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh kedua belah pihak dengan sebenar-benarnya tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.
                                 </p>
 
                                 {/* Kolom Tanda Tangan */}
                                 <div style={{ pageBreakInside: 'avoid' }}>
-                                    <div style={{ textAlign: 'right', fontSize: 12.5, marginBottom: 8 }}>
+                                    <div style={{ textAlign: 'right', fontSize: 11, marginBottom: 4 }}>
                                         Padang, {new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         {/* Pihak Kedua (Kiri - Penerima Barang) */}
                                         <div style={{ width: '48%', textAlign: 'center' }}>
-                                            <div style={{ fontWeight: 'bold' }}>PIHAK KEDUA,</div>
-                                            <div style={{ fontSize: 11.5, color: '#374151' }}>Yang Menerima</div>
+                                            <div style={{ fontWeight: 'bold', fontSize: 10.5 }}>PIHAK KEDUA,</div>
+                                            <div style={{ fontSize: 10, color: '#374151' }}>Yang Menerima</div>
                                             <div style={{
-                                                minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                margin: '6px 0'
+                                                minHeight: 65, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                margin: '4px 0'
                                             }}>
                                                 {(receiverSignature || bastDoc?.party2Signature) ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                                         <img
                                                             src={receiverSignature || bastDoc?.party2Signature}
                                                             alt="TTD Penerima"
-                                                            style={{ maxHeight: 75, maxWidth: 160, objectFit: 'contain' }}
+                                                            style={{ maxHeight: 58, maxWidth: 140, objectFit: 'contain' }}
                                                         />
-                                                        <span style={{ fontSize: '7.5pt', color: '#64748b', fontStyle: 'italic', marginTop: 2 }}>
+                                                        <span style={{ fontSize: '7pt', color: '#64748b', fontStyle: 'italic', marginTop: 1 }}>
                                                             Ditandatangani: {new Date(effectiveBastDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                         </span>
                                                     </div>
                                                 ) : (
-                                                    <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '10px 20px' }}>
+                                                    <div style={{ fontSize: 10, color: '#9ca3af', fontStyle: 'italic', borderBottom: '1px dashed #d1d5db', padding: '6px 14px' }}>
                                                         (Belum Ditandatangani)
                                                     </div>
                                                 )}
                                             </div>
-                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
+                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 11.5 }}>
                                                 {receiverName || req.user?.name || req.user?.username || 'Penerima Barang'}
                                             </div>
-                                            <div style={{ fontSize: 11, color: '#4b5563' }}>Penerima / Pemohon Barang</div>
-                                            <div style={{ fontSize: 10, color: '#6b7280' }}>{req.unit?.name || 'Unit Pemohon'}</div>
+                                            <div style={{ fontSize: 9.5, color: '#4b5563' }}>Penerima / Pemohon Barang</div>
+                                            <div style={{ fontSize: 9, color: '#6b7280' }}>{req.unit?.name || 'Unit Pemohon'}</div>
                                         </div>
 
                                         {/* Pihak Pertama (Kanan - Pejabat Yang Menyerahkan dengan TTE Sah E-Office) */}
                                         <div style={{ width: '48%', textAlign: 'center' }}>
-                                            <div style={{ fontWeight: 'bold' }}>PIHAK PERTAMA,</div>
-                                            <div style={{ fontSize: 11.5, color: '#374151' }}>{bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}</div>
+                                            <div style={{ fontWeight: 'bold', fontSize: 10.5 }}>PIHAK PERTAMA,</div>
+                                            <div style={{ fontSize: 10, color: '#374151' }}>Yang Menyerahkan</div>
                                             <div style={{
-                                                minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                margin: '6px 0', padding: '4px 6px'
+                                                minHeight: 65, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                margin: '4px 0', padding: '2px 4px'
                                             }}>
                                                 {isPihak1Tte ? (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
-                                                        <div className="relative p-1 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6 }}>
+                                                        <div className="relative p-0.5 bg-white border border-slate-200 rounded shadow-xs flex items-center justify-center">
                                                             <QRCode
                                                                 value={verifyUrl}
-                                                                size={60}
+                                                                size={50}
                                                                 level="H"
                                                             />
                                                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -5599,29 +5602,29 @@ const ProcurementDetail = () => {
                                                                     <img
                                                                         src="/Sarpras.jpeg"
                                                                         alt="Logo Bidang Sarana"
-                                                                        className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                                        className="w-3 h-3 object-contain rounded-xs"
                                                                         onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
                                                                     />
                                                                 </div>
                                                             </div>
                                                         </div>
                                                         <div style={{ textAlign: 'left', fontFamily: 'sans-serif' }}>
-                                                            <div style={{ color: '#15803d', fontWeight: 'bold', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                                <ShieldCheck size={12} color="#16a34a" /> TTE SAH ELEKTRONIK
+                                                            <div style={{ color: '#15803d', fontWeight: 'bold', fontSize: 8.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                                <ShieldCheck size={11} color="#16a34a" /> TTE SAH ELEKTRONIK
                                                             </div>
-                                                            <div style={{ fontSize: 7.5, color: '#4b5563', lineHeight: 1.2, marginTop: 1 }}>
-                                                                Tercatat pada E-Office Surat Keluar
+                                                            <div style={{ fontSize: 7, color: '#4b5563', lineHeight: 1.2, marginTop: 1 }}>
+                                                                Tercatat pada E-Office
                                                             </div>
-                                                            <div style={{ fontSize: 7, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>
-                                                                UUID: {(bastDoc?.uuid || req.code)?.substring(0, 13)}...
+                                                            <div style={{ fontSize: 6.5, fontFamily: 'monospace', color: '#6b7280', marginTop: 1 }}>
+                                                                UUID: {(bastDoc?.uuid || req.code)?.substring(0, 11)}...
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                                                         <div style={{
-                                                            fontSize: 11, color: '#9ca3af', fontStyle: 'italic',
-                                                            borderBottom: '1px dashed #d1d5db', padding: '6px 14px'
+                                                            fontSize: 10, color: '#9ca3af', fontStyle: 'italic',
+                                                            borderBottom: '1px dashed #d1d5db', padding: '4px 10px'
                                                         }}>
                                                             (Belum Ditandatangani TTE)
                                                         </div>
@@ -5633,25 +5636,25 @@ const ProcurementDetail = () => {
                                                                     handleBastKabidTte();
                                                                 }}
                                                                 style={{
-                                                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 3,
                                                                     background: '#15803d', color: '#ffffff', border: 'none',
-                                                                    borderRadius: 6, padding: '4px 10px', fontSize: 10.5,
+                                                                    borderRadius: 4, padding: '3px 8px', fontSize: 9.5,
                                                                     fontWeight: 700, cursor: 'pointer', fontFamily: 'sans-serif'
                                                                 }}
                                                             >
-                                                                <ShieldCheck size={12} /> Bubuhkan TTE Sekarang
+                                                                <ShieldCheck size={11} /> Bubuhkan TTE Sekarang
                                                             </button>
                                                         )}
                                                     </div>
                                                 )}
                                             </div>
-                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 13 }}>
+                                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 11.5 }}>
                                                 {bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}
                                             </div>
-                                            <div style={{ fontSize: 11, color: '#4b5563' }}>
+                                            <div style={{ fontSize: 9.5, color: '#4b5563' }}>
                                                 {bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}
                                             </div>
-                                            <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                            <div style={{ fontSize: 9, color: '#6b7280' }}>
                                                 {kabidUser?.nip && kabidUser.nip !== '-' ? `NIY. ${kabidUser.nip}` : (bastDoc?.party1Org || 'Bidang Sarana')}
                                             </div>
                                         </div>
@@ -5704,28 +5707,61 @@ const ProcurementDetail = () => {
                 currentUser={user}
             />
 
-            {/* Print CSS Styles for BAST Modal */}
+            {/* Print CSS Styles for BAST Modal (Guaranteed 1-page A4 print) */}
             {showBastDocModal && (
                 <style>{`
                     @media print {
-                        body * {
-                            visibility: hidden !important;
+                        @page {
+                            size: A4 portrait;
+                            margin: 5mm 8mm;
                         }
-                        #bast-print-sheet, #bast-print-sheet * {
-                            visibility: visible !important;
+                        html, body {
+                            background: #ffffff !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            height: auto !important;
+                            min-height: 0 !important;
+                            overflow: visible !important;
+                        }
+                        /* Completely remove all non-BAST page contents from the print layout tree */
+                        .procurement-page-content,
+                        .no-print,
+                        header, nav, aside, .sidebar,
+                        #sidebar-wrapper,
+                        #navbar-wrapper {
+                            display: none !important;
+                        }
+                        /* Reset modal backdrop so it doesn't take fixed positioning or overflow */
+                        .bast-modal-backdrop {
+                            position: static !important;
+                            inset: auto !important;
+                            background: transparent !important;
+                            backdrop-filter: none !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
+                            overflow: visible !important;
+                            display: block !important;
+                            width: 100% !important;
+                            height: auto !important;
+                            box-shadow: none !important;
                         }
                         #bast-print-sheet {
-                            position: absolute !important;
-                            left: 0 !important;
-                            top: 0 !important;
+                            position: relative !important;
+                            left: auto !important;
+                            top: auto !important;
                             width: 100% !important;
                             max-width: 100% !important;
-                            padding: 20px 25px !important;
+                            margin: 0 auto !important;
+                            padding: 6px 12px !important;
                             box-shadow: none !important;
                             border: none !important;
+                            page-break-inside: avoid !important;
+                            break-inside: avoid !important;
+                            page-break-after: avoid !important;
+                            break-after: avoid !important;
                         }
-                        .no-print {
-                            display: none !important;
+                        #bast-print-sheet * {
+                            box-sizing: border-box;
                         }
                     }
                 `}</style>

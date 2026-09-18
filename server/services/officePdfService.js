@@ -603,7 +603,430 @@ async function generateSuratPDF(doc, setting) {
     return pdfBytes;
 }
 
+/**
+ * Generate official 1-page BAST PDF matching the Procurement BAST layout 100%
+ */
+async function generateBastPDF(doc, setting) {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    const { width, height } = page.getSize();
+
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+
+    const margin = 45;
+    const centerX = width / 2;
+    const contentWidth = width - margin * 2;
+
+    // ── 1. KOP SURAT YAYASAN & SARPRAS ──
+    const logoY = height - 92;
+    if (kopImages && kopImages.logoImage) {
+        page.drawImage(kopImages.logoImage, {
+            x: margin, y: logoY, width: 62, height: 52
+        });
+    }
+    if (kopImages && kopImages.sarprasImage) {
+        page.drawImage(kopImages.sarprasImage, {
+            x: width - margin - 56, y: logoY, width: 56, height: 52
+        });
+    }
+
+    let y = height - 42;
+    const darkGreen = rgb(0.024, 0.373, 0.275);
+    const darkAmber = rgb(0.706, 0.325, 0.035);
+    const grayText = rgb(0.3, 0.35, 0.4);
+
+    const t1 = 'YAYASAN DAR EL-IMAN';
+    const w1 = fontBold.widthOfTextAtSize(t1, 14);
+    page.drawText(t1, { x: centerX - (w1 / 2), y, size: 14, font: fontBold, color: darkGreen });
+    y -= 15;
+
+    const t2 = 'BIDANG SARANA';
+    const w2 = fontBold.widthOfTextAtSize(t2, 17);
+    page.drawText(t2, { x: centerX - (w2 / 2), y, size: 17, font: fontBold, color: darkAmber });
+    y -= 13;
+
+    const t3 = '"Merawat dengan Ikhlas, Melayani dengan Sunnah"';
+    const w3 = fontItalic.widthOfTextAtSize(t3, 9.5);
+    page.drawText(t3, { x: centerX - (w3 / 2), y, size: 9.5, font: fontItalic, color: grayText });
+    y -= 12;
+
+    const t4 = 'Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat 25173';
+    const w4 = fontRegular.widthOfTextAtSize(t4, 8.5);
+    page.drawText(t4, { x: centerX - (w4 / 2), y, size: 8.5, font: fontRegular, color: grayText });
+    y -= 11;
+
+    const t5 = 'WA: 0895-3202-42508  •  Email: dar.el.imansarpras@gmail.com';
+    const w5 = fontRegular.widthOfTextAtSize(t5, 8.5);
+    page.drawText(t5, { x: centerX - (w5 / 2), y, size: 8.5, font: fontRegular, color: grayText });
+    y -= 9;
+
+    // Double Border Bottom
+    page.drawLine({
+        start: { x: margin, y },
+        end: { x: width - margin, y },
+        thickness: 1.5,
+        color: rgb(0.1, 0.1, 0.1)
+    });
+    page.drawLine({
+        start: { x: margin, y: y - 2 },
+        end: { x: width - margin, y: y - 2 },
+        thickness: 0.6,
+        color: rgb(0.1, 0.1, 0.1)
+    });
+    y -= 16;
+
+    // ── 2. JUDUL DOKUMEN & NOMOR ──
+    const title = 'BERITA ACARA SERAH TERIMA BARANG (BAST)';
+    const titleSize = 13;
+    const titleWidth = fontBold.widthOfTextAtSize(title, titleSize);
+    const titleX = (width - titleWidth) / 2;
+    page.drawText(title, { x: titleX, y, size: titleSize, font: fontBold });
+    page.drawLine({
+        start: { x: titleX, y: y - 2 },
+        end: { x: titleX + titleWidth, y: y - 2 },
+        thickness: 1,
+        color: rgb(0, 0, 0)
+    });
+    y -= 15;
+
+    const numText = `Nomor : ${sanitizeTextForWinAnsi(doc.number || '-')}`;
+    const numSize = 10.5;
+    const numWidth = fontBold.widthOfTextAtSize(numText, numSize);
+    page.drawText(numText, { x: (width - numWidth) / 2, y, size: numSize, font: fontBold });
+    y -= 16;
+
+    // ── 3. PARSE CONTENT & DATA ──
+    let contentData = {};
+    if (doc.content) {
+        try {
+            contentData = typeof doc.content === 'string' ? JSON.parse(doc.content) : doc.content;
+        } catch (e) {}
+    }
+
+    const sDoc = { ...doc };
+    ['party1Name', 'party1Title', 'party1Org', 'party2Name', 'party2Title', 'party2Org'].forEach(field => {
+        if (sDoc[field]) sDoc[field] = sanitizeTextForWinAnsi(sDoc[field]);
+    });
+
+    const docDate = new Date(doc.date || contentData.date || Date.now());
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const dayName = days[docDate.getDay()] || '—';
+    const dateNum = docDate.getDate();
+    const monthName = months[docDate.getMonth()] || '—';
+    const yearNum = docDate.getFullYear();
+    const fullDateIndo = `${dateNum} ${monthName} ${yearNum}`;
+
+    // ── 4. TEKS PEMBUKA ──
+    const openingText = `Pada hari ini, ${dayName} tanggal ${dateNum} bulan ${monthName} tahun ${yearNum} (${fullDateIndo}), kami yang bertanda tangan di bawah ini:`;
+    const openLines = wrapText(openingText, contentWidth, fontRegular, 9.5);
+    openLines.forEach(l => {
+        page.drawText(l, { x: margin, y, size: 9.5, font: fontRegular });
+        y -= 12;
+    });
+    y -= 5;
+
+    // ── 5. PARA PIHAK (FORMAT TABEL SEPERTI PROCUREMENT) ──
+    const p1Name = sDoc.party1Name || sanitizeTextForWinAnsi(contentData.kabidName) || 'Kepala Bidang Sarana';
+    const p1Title = sDoc.party1Title || sanitizeTextForWinAnsi(contentData.kabidPosition) || 'Kepala Bidang Sarana';
+    const p1Org = sDoc.party1Org || sanitizeTextForWinAnsi(contentData.unitKerja) || 'Bidang Sarana';
+
+    const p2Name = sDoc.party2Name || sanitizeTextForWinAnsi(contentData.receiverName) || 'Penerima Barang';
+    const p2Title = sDoc.party2Title || 'Penerima / Pemohon Barang';
+    const p2Org = sDoc.party2Org || sanitizeTextForWinAnsi(contentData.receiverUnit || contentData.unitName) || '—';
+
+    // 1. Pihak Pertama
+    page.drawText('1.', { x: margin + 8, y, size: 9.5, font: fontBold });
+    page.drawText('Nama', { x: margin + 26, y, size: 9.5, font: fontBold });
+    page.drawText(`: ${p1Name}`, { x: margin + 125, y, size: 9.5, font: fontBold });
+    y -= 12;
+
+    page.drawText('Jabatan', { x: margin + 26, y, size: 9.5, font: fontRegular });
+    page.drawText(`: ${p1Title}`, { x: margin + 125, y, size: 9.5, font: fontRegular });
+    y -= 12;
+
+    page.drawText('Unit Kerja', { x: margin + 26, y, size: 9.5, font: fontRegular });
+    page.drawText(`: ${p1Org}`, { x: margin + 125, y, size: 9.5, font: fontRegular });
+    y -= 12;
+
+    page.drawText('Selanjutnya disebut sebagai PIHAK PERTAMA (Yang Menyerahkan).', { x: margin + 26, y, size: 9, font: fontItalic });
+    y -= 14;
+
+    // 2. Pihak Kedua
+    page.drawText('2.', { x: margin + 8, y, size: 9.5, font: fontBold });
+    page.drawText('Nama', { x: margin + 26, y, size: 9.5, font: fontBold });
+    page.drawText(`: ${p2Name}`, { x: margin + 125, y, size: 9.5, font: fontBold });
+    y -= 12;
+
+    page.drawText('Jabatan / Status', { x: margin + 26, y, size: 9.5, font: fontRegular });
+    page.drawText(`: ${p2Title}`, { x: margin + 125, y, size: 9.5, font: fontRegular });
+    y -= 12;
+
+    page.drawText('Unit Kerja / Divisi', { x: margin + 26, y, size: 9.5, font: fontRegular });
+    page.drawText(`: ${p2Org}`, { x: margin + 125, y, size: 9.5, font: fontRegular });
+    y -= 12;
+
+    page.drawText('Selanjutnya disebut sebagai PIHAK KEDUA (Yang Menerima).', { x: margin + 26, y, size: 9, font: fontItalic });
+    y -= 14;
+
+    // ── 6. STATEMENT ──
+    const statementText = 'Dengan ini menyatakan bahwa PIHAK PERTAMA telah menyerahkan barang pengadaan kepada PIHAK KEDUA, dan PIHAK KEDUA telah memeriksa serta menerima barang tersebut dalam keadaan baik, lengkap, dan sesuai spesifikasi dengan rincian sebagai berikut:';
+    const stateLines = wrapText(statementText, contentWidth, fontRegular, 9.5);
+    stateLines.forEach(l => {
+        page.drawText(l, { x: margin, y, size: 9.5, font: fontRegular });
+        y -= 12;
+    });
+    y -= 6;
+
+    // ── 7. TABEL RINCIAN BARANG ──
+    const tblMargin = margin;
+    const tblWidth = contentWidth;
+    const colNoW = 28;
+    const colNamaW = 145;
+    const colSpecW = 182;
+    const colQtyW = 40;
+    const colSatuanW = 50;
+    const colKondisiW = tblWidth - (colNoW + colNamaW + colSpecW + colQtyW + colSatuanW);
+
+    const colNoX = tblMargin;
+    const colNamaX = colNoX + colNoW;
+    const colSpecX = colNamaX + colNamaW;
+    const colQtyX = colSpecX + colSpecW;
+    const colSatuanX = colQtyX + colQtyW;
+    const colKondisiX = colSatuanX + colSatuanW;
+
+    const headerHeight = 17;
+    page.drawRectangle({
+        x: tblMargin,
+        y: y - headerHeight,
+        width: tblWidth,
+        height: headerHeight,
+        color: rgb(0.95, 0.96, 0.97),
+        borderColor: rgb(0.1, 0.1, 0.1),
+        borderWidth: 1
+    });
+
+    [colNamaX, colSpecX, colQtyX, colSatuanX, colKondisiX].forEach(bx => {
+        page.drawLine({
+            start: { x: bx, y },
+            end: { x: bx, y: y - headerHeight },
+            thickness: 1,
+            color: rgb(0.1, 0.1, 0.1)
+        });
+    });
+
+    const textYHeader = y - 12;
+    page.drawText('No', { x: colNoX + 7, y: textYHeader, size: 8.5, font: fontBold });
+    page.drawText('Nama Barang', { x: colNamaX + 6, y: textYHeader, size: 8.5, font: fontBold });
+    page.drawText('Spesifikasi / Merk', { x: colSpecX + 6, y: textYHeader, size: 8.5, font: fontBold });
+    page.drawText('Qty', { x: colQtyX + 11, y: textYHeader, size: 8.5, font: fontBold });
+    page.drawText('Satuan', { x: colSatuanX + 8, y: textYHeader, size: 8.5, font: fontBold });
+    page.drawText('Kondisi', { x: colKondisiX + 12, y: textYHeader, size: 8.5, font: fontBold });
+
+    y -= headerHeight;
+
+    let items = [];
+    if (Array.isArray(contentData)) {
+        items = contentData;
+    } else if (contentData && contentData.items && Array.isArray(contentData.items)) {
+        items = contentData.items;
+    }
+
+    if (items.length === 0) {
+        const rowH = 18;
+        page.drawRectangle({
+            x: tblMargin,
+            y: y - rowH,
+            width: tblWidth,
+            height: rowH,
+            borderColor: rgb(0.1, 0.1, 0.1),
+            borderWidth: 1,
+            color: rgb(1, 1, 1)
+        });
+        page.drawText('Tidak ada rincian barang', { x: tblMargin + 10, y: y - 13, size: 8.5, font: fontItalic });
+        y -= rowH;
+    } else {
+        const maxItems = Math.min(items.length, 12);
+        const rowH = maxItems > 6 ? 15 : 17;
+        for (let i = 0; i < maxItems; i++) {
+            const it = items[i];
+            page.drawRectangle({
+                x: tblMargin,
+                y: y - rowH,
+                width: tblWidth,
+                height: rowH,
+                borderColor: rgb(0.1, 0.1, 0.1),
+                borderWidth: 1,
+                color: rgb(1, 1, 1)
+            });
+
+            [colNamaX, colSpecX, colQtyX, colSatuanX, colKondisiX].forEach(bx => {
+                page.drawLine({
+                    start: { x: bx, y },
+                    end: { x: bx, y: y - rowH },
+                    thickness: 0.8,
+                    color: rgb(0.1, 0.1, 0.1)
+                });
+            });
+
+            const rowTextY = y - (rowH - 5);
+            const itName = sanitizeTextForWinAnsi(it.name || '-');
+            const itBrand = it.brand ? ` (${sanitizeTextForWinAnsi(it.brand)})` : '';
+            const itSpec = sanitizeTextForWinAnsi(it.spec || '-') + itBrand;
+            const itQty = String(it.qty || 1);
+            const itUnit = sanitizeTextForWinAnsi(it.unit || 'Unit');
+            const itCond = sanitizeTextForWinAnsi(it.condition || 'Baik');
+
+            page.drawText(String(i + 1), { x: colNoX + 9, y: rowTextY, size: 8, font: fontRegular });
+            page.drawText(itName, { x: colNamaX + 5, y: rowTextY, size: 8, font: fontBold, maxWidth: colNamaW - 8 });
+            page.drawText(itSpec, { x: colSpecX + 5, y: rowTextY, size: 8, font: fontRegular, maxWidth: colSpecW - 8 });
+            page.drawText(itQty, { x: colQtyX + 13, y: rowTextY, size: 8, font: fontRegular });
+            page.drawText(itUnit, { x: colSatuanX + 8, y: rowTextY, size: 8, font: fontRegular });
+            page.drawText(itCond, { x: colKondisiX + 14, y: rowTextY, size: 8, font: fontBold, color: rgb(0.08, 0.5, 0.24) });
+
+            y -= rowH;
+        }
+    }
+    y -= 10;
+
+    // ── 8. PENUTUP ──
+    const closingText = 'Demikian Berita Acara Serah Terima (BAST) ini dibuat dan ditandatangani oleh kedua belah pihak dengan sebenar-benarnya tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.';
+    const closeLines = wrapText(closingText, contentWidth, fontRegular, 9.5);
+    closeLines.forEach(l => {
+        page.drawText(l, { x: margin, y, size: 9.5, font: fontRegular });
+        y -= 12;
+    });
+    y -= 8;
+
+    // ── 9. TANDA TANGAN ──
+    const padangDate = `Padang, ${fullDateIndo}`;
+    const dateWidth = fontRegular.widthOfTextAtSize(padangDate, 9.5);
+    page.drawText(padangDate, { x: width - margin - dateWidth, y, size: 9.5, font: fontRegular });
+    y -= 15;
+
+    const sigCol2X = margin + 10;
+    const sigCol1X = width - margin - 195;
+
+    page.drawText('PIHAK KEDUA,', { x: sigCol2X, y, size: 9.5, font: fontBold });
+    page.drawText('PIHAK PERTAMA,', { x: sigCol1X, y, size: 9.5, font: fontBold });
+    y -= 11;
+
+    page.drawText('Yang Menerima', { x: sigCol2X, y, size: 8.5, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+    page.drawText('Yang Menyerahkan', { x: sigCol1X, y, size: 8.5, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+    y -= 52;
+
+    // Pihak 2 Signature
+    const p2Sig = doc.party2Signature || contentData.receiverSignature;
+    if (p2Sig) {
+        try {
+            const sigData = p2Sig.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+            const sigBytes = Buffer.from(sigData, 'base64');
+            const sigImg = p2Sig.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+            page.drawImage(sigImg, { x: sigCol2X + 5, y: y + 6, width: 95, height: 42 });
+        } catch (e) {
+            console.error('P2 Sig embed error:', e);
+        }
+    } else {
+        page.drawText('(Belum Ditandatangani)', { x: sigCol2X + 10, y: y + 18, size: 8, font: fontItalic, color: rgb(0.6, 0.6, 0.6) });
+    }
+
+    // Pihak 1 Signature (TTE Sah QR Code / Uploaded Sig)
+    const isP1Signed = Boolean(doc.party1SignedAt || doc.status === 'SIGNED' || doc.status === 'APPROVED' || contentData.kabidTte);
+    if (doc.party1Signature) {
+        try {
+            const sigData = doc.party1Signature.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+            const sigBytes = Buffer.from(sigData, 'base64');
+            const sigImg = doc.party1Signature.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+            page.drawImage(sigImg, { x: sigCol1X + 5, y: y + 6, width: 95, height: 42 });
+        } catch (e) {
+            console.error('P1 Sig embed error:', e);
+        }
+    } else if (isP1Signed) {
+        try {
+            const qrDataUrl = doc.qrCodeData || await generateVerificationQR(doc.uuid);
+            const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+            const qrBytes = Buffer.from(qrBase64, 'base64');
+            const qrImg = await pdfDoc.embedPng(qrBytes);
+            const qrSize = 46;
+            const qrX = sigCol1X;
+            const qrY = y + 4;
+            page.drawImage(qrImg, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+
+            const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
+            if (fs.existsSync(sarprasPath)) {
+                const spBytes = fs.readFileSync(sarprasPath);
+                const spImg = await pdfDoc.embedJpg(spBytes);
+                const logoS = 12;
+                page.drawImage(spImg, {
+                    x: qrX + (qrSize / 2) - (logoS / 2),
+                    y: qrY + (qrSize / 2) - (logoS / 2),
+                    width: logoS,
+                    height: logoS
+                });
+            }
+
+            const badgeX = qrX + qrSize + 5;
+            page.drawText('TTE SAH ELEKTRONIK', { x: badgeX, y: qrY + 30, size: 7, font: fontBold, color: rgb(0.08, 0.5, 0.24) });
+            page.drawText('Tercatat pada E-Office', { x: badgeX, y: qrY + 20, size: 6.5, font: fontRegular, color: rgb(0.3, 0.35, 0.4) });
+            const shortUuid = (doc.uuid || '').substring(0, 12);
+            page.drawText(`UUID: ${shortUuid}...`, { x: badgeX, y: qrY + 10, size: 6, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+        } catch (e) {
+            console.error('P1 TTE embed error:', e);
+        }
+    } else {
+        page.drawText('(Belum Ditandatangani TTE)', { x: sigCol1X + 5, y: y + 18, size: 8, font: fontItalic, color: rgb(0.6, 0.6, 0.6) });
+    }
+
+    // Pihak 2 Names & Titles
+    const p2NameWidth = fontBold.widthOfTextAtSize(p2Name, 9.5);
+    page.drawText(p2Name, { x: sigCol2X, y, size: 9.5, font: fontBold });
+    page.drawLine({
+        start: { x: sigCol2X, y: y - 2 },
+        end: { x: sigCol2X + p2NameWidth, y: y - 2 },
+        thickness: 0.8,
+        color: rgb(0, 0, 0)
+    });
+
+    // Pihak 1 Names & Titles
+    const p1NameWidth = fontBold.widthOfTextAtSize(p1Name, 9.5);
+    page.drawText(p1Name, { x: sigCol1X, y, size: 9.5, font: fontBold });
+    page.drawLine({
+        start: { x: sigCol1X, y: y - 2 },
+        end: { x: sigCol1X + p1NameWidth, y: y - 2 },
+        thickness: 0.8,
+        color: rgb(0, 0, 0)
+    });
+
+    y -= 12;
+    page.drawText('Penerima / Pemohon Barang', { x: sigCol2X, y, size: 8, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+    page.drawText(p1Title, { x: sigCol1X, y, size: 8, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+
+    y -= 10;
+    page.drawText(p2Org, { x: sigCol2X, y, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    page.drawText(p1Org, { x: sigCol1X, y, size: 7.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+
+    // Strictly 1 page: ONLY draw Lampiran if user explicitly provided lampiranText
+    if (contentData.lampiranText && contentData.lampiranText.trim()) {
+        await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
+    }
+
+    return await pdfDoc.save();
+}
+
 async function generateBASTMouPDF(doc, setting) {
+    const isBAST = doc.type === 'BAST' || 
+        ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category) ||
+        (doc.type === 'SURAT_KELUAR' && (doc.category === 'Serah Terima Barang' || doc.category === 'Berita Acara' || doc.category === 'BAST')) ||
+        (doc.subject && doc.subject.toUpperCase().includes('BAST')) ||
+        (doc.subject && doc.subject.toLowerCase().includes('serah terima'));
+
+    if (isBAST) {
+        return await generateBastPDF(doc, setting);
+    }
+
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage([595.28, 841.89]); // A4
     const { width, height } = page.getSize();
@@ -626,8 +1049,7 @@ async function generateBASTMouPDF(doc, setting) {
     let y = startY;
 
     // Judul
-    const isBAST = doc.type === 'BAST' || (doc.type === 'SURAT_KELUAR' && (doc.category === 'Serah Terima Barang' || doc.category === 'Berita Acara' || doc.category === 'BAST'));
-    const title = isBAST ? 'BERITA ACARA SERAH TERIMA' : 'MEMORANDUM OF UNDERSTANDING';
+    const title = 'MEMORANDUM OF UNDERSTANDING';
     const titleWidth = fontBold.widthOfTextAtSize(title, 14);
     page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
     y -= 16;
@@ -3221,6 +3643,7 @@ module.exports = {
     generateVerificationQR,
     generateSuratPDF,
     generateBASTMouPDF,
+    generateBastPDF,
     generateSuratTugasPDF,
     generateSuratPerintahPengadaanPDF,
     generateSuratPesananPDF,

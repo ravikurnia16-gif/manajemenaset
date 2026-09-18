@@ -5,6 +5,7 @@ const {
     generateVerificationQR, 
     generateSuratPDF, 
     generateBASTMouPDF, 
+    generateBastPDF,
     generateSuratTugasPDF, 
     generateSuratPesananPDF, 
     generateInvoicePDF, 
@@ -880,15 +881,21 @@ exports.generatePDF = async (req, res) => {
             }
         }
 
+        const isBastDoc = ['BAST'].includes(doc.type) ||
+            ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category) ||
+            (doc.subject && doc.subject.toUpperCase().includes('BAST')) ||
+            (doc.subject && doc.subject.toLowerCase().includes('berita acara serah terima'));
+
         const isAssignmentOrderDoc = doc.category === 'Perintah' ||
             doc.category === 'Surat Perintah' ||
             (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
-            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH'))) ||
-            (typeof doc.content === 'object' && doc.content !== null && (doc.content.orderId || doc.content.items));
+            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH')));
 
-        if (isAssignmentOrderDoc) {
+        if (isBastDoc) {
+            pdfBytes = await generateBastPDF(doc, setting);
+        } else if (isAssignmentOrderDoc) {
             pdfBytes = await generateSuratPerintahPengadaanPDF(doc, setting);
-        } else if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
+        } else if (doc.type === 'MOU' || doc.category === 'MOU') {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
@@ -1264,15 +1271,21 @@ exports.generatePublicPDF = async (req, res) => {
             }
         }
 
+        const isBastDoc = ['BAST'].includes(doc.type) ||
+            ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category) ||
+            (doc.subject && doc.subject.toUpperCase().includes('BAST')) ||
+            (doc.subject && doc.subject.toLowerCase().includes('berita acara serah terima'));
+
         const isAssignmentOrderDoc = doc.category === 'Perintah' ||
             doc.category === 'Surat Perintah' ||
             (doc.subject && doc.subject.toLowerCase().includes('perintah')) ||
-            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH'))) ||
-            (typeof doc.content === 'object' && doc.content !== null && (doc.content.orderId || doc.content.items));
+            (typeof doc.content === 'string' && (doc.content.includes('"orderId"') || doc.content.includes('SPO-') || doc.content.includes('SURAT_PERINTAH')));
 
-        if (isAssignmentOrderDoc) {
+        if (isBastDoc) {
+            pdfBytes = await generateBastPDF(doc, setting);
+        } else if (isAssignmentOrderDoc) {
             pdfBytes = await generateSuratPerintahPengadaanPDF(doc, setting);
-        } else if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
+        } else if (doc.type === 'MOU' || doc.category === 'MOU') {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
