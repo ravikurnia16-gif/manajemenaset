@@ -103,7 +103,9 @@ const Sidebar = ({ isOpen = true }) => {
     const isRegularUnitUser = !['SUPER_ADMIN', 'ADMIN_ASET'].includes(role) && !isWorkshopUnit21 && !isKabidSarpras;
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || isWorkshopUnit21 || role === 'AUDITOR';
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR', 'BIDANG_IT'].includes(role) || isKabidSarpras || isStaffSarpras;
-    const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
+    const isKabidSarprasPosition = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    const isAdminAsetRole = role === 'ADMIN_ASET' || pos.includes('admin aset');
+    const canViewLaporan = isKabidSarprasPosition || isAdminAsetRole;
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(role) || pos.includes('kepala bidang pembangunan') || pos.includes('staff pembangunan');
     
@@ -372,7 +374,7 @@ const Sidebar = ({ isOpen = true }) => {
                     <Link to="/laporan" className={navItemClass('/laporan')}>
                         <FileText size={18} />
                         <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
-                            {isKabidSarpras ? 'Laporan & Kinerja Staf' : 'Laporan Harian Saya'}
+                            {isKabidSarprasPosition ? 'Laporan & Kinerja Staf' : 'Laporan Harian Staf'}
                         </span>
                     </Link>
                 )}

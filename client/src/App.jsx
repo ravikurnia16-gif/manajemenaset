@@ -100,8 +100,33 @@ import ContractorList from './pages/ContractorList';
 // import SecurityDashboard from './pages/Security/SecurityDashboard';
 // import SecurityPosts from './pages/Security/SecurityPosts';
 // import SecurityGuards from './pages/Security/SecurityGuards';
-// import SecuritySchedule from './pages/Security/SecuritySchedule';
 import ProtectedRoute from './components/ProtectedRoute';
+
+// Guard akses Laporan & Kinerja Staf: hanya untuk posisi Kepala Bidang Sarana dan role Admin Aset
+const LaporanRoute = ({ children }) => {
+  let currentUser = {};
+  try {
+    const stored = localStorage.getItem('user');
+    if (stored && stored !== 'undefined') {
+      currentUser = JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Error parsing user in LaporanRoute', e);
+  }
+
+  const uRole = currentUser?.role || '';
+  const uPos = (currentUser?.position || '').toLowerCase();
+  const isAllowed = ['KABID_SARPRAS', 'ADMIN_ASET'].includes(uRole) ||
+                    uPos.includes('kepala bidang sarana') ||
+                    uPos.includes('kabid sarpras') ||
+                    uPos.includes('admin aset');
+
+  if (!isAllowed) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
 
 import PublicSurvey from './pages/PublicSurvey';
 import SurveyManager from './pages/SurveyManager';
@@ -202,7 +227,9 @@ function App() {
   const isWorkshopUnit21 = user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop');
   const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
   const canAccessWorkshopBaru = isKabidSarpras || isAdminAset || isWorkshopUnit21;
-  const canViewLaporan = isKabidSarpras || isAdminAset || isStaffSarpras;
+  const isKabidSarprasPosition = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+  const isAdminAsetRole = role === 'ADMIN_ASET' || pos.includes('admin aset');
+  const canViewLaporan = isKabidSarprasPosition || isAdminAsetRole;
   const canViewEOffice = isAdminAset || pos.includes('kepala bidang sarana');
 
   return (
@@ -353,10 +380,14 @@ function App() {
           <Route path="security/jadwal" element={<SecuritySchedule />} /> */}
 
           <Route path="laporan" element={
-            canViewLaporan ? <LaporanStaff /> : <Navigate to="/dashboard" />
+            <LaporanRoute>
+              <LaporanStaff />
+            </LaporanRoute>
           } />
           <Route path="laporan/:tab" element={
-            canViewLaporan ? <LaporanStaff /> : <Navigate to="/dashboard" />
+            <LaporanRoute>
+              <LaporanStaff />
+            </LaporanRoute>
           } />
           <Route path="laporan-aset-keuangan" element={<ReportPage />} />
 
