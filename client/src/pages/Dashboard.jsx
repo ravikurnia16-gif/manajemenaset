@@ -45,6 +45,11 @@ const Dashboard = () => {
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : {};
     const canFilterUnit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
+    const pos = (currentUser?.position || '').toLowerCase();
+    const role = currentUser?.role || '';
+    const isKepalaBidangSarana = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    const isAdminAset = role === 'ADMIN_ASET' || pos.includes('admin aset');
+    const canAccessWeeklyReport = isKepalaBidangSarana || isAdminAset;
 
     const fetchStats = async () => {
         try {
@@ -280,38 +285,40 @@ const Dashboard = () => {
             </div>
 
             {/* TAB SWITCHER */}
-            <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-inner print:hidden">
-                <button
-                    onClick={() => setActiveTab('overview')}
-                    className={cn(
-                        "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all",
-                        activeTab === 'overview'
-                            ? "bg-white text-slate-800 shadow-sm"
-                            : "text-slate-500 hover:text-slate-800"
-                    )}
-                >
-                    <Box size={16} className={activeTab === 'overview' ? "text-blue-600" : ""} />
-                    Ikhtisar Kumulatif
-                </button>
-                <button
-                    onClick={() => setActiveTab('weekly')}
-                    className={cn(
-                        "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all relative",
-                        activeTab === 'weekly'
-                            ? "bg-white text-slate-800 shadow-sm"
-                            : "text-slate-500 hover:text-slate-800"
-                    )}
-                >
-                    <CalendarRange size={16} className={activeTab === 'weekly' ? "text-indigo-600" : ""} />
-                    Laporan Mingguan & Operasional
-                    <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 rounded-full">
-                        Laporan
-                    </span>
-                </button>
-            </div>
+            {canAccessWeeklyReport && (
+                <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-inner print:hidden">
+                    <button
+                        onClick={() => setActiveTab('overview')}
+                        className={cn(
+                            "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all",
+                            activeTab === 'overview'
+                                ? "bg-white text-slate-800 shadow-sm"
+                                : "text-slate-500 hover:text-slate-800"
+                        )}
+                    >
+                        <Box size={16} className={activeTab === 'overview' ? "text-blue-600" : ""} />
+                        Ikhtisar Kumulatif
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('weekly')}
+                        className={cn(
+                            "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all relative",
+                            activeTab === 'weekly'
+                                ? "bg-white text-slate-800 shadow-sm"
+                                : "text-slate-500 hover:text-slate-800"
+                        )}
+                    >
+                        <CalendarRange size={16} className={activeTab === 'weekly' ? "text-indigo-600" : ""} />
+                        Laporan Mingguan & Operasional
+                        <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 rounded-full">
+                            Laporan
+                        </span>
+                    </button>
+                </div>
+            )}
 
             {/* TAB CONTENT */}
-            {activeTab === 'weekly' ? (
+            {canAccessWeeklyReport && activeTab === 'weekly' ? (
                 <WeeklyAssetReport currentUser={currentUser} />
             ) : (
                 <>
