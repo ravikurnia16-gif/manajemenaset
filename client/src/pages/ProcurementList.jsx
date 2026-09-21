@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     Plus, Eye, Filter, Files, Trash2, Search, ClipboardList, Clock, 
@@ -36,8 +36,13 @@ const ProcurementList = () => {
     const [showLetterModal, setShowLetterModal] = useState(false);
     const [loadingLetterId, setLoadingLetterId] = useState(null);
 
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const isKabid = currentUser.role === 'SUPER_ADMIN' || currentUser.position === 'Kepala Bidang Sarana';
+    let currentUser = {};
+    try {
+        currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    } catch (e) {
+        currentUser = {};
+    }
+    const isKabid = currentUser.role === 'SUPER_ADMIN' || (currentUser.position && currentUser.position.toLowerCase().includes('kepala bidang sarana'));
 
     useEffect(() => {
         sessionStorage.setItem('procurementFilters', JSON.stringify({
@@ -102,9 +107,11 @@ const ProcurementList = () => {
             params.append('page', pagination.page);
 
             const res = await api.get(`/procurements?${params.toString()}`);
-            setRequests(res.data || []);
+            const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+            setRequests(data);
         } catch (error) {
-            console.error(error);
+            console.error("fetchRequests error:", error);
+            setRequests([]);
         } finally {
             setLoading(false);
         }
@@ -247,15 +254,18 @@ const ProcurementList = () => {
         'COMPLETED': 7
     };
 
-    const filteredRequests = [...requests].sort((a, b) => {
-        const weightA = statusWeight[a.status] || 99;
-        const weightB = statusWeight[b.status] || 99;
+    const safeRequests = Array.isArray(requests) ? requests : [];
+    const filteredRequests = [...safeRequests].sort((a, b) => {
+        const weightA = statusWeight[a?.status] || 99;
+        const weightB = statusWeight[b?.status] || 99;
         if (weightA !== weightB) return weightA - weightB;
-        return new Date(b.createdAt) - new Date(a.createdAt);
+        const dateA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
     });
 
     const totalItems = filteredRequests.length;
-    const totalPages = pagination.limit === -1 ? 1 : Math.ceil(totalItems / pagination.limit);
+    const totalPages = pagination.limit === -1 ? 1 : Math.max(1, Math.ceil(totalItems / pagination.limit));
 
     const paginatedRequests = pagination.limit === -1
         ? filteredRequests
@@ -464,12 +474,16 @@ const ProcurementList = () => {
                         ) : (
                             paginatedRequests.map((req) => {
                                 const isExpanded = expandedIds.has(req.id);
-                                const items = req.items || [];
-                                const totalEst = req.totalEstimatedPrice || items.reduce((s, it) => s + ((it.qty || 1) * (it.estPrice || 0)), 0);
-                                const assignees = req.assignees || Array.from(new Set(items.filter(i => i.assignedTo).map(i => i.assignedTo)));
+                                const items = Array.isArray(req.items) ? req.items : [];
+                                const totalEst = req.totalEstimatedPrice != null
+                                    ? req.totalEstimatedPrice
+                                    : items.reduce((s, it) => s + ((it.qty || 1) * (it.estPrice || 0)), 0);
+                                const assignees = Array.isArray(req.assignees)
+                                    ? req.assignees
+                                    : Array.from(new Set(items.filter(i => i && i.assignedTo).map(i => i.assignedTo)));
 
                                 return (
-                                    <React.Fragment key={req.id}>
+                                    <Fragment key={req.id}>
                                         {/* Master Row: Judul Pengadaan Induk */}
                                         <tr className={`transition-colors hover:bg-slate-50/80 ${isExpanded ? 'bg-blue-50/30' : ''}`}>
                                             <td className="p-4 text-center">
@@ -716,7 +730,7 @@ const ProcurementList = () => {
                                                 </td>
                                             </tr>
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 );
                             })
                         )}
@@ -737,8 +751,10 @@ const ProcurementList = () => {
                 ) : (
                     paginatedRequests.map((req) => {
                         const isExpanded = expandedIds.has(req.id);
-                        const items = req.items || [];
-                        const totalEst = req.totalEstimatedPrice || items.reduce((s, it) => s + ((it.qty || 1) * (it.estPrice || 0)), 0);
+                        const items = Array.isArray(req.items) ? req.items : [];
+                        const totalEst = req.totalEstimatedPrice != null
+                            ? req.totalEstimatedPrice
+                            : items.reduce((s, it) => s + ((it.qty || 1) * (it.estPrice || 0)), 0);
 
                         return (
                             <div key={req.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
