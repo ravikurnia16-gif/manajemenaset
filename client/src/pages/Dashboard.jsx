@@ -3,7 +3,7 @@ import {
     Box, DollarSign, AlertTriangle, AlertCircle, CheckCircle2,
     TrendingDown, TrendingUp, Loader2, Download, CalendarRange,
     Sparkles, RefreshCw, Layers, Wrench, ArrowLeftRight,
-    Handshake, Trash2, Building2, Activity, ShieldCheck, Check, Lightbulb
+    Handshake, Trash2, Building2, Activity, ShieldCheck, Check, Lightbulb, X
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -61,13 +61,14 @@ const Dashboard = () => {
     const [aiSummary, setAiSummary] = useState(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState(null);
+    const [showAiAnalysis, setShowAiAnalysis] = useState(false);
 
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : {};
     const canFilterUnit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
     const pos = (currentUser?.position || '').toLowerCase();
     const role = currentUser?.role || '';
-    const isKepalaBidangSarana = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    const isKepalaBidangSarana = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras') || currentUser?.position === 'Kepala Bidang Sarana';
     const isAdminAset = role === 'ADMIN_ASET' || pos.includes('admin aset');
     const canAccessWeeklyReport = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS'].includes(currentUser.role) || isKepalaBidangSarana || isAdminAset;
 
@@ -107,9 +108,19 @@ const Dashboard = () => {
         }
     };
 
+    const handleToggleAiAnalysis = () => {
+        const nextState = !showAiAnalysis;
+        setShowAiAnalysis(nextState);
+        if (nextState && !aiSummary && !aiLoading) {
+            fetchAiSummary();
+        }
+    };
+
     useEffect(() => {
         fetchStats();
-        fetchAiSummary();
+        if (showAiAnalysis && isKepalaBidangSarana) {
+            fetchAiSummary();
+        }
     }, [filterUnit]);
 
     if (loading && !data) return (
@@ -178,15 +189,82 @@ const Dashboard = () => {
 
     const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#94a3b8', '#3b82f6', '#8b5cf6'];
 
-    // 5 MODULE STATUSES
-    const procurementStatus = data?.procurementData || { total: 0, pending: 0, approved: 0, ordered: 0, received: 0, cancelled: 0 };
-    const maintenanceData = data?.maintenanceData || [];
-    const maintenanceTotal = maintenanceData.reduce((sum, item) => sum + item.value, 0);
+    // 5 MODULE STATUSES (PROPER ARRAY MAPPING TO PREVENT NaN)
+    const rawProc = Array.isArray(data?.procurementData) ? data.procurementData : [];
+    const procurementTotal = rawProc.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+    const procurementPending = rawProc.filter(d => ['SUBMITTED', 'VALIDATED', 'DRAFT', 'PENDING'].includes(d.name)).reduce((s, i) => s + (Number(i?.value) || 0), 0);
+    const procurementApproved = rawProc.find(d => d.name === 'APPROVED')?.value || 0;
+    const procurementOrdered = rawProc.filter(d => ['PROCESS', 'ORDERED'].includes(d.name)).reduce((s, i) => s + (Number(i?.value) || 0), 0);
+    const procurementReceived = rawProc.find(d => d.name === 'COMPLETED')?.value || 0;
+    const procurementCancelled = rawProc.find(d => d.name === 'REJECTED')?.value || 0;
+
+    const procurementStatus = {
+        total: procurementTotal,
+        pending: procurementPending,
+        approved: procurementApproved,
+        ordered: procurementOrdered,
+        received: procurementReceived,
+        cancelled: procurementCancelled
+    };
+
+    const maintenanceData = Array.isArray(data?.maintenanceData) ? data.maintenanceData : [];
+    const maintenanceTotal = maintenanceData.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+    const maintenancePending = maintenanceData.find(d => d.name === 'SUBMITTED')?.value || 0;
+    const maintenanceActive = (maintenanceData.find(d => d.name === 'APPROVED')?.value || 0) + 
+                              (maintenanceData.find(d => d.name === 'IN_PROGRESS')?.value || 0) + 
+                              (maintenanceData.find(d => d.name === 'ASSIGNED')?.value || 0);
     const maintenanceCompleted = maintenanceData.find(d => d.name === 'COMPLETED')?.value || 0;
+    const maintenanceRejected = maintenanceData.find(d => d.name === 'REJECTED')?.value || 0;
     const maintenancePercent = maintenanceTotal > 0 ? Math.round((maintenanceCompleted / maintenanceTotal) * 100) : 0;
-    const movementStatus = data?.movementData || { total: 0, pending: 0, approved: 0, rejected: 0, completed: 0 };
-    const loanStatus = data?.loanData || { total: 0, borrowed: 0, returned: 0 };
-    const disposalStatus = data?.disposalData || { total: 0, proposed: 0, approved: 0, rejected: 0, completed: 0 };
+
+    const rawMove = Array.isArray(data?.movementData) ? data.movementData : [];
+    const movementTotal = rawMove.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+    const movementPending = rawMove.find(d => d.name === 'PENDING')?.value || 0;
+    const movementApproved = rawMove.find(d => d.name === 'APPROVED')?.value || 0;
+    const movementCompleted = rawMove.find(d => d.name === 'COMPLETED')?.value || 0;
+    const movementRejected = rawMove.find(d => d.name === 'REJECTED')?.value || 0;
+
+    const movementStatus = {
+        total: movementTotal,
+        pending: movementPending,
+        approved: movementApproved,
+        completed: movementCompleted,
+        rejected: movementRejected
+    };
+
+    const rawLoan = Array.isArray(data?.loanData) ? data.loanData : [];
+    const loanTotal = rawLoan.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+    const loanPending = rawLoan.find(d => d.name === 'PENDING')?.value || 0;
+    const loanApproved = rawLoan.find(d => d.name === 'APPROVED')?.value || 0;
+    const loanBorrowed = rawLoan.find(d => d.name === 'BORROWED')?.value || 0;
+    const loanReturned = rawLoan.find(d => d.name === 'RETURNED')?.value || 0;
+    const loanRejected = rawLoan.find(d => d.name === 'REJECTED')?.value || 0;
+    const loanRatio = loanTotal > 0 ? Math.round((loanReturned / loanTotal) * 100) : 100;
+
+    const loanStatus = {
+        total: loanTotal,
+        pending: loanPending,
+        approved: loanApproved,
+        borrowed: loanBorrowed,
+        returned: loanReturned,
+        rejected: loanRejected,
+        ratio: loanRatio
+    };
+
+    const rawDisp = Array.isArray(data?.disposalData) ? data.disposalData : [];
+    const disposalTotal = rawDisp.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+    const disposalProposed = (rawDisp.find(d => d.name === 'PENDING')?.value || 0) + (rawDisp.find(d => d.name === 'PROPOSED')?.value || 0);
+    const disposalApproved = rawDisp.find(d => d.name === 'APPROVED')?.value || 0;
+    const disposalCompleted = rawDisp.find(d => d.name === 'COMPLETED')?.value || 0;
+    const disposalRejected = rawDisp.find(d => d.name === 'REJECTED')?.value || 0;
+
+    const disposalStatus = {
+        total: disposalTotal,
+        proposed: disposalProposed,
+        approved: disposalApproved,
+        completed: disposalCompleted,
+        rejected: disposalRejected
+    };
 
     // --- PDF EXPORT (STRICTLY NO PRICES / QUANTITY ONLY) ---
     const handleExportPDF = async () => {
@@ -259,10 +337,10 @@ const Dashboard = () => {
                     [
                         'Pemeliharaan (Maintenance)',
                         `${maintenanceTotal} Tiket`,
-                        `${maintenanceData.find(d => d.name === 'SUBMITTED')?.value || 0} Diajukan`,
-                        `${(maintenanceData.find(d => d.name === 'APPROVED')?.value || 0) + (maintenanceData.find(d => d.name === 'IN_PROGRESS')?.value || 0)} Proses`,
+                        `${maintenancePending} Diajukan`,
+                        `${maintenanceActive} Proses`,
                         `${maintenanceCompleted} Selesai (${maintenancePercent}%)`,
-                        `${maintenanceData.find(d => d.name === 'REJECTED')?.value || 0} Ditolak`
+                        `${maintenanceRejected} Ditolak`
                     ],
                     [
                         'Mutasi / Perpindahan Aset',
@@ -412,6 +490,21 @@ const Dashboard = () => {
                                 Scan NFC Aset
                             </button>
                         )}
+                        {isKepalaBidangSarana && (
+                            <button
+                                onClick={handleToggleAiAnalysis}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md",
+                                    showAiAnalysis
+                                        ? "bg-slate-900 text-indigo-300 border border-indigo-500/40 shadow-indigo-200"
+                                        : "bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white shadow-indigo-200"
+                                )}
+                                title="Buka / Tutup Analisis Eksekutif & Rekomendasi Cerdas AI"
+                            >
+                                <Sparkles size={15} className={cn("text-amber-300", aiLoading && "animate-spin")} />
+                                {showAiAnalysis ? 'Tutup Analisis AI' : 'Fitur Analisis AI'}
+                            </button>
+                        )}
                         <button
                             onClick={handleExportPDF}
                             disabled={exporting}
@@ -468,111 +561,155 @@ const Dashboard = () => {
                         {stats.map((s, i) => <StatCard key={i} {...s} />)}
                     </div>
 
-                    {/* 2. AI EXECUTIVE SUMMARY & STRATEGIC RECOMMENDATIONS BLOCK */}
-                    <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-                        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                        
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/10 relative z-10">
+                    {/* 2. AI EXECUTIVE SUMMARY (KHUSUS KEPALA BIDANG SARANA & ON-CLICK TRIGGER) */}
+                    {isKepalaBidangSarana && !showAiAnalysis && (
+                        <div className="bg-gradient-to-r from-indigo-50 via-white to-indigo-50/50 border border-indigo-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm hover:border-indigo-300 transition-all">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
-                                    <Sparkles size={20} className={cn(aiLoading && "animate-spin")} />
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+                                    <Sparkles size={20} className="text-amber-300" />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h3 className="text-base font-black tracking-tight">Analisis Eksekutif & Rekomendasi Cerdas AI</h3>
-                                        <span className={cn(
-                                            "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full",
-                                            aiSummary?.source === 'gemini_ai'
-                                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                                : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                        )}>
-                                            {aiSummary?.source === 'gemini_ai' ? 'Powered by Gemini AI' : 'Mode Aturan Logika'}
+                                        <h4 className="text-sm font-black text-slate-800 tracking-tight">
+                                            Analisis Eksekutif & Rekomendasi Cerdas AI
+                                        </h4>
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                            Khusus Kepala Bidang Sarana
                                         </span>
                                     </div>
-                                    <p className="text-xs text-indigo-200/70 mt-0.5">
-                                        Sintesis otomatis kesehatan aset, efisiensi alur operasional, dan saran mitigasi risiko
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Klik tombol untuk mensintesis data aset terkini, kalkulasi indeks kesehatan, dan rekomendasi strategis.
                                     </p>
                                 </div>
                             </div>
+                            <button
+                                onClick={handleToggleAiAnalysis}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition-all shrink-0"
+                            >
+                                <Sparkles size={14} className="text-amber-300" />
+                                Buka Analisis AI
+                            </button>
+                        </div>
+                    )}
 
-                            <div className="flex items-center gap-3">
-                                {aiSummary?.healthScore !== undefined && (
-                                    <div className="flex items-center gap-2 bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10">
-                                        <ShieldCheck size={16} className={cn(
-                                            aiSummary.healthScore >= 80 ? "text-emerald-400" :
-                                            aiSummary.healthScore >= 60 ? "text-amber-400" : "text-rose-400"
-                                        )} />
-                                        <div className="text-right">
-                                            <div className="text-[10px] uppercase font-bold text-indigo-200">Indeks Kesehatan</div>
-                                            <div className="text-sm font-black text-white">{aiSummary.healthScore}%</div>
+                    {isKepalaBidangSarana && showAiAnalysis && (
+                        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                            <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                            
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/10 relative z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-500/30 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                                        <Sparkles size={20} className={cn(aiLoading && "animate-spin")} />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-base font-black tracking-tight">Analisis Eksekutif & Rekomendasi Cerdas AI</h3>
+                                            <span className={cn(
+                                                "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full",
+                                                aiSummary?.source === 'gemini_ai'
+                                                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                                    : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                            )}>
+                                                {aiSummary?.source === 'gemini_ai' ? 'Powered by Gemini AI' : 'Mode Aturan Logika'}
+                                            </span>
+                                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                                                Khusus Kepala Bidang Sarana
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-indigo-200/70 mt-0.5">
+                                            Sintesis otomatis kesehatan aset, efisiensi alur operasional, dan saran mitigasi risiko
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    {aiSummary?.healthScore !== undefined && (
+                                        <div className="flex items-center gap-2 bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10">
+                                            <ShieldCheck size={16} className={cn(
+                                                aiSummary.healthScore >= 80 ? "text-emerald-400" :
+                                                aiSummary.healthScore >= 60 ? "text-amber-400" : "text-rose-400"
+                                            )} />
+                                            <div className="text-right">
+                                                <div className="text-[10px] uppercase font-bold text-indigo-200">Indeks Kesehatan</div>
+                                                <div className="text-sm font-black text-white">{aiSummary.healthScore}%</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={fetchAiSummary}
+                                        disabled={aiLoading}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all disabled:opacity-50"
+                                        title="Analisis Ulang dengan AI"
+                                    >
+                                        <RefreshCw size={13} className={cn(aiLoading && "animate-spin")} />
+                                        {aiLoading ? 'Menganalisis...' : 'Segarkan AI'}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowAiAnalysis(false)}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-rose-500/30 border border-white/20 text-white hover:text-rose-200 hover:border-rose-400/30 transition-all"
+                                        title="Tutup Panel Analisis AI"
+                                    >
+                                        <X size={13} />
+                                        <span>Tutup</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* AI CONTENT AREA */}
+                            <div className="pt-5 relative z-10">
+                                {aiLoading && !aiSummary ? (
+                                    <div className="flex items-center justify-center py-8 gap-3 text-indigo-200 text-xs font-semibold">
+                                        <Loader2 size={18} className="animate-spin text-indigo-400" />
+                                        <span>Sedang mensintesis data aset & menghasilkan rekomendasi strategis...</span>
+                                    </div>
+                                ) : aiError && !aiSummary ? (
+                                    <div className="p-4 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs flex items-center justify-between gap-3">
+                                        <span>{aiError}</span>
+                                        <button onClick={fetchAiSummary} className="underline font-bold text-white hover:text-rose-100">Coba Lagi</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Executive summary paragraph */}
+                                        <p className="text-xs text-indigo-100 leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">
+                                            {aiSummary?.executiveSummary || 'Sistem manajemen aset beroperasi stabil dengan pemantauan terpadu.'}
+                                        </p>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                            {/* Key Insights */}
+                                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                                                <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                                                    <Activity size={14} /> Temuan Utama (Key Insights)
+                                                </h4>
+                                                <ul className="space-y-1.5">
+                                                    {(aiSummary?.keyInsights || []).map((insight, idx) => (
+                                                        <li key={idx} className="text-xs text-slate-200 flex items-start gap-2">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0"></span>
+                                                            <span>{insight}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+
+                                            {/* Strategic Recommendations */}
+                                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
+                                                <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                                                    <Lightbulb size={14} /> Rekomendasi Tindakan (Action Items)
+                                                </h4>
+                                                <ul className="space-y-1.5">
+                                                    {(aiSummary?.recommendations || []).map((rec, idx) => (
+                                                        <li key={idx} className="text-xs text-slate-200 flex items-start gap-2">
+                                                            <Check size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+                                                            <span>{rec}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
-                                <button
-                                    onClick={fetchAiSummary}
-                                    disabled={aiLoading}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all disabled:opacity-50"
-                                    title="Analisis Ulang dengan AI"
-                                >
-                                    <RefreshCw size={13} className={cn(aiLoading && "animate-spin")} />
-                                    {aiLoading ? 'Menganalisis...' : 'Segarkan AI'}
-                                </button>
                             </div>
                         </div>
-
-                        {/* AI CONTENT AREA */}
-                        <div className="pt-5 relative z-10">
-                            {aiLoading && !aiSummary ? (
-                                <div className="flex items-center justify-center py-8 gap-3 text-indigo-200 text-xs font-semibold">
-                                    <Loader2 size={18} className="animate-spin text-indigo-400" />
-                                    <span>Sedang mensintesis data aset & menghasilkan rekomendasi strategis...</span>
-                                </div>
-                            ) : aiError && !aiSummary ? (
-                                <div className="p-4 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs">
-                                    {aiError}
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {/* Executive summary paragraph */}
-                                    <p className="text-xs text-indigo-100 leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">
-                                        {aiSummary?.executiveSummary || 'Sistem manajemen aset beroperasi stabil dengan pemantauan terpadu.'}
-                                    </p>
-
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                        {/* Key Insights */}
-                                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-                                            <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-                                                <Activity size={14} /> Temuan Utama (Key Insights)
-                                            </h4>
-                                            <ul className="space-y-1.5">
-                                                {(aiSummary?.keyInsights || []).map((insight, idx) => (
-                                                    <li key={idx} className="text-xs text-slate-200 flex items-start gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0"></span>
-                                                        <span>{insight}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-
-                                        {/* Strategic Recommendations */}
-                                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-                                            <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                                                <Lightbulb size={14} /> Rekomendasi Tindakan (Action Items)
-                                            </h4>
-                                            <ul className="space-y-1.5">
-                                                {(aiSummary?.recommendations || []).map((rec, idx) => (
-                                                    <li key={idx} className="text-xs text-slate-200 flex items-start gap-2">
-                                                        <Check size={14} className="text-emerald-400 mt-0.5 shrink-0" />
-                                                        <span>{rec}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    )}
 
                     {/* 3. MONITORING STATUS ALUR KERJA (5 MODUL OPERASIONAL) */}
                     <div className="space-y-3">
@@ -628,11 +765,11 @@ const Dashboard = () => {
                                 <div className="space-y-1.5 pt-2 border-t border-slate-50 text-[11px]">
                                     <div className="flex justify-between text-slate-600">
                                         <span>Antrian Diajukan:</span>
-                                        <span className="font-bold text-slate-600">{maintenanceData.find(d => d.name === 'SUBMITTED')?.value || 0}</span>
+                                        <span className="font-bold text-slate-600">{maintenancePending}</span>
                                     </div>
                                     <div className="flex justify-between text-slate-600">
                                         <span>Pengerjaan Aktif:</span>
-                                        <span className="font-bold text-amber-600">{(maintenanceData.find(d => d.name === 'APPROVED')?.value || 0) + (maintenanceData.find(d => d.name === 'IN_PROGRESS')?.value || 0)}</span>
+                                        <span className="font-bold text-amber-600">{maintenanceActive}</span>
                                     </div>
                                     <div className="flex justify-between text-slate-600">
                                         <span>Tuntas Selesai:</span>
@@ -693,7 +830,7 @@ const Dashboard = () => {
                                     <div className="flex justify-between text-slate-600">
                                         <span>Rasio Kembali:</span>
                                         <span className="font-bold text-indigo-600">
-                                            {loanStatus.total > 0 ? Math.round((loanStatus.returned / loanStatus.total) * 100) : 100}%
+                                            {loanStatus.ratio}%
                                         </span>
                                     </div>
                                 </div>

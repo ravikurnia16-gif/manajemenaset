@@ -2177,11 +2177,11 @@ exports.getProgress = async (req, res) => {
  */
 exports.getHeadUnitApprovalData = async (req, res) => {
     const { batchId } = req.params;
+    const cleanBatchId = (batchId || '').trim();
     try {
         const letterProgress = await prisma.procurementProgress.findFirst({
             where: {
-                type: 'LETTER',
-                message: { contains: `"${batchId}"` }
+                message: { contains: cleanBatchId }
             },
             include: {
                 procurement: {
@@ -2222,18 +2222,31 @@ exports.getHeadUnitApprovalData = async (req, res) => {
  */
 exports.processHeadUnitApproval = async (req, res) => {
     const { batchId } = req.params;
-    const { signature, headUnitName } = req.body;
+    const cleanBatchId = (req.body.batchId || req.body.letterNumber || batchId || '').trim();
+    const { signature, headUnitName, procurementId, letterNumber } = req.body;
 
     if (!signature) {
         return res.status(400).json({ error: 'Tanda tangan Kepala Unit wajib dibubuhkan.' });
     }
 
     try {
+        let orConditions = [];
+        if (cleanBatchId && cleanBatchId !== 'approval') {
+            orConditions.push({ message: { contains: cleanBatchId } });
+        }
+        if (letterNumber && letterNumber.trim() && letterNumber.trim() !== cleanBatchId) {
+            orConditions.push({ message: { contains: letterNumber.trim() } });
+        }
+        if (req.body.batchId && req.body.batchId.trim() && req.body.batchId.trim() !== cleanBatchId) {
+            orConditions.push({ message: { contains: req.body.batchId.trim() } });
+        }
+        if (procurementId) {
+            orConditions.push({ procurementId: parseInt(procurementId), type: 'LETTER' });
+            orConditions.push({ procurementId: parseInt(procurementId), message: { startsWith: '[SURAT_PERMOHONAN]' } });
+        }
+
         const progressEntries = await prisma.procurementProgress.findMany({
-            where: {
-                type: 'LETTER',
-                message: { contains: `"${batchId}"` }
-            },
+            where: orConditions.length > 0 ? { OR: orConditions } : { message: { contains: cleanBatchId } },
             include: {
                 procurement: {
                     include: {
@@ -2273,11 +2286,13 @@ exports.processHeadUnitApproval = async (req, res) => {
                 }
             });
 
-            // Update Procurement Status to SUBMITTED
-            await prisma.procurement.update({
-                where: { id: entry.procurementId },
-                data: { status: 'SUBMITTED' }
-            });
+            // Update Procurement Status to SUBMITTED if in initial/pending stages
+            if (['PENDING_HEAD_UNIT', 'DRAFT', 'PENDING'].includes(entry.procurement?.status)) {
+                await prisma.procurement.update({
+                    where: { id: entry.procurementId },
+                    data: { status: 'SUBMITTED' }
+                });
+            }
         }
 
         // --- Send Consolidated WhatsApp Notification to Kabid Sarpras & Staff Aset ---
@@ -2330,9 +2345,10 @@ exports.processHeadUnitApproval = async (req, res) => {
 
         res.json({
             message: 'Permohonan berhasil disetujui dan tanda tangan berhasil disimpan.',
-            batchId,
+            batchId: cleanBatchId,
             approvedAt,
-            procurementIds
+            procurementIds,
+            letterData: commonLetterData
         });
     } catch (error) {
         console.error('processHeadUnitApproval error:', error);

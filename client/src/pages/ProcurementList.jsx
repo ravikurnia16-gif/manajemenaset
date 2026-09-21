@@ -160,7 +160,10 @@ const ProcurementList = () => {
             setLoadingLetterId(procurementId);
             const res = await api.get(`/procurements/${procurementId}`);
             if (res.data?.requestLetter) {
-                setSelectedLetterData(res.data.requestLetter);
+                setSelectedLetterData({
+                    ...res.data.requestLetter,
+                    procurementId
+                });
                 setShowLetterModal(true);
             } else {
                 alert('Surat Permohonan belum dibuat atau tidak tersedia untuk pengajuan ini.');
@@ -885,7 +888,11 @@ const ProcurementList = () => {
                         setSelectedLetterData(null);
                     }}
                     letterData={selectedLetterData}
+                    procurementId={selectedLetterData?.procurementId}
                     isKabidUser={isKabid}
+                    onUpdated={() => {
+                        fetchRequests();
+                    }}
                 />
             )}
         </div>

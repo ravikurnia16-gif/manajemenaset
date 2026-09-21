@@ -5971,8 +5971,12 @@ const ProcurementDetail = () => {
                     isOpen={showRequestLetterModal}
                     onClose={() => setShowRequestLetterModal(false)}
                     letterData={req.requestLetter}
+                    procurementId={req.id}
                     isKabidUser={isKabid}
                     onKabidTte={handleKabidTte}
+                    onUpdated={() => {
+                        fetchData();
+                    }}
                 />
             )}
 

@@ -46,24 +46,30 @@ const ProcurementHeadUnitApproval = () => {
         }
     };
 
-    const handleSaveSignature = async (sigDataUrl) => {
+    const handleSaveSignature = (sigDataUrl) => {
         if (!sigDataUrl) return;
         setSignature(sigDataUrl);
+    };
 
-        if (!headUnitName.trim()) {
-            alert('Nama Kepala Unit wajib diisi.');
+    const handleSubmitApproval = async () => {
+        const trimmedName = headUnitName.trim();
+        if (!trimmedName) {
+            alert('Nama Lengkap Kepala Unit wajib diisi.');
+            return;
+        }
+        if (!signature) {
+            alert('Tanda tangan Kepala Unit wajib dibubuhkan.');
             return;
         }
 
         setSubmitting(true);
         try {
             const res = await api.post(`/procurements/public/head-unit-approval/${batchId}`, {
-                signature: sigDataUrl,
-                headUnitName: headUnitName.trim()
+                signature: signature,
+                headUnitName: trimmedName
             });
 
             setIsSuccess(true);
-            // Refresh data
             fetchApprovalData();
         } catch (err) {
             console.error('Submit approval error:', err);
@@ -105,7 +111,7 @@ const ProcurementHeadUnitApproval = () => {
     }
 
     const { letterData, unit, requester } = data || {};
-    const items = letterData?.items || [];
+    const items = Array.isArray(letterData?.items) ? letterData.items : [];
     const totalEstimate = items.reduce((acc, it) => {
         const p = parseFloat(it.estimatedPrice || it.price || 0) || 0;
         const q = parseFloat(it.qty || it.quantity || 1) || 1;

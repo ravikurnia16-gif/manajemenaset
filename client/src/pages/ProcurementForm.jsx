@@ -718,7 +718,7 @@ const ProcurementForm = () => {
                     createdAt: new Date(),
                     title: header.title || 'Permohonan Pengadaan Barang / Jasa',
                     unitName: activeUnit.name || 'Unit Pemohon',
-                    unitAddress: activeUnit.address || 'Kota Padang, Sumatera Barat',
+                    unitAddress: activeUnit.address ? activeUnit.address.replace(/Kota\s+Padang,?\s*/gi, '').replace(/Padang,?\s*/gi, '').trim() || 'Sumatera Barat' : 'Sumatera Barat',
                     unitPhone: activeUnit.phone || '',
                     requesterName: user.name || user.username || 'Pemohon',
                     requesterPosition: user.position || 'Staff Unit',

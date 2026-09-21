@@ -656,6 +656,13 @@ exports.getWeeklyAssetReport = async (req, res) => {
  */
 exports.getDashboardAISummary = async (req, res) => {
     try {
+        const userPos = (req.user?.position || '').toLowerCase();
+        const userRole = req.user?.role || '';
+        const isKabidSarana = userRole === 'KABID_SARPRAS' || userPos.includes('kepala bidang sarana') || userPos.includes('kabid sarpras');
+        if (!isKabidSarana && !['SUPER_ADMIN'].includes(userRole)) {
+            return res.status(403).json({ error: 'Akses ditolak. Fitur Analisis AI khusus untuk Kepala Bidang Sarana.' });
+        }
+
         const { unitId } = req.query;
         let where = { condition: { not: 'DISPOSED' } };
         if (unitId && unitId !== 'all') where.unitId = parseInt(unitId);
