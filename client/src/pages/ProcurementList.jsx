@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, ShoppingCart, Filter, Files, Trash2, Search, ClipboardList, Clock, CheckCircle, PackageCheck, XCircle } from 'lucide-react';
-
+import { 
+    Plus, Eye, Filter, Files, Trash2, Search, ClipboardList, Clock, 
+    CheckCircle, PackageCheck, XCircle, ChevronDown, ChevronRight,
+    FileText, User, Tag, Layers, Printer, ExternalLink, ShieldCheck, CheckCheck
+} from 'lucide-react';
 import api from '../lib/axios';
-
-import * as XLSX from 'xlsx'; // Import XLSX
+import * as XLSX from 'xlsx';
+import ProcurementLetterModal from '../components/ProcurementLetterModal';
 
 const ProcurementList = () => {
     const navigate = useNavigate();
@@ -25,6 +28,17 @@ const ProcurementList = () => {
     const [dashboardStats, setDashboardStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(true);
 
+    // Accordion State: Set of procurement IDs currently expanded
+    const [expandedIds, setExpandedIds] = useState(new Set());
+
+    // Letter Modal State
+    const [selectedLetterData, setSelectedLetterData] = useState(null);
+    const [showLetterModal, setShowLetterModal] = useState(false);
+    const [loadingLetterId, setLoadingLetterId] = useState(null);
+
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const isKabid = currentUser.role === 'SUPER_ADMIN' || currentUser.position === 'Kepala Bidang Sarana';
+
     useEffect(() => {
         sessionStorage.setItem('procurementFilters', JSON.stringify({
             filter,
@@ -41,15 +55,15 @@ const ProcurementList = () => {
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             fetchRequests();
-            setSelectedIds([]); // Reset selection on filter change
-        }, 500);
+            setSelectedIds([]);
+        }, 400);
         return () => clearTimeout(timeoutId);
-    }, [filter, pagination.limit, pagination.page]); // Add pagination dependencies
+    }, [filter, pagination.limit, pagination.page]);
 
     const fetchUnits = async () => {
         try {
             const res = await api.get('/master/units');
-            setUnits(res.data);
+            setUnits(res.data || []);
         } catch (error) {
             console.error("Failed to fetch units");
         }
@@ -58,7 +72,7 @@ const ProcurementList = () => {
     const fetchCategories = async () => {
         try {
             const res = await api.get('/master/categories');
-            setCategories(res.data);
+            setCategories(res.data || []);
         } catch (error) {
             console.error("Failed to fetch categories");
         }
@@ -79,7 +93,6 @@ const ProcurementList = () => {
     const fetchRequests = async () => {
         setLoading(true);
         try {
-            // Remove empty filters
             const params = new URLSearchParams();
             if (filter.categoryId) params.append('categoryId', filter.categoryId);
             if (filter.status) params.append('status', filter.status);
@@ -89,7 +102,7 @@ const ProcurementList = () => {
             params.append('page', pagination.page);
 
             const res = await api.get(`/procurements?${params.toString()}`);
-            setRequests(res.data);
+            setRequests(res.data || []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -98,7 +111,7 @@ const ProcurementList = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm('Apakah anda yakin ingin menghapus request ini? Data yang dihapus tidak dapat dikembalikan.')) return;
+        if (!confirm('Apakah anda yakin ingin menghapus paket pengadaan ini? Seluruh data item di dalamnya akan dihapus.')) return;
         try {
             await api.delete(`/procurements/${id}`);
             fetchRequests();
@@ -108,13 +121,47 @@ const ProcurementList = () => {
     };
 
     const handleBulkDelete = async () => {
-        if (!confirm(`Apakah anda yakin ingin menghapus ${selectedIds.length} request terpilih?`)) return;
+        if (!confirm(`Apakah anda yakin ingin menghapus ${selectedIds.length} pengajuan terpilih?`)) return;
         try {
             await api.post('/procurements/bulk-delete', { ids: selectedIds });
             fetchRequests();
             setSelectedIds([]);
         } catch (error) {
-            alert(error.response?.data?.error || 'Gagal menghapus banyak');
+            alert(error.response?.data?.error || 'Gagal menghapus');
+        }
+    };
+
+    const toggleExpandRow = (id) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleExpandAll = () => {
+        if (expandedIds.size === paginatedRequests.length) {
+            setExpandedIds(new Set());
+        } else {
+            setExpandedIds(new Set(paginatedRequests.map(r => r.id)));
+        }
+    };
+
+    const handleOpenLetter = async (procurementId) => {
+        try {
+            setLoadingLetterId(procurementId);
+            const res = await api.get(`/procurements/${procurementId}`);
+            if (res.data?.requestLetter) {
+                setSelectedLetterData(res.data.requestLetter);
+                setShowLetterModal(true);
+            } else {
+                alert('Surat Permohonan belum dibuat atau tidak tersedia untuk pengajuan ini.');
+            }
+        } catch (e) {
+            alert('Gagal mengambil data Surat Permohonan.');
+        } finally {
+            setLoadingLetterId(null);
         }
     };
 
@@ -134,28 +181,62 @@ const ProcurementList = () => {
         }
     };
 
-    const handleExport = () => {
-        if (requests.length === 0) return alert('Tidak ada data untuk diexport');
-
-        const dataToExport = requests.map(req => ({
-            'Kode Request': req.code,
-            'Judul': req.title,
-            'Unit Kerja': req.unit?.name,
-            'Pemohon': req.user?.username,
-            'Catatan': req.notes || '-',
-            'Jenis': req.type,
-            'Status': req.status,
-            'Tanggal': new Date(req.createdAt).toLocaleDateString('id-ID'),
-            'Jumlah Item': req._count?.items || 0
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Request Data");
-        XLSX.writeFile(wb, `List_Request_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const formatCurrency = (val) => {
+        if (!val || isNaN(val)) return 'Rp 0';
+        return `Rp ${Number(val).toLocaleString('id-ID')}`;
     };
 
-    // Client-side Pagination Logic (assuming API handles pagination, this part is for display)
+    const handleExport = () => {
+        if (requests.length === 0) return alert('Tidak ada data untuk diekspor');
+
+        // Export data with item breakdown
+        const rows = [];
+        requests.forEach(req => {
+            const items = req.items || [];
+            if (items.length === 0) {
+                rows.push({
+                    'Kode Request': req.code,
+                    'Judul Pengajuan': req.title || '-',
+                    'Unit Kerja': req.unit?.name || '-',
+                    'Pemohon': req.user?.username || '-',
+                    'Status': req.status,
+                    'Tanggal Pengajuan': new Date(req.createdAt).toLocaleDateString('id-ID'),
+                    'Jumlah Item': 0,
+                    'Nama Barang': '-',
+                    'Spesifikasi': '-',
+                    'Qty': 0,
+                    'Satuan': '-',
+                    'Estimasi Harga': 0,
+                    'Petugas': '-'
+                });
+            } else {
+                items.forEach((it, idx) => {
+                    rows.push({
+                        'Kode Request': idx === 0 ? req.code : '',
+                        'Judul Pengajuan': idx === 0 ? (req.title || '-') : '',
+                        'Unit Kerja': idx === 0 ? (req.unit?.name || '-') : '',
+                        'Pemohon': idx === 0 ? (req.user?.username || '-') : '',
+                        'Status': idx === 0 ? req.status : '',
+                        'Tanggal Pengajuan': idx === 0 ? new Date(req.createdAt).toLocaleDateString('id-ID') : '',
+                        'Jumlah Item': idx === 0 ? items.length : '',
+                        'No Item': idx + 1,
+                        'Nama Barang': it.name,
+                        'Spesifikasi': it.spec || '-',
+                        'Qty': it.qty,
+                        'Satuan': it.unit,
+                        'Estimasi Harga': it.estPrice || 0,
+                        'Petugas Ditugaskan': it.assignedTo || it.assignedToUser?.name || '-'
+                    });
+                });
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Pengadaan & Rincian Item");
+        XLSX.writeFile(wb, `Laporan_Pengadaan_Aset_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     const statusWeight = {
         'SUBMITTED': 1,
         'APPROVED': 2,
@@ -169,15 +250,11 @@ const ProcurementList = () => {
     const filteredRequests = [...requests].sort((a, b) => {
         const weightA = statusWeight[a.status] || 99;
         const weightB = statusWeight[b.status] || 99;
-        
-        if (weightA !== weightB) {
-            return weightA - weightB;
-        }
-        
-        // Jika statusnya sama, urutkan dari yang paling lama (ascending date)
-        return new Date(a.createdAt) - new Date(b.createdAt);
+        if (weightA !== weightB) return weightA - weightB;
+        return new Date(b.createdAt) - new Date(a.createdAt);
     });
-    const totalItems = filteredRequests.length; // This should come from API metadata for true pagination
+
+    const totalItems = filteredRequests.length;
     const totalPages = pagination.limit === -1 ? 1 : Math.ceil(totalItems / pagination.limit);
 
     const paginatedRequests = pagination.limit === -1
@@ -186,31 +263,37 @@ const ProcurementList = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+            {/* Page Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-1">
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Pengadaan Barang & Jasa</h1>
-                    <p className="text-slate-500 text-xs sm:text-sm">Daftar permintaan pengadaan aset dan non-aset</p>
+                    <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2">
+                        <Layers className="text-blue-600" size={26} />
+                        Pengadaan Barang & Jasa
+                    </h1>
+                    <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+                        Daftar paket pengajuan per Judul Pengadaan beserta rincian item & penugasan petugas
+                    </p>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     {selectedIds.length > 0 && (
                         <button
                             onClick={handleBulkDelete}
-                            className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm"
+                            className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm"
                         >
                             <Trash2 size={16} /> Hapus ({selectedIds.length})
                         </button>
                     )}
                     <button
                         onClick={handleExport}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm flex-1 sm:flex-none justify-center"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm flex-1 sm:flex-none justify-center transition-all"
                     >
-                        <Files size={16} /> Export
+                        <Files size={16} /> Ekspor Excel (Rincian Item)
                     </button>
                     <button
                         onClick={() => navigate('/procurements/new')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-lg shadow-blue-600/20 flex-1 sm:flex-none justify-center"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-blue-600/20 flex-1 sm:flex-none justify-center transition-all"
                     >
-                        <Plus size={16} /> Buat Pengajuan
+                        <Plus size={16} /> Buat Pengajuan Baru
                     </button>
                 </div>
             </div>
@@ -218,71 +301,71 @@ const ProcurementList = () => {
             {/* Dashboard Stats */}
             {!loadingStats && dashboardStats && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 px-1">
-                    <div className="bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl p-4 shadow-lg flex flex-col justify-between hover:scale-[1.02] transition-transform">
+                    <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 shadow-lg flex flex-col justify-between hover:scale-[1.02] transition-transform text-white">
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-slate-100 font-semibold text-sm">Total</span>
-                            <div className="p-1.5 bg-slate-600/50 rounded-lg text-slate-200"><ClipboardList size={18} /></div>
+                            <span className="text-slate-300 font-bold text-xs uppercase tracking-wider">Total Paket</span>
+                            <div className="p-1.5 bg-slate-700/60 rounded-lg text-slate-200"><ClipboardList size={18} /></div>
                         </div>
-                        <div className="text-3xl font-bold text-white">{dashboardStats.total}</div>
+                        <div className="text-3xl font-black">{dashboardStats.total}</div>
                     </div>
-                    <div className="bg-white border border-yellow-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-yellow-200 transition-all">
+                    <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-slate-500 font-semibold text-sm">Menunggu</span>
-                            <div className="p-1.5 bg-yellow-50 rounded-lg text-yellow-600"><Clock size={18} /></div>
+                            <span className="text-amber-700 font-bold text-xs uppercase tracking-wider">Menunggu</span>
+                            <div className="p-1.5 bg-amber-50 rounded-lg text-amber-600"><Clock size={18} /></div>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.submitted}</div>
+                        <div className="text-2xl font-black text-slate-800">{dashboardStats.submitted}</div>
                     </div>
-                    <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all">
+                    <div className="bg-white border border-blue-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-slate-500 font-semibold text-sm">Disetujui</span>
+                            <span className="text-blue-700 font-bold text-xs uppercase tracking-wider">Disetujui</span>
                             <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600"><CheckCircle size={18} /></div>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.approved}</div>
+                        <div className="text-2xl font-black text-slate-800">{dashboardStats.approved}</div>
                     </div>
-                    <div className="bg-white border border-indigo-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-indigo-200 transition-all">
+                    <div className="bg-white border border-indigo-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-slate-500 font-semibold text-sm">Diproses</span>
+                            <span className="text-indigo-700 font-bold text-xs uppercase tracking-wider">Diproses</span>
                             <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><PackageCheck size={18} /></div>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.process}</div>
+                        <div className="text-2xl font-black text-slate-800">{dashboardStats.process}</div>
                     </div>
-                    <div className="bg-white border border-green-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-green-200 transition-all">
+                    <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-slate-500 font-semibold text-sm">Selesai</span>
-                            <div className="p-1.5 bg-green-50 rounded-lg text-green-600"><CheckCircle size={18} /></div>
+                            <span className="text-emerald-700 font-bold text-xs uppercase tracking-wider">Selesai</span>
+                            <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600"><CheckCircle size={18} /></div>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.completed}</div>
+                        <div className="text-2xl font-black text-slate-800">{dashboardStats.completed}</div>
                     </div>
-                    <div className="bg-white border border-red-100 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-red-200 transition-all">
+                    <div className="bg-white border border-red-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-slate-500 font-semibold text-sm">Ditolak</span>
+                            <span className="text-red-700 font-bold text-xs uppercase tracking-wider">Ditolak</span>
                             <div className="p-1.5 bg-red-50 rounded-lg text-red-600"><XCircle size={18} /></div>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800">{dashboardStats.rejected}</div>
+                        <div className="text-2xl font-black text-slate-800">{dashboardStats.rejected}</div>
                     </div>
                 </div>
             )}
 
             {/* Filter Bar */}
-            <div className="flex flex-wrap gap-2 sm:gap-4 items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
+            <div className="flex flex-wrap gap-2.5 sm:gap-4 items-center bg-white p-3.5 sm:p-4 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-2 text-slate-500">
                     <Filter size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Filter:</span>
+                    <span className="text-xs font-black uppercase tracking-wider">Filter:</span>
                 </div>
 
                 <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-[300px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                         type="text"
-                        placeholder="Cari kode, judul, atau nama barang..."
-                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border-none rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium"
+                        placeholder="Cari judul, kode, atau item barang..."
+                        className="w-full pl-10 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-100 outline-none text-slate-700"
                         value={filter.search || ''}
                         onChange={e => setFilter({ ...filter, search: e.target.value })}
                     />
                 </div>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px] max-w-full sm:max-w-[200px]"
+                    className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-blue-100 outline-none text-slate-700"
                     value={filter.categoryId}
                     onChange={e => setFilter({ ...filter, categoryId: e.target.value })}
                 >
@@ -293,20 +376,20 @@ const ProcurementList = () => {
                 </select>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px]"
+                    className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-blue-100 outline-none text-slate-700"
                     value={filter.status}
                     onChange={e => setFilter({ ...filter, status: e.target.value })}
                 >
                     <option value="">Semua Status</option>
                     <option value="SUBMITTED">Menunggu Validasi</option>
                     <option value="APPROVED">Disetujui</option>
-                    <option value="PROCESS">Diproses Vendor</option>
+                    <option value="PROCESS">Diproses Petugas</option>
                     <option value="COMPLETED">Selesai</option>
                     <option value="REJECTED">Ditolak</option>
                 </select>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px] max-w-full sm:max-w-[200px]"
+                    className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-blue-100 outline-none text-slate-700"
                     value={filter.unitId || ''}
                     onChange={e => setFilter({ ...filter, unitId: e.target.value })}
                 >
@@ -316,10 +399,21 @@ const ProcurementList = () => {
                     ))}
                 </select>
 
+                {/* Expand All Toggle */}
+                {paginatedRequests.length > 0 && (
+                    <button
+                        onClick={handleExpandAll}
+                        className="px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors ml-auto sm:ml-0"
+                        title="Buka atau tutup seluruh rincian item pengadaan"
+                    >
+                        {expandedIds.size === paginatedRequests.length ? 'Tutup Rincian' : 'Buka Semua Rincian'}
+                    </button>
+                )}
+
                 <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-                    <span className="text-xs text-slate-400">Tampilkan:</span>
+                    <span className="text-xs text-slate-400 font-bold">Limit:</span>
                     <select
-                        className="border-none bg-slate-50 rounded-lg px-2 py-1 text-xs focus:ring-0 text-slate-600 font-bold"
+                        className="border border-slate-200 bg-slate-50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700"
                         value={pagination.limit}
                         onChange={e => setPagination({ ...pagination, limit: parseInt(e.target.value), page: 1 })}
                     >
@@ -331,162 +425,414 @@ const ProcurementList = () => {
                 </div>
             </div>
 
-            {/* Mobile Card Layout */}
-            <div className="block sm:hidden space-y-3">
-                {loading ? (
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 text-center text-slate-500">Loading data...</div>
-                ) : paginatedRequests.length === 0 ? (
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 text-center text-slate-500">Belum ada request pengadaan.</div>
-                ) : (
-                    paginatedRequests.map((req) => (
-                        <div key={req.id} className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 active:bg-slate-50 transition-colors">
-                            <div className="flex items-start gap-2">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedIds.includes(req.id)}
-                                    onChange={() => handleSelectOne(req.id)}
-                                    className="rounded text-blue-600 focus:ring-blue-500 mt-1 shrink-0"
-                                />
-                                <div className="flex-1 min-w-0" onClick={() => navigate(`/procurements/${req.id}`)}>
-                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                        <span className="font-mono text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{req.code}</span>
-                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'}`}>{req.type}</span>
-                                    </div>
-                                    <div className="font-bold text-sm text-slate-800 truncate">{req.title || '-'}</div>
-                                    <div className="text-[10px] text-slate-500 mt-0.5">{req.unit?.name} • {req.user?.username}</div>
-                                    {req.notes && (
-                                        <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/70 rounded px-2 py-0.5 mt-1.5 inline-flex items-center gap-1 max-w-full">
-                                            <span className="font-bold shrink-0">Catatan:</span>
-                                            <span className="truncate">{req.notes}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center justify-between mt-2">
-                                        <span className="text-[10px] text-slate-400">
-                                            {new Date(req.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                        </span>
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${req.status === 'SUBMITTED' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' :
-                                            req.status === 'APPROVED' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                                                req.status === 'PROCESS' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
-                                                    req.status === 'COMPLETED' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                        'bg-red-50 text-red-600 border-red-200'
-                                            }`}>
-                                            {req.status}
-                                        </span>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => handleDelete(req.id)}
-                                    className="p-1.5 text-slate-300 hover:text-red-500 shrink-0"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Desktop Table Layout */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden hidden sm:block">
+            {/* Desktop Master-Detail Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hidden sm:block">
                 <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-black uppercase text-[11px] tracking-wider border-b border-slate-200">
                         <tr>
-                            <th className="p-4 w-10 text-center">
+                            <th className="p-4 w-12 text-center">
                                 <input
                                     type="checkbox"
                                     onChange={handleSelectAll}
                                     checked={paginatedRequests.length > 0 && selectedIds.length === paginatedRequests.length}
-                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                    className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                                 />
                             </th>
-                            <th className="p-4">Kode Request</th>
-                            <th className="p-4">Judul & Unit</th>
-                            <th className="p-4">Jenis</th>
-                            <th className="p-4">Tanggal</th>
+                            <th className="p-4 w-10"></th>
+                            <th className="p-4">Kode & Judul Pengadaan</th>
+                            <th className="p-4">Unit & Pemohon</th>
+                            <th className="p-4">Rincian Barang</th>
+                            <th className="p-4">Petugas Lapangan</th>
                             <th className="p-4 text-center">Status</th>
-                            <th className="p-4 text-center">Aksi</th>
+                            <th className="p-4 text-center">Aksi Cepat</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            <tr><td colSpan="7" className="p-8 text-center text-slate-500">Loading data...</td></tr>
+                            <tr>
+                                <td colSpan="8" className="p-12 text-center text-slate-400">
+                                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                                    Memuat paket pengadaan...
+                                </td>
+                            </tr>
                         ) : paginatedRequests.length === 0 ? (
-                            <tr><td colSpan="7" className="p-8 text-center text-slate-500">Belum ada request pengadaan.</td></tr>
+                            <tr>
+                                <td colSpan="8" className="p-12 text-center text-slate-400 font-medium">
+                                    Belum ada pengajuan pengadaan yang sesuai dengan filter.
+                                </td>
+                            </tr>
                         ) : (
-                            paginatedRequests.map((req) => (
-                                <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="p-4 text-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.includes(req.id)}
-                                            onChange={() => handleSelectOne(req.id)}
-                                            className="rounded text-blue-600 focus:ring-blue-500"
-                                        />
-                                    </td>
-                                    <td className="p-4 font-mono font-bold text-slate-700">{req.code}</td>
-                                    <td className="p-4">
-                                        <div className="font-bold text-slate-800">{req.title || '-'}</div>
-                                        <div className="text-xs text-slate-500">{req.unit?.name} • {req.user?.username}</div>
-                                        {req.notes && (
-                                            <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded px-2 py-0.5 mt-1.5 inline-flex items-center gap-1 max-w-xs truncate" title={req.notes}>
-                                                <span className="font-bold shrink-0">Catatan:</span>
-                                                <span className="truncate">{req.notes}</span>
-                                            </div>
+                            paginatedRequests.map((req) => {
+                                const isExpanded = expandedIds.has(req.id);
+                                const items = req.items || [];
+                                const totalEst = req.totalEstimatedPrice || items.reduce((s, it) => s + ((it.qty || 1) * (it.estPrice || 0)), 0);
+                                const assignees = req.assignees || Array.from(new Set(items.filter(i => i.assignedTo).map(i => i.assignedTo)));
+
+                                return (
+                                    <React.Fragment key={req.id}>
+                                        {/* Master Row: Judul Pengadaan Induk */}
+                                        <tr className={`transition-colors hover:bg-slate-50/80 ${isExpanded ? 'bg-blue-50/30' : ''}`}>
+                                            <td className="p-4 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.includes(req.id)}
+                                                    onChange={() => handleSelectOne(req.id)}
+                                                    className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                />
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <button
+                                                    onClick={() => toggleExpandRow(req.id)}
+                                                    className={`p-1.5 rounded-lg transition-transform text-slate-400 hover:text-blue-600 hover:bg-blue-50 ${
+                                                        isExpanded ? 'bg-blue-100 text-blue-700 rotate-90' : ''
+                                                    }`}
+                                                    title={isExpanded ? "Tutup rincian item" : "Buka rincian item"}
+                                                >
+                                                    <ChevronRight size={16} />
+                                                </button>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-mono text-xs font-black text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                                        {req.code}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                                        req.type === 'ASSET' ? 'border-purple-200 text-purple-700 bg-purple-50' : 'border-amber-200 text-amber-700 bg-amber-50'
+                                                    }`}>
+                                                        {req.type}
+                                                    </span>
+                                                </div>
+                                                <div 
+                                                    onClick={() => toggleExpandRow(req.id)}
+                                                    className="font-extrabold text-slate-900 hover:text-blue-600 cursor-pointer line-clamp-1 text-sm"
+                                                    title="Klik untuk membuka/menutup rincian item"
+                                                >
+                                                    {req.title || 'Pengadaan Tanpa Judul'}
+                                                </div>
+                                                {req.notes && (
+                                                    <p className="text-[11px] text-amber-800 italic truncate max-w-xs mt-0.5">
+                                                        Catatan: {req.notes}
+                                                    </p>
+                                                )}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-bold text-slate-800 text-xs">{req.unit?.name || 'Unit Umum'}</div>
+                                                <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                    <User size={12} /> {req.user?.name || req.user?.username || 'Pemohon'}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                                    {new Date(req.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-slate-800 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg w-fit">
+                                                        <Layers size={13} className="text-blue-600" />
+                                                        {items.length || req._count?.items || 0} Item Barang
+                                                    </span>
+                                                    {totalEst > 0 && (
+                                                        <span className="text-[11px] font-extrabold text-emerald-700">
+                                                            {formatCurrency(totalEst)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                {assignees.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                                        {assignees.map((st, idx) => (
+                                                            <span key={idx} className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                <User size={10} /> {st}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] text-slate-400 font-medium italic">
+                                                        Belum ditugaskan
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide border ${
+                                                    req.status === 'SUBMITTED' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                                    req.status === 'APPROVED' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    req.status === 'PROCESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                                    req.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    'bg-red-50 text-red-600 border-red-200'
+                                                }`}>
+                                                    {req.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    {/* Surat Permohonan Button */}
+                                                    <button
+                                                        onClick={() => handleOpenLetter(req.id)}
+                                                        disabled={loadingLetterId === req.id}
+                                                        className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all border border-slate-200 hover:border-emerald-300"
+                                                        title="Lihat / Cetak Surat Permohonan Resmi Unit"
+                                                    >
+                                                        {loadingLetterId === req.id ? (
+                                                            <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                                                        ) : (
+                                                            <FileText size={16} />
+                                                        )}
+                                                    </button>
+                                                    {/* Detail Page Button */}
+                                                    <button
+                                                        onClick={() => navigate(`/procurements/${req.id}`)}
+                                                        className="p-2 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all border border-slate-200 hover:border-blue-300"
+                                                        title="Buka Lembar Detail Pengadaan"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                    {/* Delete Button */}
+                                                    <button
+                                                        onClick={() => handleDelete(req.id)}
+                                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-slate-200 hover:border-red-300"
+                                                        title="Hapus Pengadaan"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        {/* Detail Sub-Row (Expanded Accordion) */}
+                                        {isExpanded && (
+                                            <tr className="bg-slate-50/70 border-b border-slate-200">
+                                                <td colSpan="8" className="p-4 pl-14 pr-6">
+                                                    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 animate-in fade-in">
+                                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <Layers className="text-blue-600" size={18} />
+                                                                <h4 className="font-extrabold text-sm text-slate-800">
+                                                                    Rincian Item Permintaan ({items.length} Barang)
+                                                                </h4>
+                                                                <span className="text-xs text-slate-400">
+                                                                    • Di bawah Surat Permohonan yang sama
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => handleOpenLetter(req.id)}
+                                                                    className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                                                                >
+                                                                    <FileText size={14} /> Pratinjau Surat Permohonan
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => navigate(`/procurements/${req.id}`)}
+                                                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                                                                >
+                                                                    Kelola & Penugasan Staf <ExternalLink size={13} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Nested Item Table */}
+                                                        {items.length === 0 ? (
+                                                            <p className="text-xs text-slate-400 italic py-2">
+                                                                Tidak ada rincian item dalam paket pengajuan ini.
+                                                            </p>
+                                                        ) : (
+                                                            <div className="overflow-x-auto rounded-xl border border-slate-100">
+                                                                <table className="w-full text-xs text-left">
+                                                                    <thead className="bg-slate-100/70 text-slate-600 font-bold uppercase text-[10px]">
+                                                                        <tr>
+                                                                            <th className="p-3 w-8 text-center">No</th>
+                                                                            <th className="p-3">Nama Barang & Spesifikasi</th>
+                                                                            <th className="p-3 text-center">Kuantitas</th>
+                                                                            <th className="p-3">Kategori</th>
+                                                                            <th className="p-3 text-right">Estimasi Satuan</th>
+                                                                            <th className="p-3 text-right">Total Estimasi</th>
+                                                                            <th className="p-3">Sumber Dana</th>
+                                                                            <th className="p-3">Petugas Penanggung Jawab</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                                        {items.map((it, idx) => {
+                                                                            const itemTotal = (it.qty || 1) * (it.estPrice || 0);
+                                                                            const staffName = it.assignedToUser?.name || it.assignedTo;
+
+                                                                            return (
+                                                                                <tr key={it.id || idx} className="hover:bg-slate-50/50">
+                                                                                    <td className="p-3 text-center font-bold text-slate-400">
+                                                                                        {idx + 1}
+                                                                                    </td>
+                                                                                    <td className="p-3">
+                                                                                        <p className="font-bold text-slate-800">{it.name}</p>
+                                                                                        {it.spec && (
+                                                                                            <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{it.spec}</p>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="p-3 text-center font-bold text-slate-700">
+                                                                                        {it.qty} {it.unit}
+                                                                                    </td>
+                                                                                    <td className="p-3 text-slate-600">
+                                                                                        {it.category?.name || '-'}
+                                                                                    </td>
+                                                                                    <td className="p-3 text-right font-medium text-slate-600">
+                                                                                        {formatCurrency(it.estPrice)}
+                                                                                    </td>
+                                                                                    <td className="p-3 text-right font-black text-slate-800">
+                                                                                        {formatCurrency(itemTotal)}
+                                                                                    </td>
+                                                                                    <td className="p-3">
+                                                                                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                                                            {it.fundingSource || 'Yayasan'}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="p-3">
+                                                                                        {staffName ? (
+                                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg font-bold text-[11px]">
+                                                                                                <CheckCircle size={12} className="text-emerald-600" />
+                                                                                                {staffName}
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] italic">
+                                                                                                <Clock size={12} /> Belum dipilih
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Sub-table Footer */}
+                                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 text-xs text-slate-500">
+                                                            <div className="flex items-center gap-4">
+                                                                <span>Total Volume: <strong className="text-slate-800">{items.reduce((s, i) => s + (i.qty || 0), 0)} unit</strong></span>
+                                                                <span>Total Anggaran: <strong className="text-emerald-700 font-black">{formatCurrency(totalEst)}</strong></span>
+                                                            </div>
+                                                            <span className="text-[11px] text-slate-400">
+                                                                Petugas yang sama dapat ditugaskan ke beberapa item sekaligus pada menu kelola.
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
                                         )}
-                                    </td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 rounded text-[10px] font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'
-                                            }`}>{req.type}</span>
-                                    </td>
-                                    <td className="p-4 text-slate-600">
-                                        {new Date(req.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </td>
-                                    <td className="p-4 text-center">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${req.status === 'SUBMITTED' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' :
-                                            req.status === 'APPROVED' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                                                req.status === 'PROCESS' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
-                                                    req.status === 'COMPLETED' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                        'bg-red-50 text-red-600 border-red-200'
-                                            }`}>
-                                            {req.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button
-                                                onClick={() => navigate(`/procurements/${req.id}`)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                                title="Lihat Detail"
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(req.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                title="Hapus"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
+                                    </React.Fragment>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
             </div>
 
+            {/* Mobile Card Layout with Accordion Item Drawer */}
+            <div className="block sm:hidden space-y-3">
+                {loading ? (
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
+                        Loading data...
+                    </div>
+                ) : paginatedRequests.length === 0 ? (
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
+                        Belum ada request pengadaan.
+                    </div>
+                ) : (
+                    paginatedRequests.map((req) => {
+                        const isExpanded = expandedIds.has(req.id);
+                        const items = req.items || [];
+                        const totalEst = req.totalEstimatedPrice || items.reduce((s, it) => s + ((it.qty || 1) * (it.estPrice || 0)), 0);
+
+                        return (
+                            <div key={req.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-xs font-black text-slate-700 bg-slate-100 px-2 py-0.5 rounded border">
+                                            {req.code}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                            req.type === 'ASSET' ? 'border-purple-200 text-purple-700 bg-purple-50' : 'border-amber-200 text-amber-700 bg-amber-50'
+                                        }`}>
+                                            {req.type}
+                                        </span>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                                        req.status === 'SUBMITTED' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                        req.status === 'APPROVED' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                        req.status === 'PROCESS' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                        req.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                        'bg-red-50 text-red-600 border-red-200'
+                                    }`}>
+                                        {req.status}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <h4 className="font-extrabold text-sm text-slate-900 leading-snug">{req.title || '-'}</h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">{req.unit?.name} • {req.user?.username}</p>
+                                </div>
+
+                                <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">{items.length} Item Barang</span>
+                                    {totalEst > 0 && <span className="font-black text-emerald-700">{formatCurrency(totalEst)}</span>}
+                                </div>
+
+                                {/* Toggle Expand Items */}
+                                <button
+                                    onClick={() => toggleExpandRow(req.id)}
+                                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-colors"
+                                >
+                                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    {isExpanded ? 'Tutup Rincian Item' : `Lihat ${items.length} Item Barang`}
+                                </button>
+
+                                {/* Expanded Mobile Items */}
+                                {isExpanded && (
+                                    <div className="space-y-2 pt-2 border-t border-slate-100 animate-in fade-in">
+                                        {items.map((it, idx) => (
+                                            <div key={idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70 text-xs space-y-1">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-bold text-slate-800">{idx + 1}. {it.name}</span>
+                                                    <span className="font-bold text-slate-700">{it.qty} {it.unit}</span>
+                                                </div>
+                                                <div className="flex justify-between text-[11px] text-slate-500">
+                                                    <span>Petugas: <strong className="text-slate-700">{it.assignedTo || it.assignedToUser?.name || 'Belum'}</strong></span>
+                                                    <span className="font-bold text-emerald-700">{formatCurrency((it.qty || 1) * (it.estPrice || 0))}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Action Buttons Mobile */}
+                                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                    <button
+                                        onClick={() => handleOpenLetter(req.id)}
+                                        className="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 flex items-center justify-center gap-1"
+                                    >
+                                        <FileText size={14} /> Surat Permohonan
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/procurements/${req.id}`)}
+                                        className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1"
+                                    >
+                                        Detail <ExternalLink size={13} />
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
             {/* Pagination Controls */}
             {pagination.limit !== -1 && totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-slate-500">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-500 font-bold px-1">
                     <div>
-                        Menampilkan {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, totalItems)} dari {totalItems} data
+                        Menampilkan {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, totalItems)} dari {totalItems} paket pengadaan
                     </div>
                     <div className="flex gap-1">
                         <button
                             disabled={pagination.page === 1}
                             onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-                            className="px-3 py-1 border rounded hover:bg-slate-50 disabled:opacity-50"
+                            className="px-3 py-1.5 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 disabled:opacity-50"
                         >
                             Prev
                         </button>
@@ -494,7 +840,11 @@ const ProcurementList = () => {
                             <button
                                 key={i}
                                 onClick={() => setPagination({ ...pagination, page: i + 1 })}
-                                className={`px-3 py-1 border rounded ${pagination.page === i + 1 ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-slate-50'}`}
+                                className={`px-3 py-1.5 rounded-xl border ${
+                                    pagination.page === i + 1 
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                                }`}
                             >
                                 {i + 1}
                             </button>
@@ -502,15 +852,29 @@ const ProcurementList = () => {
                         <button
                             disabled={pagination.page === totalPages}
                             onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-                            className="px-3 py-1 border rounded hover:bg-slate-50 disabled:opacity-50"
+                            className="px-3 py-1.5 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 disabled:opacity-50"
                         >
                             Next
                         </button>
                     </div>
                 </div>
             )}
+
+            {/* Procurement Request Letter Modal */}
+            {selectedLetterData && (
+                <ProcurementLetterModal
+                    isOpen={showLetterModal}
+                    onClose={() => {
+                        setShowLetterModal(false);
+                        setSelectedLetterData(null);
+                    }}
+                    letterData={selectedLetterData}
+                    isKabidUser={isKabid}
+                />
+            )}
         </div>
     );
 };
 
 export default ProcurementList;
+

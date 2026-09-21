@@ -159,8 +159,15 @@ exports.getAllProcurements = async (req, res) => {
         const procurements = await prisma.procurement.findMany({
             where: whereClause,
             include: {
-                user: { select: { username: true } },
+                user: { select: { username: true, name: true } },
                 unit: { select: { name: true } },
+                items: {
+                    include: {
+                        assignedToUser: { select: { id: true, name: true, username: true } },
+                        category: { select: { id: true, name: true } },
+                        vendor: { select: { id: true, name: true } }
+                    }
+                },
                 _count: { select: { items: true } },
                 progress: {
                     where: { message: { contains: '[Catatan Pemohon untuk Admin Aset]' } },
@@ -175,9 +182,16 @@ exports.getAllProcurements = async (req, res) => {
             const rawNote = p.progress?.[0]?.message;
             const notes = rawNote ? rawNote.replace('📝 [Catatan Pemohon untuk Admin Aset]:\n', '').trim() : null;
             const { progress, ...rest } = p;
+            
+            // Calculate total estimated price & distinct assignees
+            const totalEstimatedPrice = (p.items || []).reduce((sum, item) => sum + ((item.qty || 1) * (item.estPrice || 0)), 0);
+            const assignees = Array.from(new Set((p.items || []).filter(it => it.assignedTo).map(it => it.assignedTo)));
+
             return {
                 ...rest,
-                notes
+                notes,
+                totalEstimatedPrice,
+                assignees
             };
         });
         res.json(formatted);
@@ -1115,6 +1129,69 @@ exports.updateItemDetail = async (req, res) => {
 
     } catch (error) {
         console.error("Update Item Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Bulk Assign Staff to Multiple Items in a Procurement
+exports.bulkAssignStaff = async (req, res) => {
+    const { id } = req.params;
+    const { itemIds, assignedToId, assignmentNote } = req.body;
+
+    try {
+        if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
+            return res.status(400).json({ error: 'Pilih minimal satu item untuk ditugaskan' });
+        }
+
+        let staffName = null;
+        let staffUser = null;
+        if (assignedToId) {
+            staffUser = await prisma.user.findUnique({
+                where: { id: parseInt(assignedToId) },
+                select: { id: true, name: true, username: true, phone: true }
+            });
+            staffName = staffUser?.name || staffUser?.username;
+        }
+
+        await prisma.procurementItem.updateMany({
+            where: {
+                id: { in: itemIds.map(i => parseInt(i)) },
+                procurementId: parseInt(id)
+            },
+            data: {
+                assignedToId: assignedToId ? parseInt(assignedToId) : null,
+                assignedTo: staffName,
+                assignmentNote: assignmentNote || undefined
+            }
+        });
+
+        // Record progress
+        await prisma.procurementProgress.create({
+            data: {
+                procurementId: parseInt(id),
+                userId: req.user.id,
+                type: 'SYSTEM',
+                stage: 2,
+                message: `👤 [Penugasan Staf Massal] ${itemIds.length} item pekerjaan ditugaskan kepada ${staffName || 'Belum Ditugaskan'}.`
+            }
+        });
+
+        // Return updated items
+        const updatedItems = await prisma.procurementItem.findMany({
+            where: { procurementId: parseInt(id) },
+            include: {
+                assignedToUser: { select: { id: true, name: true, username: true } },
+                category: true,
+                vendor: true
+            }
+        });
+
+        res.json({
+            message: `Berhasil menugaskan ${itemIds.length} item kepada ${staffName || 'Petugas'}`,
+            items: updatedItems
+        });
+    } catch (error) {
+        console.error("Bulk Assign Staff Error:", error);
         res.status(500).json({ error: error.message });
     }
 };

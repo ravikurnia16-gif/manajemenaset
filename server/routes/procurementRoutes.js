@@ -26,6 +26,7 @@ router.put('/:id/status', verifyToken, procurementController.updateStatus);
 
 // Item Level Update (Vendor, Brand, Specs - Admin + Assigned users)
 router.put('/items/:itemId', verifyToken, procurementController.updateItemDetail);
+router.post('/:id/bulk-assign-staff', verifyToken, procurementController.bulkAssignStaff);
 
 // Vendor Offer (Legacy/Optional)
 router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);

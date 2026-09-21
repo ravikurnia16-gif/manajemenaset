@@ -6,7 +6,7 @@ import {
     Image, MapPin, ChevronRight, AlertCircle, Package, QrCode,
     MessageSquare, Clock, Save, Send, Loader2, ChevronDown, ChevronUp,
     Building2, ExternalLink, Eye, ClipboardCheck, Sparkles, Check, Layers,
-    PenTool, Printer, RotateCcw, User, ShieldCheck, CheckSquare, X
+    PenTool, Printer, RotateCcw, User, Users, ShieldCheck, CheckSquare, X
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -501,6 +501,42 @@ const ProcurementDetail = () => {
     const [selectedAssignmentOrder, setSelectedAssignmentOrder] = useState(null);
     const [showAssignmentOrderModal, setShowAssignmentOrderModal] = useState(false);
     const [issuingOrderForStaffId, setIssuingOrderForStaffId] = useState(null);
+
+    // Bulk Staff Assignment States (Pilih Petugas yang Sama di Beberapa Item Sekaligus)
+    const [selectedItemIdsForBulk, setSelectedItemIdsForBulk] = useState([]);
+    const [bulkAssignUnitId, setBulkAssignUnitId] = useState('');
+    const [bulkAssignStaffId, setBulkAssignStaffId] = useState('');
+    const [bulkAssignNote, setBulkAssignNote] = useState('');
+    const [isBulkAssigning, setIsBulkAssigning] = useState(false);
+
+    const handleBulkAssignStaff = async () => {
+        if (!selectedItemIdsForBulk || selectedItemIdsForBulk.length === 0) {
+            alert('Pilih minimal satu item pekerjaan terlebih dahulu.');
+            return;
+        }
+        if (!bulkAssignStaffId) {
+            alert('Pilih nama petugas yang akan ditugaskan.');
+            return;
+        }
+        setIsBulkAssigning(true);
+        try {
+            const res = await api.post(`/procurements/${id}/bulk-assign-staff`, {
+                itemIds: selectedItemIdsForBulk,
+                assignedToId: parseInt(bulkAssignStaffId),
+                assignmentNote: bulkAssignNote
+            });
+            alert(res.data?.message || 'Petugas berhasil ditugaskan ke item terpilih!');
+            setSelectedItemIdsForBulk([]);
+            setBulkAssignNote('');
+            await fetchDetail();
+            await fetchAssignmentOrders();
+        } catch (err) {
+            console.error('handleBulkAssignStaff error:', err);
+            alert(err.response?.data?.error || 'Gagal menugaskan petugas secara massal.');
+        } finally {
+            setIsBulkAssigning(false);
+        }
+    };
 
     // Price Comparison Sheet (Lembar Perbandingan Harga) States
     const [showPriceComparisonModal, setShowPriceComparisonModal] = useState(false);
@@ -2140,11 +2176,177 @@ const ProcurementDetail = () => {
 
                     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                         <Notice type="info">
-                            Tentukan staf yang bertanggung jawab atas setiap item pengadaan ini.
+                            Tentukan staf yang bertanggung jawab atas setiap item pengadaan ini. Anda dapat menugaskan staf satu per satu atau menggunakan panel Penugasan Massal di bawah.
                         </Notice>
+
+                        {/* PANEL PENUGASAN MASSAL (BULK ASSIGNMENT) */}
+                        {isAdmin && req.status !== 'COMPLETED' && (
+                            <div style={{
+                                background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%)',
+                                border: '1.5px solid #bbf7d0',
+                                borderRadius: 14,
+                                padding: '18px 20px',
+                                boxShadow: '0 4px 12px rgba(15, 31, 61, 0.04)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <div style={{
+                                            width: 36, height: 36, borderRadius: 10,
+                                            background: '#16a34a', color: '#fff',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                            <UserCheck size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#14532d' }}>
+                                                Penugasan Massal Petugas (Multi-Item)
+                                            </h4>
+                                            <p style={{ margin: 0, fontSize: 11.5, color: '#166534' }}>
+                                                Tandai beberapa atau seluruh item pekerjaan sekaligus, lalu tetapkan satu petugas pelaksana yang sama.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Selection Buttons */}
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedItemIdsForBulk(req.items.map(it => it.id))}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: 7, fontSize: 11.5, fontWeight: 700,
+                                                border: '1px solid #16a34a', background: '#dcfce7', color: '#15803d',
+                                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
+                                            }}
+                                        >
+                                            <CheckSquare size={13} /> Pilih Semua ({req.items.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedItemIdsForBulk(req.items.filter(it => !it.assignedToId).map(it => it.id))}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: 7, fontSize: 11.5, fontWeight: 700,
+                                                border: '1px solid #0284c7', background: '#e0f2fe', color: '#0369a1',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Pilih Belum Ditugaskan ({req.items.filter(it => !it.assignedToId).length})
+                                        </button>
+                                        {selectedItemIdsForBulk.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedItemIdsForBulk([])}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: 7, fontSize: 11.5, fontWeight: 700,
+                                                    border: '1px solid #fca5a5', background: '#fee2e2', color: '#b91c1c',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Batal Pilih ({selectedItemIdsForBulk.length})
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                    gap: 12,
+                                    alignItems: 'flex-end',
+                                    background: '#ffffff',
+                                    padding: 14,
+                                    borderRadius: 10,
+                                    border: '1px solid #cbd5e1'
+                                }}>
+                                    {/* 1. Filter Unit Petugas */}
+                                    <div>
+                                        <Label>1. Filter Unit Petugas</Label>
+                                        <Select
+                                            value={bulkAssignUnitId}
+                                            onChange={e => {
+                                                setBulkAssignUnitId(e.target.value);
+                                                setBulkAssignStaffId('');
+                                            }}
+                                        >
+                                            <option value="">— Semua Unit —</option>
+                                            {units
+                                                .filter(u => u.id !== 21 && !u.name?.toLowerCase().includes('workshop'))
+                                                .map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                        </Select>
+                                    </div>
+
+                                    {/* 2. Pilih Petugas */}
+                                    <div>
+                                        <Label>2. Pilih Petugas Internal *</Label>
+                                        <Select
+                                            value={bulkAssignStaffId}
+                                            onChange={e => setBulkAssignStaffId(e.target.value)}
+                                        >
+                                            <option value="">— Pilih Nama Petugas —</option>
+                                            {users
+                                                .filter(u => u.unitId !== 21 && (!bulkAssignUnitId || u.unitId === parseInt(bulkAssignUnitId)))
+                                                .map(u => <option key={u.id} value={u.id}>{u.name} {u.unit ? `(${u.unit.name})` : ''}</option>)}
+                                        </Select>
+                                    </div>
+
+                                    {/* 3. Catatan Instruksi */}
+                                    <div>
+                                        <Label>3. Catatan Instruksi (Opsional)</Label>
+                                        <Input
+                                            placeholder="Contoh: Tolong survei harga dan cek garansi..."
+                                            value={bulkAssignNote}
+                                            onChange={e => setBulkAssignNote(e.target.value)}
+                                        />
+                                    </div>
+
+                                    {/* 4. Action Button */}
+                                    <div>
+                                        <button
+                                            type="button"
+                                            disabled={selectedItemIdsForBulk.length === 0 || !bulkAssignStaffId || isBulkAssigning}
+                                            onClick={handleBulkAssignStaff}
+                                            style={{
+                                                width: '100%',
+                                                padding: '11px 16px',
+                                                borderRadius: 8,
+                                                fontSize: 13,
+                                                fontWeight: 700,
+                                                background: (selectedItemIdsForBulk.length === 0 || !bulkAssignStaffId) ? '#cbd5e1' : '#16a34a',
+                                                color: '#ffffff',
+                                                border: 'none',
+                                                cursor: (selectedItemIdsForBulk.length === 0 || !bulkAssignStaffId || isBulkAssigning) ? 'not-allowed' : 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 8,
+                                                boxShadow: (selectedItemIdsForBulk.length === 0 || !bulkAssignStaffId) ? 'none' : '0 2px 8px rgba(22, 163, 74, 0.3)',
+                                                transition: 'all .2s'
+                                            }}
+                                        >
+                                            {isBulkAssigning ? (
+                                                <>
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                    <span>Menugaskan...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <UserCheck size={16} />
+                                                    <span>Tugaskan ke {selectedItemIdsForBulk.length || 0} Item</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                                {selectedItemIdsForBulk.length > 0 && (
+                                    <p style={{ margin: '8px 0 0 4px', fontSize: 11.5, color: '#047857', fontWeight: 600 }}>
+                                        ✓ {selectedItemIdsForBulk.length} item siap ditugaskan kepada petugas yang dipilih.
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {req.items.map((item, index) => {
+                                const isSelectedForBulk = selectedItemIdsForBulk.includes(item.id);
                                 const itemUnitId = selectedUnits[index] || users.find(u => u.id === item.assignedToId)?.unitId || '';
                                 const filteredUsers = users.filter(u => 
                                     (u.id === item.assignedToId || u.unitId !== 21) &&
@@ -2152,27 +2354,55 @@ const ProcurementDetail = () => {
                                 );
                                 return (
                                     <div key={item.id} style={{
-                                        border: `1px solid ${T.border}`,
+                                        border: isSelectedForBulk ? '2px solid #16a34a' : (item.assignedToId ? '1px solid #86efac' : `1px solid ${T.border}`),
                                         borderRadius: 12, padding: 20,
-                                        background: item.assignedToId ? `linear-gradient(to right, ${T.successBg}, ${T.white})` : T.cream,
+                                        background: isSelectedForBulk ? '#f0fdf4' : (item.assignedToId ? `linear-gradient(to right, ${T.successBg}, ${T.white})` : T.cream),
+                                        boxShadow: isSelectedForBulk ? '0 4px 14px rgba(22, 163, 74, 0.12)' : 'none',
                                         transition: 'all .2s'
                                     }}>
                                         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                                             {/* Item info */}
                                             <div style={{ flex: '1 1 200px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                    {isAdmin && req.status !== 'COMPLETED' && (
+                                                        <input
+                                                            type="checkbox"
+                                                            id={`bulk-check-${item.id}`}
+                                                            checked={isSelectedForBulk}
+                                                            onChange={e => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedItemIdsForBulk(prev => [...prev, item.id]);
+                                                                } else {
+                                                                    setSelectedItemIdsForBulk(prev => prev.filter(x => x !== item.id));
+                                                                }
+                                                            }}
+                                                            style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#16a34a' }}
+                                                        />
+                                                    )}
                                                     <span style={{
                                                         width: 26, height: 26, borderRadius: 7,
-                                                        background: T.navy, color: T.white,
+                                                        background: isSelectedForBulk ? '#16a34a' : T.navy,
+                                                        color: T.white,
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         fontSize: 11, fontWeight: 700, flexShrink: 0
                                                     }}>{index + 1}</span>
                                                     <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{item.name}</span>
+                                                    {item.assignedTo && (
+                                                        <span style={{
+                                                            fontSize: 11, fontWeight: 700,
+                                                            background: '#dcfce7', color: '#15803d',
+                                                            border: '1px solid #86efac',
+                                                            padding: '2px 8px', borderRadius: 6,
+                                                            display: 'inline-flex', alignItems: 'center', gap: 4
+                                                        }}>
+                                                            <UserCheck size={11} /> {item.assignedTo}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <p style={{ fontSize: 11.5, color: T.slate, marginLeft: 34 }}>{item.spec || '—'}</p>
+                                                <p style={{ fontSize: 11.5, color: T.slate, marginLeft: isAdmin && req.status !== 'COMPLETED' ? 58 : 34 }}>{item.spec || '—'}</p>
                                                 {item.notes && (
                                                     <div style={{
-                                                        marginLeft: 34,
+                                                        marginLeft: isAdmin && req.status !== 'COMPLETED' ? 58 : 34,
                                                         marginTop: 4,
                                                         fontSize: 11,
                                                         color: '#8a6519',

@@ -3,7 +3,8 @@ import {
     Box, ArrowLeftRight, Wrench, ClipboardCheck, Handshake, Trash2,
     Calendar, CalendarRange, Printer, RefreshCw, Eye, Download,
     CheckCircle2, AlertCircle, Clock, Search, ChevronRight, Layers,
-    Loader2, FileText
+    Loader2, FileText, BarChart2, TrendingUp, Building2, Activity,
+    SlidersHorizontal, Sparkles
 } from 'lucide-react';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
@@ -28,41 +29,60 @@ export default function WeeklyAssetReport({ currentUser }) {
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [data, setData] = useState(null);
-    const [preset, setPreset] = useState('this_week'); // 'this_week' | 'last_week' | 'this_month' | 'custom'
+    const [preset, setPreset] = useState('this_week'); // 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'custom'
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [selectedUnit, setSelectedUnit] = useState('all');
-    const [activeTab, setActiveTab] = useState('new_assets'); // 'new_assets' | 'movements' | 'maintenance' | 'audit' | 'loans' | 'disposals'
+    const [activeTab, setActiveTab] = useState('unit_summary'); // 'unit_summary' | 'statistics' | 'new_assets' | 'movements' | 'maintenance' | 'audit' | 'loans' | 'disposals'
     const [showPrintPreview, setShowPrintPreview] = useState(false);
     const [showIndividualAssetList, setShowIndividualAssetList] = useState(false);
+    const [searchUnitKeyword, setSearchUnitKeyword] = useState('');
 
     // Hitung tanggal berdasarkan preset
     const calculatePresetDates = (selectedPreset) => {
         const now = new Date();
-        if (selectedPreset === 'this_week') {
+        const pad = (n) => String(n).padStart(2, '0');
+        const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+        if (selectedPreset === 'today') {
+            const todayStr = toYMD(now);
+            return { start: todayStr, end: todayStr };
+        } else if (selectedPreset === 'yesterday') {
+            const y = new Date(now);
+            y.setDate(y.getDate() - 1);
+            const yStr = toYMD(y);
+            return { start: yStr, end: yStr };
+        } else if (selectedPreset === 'this_week') {
             const day = now.getDay();
             const diffToMonday = now.getDate() - (day === 0 ? 6 : day - 1);
             const monday = new Date(now.getFullYear(), now.getMonth(), diffToMonday);
-            const friday = new Date(now.getFullYear(), now.getMonth(), diffToMonday + 4);
+            const sunday = new Date(now.getFullYear(), now.getMonth(), diffToMonday + 6);
             return {
-                start: monday.toISOString().split('T')[0],
-                end: friday.toISOString().split('T')[0]
+                start: toYMD(monday),
+                end: toYMD(sunday)
             };
         } else if (selectedPreset === 'last_week') {
             const day = now.getDay();
             const diffToLastMonday = now.getDate() - (day === 0 ? 6 : day - 1) - 7;
             const monday = new Date(now.getFullYear(), now.getMonth(), diffToLastMonday);
-            const friday = new Date(now.getFullYear(), now.getMonth(), diffToLastMonday + 4);
+            const sunday = new Date(now.getFullYear(), now.getMonth(), diffToLastMonday + 6);
             return {
-                start: monday.toISOString().split('T')[0],
-                end: friday.toISOString().split('T')[0]
+                start: toYMD(monday),
+                end: toYMD(sunday)
             };
         } else if (selectedPreset === 'this_month') {
             const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
             const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
             return {
-                start: firstDay.toISOString().split('T')[0],
-                end: lastDay.toISOString().split('T')[0]
+                start: toYMD(firstDay),
+                end: toYMD(lastDay)
+            };
+        } else if (selectedPreset === 'last_month') {
+            const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+            return {
+                start: toYMD(firstDay),
+                end: toYMD(lastDay)
             };
         }
         return { start: startDate, end: endDate };
@@ -109,6 +129,61 @@ export default function WeeklyAssetReport({ currentUser }) {
         }
     };
 
+    const summary = data?.summary || {
+        newAssetsCount: 0,
+        newAssetsValue: 0,
+        movementsCount: 0,
+        maintenanceCount: 0,
+        maintenanceCost: 0,
+        auditCount: 0,
+        loansCount: 0,
+        disposalsCount: 0
+    };
+
+    const unitSummary = data?.unitSummary || [];
+
+    const statistics = data?.statistics || {
+        categoryDistribution: [],
+        maintenance: { total: 0, completed: 0, inProgress: 0, pending: 0, rejected: 0, completionRate: 0 },
+        audit: { total: 0, found: 0, missing: 0, accuracyRate: 0 },
+        operational: { daysCount: 1, totalEvents: 0, avgDailyEvents: 0, mostActiveUnit: '-' },
+        loans: { total: 0, borrowed: 0, returned: 0 }
+    };
+
+    const details = data?.details || {
+        newAssets: [],
+        movements: [],
+        maintenances: [],
+        auditItems: [],
+        loans: [],
+        disposals: []
+    };
+
+    // Rekapitulasi kuantitas pengadaan barang baru (Grouping nama barang & kategori - Fokus Kuantitas)
+    const groupedNewAssets = useMemo(() => {
+        const map = new Map();
+        (details.newAssets || []).forEach(item => {
+            const rawName = (item.name || 'Aset Tanpa Nama').trim();
+            const categoryName = item.category?.name || '-';
+            const unitName = item.unit?.name || '-';
+            const key = `${rawName.toLowerCase()}___${categoryName.toLowerCase()}`;
+            if (!map.has(key)) {
+                map.set(key, {
+                    name: rawName,
+                    category: categoryName,
+                    unit: unitName,
+                    qty: 0,
+                });
+            }
+            const g = map.get(key);
+            g.qty += 1;
+            if (unitName !== '-' && g.unit !== unitName && !g.unit.includes(unitName)) {
+                g.unit = `${g.unit}, ${unitName}`;
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+    }, [details.newAssets]);
+
     const handleExportPDF = async () => {
         if (!data) return;
         setExporting(true);
@@ -127,7 +202,7 @@ export default function WeeklyAssetReport({ currentUser }) {
             doc.setFontSize(9);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(79, 70, 229); // Indigo 600
-            doc.text('YAYASAN DAR EL-IMAN PADANG', pageW / 2, 22, { align: 'center' });
+            doc.text('YAYASAN DAR EL-IMAN', pageW / 2, 22, { align: 'center' });
 
             doc.setFontSize(8);
             doc.setFont(undefined, 'normal');
@@ -141,11 +216,20 @@ export default function WeeklyAssetReport({ currentUser }) {
             doc.setLineWidth(0.2);
             doc.line(14, 31, pageW - 14, 31);
 
-            // 2. JUDUL LAPORAN
+            // 2. JUDUL LAPORAN DINAMIS
+            let reportTitle = 'LAPORAN OPERASIONAL & PERGERAKAN ASET BERKALA';
+            if (preset === 'today' || preset === 'yesterday') {
+                reportTitle = 'LAPORAN OPERASIONAL & PERGERAKAN ASET HARIAN';
+            } else if (preset === 'this_week' || preset === 'last_week') {
+                reportTitle = 'LAPORAN OPERASIONAL & PERGERAKAN ASET MINGGUAN';
+            } else if (preset === 'this_month' || preset === 'last_month') {
+                reportTitle = 'LAPORAN OPERASIONAL & PERGERAKAN ASET BULANAN';
+            }
+
             doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(30, 41, 59);
-            doc.text('LAPORAN OPERASIONAL & PERGERAKAN ASET MINGGUAN', pageW / 2, 38, { align: 'center' });
+            doc.text(reportTitle, pageW / 2, 38, { align: 'center' });
 
             doc.setFontSize(8.5);
             doc.setFont(undefined, 'normal');
@@ -154,40 +238,166 @@ export default function WeeklyAssetReport({ currentUser }) {
 
             let currentY = 48;
 
-            // 3. TABEL I: RINGKASAN REKAPITULASI METRIK
+            // 3. TABEL I: RINGKASAN REKAPITULASI METRIK (FOKUS KUANTITAS - TANPA HARGA)
             doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(30, 41, 59);
-            doc.text('I. Ringkasan Rekapitulasi Metrik Aset', 14, currentY);
+            doc.text('I. Ringkasan Rekapitulasi Metrik Aset (Kuantitas)', 14, currentY);
 
             const summaryRows = [
-                ['1', 'Aset Baru Masuk (Pengadaan / Registrasi)', `${summary.newAssetsCount} item`, `Rp ${summary.newAssetsValue.toLocaleString('id-ID')}`],
-                ['2', 'Mutasi & Perpindahan Ruangan/Unit', `${summary.movementsCount} transaksi`, 'Relokasi sarana'],
-                ['3', 'Pemeliharaan & Perbaikan Sarana', `${summary.maintenanceCount} tiket`, `Rp ${summary.maintenanceCost.toLocaleString('id-ID')}`],
-                ['4', 'Audit & Verifikasi Fisik Aset Lapangan', `${summary.auditCount} item`, 'Verifikasi kondisi fisik'],
-                ['5', 'Peminjaman Aset Antar Unit / Luar', `${summary.loansCount} transaksi`, 'Peminjaman fasilitas'],
-                ['6', 'Usulan Penghapusan (Disposal / Rusak Berat)', `${summary.disposalsCount} item`, 'Usulan lelang/pemusnahan'],
+                ['1', 'Aset Baru Masuk (Pengadaan / Registrasi)', `${summary.newAssetsCount} unit`, 'Registrasi sarana baru'],
+                ['2', 'Mutasi & Perpindahan Ruangan/Unit', `${summary.movementsCount} transaksi`, 'Relokasi dan penataan sarana'],
+                ['3', 'Pemeliharaan & Perbaikan Sarana', `${summary.maintenanceCount} tiket`, `${statistics.maintenance.completed} Selesai, ${statistics.maintenance.inProgress} Proses`],
+                ['4', 'Audit & Verifikasi Fisik Aset Lapangan', `${summary.auditCount} item`, `${statistics.audit.found} Sesuai Fisik (${statistics.audit.accuracyRate}%)`],
+                ['5', 'Peminjaman Aset Antar Unit / Luar', `${summary.loansCount} transaksi`, `${statistics.loans.borrowed} Sedang Dipinjam`],
+                ['6', 'Usulan Penghapusan (Disposal / Rusak Berat)', `${summary.disposalsCount} item`, 'Usulan afkir / lelang barang'],
             ];
 
             doc.autoTable({
                 startY: currentY + 3,
-                head: [['No', 'Indikator Kinerja / Aktivitas', 'Jumlah', 'Keterangan / Estimasi Nilai']],
+                head: [['No', 'Indikator Kinerja / Aktivitas', 'Jumlah (Qty)', 'Keterangan / Status Operasional']],
                 body: summaryRows,
                 theme: 'grid',
                 headStyles: { fillColor: [79, 70, 229], fontSize: 8, fontStyle: 'bold', halign: 'center' },
                 bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
                 columnStyles: {
                     0: { cellWidth: 10, halign: 'center' },
-                    1: { cellWidth: 85 },
+                    1: { cellWidth: 80 },
                     2: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
-                    3: { cellWidth: 55, halign: 'right' }
+                    3: { cellWidth: 60, halign: 'left' }
                 },
                 margin: { left: 14, right: 14 }
             });
 
-            currentY = doc.lastAutoTable.finalY + 8;
+            currentY = doc.lastAutoTable.finalY + 7;
 
-            // 4. TABEL II: REKAPITULASI KUANTITAS ASET BARU MASUK (PENGADAAN)
+            // 4. TABEL II: ANALISIS STATISTIK & KINERJA OPERASIONAL ASET
+            if (currentY > pageH - 55) {
+                doc.addPage();
+                currentY = 16;
+            }
+
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('II. Analisis Statistik & Kinerja Operasional Aset', 14, currentY);
+
+            const statRows = [
+                ['1', 'Tingkat Ketercapaian Servis Pemeliharaan', `${statistics.maintenance.completionRate}%`, `${statistics.maintenance.completed} tiket selesai dari ${statistics.maintenance.total} total usulan`],
+                ['2', 'Akurasi Hasil Verifikasi Audit Fisik', `${statistics.audit.accuracyRate}%`, `${statistics.audit.found} item sesuai dari ${statistics.audit.total} item diverifikasi`],
+                ['3', 'Rata-rata Frekuensi Aktivitas Harian', `${statistics.operational.avgDailyEvents} aktivitas/hari`, `Total ${statistics.operational.totalEvents} transaksi selama ${statistics.operational.daysCount} hari`],
+                ['4', 'Satker / Unit Paling Aktif Operasional', statistics.operational.mostActiveUnit, 'Unit dengan volume aktivitas sarana tertinggi di periode ini']
+            ];
+
+            doc.autoTable({
+                startY: currentY + 3,
+                head: [['No', 'Parameter Analisis Statistik', 'Nilai / Rasio', 'Catatan Evaluasi Kinerja']],
+                body: statRows,
+                theme: 'grid',
+                headStyles: { fillColor: [16, 185, 129], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+                bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
+                columnStyles: {
+                    0: { cellWidth: 10, halign: 'center' },
+                    1: { cellWidth: 80 },
+                    2: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
+                    3: { cellWidth: 60, halign: 'left' }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            currentY = doc.lastAutoTable.finalY + 7;
+
+            // Sub-analisis: Top Kategori Pengadaan
+            if (statistics.categoryDistribution && statistics.categoryDistribution.length > 0) {
+                if (currentY > pageH - 45) {
+                    doc.addPage();
+                    currentY = 16;
+                }
+
+                doc.setFontSize(8.5);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(51, 65, 85);
+                doc.text('Komposisi Kategori Dominan Aset Baru Masuk:', 14, currentY);
+
+                const topCatRows = statistics.categoryDistribution.slice(0, 5).map((cat, idx) => [
+                    idx + 1,
+                    cat.name,
+                    `${cat.count} unit`,
+                    `${cat.percentage}%`
+                ]);
+
+                doc.autoTable({
+                    startY: currentY + 2,
+                    head: [['No', 'Kategori Aset', 'Jumlah (Qty)', 'Pangsa (%)']],
+                    body: topCatRows,
+                    theme: 'striped',
+                    headStyles: { fillColor: [51, 65, 85], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+                    bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+                    columnStyles: {
+                        0: { cellWidth: 10, halign: 'center' },
+                        1: { cellWidth: 90 },
+                        2: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
+                        3: { cellWidth: 42, halign: 'center' }
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 7;
+            }
+
+            // 5. TABEL III: RINGKASAN SEBARAN & AKTIVITAS PER UNIT
+            if (unitSummary.length > 0) {
+                if (currentY > pageH - 60) {
+                    doc.addPage();
+                    currentY = 16;
+                }
+
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(30, 41, 59);
+                doc.text('III. Ringkasan Aktivitas & Sebaran Aset per Unit', 14, currentY);
+
+                const unitRows = unitSummary.map((u, idx) => [
+                    idx + 1,
+                    u.name,
+                    u.code,
+                    `${u.newAssetsCount}`,
+                    `${u.movementsCount}`,
+                    `${u.maintenancesCount}`,
+                    `${u.auditCount}`,
+                    `${u.loansCount}`,
+                    `${u.totalAssets}`
+                ]);
+
+                const totalAllUnitAssets = unitSummary.reduce((sum, u) => sum + (u.totalAssets || 0), 0);
+
+                doc.autoTable({
+                    startY: currentY + 3,
+                    head: [['No', 'Unit Kerja / Satker', 'Kode', 'Baru', 'Mutasi', 'Servis', 'Audit', 'Pinjam', 'Total Aset']],
+                    body: unitRows,
+                    foot: [['', 'Total Akumulasi Seluruh Unit', '', `${summary.newAssetsCount}`, `${summary.movementsCount}`, `${summary.maintenanceCount}`, `${summary.auditCount}`, `${summary.loansCount}`, `${totalAllUnitAssets}`]],
+                    theme: 'striped',
+                    headStyles: { fillColor: [30, 58, 138], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+                    bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+                    footStyles: { fillColor: [241, 245, 249], fontSize: 7.5, fontStyle: 'bold', textColor: [15, 23, 42] },
+                    columnStyles: {
+                        0: { cellWidth: 8, halign: 'center' },
+                        1: { cellWidth: 62 },
+                        2: { cellWidth: 22, halign: 'center' },
+                        3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+                        4: { cellWidth: 15, halign: 'center' },
+                        5: { cellWidth: 15, halign: 'center' },
+                        6: { cellWidth: 15, halign: 'center' },
+                        7: { cellWidth: 15, halign: 'center' },
+                        8: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 7;
+            }
+
+            // 6. TABEL IV: REKAPITULASI KUANTITAS ASET BARU MASUK (PENGADAAN)
             if (groupedNewAssets.length > 0) {
                 if (currentY > pageH - 50) {
                     doc.addPage();
@@ -197,41 +407,39 @@ export default function WeeklyAssetReport({ currentUser }) {
                 doc.setFontSize(10);
                 doc.setFont(undefined, 'bold');
                 doc.setTextColor(30, 41, 59);
-                doc.text('II. Rekapitulasi Kuantitas Aset Baru Masuk (Pengadaan)', 14, currentY);
+                doc.text('IV. Rekapitulasi Kuantitas Aset Baru Masuk (Pengadaan)', 14, currentY);
 
                 const newAssetRows = groupedNewAssets.map((item, idx) => [
                     idx + 1,
                     item.name,
                     item.category,
                     item.unit,
-                    `${item.qty} unit`,
-                    `Rp ${(item.totalPrice || 0).toLocaleString('id-ID')}`
+                    `${item.qty} unit`
                 ]);
 
                 doc.autoTable({
                     startY: currentY + 3,
-                    head: [['No', 'Nama Barang / Aset', 'Kategori', 'Unit Penerima', 'Qty', 'Total Nilai Perolehan']],
+                    head: [['No', 'Nama Barang / Aset', 'Kategori', 'Unit Penerima', 'Jumlah (Qty)']],
                     body: newAssetRows,
-                    foot: [['', `Total Pengadaan (${groupedNewAssets.length} Jenis Barang)`, '', '', `${summary.newAssetsCount} unit`, `Rp ${summary.newAssetsValue.toLocaleString('id-ID')}`]],
+                    foot: [['', `Total Pengadaan (${groupedNewAssets.length} Jenis Barang)`, '', '', `${summary.newAssetsCount} unit`]],
                     theme: 'striped',
                     headStyles: { fillColor: [51, 65, 85], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
                     bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
                     footStyles: { fillColor: [241, 245, 249], fontSize: 7.5, fontStyle: 'bold', textColor: [15, 23, 42] },
                     columnStyles: {
                         0: { cellWidth: 8, halign: 'center' },
-                        1: { cellWidth: 62 },
-                        2: { cellWidth: 32 },
-                        3: { cellWidth: 32 },
-                        4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-                        5: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+                        1: { cellWidth: 72 },
+                        2: { cellWidth: 42 },
+                        3: { cellWidth: 35 },
+                        4: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
                     },
                     margin: { left: 14, right: 14 }
                 });
 
-                currentY = doc.lastAutoTable.finalY + 8;
+                currentY = doc.lastAutoTable.finalY + 7;
             }
 
-            // 5. TABEL III: DAFTAR MUTASI (Jika ada)
+            // 7. TABEL V: DAFTAR MUTASI (Jika ada)
             if (details.movements && details.movements.length > 0) {
                 if (currentY > pageH - 45) {
                     doc.addPage();
@@ -241,7 +449,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                 doc.setFontSize(10);
                 doc.setFont(undefined, 'bold');
                 doc.setTextColor(30, 41, 59);
-                doc.text('III. Daftar Mutasi & Perpindahan Aset', 14, currentY);
+                doc.text('V. Daftar Mutasi & Perpindahan Aset', 14, currentY);
 
                 const movementRows = details.movements.map((item, idx) => [
                     idx + 1,
@@ -268,10 +476,10 @@ export default function WeeklyAssetReport({ currentUser }) {
                     margin: { left: 14, right: 14 }
                 });
 
-                currentY = doc.lastAutoTable.finalY + 8;
+                currentY = doc.lastAutoTable.finalY + 7;
             }
 
-            // 6. TABEL IV: DAFTAR PEMELIHARAAN (Jika ada)
+            // 8. TABEL VI: DAFTAR PEMELIHARAAN (Jika ada - Tanpa Biaya)
             if (details.maintenances && details.maintenances.length > 0) {
                 if (currentY > pageH - 45) {
                     doc.addPage();
@@ -281,37 +489,37 @@ export default function WeeklyAssetReport({ currentUser }) {
                 doc.setFontSize(10);
                 doc.setFont(undefined, 'bold');
                 doc.setTextColor(30, 41, 59);
-                doc.text('IV. Daftar Pemeliharaan & Servis Sarana', 14, currentY);
+                doc.text('VI. Daftar Pemeliharaan & Servis Sarana', 14, currentY);
 
                 const maintRows = details.maintenances.map((item, idx) => [
                     idx + 1,
                     item.title,
                     item.unit?.name || '-',
-                    item.status || '-',
-                    `Rp ${(item.cost || 0).toLocaleString('id-ID')}`
+                    item.technician || '-',
+                    item.status || '-'
                 ]);
 
                 doc.autoTable({
                     startY: currentY + 3,
-                    head: [['No', 'Judul Pemeliharaan', 'Unit', 'Status', 'Biaya']],
+                    head: [['No', 'Judul Pemeliharaan', 'Unit', 'Teknisi / Vendor', 'Status']],
                     body: maintRows,
                     theme: 'striped',
                     headStyles: { fillColor: [249, 115, 22], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
                     bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
                     columnStyles: {
                         0: { cellWidth: 8, halign: 'center' },
-                        1: { cellWidth: 84 },
+                        1: { cellWidth: 80 },
                         2: { cellWidth: 40 },
-                        3: { cellWidth: 22, halign: 'center' },
-                        4: { cellWidth: 28, halign: 'right' }
+                        3: { cellWidth: 32 },
+                        4: { cellWidth: 22, halign: 'center', fontStyle: 'bold' }
                     },
                     margin: { left: 14, right: 14 }
                 });
 
-                currentY = doc.lastAutoTable.finalY + 8;
+                currentY = doc.lastAutoTable.finalY + 7;
             }
 
-            // 7. KOLOM TANDA TANGAN RESMI
+            // 9. KOLOM TANDA TANGAN RESMI
             if (currentY > pageH - 48) {
                 doc.addPage();
                 currentY = 20;
@@ -322,7 +530,6 @@ export default function WeeklyAssetReport({ currentUser }) {
             const kabidName = data?.signers?.kabid?.name || 'Ravi Kurnia';
             const kabidPos = 'Kepala Bidang Sarana';
             const kabidNiy = data?.signers?.kabid?.niy || '-';
-
             const kabidX = pageW - 55;
 
             doc.setFontSize(9);
@@ -344,7 +551,7 @@ export default function WeeklyAssetReport({ currentUser }) {
             doc.setTextColor(100, 116, 139);
             doc.text(`NIY: ${kabidNiy}`, kabidX, currentY + 33, { align: 'center' });
 
-            // 8. FOOTER PENOMORAN HALAMAN
+            // 10. FOOTER PENOMORAN HALAMAN
             const totalPages = doc.internal.getNumberOfPages();
             for (let i = 1; i <= totalPages; i++) {
                 doc.setPage(i);
@@ -353,11 +560,11 @@ export default function WeeklyAssetReport({ currentUser }) {
                 doc.text(`Halaman ${i} dari ${totalPages}  |  Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El-Iman`, pageW / 2, pageH - 8, { align: 'center' });
             }
 
-            const dateSuffix = `${startDate || 'minggu'}_sd_${endDate || 'ini'}`;
-            doc.save(`Laporan_Mingguan_Aset_${dateSuffix}.pdf`);
+            const dateSuffix = `${preset}_${startDate || 'awal'}_sd_${endDate || 'akhir'}`;
+            doc.save(`Laporan_Aset_${dateSuffix}.pdf`);
         } catch (err) {
             console.error('Export Weekly PDF Error:', err);
-            alert('Gagal mengekspor PDF laporan mingguan: ' + err.message);
+            alert('Gagal mengekspor PDF laporan: ' + err.message);
         } finally {
             setExporting(false);
         }
@@ -370,64 +577,40 @@ export default function WeeklyAssetReport({ currentUser }) {
         }, 300);
     };
 
-    const summary = data?.summary || {
-        newAssetsCount: 0,
-        newAssetsValue: 0,
-        movementsCount: 0,
-        maintenanceCount: 0,
-        maintenanceCost: 0,
-        auditCount: 0,
-        loansCount: 0,
-        disposalsCount: 0
-    };
-
-    const details = data?.details || {
-        newAssets: [],
-        movements: [],
-        maintenances: [],
-        auditItems: [],
-        loans: [],
-        disposals: []
-    };
-
-    // Rekapitulasi kuantitas pengadaan barang baru (Grouping nama barang & kategori)
-    const groupedNewAssets = useMemo(() => {
-        const map = new Map();
-        (details.newAssets || []).forEach(item => {
-            const rawName = (item.name || 'Aset Tanpa Nama').trim();
-            const categoryName = item.category?.name || '-';
-            const unitName = item.unit?.name || '-';
-            const key = `${rawName.toLowerCase()}___${categoryName.toLowerCase()}`;
-            if (!map.has(key)) {
-                map.set(key, {
-                    name: rawName,
-                    category: categoryName,
-                    unit: unitName,
-                    qty: 0,
-                    totalPrice: 0,
-                });
-            }
-            const g = map.get(key);
-            g.qty += 1;
-            g.totalPrice += (Number(item.price) || 0);
-            if (unitName !== '-' && g.unit !== unitName && !g.unit.includes(unitName)) {
-                g.unit = `${g.unit}, ${unitName}`;
-            }
-        });
-        return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
-    }, [details.newAssets]);
 
     return (
         <div className="space-y-6">
             {/* 1. FILTER & ACTION TOOLBAR (SCREEN ONLY) */}
             <div className="print:hidden bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 {/* PRESET BUTTONS */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Periode:</span>
+                    <button
+                        onClick={() => handlePresetChange('today')}
+                        className={cn(
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            preset === 'today'
+                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        )}
+                    >
+                        Hari Ini
+                    </button>
+                    <button
+                        onClick={() => handlePresetChange('yesterday')}
+                        className={cn(
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            preset === 'yesterday'
+                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        )}
+                    >
+                        Kemarin
+                    </button>
                     <button
                         onClick={() => handlePresetChange('this_week')}
                         className={cn(
-                            "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
                             preset === 'this_week'
                                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -438,7 +621,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                     <button
                         onClick={() => handlePresetChange('last_week')}
                         className={cn(
-                            "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
                             preset === 'last_week'
                                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -449,7 +632,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                     <button
                         onClick={() => handlePresetChange('this_month')}
                         className={cn(
-                            "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
                             preset === 'this_month'
                                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -458,15 +641,26 @@ export default function WeeklyAssetReport({ currentUser }) {
                         Bulan Ini
                     </button>
                     <button
+                        onClick={() => handlePresetChange('last_month')}
+                        className={cn(
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            preset === 'last_month'
+                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        )}
+                    >
+                        Bulan Lalu
+                    </button>
+                    <button
                         onClick={() => handlePresetChange('custom')}
                         className={cn(
-                            "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all",
+                            "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
                             preset === 'custom'
                                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         )}
                     >
-                        Kustom Tanggal
+                        Kustom
                     </button>
                 </div>
 
@@ -535,7 +729,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                         onClick={handleExportPDF}
                         disabled={exporting || loading}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 transition-all hover:scale-105 disabled:opacity-50"
-                        title="Unduh Dokumen PDF Resmi"
+                        title="Unduh Dokumen PDF Resmi (Fokus Kuantitas Tanpa Harga)"
                     >
                         {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                         {exporting ? 'Mengekspor PDF...' : 'Download PDF Resmi'}
@@ -543,21 +737,21 @@ export default function WeeklyAssetReport({ currentUser }) {
                 </div>
             </div>
 
-            {/* 2. SUMMARY METRIC CARDS (SCREEN ONLY) */}
+            {/* 2. SUMMARY METRIC CARDS (SCREEN ONLY - ZERO PRICE, VOLUME FOCUS) */}
             <div className="print:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 {/* CARD 1: ASET BARU */}
                 <div
                     onClick={() => setActiveTab('new_assets')}
                     className={cn(
-                        "p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
+                        "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
                         activeTab === 'new_assets'
                             ? "bg-indigo-50/70 border-indigo-300 shadow-md shadow-indigo-100 ring-2 ring-indigo-500/20"
                             : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center shadow-sm">
-                            <Box size={20} />
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center shadow-sm">
+                            <Box size={18} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-full">
                             Pengadaan
@@ -565,8 +759,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                     <div className="text-2xl font-black text-slate-800">{summary.newAssetsCount} <span className="text-xs font-semibold text-slate-400">Unit</span></div>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Aset Baru Masuk</div>
-                    <div className="text-xs font-bold text-indigo-700 mt-2 truncate">
-                        Rp {summary.newAssetsValue.toLocaleString('id-ID')}
+                    <div className="text-[11px] font-semibold text-indigo-700 mt-2 truncate">
+                        {groupedNewAssets.length} Jenis Barang
                     </div>
                 </div>
 
@@ -574,15 +768,15 @@ export default function WeeklyAssetReport({ currentUser }) {
                 <div
                     onClick={() => setActiveTab('movements')}
                     className={cn(
-                        "p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
+                        "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
                         activeTab === 'movements'
                             ? "bg-blue-50/70 border-blue-300 shadow-md shadow-blue-100 ring-2 ring-blue-500/20"
                             : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-500 text-white flex items-center justify-center shadow-sm">
-                            <ArrowLeftRight size={20} />
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-blue-500 text-white flex items-center justify-center shadow-sm">
+                            <ArrowLeftRight size={18} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
                             Perpindahan
@@ -590,8 +784,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                     <div className="text-2xl font-black text-slate-800">{summary.movementsCount} <span className="text-xs font-semibold text-slate-400">Item</span></div>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Mutasi Aset</div>
-                    <div className="text-xs font-semibold text-slate-500 mt-2">
-                        Perpindahan ruangan/unit
+                    <div className="text-[11px] font-semibold text-slate-500 mt-2">
+                        Relokasi ruangan/unit
                     </div>
                 </div>
 
@@ -599,15 +793,15 @@ export default function WeeklyAssetReport({ currentUser }) {
                 <div
                     onClick={() => setActiveTab('maintenance')}
                     className={cn(
-                        "p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
+                        "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
                         activeTab === 'maintenance'
                             ? "bg-amber-50/70 border-amber-300 shadow-md shadow-amber-100 ring-2 ring-amber-500/20"
                             : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
-                            <Wrench size={20} />
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+                            <Wrench size={18} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
                             Perbaikan
@@ -615,8 +809,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                     <div className="text-2xl font-black text-slate-800">{summary.maintenanceCount} <span className="text-xs font-semibold text-slate-400">Tiket</span></div>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Pemeliharaan</div>
-                    <div className="text-xs font-bold text-amber-700 mt-2 truncate">
-                        Rp {summary.maintenanceCost.toLocaleString('id-ID')}
+                    <div className="text-[11px] font-bold text-amber-700 mt-2 truncate">
+                        {statistics.maintenance.completed} Selesai ({statistics.maintenance.completionRate}%)
                     </div>
                 </div>
 
@@ -624,15 +818,15 @@ export default function WeeklyAssetReport({ currentUser }) {
                 <div
                     onClick={() => setActiveTab('audit')}
                     className={cn(
-                        "p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
+                        "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
                         activeTab === 'audit'
                             ? "bg-emerald-50/70 border-emerald-300 shadow-md shadow-emerald-100 ring-2 ring-emerald-500/20"
                             : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-sm">
-                            <ClipboardCheck size={20} />
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-sm">
+                            <ClipboardCheck size={18} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
                             Verifikasi
@@ -640,8 +834,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                     <div className="text-2xl font-black text-slate-800">{summary.auditCount} <span className="text-xs font-semibold text-slate-400">Item</span></div>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Audit / Cek Fisik</div>
-                    <div className="text-xs font-semibold text-slate-500 mt-2">
-                        Pemeriksaan lapangan
+                    <div className="text-[11px] font-bold text-emerald-700 mt-2">
+                        {statistics.audit.accuracyRate}% Ditemukan
                     </div>
                 </div>
 
@@ -649,24 +843,24 @@ export default function WeeklyAssetReport({ currentUser }) {
                 <div
                     onClick={() => setActiveTab('loans')}
                     className={cn(
-                        "p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
+                        "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
                         activeTab === 'loans'
                             ? "bg-violet-50/70 border-violet-300 shadow-md shadow-violet-100 ring-2 ring-violet-500/20"
                             : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-violet-500 text-white flex items-center justify-center shadow-sm">
-                            <Handshake size={20} />
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-violet-500 text-white flex items-center justify-center shadow-sm">
+                            <Handshake size={18} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider text-violet-700 bg-violet-100/70 px-2 py-0.5 rounded-full">
                             Peminjaman
                         </span>
                     </div>
-                    <div className="text-2xl font-black text-slate-800">{summary.loansCount} <span className="text-xs font-semibold text-slate-400">Peminjaman</span></div>
+                    <div className="text-2xl font-black text-slate-800">{summary.loansCount} <span className="text-xs font-semibold text-slate-400">Sesi</span></div>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Peminjaman Aset</div>
-                    <div className="text-xs font-semibold text-slate-500 mt-2">
-                        Peminjaman aktif / kembali
+                    <div className="text-[11px] font-semibold text-violet-700 mt-2">
+                        {statistics.loans.borrowed} Aktif Dipinjam
                     </div>
                 </div>
 
@@ -674,15 +868,15 @@ export default function WeeklyAssetReport({ currentUser }) {
                 <div
                     onClick={() => setActiveTab('disposals')}
                     className={cn(
-                        "p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
+                        "p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden group",
                         activeTab === 'disposals'
                             ? "bg-rose-50/70 border-rose-300 shadow-md shadow-rose-100 ring-2 ring-rose-500/20"
                             : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-sm">
-                            <Trash2 size={20} />
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-sm">
+                            <Trash2 size={18} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 bg-rose-100/70 px-2 py-0.5 rounded-full">
                             Disposal
@@ -690,7 +884,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                     <div className="text-2xl font-black text-slate-800">{summary.disposalsCount} <span className="text-xs font-semibold text-slate-400">Usulan</span></div>
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Penghapusan Aset</div>
-                    <div className="text-xs font-semibold text-slate-500 mt-2">
+                    <div className="text-[11px] font-semibold text-slate-500 mt-2">
                         Rusak berat / lelang
                     </div>
                 </div>
@@ -699,37 +893,61 @@ export default function WeeklyAssetReport({ currentUser }) {
             {/* 3. ACTIVITY DETAILS TABS & TABLES (SCREEN ONLY) */}
             <div className="print:hidden bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 {/* SUB-TABS HEADER */}
-                <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50/80 border-b border-slate-100">
+                <div className="flex flex-wrap items-center gap-1.5 p-3 bg-slate-50/80 border-b border-slate-100">
+                    <button
+                        onClick={() => setActiveTab('unit_summary')}
+                        className={cn(
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
+                            activeTab === 'unit_summary'
+                                ? "bg-white text-indigo-700 shadow-sm border border-indigo-100"
+                                : "text-slate-500 hover:text-slate-800"
+                        )}
+                    >
+                        <Building2 size={14} />
+                        Ringkasan per Unit ({unitSummary.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('statistics')}
+                        className={cn(
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
+                            activeTab === 'statistics'
+                                ? "bg-white text-indigo-700 shadow-sm border border-indigo-100"
+                                : "text-slate-500 hover:text-slate-800"
+                        )}
+                    >
+                        <BarChart2 size={14} />
+                        Analisis Statistik
+                    </button>
                     <button
                         onClick={() => setActiveTab('new_assets')}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
                             activeTab === 'new_assets'
-                                ? "bg-white text-indigo-700 shadow-sm"
+                                ? "bg-white text-indigo-700 shadow-sm border border-indigo-100"
                                 : "text-slate-500 hover:text-slate-800"
                         )}
                     >
                         <Box size={14} />
-                        Aset Baru Masuk ({details.newAssets.length})
+                        Aset Baru ({details.newAssets.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('movements')}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
                             activeTab === 'movements'
-                                ? "bg-white text-blue-700 shadow-sm"
+                                ? "bg-white text-blue-700 shadow-sm border border-blue-100"
                                 : "text-slate-500 hover:text-slate-800"
                         )}
                     >
                         <ArrowLeftRight size={14} />
-                        Mutasi Aset ({details.movements.length})
+                        Mutasi ({details.movements.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('maintenance')}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
                             activeTab === 'maintenance'
-                                ? "bg-white text-amber-700 shadow-sm"
+                                ? "bg-white text-amber-700 shadow-sm border border-amber-100"
                                 : "text-slate-500 hover:text-slate-800"
                         )}
                     >
@@ -739,9 +957,9 @@ export default function WeeklyAssetReport({ currentUser }) {
                     <button
                         onClick={() => setActiveTab('audit')}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
                             activeTab === 'audit'
-                                ? "bg-white text-emerald-700 shadow-sm"
+                                ? "bg-white text-emerald-700 shadow-sm border border-emerald-100"
                                 : "text-slate-500 hover:text-slate-800"
                         )}
                     >
@@ -751,9 +969,9 @@ export default function WeeklyAssetReport({ currentUser }) {
                     <button
                         onClick={() => setActiveTab('loans')}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
                             activeTab === 'loans'
-                                ? "bg-white text-violet-700 shadow-sm"
+                                ? "bg-white text-violet-700 shadow-sm border border-violet-100"
                                 : "text-slate-500 hover:text-slate-800"
                         )}
                     >
@@ -763,18 +981,229 @@ export default function WeeklyAssetReport({ currentUser }) {
                     <button
                         onClick={() => setActiveTab('disposals')}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                            "flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all",
                             activeTab === 'disposals'
-                                ? "bg-white text-rose-700 shadow-sm"
+                                ? "bg-white text-rose-700 shadow-sm border border-rose-100"
                                 : "text-slate-500 hover:text-slate-800"
                         )}
                     >
                         <Trash2 size={14} />
-                        Usulan Penghapusan ({details.disposals.length})
+                        Disposal ({details.disposals.length})
                     </button>
                 </div>
 
-                {/* TAB CONTENT: NEW ASSETS */}
+                {/* TAB CONTENT: RINGKASAN PER UNIT */}
+                {activeTab === 'unit_summary' && (
+                    <div className="space-y-4 p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                                    <Building2 size={15} className="text-indigo-600" />
+                                    Matriks Rekapitulasi Aktivitas per Unit / Satker
+                                </h4>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Distribusi aktivitas fisik aset di seluruh unit kerja pada periode terpilih
+                                </p>
+                            </div>
+                            <div className="w-full sm:w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Cari nama unit..."
+                                    value={searchUnitKeyword}
+                                    onChange={(e) => setSearchUnitKeyword(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-slate-100">
+                            <table className="w-full text-left text-xs">
+                                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 uppercase tracking-wider">
+                                    <tr>
+                                        <th className="px-4 py-3 text-center w-12">No</th>
+                                        <th className="px-4 py-3">Nama Satuan Kerja / Unit</th>
+                                        <th className="px-4 py-3 text-center text-indigo-700">Aset Baru</th>
+                                        <th className="px-4 py-3 text-center text-blue-700">Mutasi</th>
+                                        <th className="px-4 py-3 text-center text-amber-700">Perbaikan</th>
+                                        <th className="px-4 py-3 text-center text-emerald-700">Cek Fisik</th>
+                                        <th className="px-4 py-3 text-center text-violet-700">Pinjam</th>
+                                        <th className="px-4 py-3 text-center text-rose-700">Disposal</th>
+                                        <th className="px-4 py-3 text-center font-black text-slate-900 bg-slate-100/50">Total Aset Aktif</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {unitSummary
+                                        .filter(u => !searchUnitKeyword || u.name.toLowerCase().includes(searchUnitKeyword.toLowerCase()))
+                                        .map((u, idx) => (
+                                            <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                                                <td className="px-4 py-3 text-center text-slate-400 font-semibold">{idx + 1}</td>
+                                                <td className="px-4 py-3 font-bold text-slate-800 text-sm">
+                                                    {u.name}
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-xs font-bold",
+                                                        u.newAssets > 0 ? "bg-indigo-50 text-indigo-700 font-black" : "text-slate-400"
+                                                    )}>
+                                                        {u.newAssets}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-xs font-bold",
+                                                        u.movements > 0 ? "bg-blue-50 text-blue-700 font-black" : "text-slate-400"
+                                                    )}>
+                                                        {u.movements}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-xs font-bold",
+                                                        u.maintenance > 0 ? "bg-amber-50 text-amber-700 font-black" : "text-slate-400"
+                                                    )}>
+                                                        {u.maintenance}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-xs font-bold",
+                                                        u.audit > 0 ? "bg-emerald-50 text-emerald-700 font-black" : "text-slate-400"
+                                                    )}>
+                                                        {u.audit}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-xs font-bold",
+                                                        u.loans > 0 ? "bg-violet-50 text-violet-700 font-black" : "text-slate-400"
+                                                    )}>
+                                                        {u.loans}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-xs font-bold",
+                                                        u.disposals > 0 ? "bg-rose-50 text-rose-700 font-black" : "text-slate-400"
+                                                    )}>
+                                                        {u.disposals}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-black text-slate-800 text-sm bg-slate-50/50">
+                                                    {u.activeAssetsCount} unit
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                                <tfoot className="bg-slate-100/80 font-black text-slate-800 border-t-2 border-slate-200">
+                                    <tr>
+                                        <td colSpan={2} className="px-4 py-3 text-right uppercase text-[11px]">
+                                            Total Keseluruhan Unit
+                                        </td>
+                                        <td className="px-4 py-3 text-center text-indigo-700">{summary.newAssetsCount}</td>
+                                        <td className="px-4 py-3 text-center text-blue-700">{summary.movementsCount}</td>
+                                        <td className="px-4 py-3 text-center text-amber-700">{summary.maintenanceCount}</td>
+                                        <td className="px-4 py-3 text-center text-emerald-700">{summary.auditCount}</td>
+                                        <td className="px-4 py-3 text-center text-violet-700">{summary.loansCount}</td>
+                                        <td className="px-4 py-3 text-center text-rose-700">{summary.disposalsCount}</td>
+                                        <td className="px-4 py-3 text-center font-black text-slate-900 bg-slate-200/50">
+                                            {unitSummary.reduce((acc, u) => acc + (u.activeAssetsCount || 0), 0)} unit
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB CONTENT: ANALISIS STATISTIK */}
+                {activeTab === 'statistics' && (
+                    <div className="space-y-6 p-4">
+                        {/* KPI STATISTIK HIGHLIGHTS */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Tingkat Servis Selesai</span>
+                                    <Wrench size={16} className="text-amber-600" />
+                                </div>
+                                <div className="text-3xl font-black text-amber-900">{statistics.maintenance.completionRate}%</div>
+                                <p className="text-xs text-amber-700 mt-1">
+                                    {statistics.maintenance.completed} dari {statistics.maintenance.total} tiket tuntas
+                                </p>
+                                <div className="w-full bg-amber-200 rounded-full h-1.5 mt-3">
+                                    <div className="bg-amber-600 h-1.5 rounded-full" style={{ width: `${statistics.maintenance.completionRate}%` }}></div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Akurasi Cek Fisik</span>
+                                    <ClipboardCheck size={16} className="text-emerald-600" />
+                                </div>
+                                <div className="text-3xl font-black text-emerald-900">{statistics.audit.accuracyRate}%</div>
+                                <p className="text-xs text-emerald-700 mt-1">
+                                    {statistics.audit.found} terdata, {statistics.audit.missing} belum ditemukan
+                                </p>
+                                <div className="w-full bg-emerald-200 rounded-full h-1.5 mt-3">
+                                    <div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${statistics.audit.accuracyRate}%` }}></div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">Frekuensi Operasional</span>
+                                    <Activity size={16} className="text-indigo-600" />
+                                </div>
+                                <div className="text-3xl font-black text-indigo-900">{statistics.operational.avgDailyEvents} <span className="text-sm font-semibold">/hari</span></div>
+                                <p className="text-xs text-indigo-700 mt-1">
+                                    Total {statistics.operational.totalEvents} transaksi ({statistics.operational.daysCount} hari periode)
+                                </p>
+                            </div>
+
+                            <div className="p-4 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 border border-violet-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-bold text-violet-800 uppercase tracking-wider">Unit Paling Aktif</span>
+                                    <Building2 size={16} className="text-violet-600" />
+                                </div>
+                                <div className="text-lg font-black text-violet-900 truncate">{statistics.operational.mostActiveUnit}</div>
+                                <p className="text-xs text-violet-700 mt-1">
+                                    Aktivitas pergerakan & logistik tertinggi
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* DISTRIBUSI KATEGORI ASET */}
+                        <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 mb-3 flex items-center gap-2">
+                                <BarChart2 size={15} className="text-indigo-600" />
+                                Sebaran Kategori Pengadaan Aset pada Periode Ini
+                            </h4>
+                            {statistics.categoryDistribution.length === 0 ? (
+                                <p className="text-xs text-slate-400 font-semibold py-4 text-center">
+                                    Belum ada penambahan aset baru pada periode ini.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {statistics.categoryDistribution.map((cat, idx) => (
+                                        <div key={idx} className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-700">
+                                                <span>{cat.name}</span>
+                                                <span>{cat.count} unit ({cat.percentage}%)</span>
+                                            </div>
+                                            <div className="w-full bg-slate-200 rounded-full h-2">
+                                                <div
+                                                    className="bg-indigo-600 h-2 rounded-full transition-all"
+                                                    style={{ width: `${cat.percentage}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB CONTENT: NEW ASSETS (ZERO PRICE) */}
                 {activeTab === 'new_assets' && (
                     <div className="space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50/60 border-b border-slate-100">
@@ -783,7 +1212,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                                     Rekapitulasi Kuantitas Pengadaan Aset ({groupedNewAssets.length} Jenis Barang)
                                 </span>
                                 <p className="text-[11px] text-slate-500 mt-0.5">
-                                    Total fisik terdata: <span className="font-bold text-indigo-600">{summary.newAssetsCount} unit aset</span> (Rp {summary.newAssetsValue.toLocaleString('id-ID')})
+                                    Total fisik terdata: <span className="font-bold text-indigo-600">{summary.newAssetsCount} unit aset</span>
                                 </p>
                             </div>
                             <button
@@ -804,7 +1233,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                                             <th className="px-5 py-3.5">Kategori</th>
                                             <th className="px-5 py-3.5">Unit Penerima</th>
                                             <th className="px-5 py-3.5 text-center">Jumlah (Qty)</th>
-                                            <th className="px-5 py-3.5 text-right">Total Estimasi Nilai</th>
+                                            <th className="px-5 py-3.5 text-center">Status / Satuan</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -832,8 +1261,10 @@ export default function WeeklyAssetReport({ currentUser }) {
                                                             {item.qty} unit
                                                         </span>
                                                     </td>
-                                                    <td className="px-5 py-3.5 text-right font-black text-slate-800 text-sm">
-                                                        Rp {(item.totalPrice || 0).toLocaleString('id-ID')}
+                                                    <td className="px-5 py-3.5 text-center">
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                                            Terdaftar
+                                                        </span>
                                                     </td>
                                                 </tr>
                                             ))
@@ -850,7 +1281,6 @@ export default function WeeklyAssetReport({ currentUser }) {
                                             <th className="px-5 py-3.5">Kategori</th>
                                             <th className="px-5 py-3.5">Unit & Ruangan</th>
                                             <th className="px-5 py-3.5">Kondisi</th>
-                                            <th className="px-5 py-3.5 text-right">Harga Perolehan</th>
                                             <th className="px-5 py-3.5">Tgl Terdaftar</th>
                                         </tr>
                                     </thead>
@@ -876,9 +1306,6 @@ export default function WeeklyAssetReport({ currentUser }) {
                                                     )}>
                                                         {item.condition}
                                                     </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right font-bold text-slate-800">
-                                                    Rp {(item.price || 0).toLocaleString('id-ID')}
                                                 </td>
                                                 <td className="px-5 py-3.5 text-slate-500">
                                                     {new Date(item.createdAt).toLocaleDateString('id-ID')}
@@ -949,7 +1376,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                 )}
 
-                {/* TAB CONTENT: MAINTENANCE */}
+                {/* TAB CONTENT: MAINTENANCE (ZERO PRICE) */}
                 {activeTab === 'maintenance' && (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
@@ -959,14 +1386,13 @@ export default function WeeklyAssetReport({ currentUser }) {
                                     <th className="px-5 py-3.5">Unit / Pemohon</th>
                                     <th className="px-5 py-3.5">Teknisi</th>
                                     <th className="px-5 py-3.5">Status</th>
-                                    <th className="px-5 py-3.5 text-right">Biaya</th>
-                                    <th className="px-5 py-3.5">Tanggal</th>
+                                    <th className="px-5 py-3.5">Tanggal Pengerjaan</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {details.maintenances.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-5 py-8 text-center text-slate-400 font-semibold">
+                                        <td colSpan={5} className="px-5 py-8 text-center text-slate-400 font-semibold">
                                             Tidak ada riwayat pemeliharaan pada periode ini.
                                         </td>
                                     </tr>
@@ -992,9 +1418,6 @@ export default function WeeklyAssetReport({ currentUser }) {
                                                 )}>
                                                     {item.status}
                                                 </span>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-right font-bold text-slate-800">
-                                                Rp {(item.cost || 0).toLocaleString('id-ID')}
                                             </td>
                                             <td className="px-5 py-3.5 text-slate-500">
                                                 {new Date(item.createdAt).toLocaleDateString('id-ID')}
@@ -1179,7 +1602,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                 )}
             </div>
 
-            {/* 4. OFFICIAL PRINTABLE REPORT CONTAINER (VISIBLE IN PRINT OR PREVIEW MODE) */}
+            {/* 4. OFFICIAL PRINTABLE REPORT CONTAINER (ZERO PRICE - FOKUS KUANTITAS & STATISTIK) */}
             <div 
                 id="printable-weekly-report"
                 className={cn(
@@ -1191,81 +1614,201 @@ export default function WeeklyAssetReport({ currentUser }) {
                 {/* KOP SURAT RESMI */}
                 <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
                     <h2 className="text-2xl font-black tracking-wider text-slate-900 uppercase">BIDANG SARANA</h2>
-                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest">YAYASAN DAR EL-IMAN PADANG</h3>
+                    <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest">YAYASAN DAR EL-IMAN</h3>
                     <p className="text-[11px] text-slate-600">Jl. Gunuang Juaro, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat</p>
                 </div>
 
                 {/* JUDUL LAPORAN */}
                 <div className="text-center space-y-1">
-                    <h4 className="text-sm font-black uppercase tracking-wider underline">LAPORAN OPERASIONAL & PERGERAKAN ASET MINGGUAN</h4>
+                    <h4 className="text-sm font-black uppercase tracking-wider underline">
+                        {preset === 'today' ? 'LAPORAN OPERASIONAL & PERGERAKAN ASET HARIAN (HARI INI)' :
+                         preset === 'yesterday' ? 'LAPORAN OPERASIONAL & PERGERAKAN ASET HARIAN (KEMARIN)' :
+                         preset === 'this_week' ? 'LAPORAN OPERASIONAL & PERGERAKAN ASET MINGGUAN (MINGGU INI)' :
+                         preset === 'last_week' ? 'LAPORAN OPERASIONAL & PERGERAKAN ASET MINGGUAN (MINGGU LALU)' :
+                         preset === 'this_month' ? 'LAPORAN OPERASIONAL & PERGERAKAN ASET BULANAN (BULAN INI)' :
+                         preset === 'last_month' ? 'LAPORAN OPERASIONAL & PERGERAKAN ASET BULANAN (BULAN LALU)' :
+                         'LAPORAN OPERASIONAL & PERGERAKAN ASET BERKALA'}
+                    </h4>
                     <p className="text-xs font-bold text-slate-600">
-                        Periode: {data?.period?.formattedPeriod || '-'}
+                        Periode: {data?.period?.formattedPeriod || `${startDate} s/d ${endDate}`}
                     </p>
                     <p className="text-[11px] font-medium text-slate-500">
-                        Lingkup Unit: {data?.unit || 'Seluruh Unit'}
+                        Lingkup Satuan Kerja: {data?.unit || 'Seluruh Unit / Satker'}
                     </p>
                 </div>
 
                 {/* I. REKAPITULASI METRIK */}
                 <div className="space-y-2">
                     <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                        I. Ringkasan Rekapitulasi Metrik Aset
+                        I. Ringkasan Rekapitulasi Kuantitas & Mutasi Aset
                     </h5>
                     <table className="w-full text-xs border border-slate-300 mt-2">
                         <thead className="bg-slate-100 font-bold text-slate-700">
                             <tr>
                                 <th className="border border-slate-300 px-3 py-2 text-center w-12">No</th>
-                                <th className="border border-slate-300 px-3 py-2 text-left">Indikator Kinerja / Aktivitas</th>
-                                <th className="border border-slate-300 px-3 py-2 text-center w-28">Jumlah</th>
-                                <th className="border border-slate-300 px-3 py-2 text-right w-44">Keterangan / Estimasi Nilai</th>
+                                <th className="border border-slate-300 px-3 py-2 text-left">Indikator Aktivitas Aset</th>
+                                <th className="border border-slate-300 px-3 py-2 text-center w-28">Jumlah Fisik</th>
+                                <th className="border border-slate-300 px-3 py-2 text-left">Keterangan Operasional</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center">1</td>
                                 <td className="border border-slate-300 px-3 py-1.5 font-medium">Aset Baru Masuk (Pengadaan / Registrasi)</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.newAssetsCount} item</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-right font-semibold">Rp {summary.newAssetsValue.toLocaleString('id-ID')}</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.newAssetsCount} unit</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-slate-600">{groupedNewAssets.length} macam jenis barang inventaris baru</td>
                             </tr>
                             <tr>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center">2</td>
                                 <td className="border border-slate-300 px-3 py-1.5 font-medium">Mutasi & Perpindahan Ruangan/Unit</td>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.movementsCount} transaksi</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-right text-slate-500">Relokasi sarana</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-slate-600">Relokasi / mutasi sarana antar unit dan ruangan</td>
                             </tr>
                             <tr>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center">3</td>
                                 <td className="border border-slate-300 px-3 py-1.5 font-medium">Pemeliharaan & Perbaikan Sarana</td>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.maintenanceCount} tiket</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-right font-semibold">Rp {summary.maintenanceCost.toLocaleString('id-ID')}</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-slate-600">{statistics.maintenance.completed} selesai ({statistics.maintenance.completionRate}%), {statistics.maintenance.inProgress} pengerjaan, {statistics.maintenance.pending} antri</td>
                             </tr>
                             <tr>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center">4</td>
                                 <td className="border border-slate-300 px-3 py-1.5 font-medium">Audit & Verifikasi Fisik Aset Lapangan</td>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.auditCount} item</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-right text-slate-500">Verifikasi kondisi fisik</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-slate-600">{statistics.audit.found} terdata ada ({statistics.audit.accuracyRate}%), {statistics.audit.missing} belum terverifikasi</td>
                             </tr>
                             <tr>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center">5</td>
                                 <td className="border border-slate-300 px-3 py-1.5 font-medium">Peminjaman Aset Antar Unit / Luar</td>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.loansCount} transaksi</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-right text-slate-500">Peminjaman fasilitas</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-slate-600">{statistics.loans.borrowed} aktif dipinjam, {statistics.loans.returned} sudah dikembalikan</td>
                             </tr>
                             <tr>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center">6</td>
                                 <td className="border border-slate-300 px-3 py-1.5 font-medium">Usulan Penghapusan (Disposal / Rusak Berat)</td>
                                 <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{summary.disposalsCount} item</td>
-                                <td className="border border-slate-300 px-3 py-1.5 text-right text-slate-500">Usulan lelang/pemusnahan</td>
+                                <td className="border border-slate-300 px-3 py-1.5 text-slate-600">Usulan pemusnahan / lelang aset kondisi rusak berat</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                {/* II. REKAPITULASI KUANTITAS ASET BARU */}
+                {/* II. ANALISIS STATISTIK OPERASIONAL */}
+                <div className="space-y-2">
+                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
+                        II. Analisis Statistik Kinerja Operasional & Distribusi Kategori
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                        <table className="w-full border border-slate-300">
+                            <thead className="bg-slate-100 font-bold text-slate-700">
+                                <tr>
+                                    <th colSpan={2} className="border border-slate-300 px-3 py-1.5 text-left uppercase text-[10px]">Indikator Efektivitas Sarpras</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-medium">Tingkat Penyelesaian Servis</td>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-right">{statistics.maintenance.completionRate}% ({statistics.maintenance.completed}/{statistics.maintenance.total} tiket)</td>
+                                </tr>
+                                <tr>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-medium">Akurasi Verifikasi Cek Fisik</td>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-right">{statistics.audit.accuracyRate}% ({statistics.audit.found}/{statistics.audit.total} item)</td>
+                                </tr>
+                                <tr>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-medium">Rata-rata Transaksi Harian</td>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-right">{statistics.operational.avgDailyEvents} transaksi / hari</td>
+                                </tr>
+                                <tr>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-medium">Satuan Kerja Teraktif</td>
+                                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-right">{statistics.operational.mostActiveUnit}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <table className="w-full border border-slate-300">
+                            <thead className="bg-slate-100 font-bold text-slate-700">
+                                <tr>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-left">Kategori Aset Baru</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-center w-16">Jumlah</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-right w-16">Porsi %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {statistics.categoryDistribution.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={3} className="border border-slate-300 px-3 py-3 text-center text-slate-400">
+                                            Tidak ada penambahan kategori pada periode ini
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    statistics.categoryDistribution.slice(0, 4).map((cat, idx) => (
+                                        <tr key={idx}>
+                                            <td className="border border-slate-300 px-3 py-1.5 font-medium">{cat.name}</td>
+                                            <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{cat.count}</td>
+                                            <td className="border border-slate-300 px-3 py-1.5 text-right font-bold">{cat.percentage}%</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* III. RINGKASAN SEBARAN PER UNIT */}
+                {unitSummary.length > 0 && (
+                    <div className="space-y-2">
+                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
+                            III. Ringkasan Sebaran Aktivitas per Satuan Kerja / Unit
+                        </h5>
+                        <table className="w-full text-[10px] border border-slate-300 mt-2">
+                            <thead className="bg-slate-100 font-bold text-slate-700">
+                                <tr>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-8">No</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-left">Nama Satker / Unit</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-14">Aset Baru</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-14">Mutasi</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-14">Servis</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-14">Cek Fisik</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-14">Pinjam</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-14">Hapus</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-20">Total Aset</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {unitSummary.map((u, idx) => (
+                                    <tr key={u.id}>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{idx + 1}</td>
+                                        <td className="border border-slate-300 px-2 py-1 font-bold text-slate-900">{u.name}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.newAssets || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.movements || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.maintenance || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.audit || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.loans || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.disposals || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center font-black text-slate-900">{u.activeAssetsCount} unit</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="bg-slate-100 font-bold text-slate-900">
+                                <tr>
+                                    <td colSpan={2} className="border border-slate-300 px-2 py-1 text-right uppercase">Total</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center">{summary.newAssetsCount}</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center">{summary.movementsCount}</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center">{summary.maintenanceCount}</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center">{summary.auditCount}</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center">{summary.loansCount}</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center">{summary.disposalsCount}</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center font-black">{unitSummary.reduce((acc, u) => acc + (u.activeAssetsCount || 0), 0)} unit</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                )}
+
+                {/* IV. REKAPITULASI KUANTITAS ASET BARU */}
                 {groupedNewAssets.length > 0 && (
                     <div className="space-y-2">
                         <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                            II. Rekapitulasi Kuantitas Aset Baru Masuk (Pengadaan)
+                            IV. Rekapitulasi Kuantitas Aset Baru Masuk (Pengadaan)
                         </h5>
                         <table className="w-full text-[11px] border border-slate-300 mt-2">
                             <thead className="bg-slate-100 font-bold text-slate-700">
@@ -1274,8 +1817,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                                     <th className="border border-slate-300 px-3 py-1.5 text-left">Nama Barang / Aset</th>
                                     <th className="border border-slate-300 px-3 py-1.5 text-left w-36">Kategori</th>
                                     <th className="border border-slate-300 px-3 py-1.5 text-left w-40">Unit Penerima</th>
-                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-24">Jumlah (Qty)</th>
-                                    <th className="border border-slate-300 px-3 py-1.5 text-right w-36">Total Nilai Perolehan</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center w-24">Jumlah Fisik</th>
+                                    <th className="border border-slate-300 px-3 py-1.5 text-center w-28">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1290,8 +1833,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                                         <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-slate-900">
                                             {item.qty} unit
                                         </td>
-                                        <td className="border border-slate-300 px-3 py-1.5 text-right font-bold text-slate-800">
-                                            Rp {(item.totalPrice || 0).toLocaleString('id-ID')}
+                                        <td className="border border-slate-300 px-3 py-1.5 text-center text-emerald-800 font-semibold">
+                                            Terdaftar
                                         </td>
                                     </tr>
                                 ))}
@@ -1304,8 +1847,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                                     <td className="border border-slate-300 px-2 py-1.5 text-center font-black text-indigo-900">
                                         {summary.newAssetsCount} unit
                                     </td>
-                                    <td className="border border-slate-300 px-3 py-1.5 text-right font-black text-indigo-900">
-                                        Rp {summary.newAssetsValue.toLocaleString('id-ID')}
+                                    <td className="border border-slate-300 px-3 py-1.5 text-center text-slate-500">
+                                        Lengkap
                                     </td>
                                 </tr>
                             </tfoot>
@@ -1313,11 +1856,11 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                 )}
 
-                {/* III. DETAIL MUTASI */}
+                {/* V. DETAIL MUTASI */}
                 {details.movements.length > 0 && (
                     <div className="space-y-2">
                         <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                            III. Daftar Mutasi & Perpindahan Aset
+                            V. Rekapitulasi Mutasi & Perpindahan Aset
                         </h5>
                         <table className="w-full text-[11px] border border-slate-300 mt-2">
                             <thead className="bg-slate-100 font-bold text-slate-700">
@@ -1344,20 +1887,20 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                 )}
 
-                {/* IV. DETAIL PEMELIHARAAN */}
+                {/* VI. DETAIL PEMELIHARAAN (ZERO PRICE) */}
                 {details.maintenances.length > 0 && (
                     <div className="space-y-2">
                         <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                            IV. Daftar Pemeliharaan & Servis Sarana
+                            VI. Rekapitulasi Pemeliharaan & Perbaikan Sarana
                         </h5>
                         <table className="w-full text-[11px] border border-slate-300 mt-2">
                             <thead className="bg-slate-100 font-bold text-slate-700">
                                 <tr>
                                     <th className="border border-slate-300 px-2 py-1 text-center w-8">No</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-left">Judul Pemeliharaan</th>
+                                    <th className="border border-slate-300 px-2 py-1 text-left">Tiket / Judul Pemeliharaan</th>
                                     <th className="border border-slate-300 px-2 py-1 text-left">Unit</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-center w-20">Status</th>
-                                    <th className="border border-slate-300 px-2 py-1 text-right w-24">Biaya</th>
+                                    <th className="border border-slate-300 px-2 py-1 text-left">Teknisi</th>
+                                    <th className="border border-slate-300 px-2 py-1 text-center w-28">Status Pengerjaan</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1369,10 +1912,8 @@ export default function WeeklyAssetReport({ currentUser }) {
                                             <div className="text-[10px] text-slate-400">{item.code}</div>
                                         </td>
                                         <td className="border border-slate-300 px-2 py-1">{item.unit?.name || '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-slate-600">{item.technician || '-'}</td>
                                         <td className="border border-slate-300 px-2 py-1 text-center font-bold">{item.status}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-right font-bold">
-                                            Rp {(item.cost || 0).toLocaleString('id-ID')}
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1380,7 +1921,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </div>
                 )}
 
-                {/* BLOK TANDA TANGAN RESMI (CUKUP KEPALA BIDANG SARANA) */}
+                {/* BLOK TANDA TANGAN RESMI (KEPALA BIDANG SARANA) */}
                 <div className="pt-8 flex justify-end text-center text-xs">
                     <div className="w-64">
                         <p className="font-semibold text-slate-600">Mengetahui,</p>

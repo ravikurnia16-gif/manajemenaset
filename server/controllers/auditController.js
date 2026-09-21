@@ -1,17 +1,33 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { uploadFile } = require('../services/minioService');
 
-// Get all audit sessions
+// Get all audit sessions with status counts
 exports.getAllSessions = async (req, res) => {
     try {
         const sessions = await prisma.auditSession.findMany({
             include: { 
                 creator: { select: { name: true } },
+                items: { select: { status: true } },
                 _count: { select: { items: true } }
             },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(sessions);
+
+        // Compute detailed status stats for each session
+        const sessionsWithStats = sessions.map(s => {
+            const total = s.items.length;
+            const found = s.items.filter(i => i.status === 'FOUND').length;
+            const missing = s.items.filter(i => i.status === 'MISSING').length;
+            const pending = s.items.filter(i => i.status === 'PENDING').length;
+            const { items, ...rest } = s;
+            return {
+                ...rest,
+                stats: { total, found, missing, pending }
+            };
+        });
+
+        res.json(sessionsWithStats);
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
@@ -68,9 +84,21 @@ exports.getSessionById = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-// Verify/Scan item
+// Dedicated Photo Upload for Audit (handled by handleUpload middleware & MinIO compression)
+exports.uploadPhoto = async (req, res) => {
+    try {
+        if (!req.fileUrl) {
+            return res.status(400).json({ error: 'Tidak ada foto yang diunggah' });
+        }
+        res.json({ url: req.fileUrl });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
+
+// Verify/Scan item (supports saving photo to MinIO with Sharp compression)
 exports.verifyItem = async (req, res) => {
-    const { sessionId, assetCode, status, condition, note, foundLocationId } = req.body;
+    const { sessionId, assetCode, status, condition, note, foundLocationId, image } = req.body;
     try {
         // Find the asset first
         const asset = await prisma.asset.findUnique({ where: { code: assetCode } });
@@ -82,9 +110,22 @@ exports.verifyItem = async (req, res) => {
         });
 
         if (!auditItem) {
-            // If item not in session (Unexpected item found in room), we can still record it
-            // For now, let's just return error or handle it as "Unexpected"
             return res.status(400).json({ error: 'Aset ini tidak termasuk dalam cakupan audit sesi ini' });
+        }
+
+        // Handle Image: If base64 is sent directly, upload it to MinIO with Sharp compression
+        let processedImageUrl = image || undefined;
+        if (image && typeof image === 'string' && image.startsWith('data:image/')) {
+            try {
+                const matches = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    const mimeType = matches[1];
+                    const buffer = Buffer.from(matches[2], 'base64');
+                    processedImageUrl = await uploadFile(buffer, `audit-${asset.code}-${Date.now()}.jpg`, mimeType, 'audit');
+                }
+            } catch (err) {
+                console.error('[AUDIT] Base64 upload to MinIO error:', err);
+            }
         }
 
         const updatedItem = await prisma.auditItem.update({
@@ -94,6 +135,7 @@ exports.verifyItem = async (req, res) => {
                 foundCondition: condition,
                 foundLocationId: foundLocationId ? parseInt(foundLocationId) : undefined,
                 notes: note,
+                image: processedImageUrl,
                 auditorId: req.user.id,
                 verifiedAt: new Date()
             },
@@ -136,9 +178,34 @@ exports.approveItem = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+// Bulk Approve Reconcile for all FOUND items or selected items
+exports.bulkApproveReconcile = async (req, res) => {
+    const { sessionId, approved = true, itemIds } = req.body;
+    try {
+        const whereClause = {
+            sessionId: parseInt(sessionId),
+            status: 'FOUND'
+        };
+        if (itemIds && Array.isArray(itemIds) && itemIds.length > 0) {
+            whereClause.id = { in: itemIds.map(id => parseInt(id)) };
+        }
+        const result = await prisma.auditItem.updateMany({
+            where: whereClause,
+            data: { reconcileApproved: approved }
+        });
+        res.json({ 
+            message: `Berhasil memperbarui persetujuan ${result.count} aset`, 
+            count: result.count 
+        });
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
+};
+
 // Finalize/Reconcile Session
 exports.finalizeSession = async (req, res) => {
     const sessionId = parseInt(req.params.id);
+    const { autoMarkMissing } = req.body;
     try {
         const session = await prisma.auditSession.findUnique({
             where: { id: sessionId },
@@ -149,8 +216,26 @@ exports.finalizeSession = async (req, res) => {
             return res.status(400).json({ error: 'Sesi audit tidak valid atau sudah ditutup' });
         }
 
-        // Perform Reconciliation ONLY for Approved Items
-        const approvedItems = session.items.filter(item => item.status === 'FOUND' && item.reconcileApproved);
+        // If autoMarkMissing is requested, update any remaining PENDING items to MISSING
+        if (autoMarkMissing) {
+            await prisma.auditItem.updateMany({
+                where: { sessionId: sessionId, status: 'PENDING' },
+                data: {
+                    status: 'MISSING',
+                    notes: 'Tidak ditemukan saat finalisasi stock opname',
+                    auditorId: req.user.id,
+                    verifiedAt: new Date()
+                }
+            });
+        }
+
+        // Re-fetch all items for reconciliation
+        const allItems = await prisma.auditItem.findMany({
+            where: { sessionId: sessionId }
+        });
+
+        // Perform Reconciliation ONLY for Approved FOUND Items
+        const approvedItems = allItems.filter(item => item.status === 'FOUND' && item.reconcileApproved);
         
         await prisma.$transaction(async (tx) => {
             for (const item of approvedItems) {
@@ -171,7 +256,7 @@ exports.finalizeSession = async (req, res) => {
         });
 
         res.json({ 
-            message: `Audit difinalisasi. ${approvedItems.length} aset telah diperbarui berdasarkan persetujuan.`,
+            message: `Audit difinalisasi. ${approvedItems.length} aset telah disinkronkan ke database utama.`,
             updatedCount: approvedItems.length
         });
     } catch (e) { res.status(500).json({ error: e.message }); }

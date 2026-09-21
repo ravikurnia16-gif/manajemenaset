@@ -14,6 +14,10 @@ server/.env
 server/prisma/dev.db
 server/prisma/dev.db-journal
 
+# WhatsApp Web & Bot Session Cache
+.wwebjs_auth/
+.wwebjs_cache/
+
 # File System / OS
 .DS_Store
 Thumbs.db
