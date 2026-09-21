@@ -1303,6 +1303,7 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
             receiverName: receiverName,
             receiverUnit: procurement.unit?.name || 'Unit Pemohon',
             date: effectiveDate.toISOString(),
+            warranty: parsedSigs.warranty || null,
             items: itemsList
         };
 
@@ -1393,7 +1394,7 @@ exports.syncBastToOfficeDocument = syncBastToOfficeDocument;
 // Update BAST Signatures & Metadata (supports updating anytime or after COMPLETED)
 exports.updateBASTSignatures = async (req, res) => {
     const { id } = req.params;
-    const { receiverName, staffName, receiverSignature, staffSignature, bastNotes, bastDate, photoUrl } = req.body;
+    const { receiverName, staffName, receiverSignature, staffSignature, bastNotes, bastWarranty, warranty, bastDate, photoUrl } = req.body;
     try {
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) }
@@ -1407,6 +1408,8 @@ exports.updateBASTSignatures = async (req, res) => {
             existing.fileUrl = procurement.bastFile;
         }
 
+        const effectiveWarranty = bastWarranty !== undefined ? bastWarranty : (warranty !== undefined ? warranty : existing.warranty);
+
         const updated = {
             ...existing,
             fileUrl: photoUrl !== undefined ? photoUrl : (existing.fileUrl || null),
@@ -1415,6 +1418,7 @@ exports.updateBASTSignatures = async (req, res) => {
             receiverSignature: receiverSignature !== undefined ? receiverSignature : (existing.receiverSignature || null),
             staffSignature: staffSignature !== undefined ? staffSignature : (existing.staffSignature || null),
             notes: bastNotes !== undefined ? bastNotes : (existing.notes || null),
+            warranty: effectiveWarranty || null,
             bastDate: bastDate || existing.bastDate || (procurement.bastDate ? procurement.bastDate.toISOString() : null)
         };
 
@@ -1626,7 +1630,7 @@ exports.cancelBastKabidTte = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    let { bastDate, bastFile, assetDetails, warehouseFulfillments, receiverName, staffName, receiverSignature, staffSignature, bastSignatures, bastPhotoUrl, bastNotes } = req.body;
+    let { bastDate, bastFile, assetDetails, warehouseFulfillments, receiverName, staffName, receiverSignature, staffSignature, bastSignatures, bastPhotoUrl, bastNotes, bastWarranty, warranty } = req.body;
 
     if (typeof assetDetails === 'string') {
         try { assetDetails = JSON.parse(assetDetails); } catch (e) { }
@@ -1680,10 +1684,11 @@ exports.processBAST = async (req, res) => {
         const finalReceiverSignature = receiverSignature || parsedSigs.receiverSignature || null;
         const finalStaffSignature = staffSignature || parsedSigs.staffSignature || null;
         const finalNotes = bastNotes || parsedSigs.notes || null;
+        const finalWarranty = bastWarranty || warranty || parsedSigs.warranty || null;
         const finalPhotoUrl = req.fileUrl || bastPhotoUrl || (typeof bastFile === 'string' && !bastFile.startsWith('{') && !bastFile.startsWith('data:') ? bastFile : null);
 
         let bastPayload = null;
-        if (finalReceiverName || finalStaffName || finalReceiverSignature || finalStaffSignature || finalNotes || parsedSigs.kabidTte) {
+        if (finalReceiverName || finalStaffName || finalReceiverSignature || finalStaffSignature || finalNotes || finalWarranty || parsedSigs.kabidTte) {
             bastPayload = JSON.stringify({
                 ...parsedSigs,
                 fileUrl: finalPhotoUrl || parsedSigs.fileUrl || null,
@@ -1692,6 +1697,7 @@ exports.processBAST = async (req, res) => {
                 receiverSignature: finalReceiverSignature,
                 staffSignature: finalStaffSignature,
                 notes: finalNotes,
+                warranty: finalWarranty,
                 bastDate: bastDate
             });
         } else {
@@ -1781,7 +1787,7 @@ exports.processBAST = async (req, res) => {
                             data: {
                                 code: assetCode,
                                 name: item.name,
-                                specification: item.spec,
+                                specification: finalWarranty ? `${item.spec || ''} [Garansi: ${finalWarranty}]`.trim() : item.spec,
                                 brand: item.brand,
                                 price: item.finalPrice || item.estPrice,
                                 purchaseDate: new Date(bastDate),

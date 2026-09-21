@@ -412,6 +412,7 @@ const ProcurementDetail = () => {
     const [staffName, setStaffName] = useState('');
     const [staffSignature, setStaffSignature] = useState(null);
     const [bastNotes, setBastNotes] = useState('');
+    const [bastWarranty, setBastWarranty] = useState('');
     const [sigModal, setSigModal] = useState({ open: false, type: null, title: '' });
     const [showBastDocModal, setShowBastDocModal] = useState(false);
     const [bastDoc, setBastDoc] = useState(null);
@@ -830,6 +831,7 @@ const ProcurementDetail = () => {
                 if (parsedSigs.receiverSignature) setReceiverSignature(parsedSigs.receiverSignature);
                 if (parsedSigs.staffSignature) setStaffSignature(parsedSigs.staffSignature);
                 if (parsedSigs.notes) setBastNotes(parsedSigs.notes);
+                if (parsedSigs.warranty) setBastWarranty(parsedSigs.warranty);
             } else {
                 if (data.bastFile) setHandoverPhoto(data.bastFile);
                 setReceiverName(defaultReceiver);
@@ -1087,12 +1089,14 @@ const ProcurementDetail = () => {
             if (receiverSignature) formData.append('receiverSignature', receiverSignature);
             if (staffSignature) formData.append('staffSignature', staffSignature);
             if (bastNotes) formData.append('bastNotes', bastNotes);
+            if (bastWarranty) formData.append('bastWarranty', bastWarranty);
             formData.append('bastSignatures', JSON.stringify({
                 receiverName: receiverName || '',
                 staffName: staffName || '',
                 receiverSignature: receiverSignature || null,
                 staffSignature: staffSignature || null,
                 notes: bastNotes || '',
+                warranty: bastWarranty || '',
                 fileUrl: typeof handoverPhoto === 'string' && !handoverPhoto.startsWith('data:') ? handoverPhoto : null
             }));
 
@@ -1125,6 +1129,7 @@ const ProcurementDetail = () => {
                 receiverSignature: receiverSignature || null,
                 staffSignature: staffSignature || null,
                 bastNotes: bastNotes || '',
+                bastWarranty: bastWarranty || '',
                 bastDate: bastDate || null,
                 photoUrl: typeof handoverPhoto === 'string' && !handoverPhoto.startsWith('data:') ? handoverPhoto : null
             };
@@ -3928,6 +3933,40 @@ const ProcurementDetail = () => {
                                                 />
                                             </div>
 
+                                            {/* Masa Garansi (Opsional) */}
+                                            <div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                    <Label style={{ marginBottom: 0 }}>Masa Garansi Barang / Jasa (Jika Ada)</Label>
+                                                    <span style={{ fontSize: 11, color: T.slate, fontStyle: 'italic' }}>Opsional</span>
+                                                </div>
+                                                <Input
+                                                    placeholder="Contoh: 1 Tahun (Garansi Resmi Vendor), 6 Bulan Servis..."
+                                                    disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny || isRequester)}
+                                                    value={bastWarranty}
+                                                    onChange={e => setBastWarranty(e.target.value)}
+                                                />
+                                                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                                    {['Tidak Ada', '3 Bulan', '6 Bulan', '1 Tahun', '2 Tahun', '3 Tahun', '5 Tahun'].map(preset => (
+                                                        <button
+                                                            key={preset}
+                                                            type="button"
+                                                            disabled={req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny || isRequester)}
+                                                            onClick={() => setBastWarranty(preset === 'Tidak Ada' ? '' : preset)}
+                                                            style={{
+                                                                padding: '3px 8px', borderRadius: 6, fontSize: 11,
+                                                                border: `1px solid ${bastWarranty === preset || (preset === 'Tidak Ada' && !bastWarranty) ? '#16a34a' : T.border}`,
+                                                                background: bastWarranty === preset || (preset === 'Tidak Ada' && !bastWarranty) ? '#dcfce7' : T.white,
+                                                                color: bastWarranty === preset || (preset === 'Tidak Ada' && !bastWarranty) ? '#15803d' : T.text,
+                                                                cursor: (req.status === 'COMPLETED' && !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer',
+                                                                fontWeight: 600, transition: 'all .15s'
+                                                            }}
+                                                        >
+                                                            {preset}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
                                             {/* Photo / File Upload */}
                                             <div>
                                                 <Label>Foto Bukti / Scan Berkas Serah Terima</Label>
@@ -4022,6 +4061,12 @@ const ProcurementDetail = () => {
                                                     {handoverPhoto ? <CheckCircle size={15} color={T.success} /> : <Clock size={15} color={T.slate} />}
                                                     <span style={{ color: handoverPhoto ? T.text : T.slate }}>
                                                         {handoverPhoto ? 'Foto/berkas bukti fisik telah diunggah' : 'Foto bukti fisik belum diunggah (bisa menyusul)'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                                    <CheckCircle size={15} color={bastWarranty ? T.success : T.slate} />
+                                                    <span style={{ color: bastWarranty ? T.text : T.slate }}>
+                                                        {bastWarranty ? `Masa Garansi: ${bastWarranty}` : 'Masa garansi belum ditentukan (opsional)'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -4545,6 +4590,12 @@ const ProcurementDetail = () => {
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                                                     <span style={{ color: T.slate }}>Status</span>
                                                     <StatusBadge status="COMPLETED" />
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                                    <span style={{ color: T.slate }}>Masa Garansi</span>
+                                                    <span style={{ fontWeight: 700, color: (bastWarranty || bastSignatures?.warranty) ? '#15803d' : T.navy }}>
+                                                        {bastWarranty || bastSignatures?.warranty || 'Tidak ada / —'}
+                                                    </span>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                                                     <span style={{ color: T.slate }}>Total Nilai Pengadaan</span>
@@ -5767,6 +5818,24 @@ const ProcurementDetail = () => {
                                         ))}
                                     </tbody>
                                 </table>
+
+                                {/* Klausul Masa Garansi (Jika Ada) */}
+                                {(bastWarranty || bastSignatures?.warranty) && (
+                                    <div style={{
+                                        margin: '0 0 10px',
+                                        padding: '5px 10px',
+                                        background: '#f8fafc',
+                                        border: '1px dashed #64748b',
+                                        borderRadius: 6,
+                                        fontSize: 10.5,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8
+                                    }}>
+                                        <strong style={{ color: '#1e293b' }}>Masa Garansi Barang / Pekerjaan:</strong>
+                                        <span style={{ color: '#0f766e', fontWeight: 'bold' }}>{bastWarranty || bastSignatures?.warranty}</span>
+                                    </div>
+                                )}
 
                                 {/* Penutup */}
                                 <p style={{ textIndent: 30, textAlign: 'justify', margin: '0 0 10px' }}>
