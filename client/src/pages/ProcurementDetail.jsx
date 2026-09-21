@@ -5970,7 +5970,21 @@ const ProcurementDetail = () => {
                 <ProcurementLetterModal
                     isOpen={showRequestLetterModal}
                     onClose={() => setShowRequestLetterModal(false)}
-                    letterData={req.requestLetter}
+                    letterData={{
+                        ...req.requestLetter,
+                        items: (req.requestLetter.items && req.requestLetter.items.length > 0)
+                            ? req.requestLetter.items.map((it, idx) => {
+                                const match = (req.items || []).find(ri => ri.name === it.name) || (req.items || [])[idx];
+                                const p = parseFloat(it.estPrice ?? it.estimatedPrice ?? it.price ?? match?.estPrice ?? 0) || 0;
+                                return {
+                                    ...it,
+                                    estPrice: p,
+                                    estimatedPrice: p,
+                                    price: p
+                                };
+                            })
+                            : (req.items || [])
+                    }}
                     procurementId={req.id}
                     isKabidUser={isKabid}
                     onKabidTte={handleKabidTte}

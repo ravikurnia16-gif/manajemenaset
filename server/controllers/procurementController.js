@@ -341,6 +341,18 @@ exports.getProcurementById = async (req, res) => {
         if (letterProgress) {
             try {
                 requestLetter = JSON.parse(letterProgress.message.replace('[SURAT_PERMOHONAN]', '').trim());
+                if (requestLetter && Array.isArray(requestLetter.items)) {
+                    requestLetter.items = requestLetter.items.map((it, idx) => {
+                        const match = formattedItems.find(fi => fi.name === it.name) || formattedItems[idx];
+                        const price = parseFloat(it.estPrice ?? it.estimatedPrice ?? it.price ?? match?.estPrice ?? 0) || 0;
+                        return {
+                            ...it,
+                            estPrice: price,
+                            estimatedPrice: price,
+                            price: price
+                        };
+                    });
+                }
             } catch (e) { }
         }
 
@@ -414,15 +426,20 @@ exports.createProcurement = async (req, res) => {
         const userUnit = targetUnitId ? await prisma.unit.findUnique({ where: { id: targetUnitId } }) : null;
         const unitCode = userUnit?.code ? userUnit.code.toUpperCase() : 'UNIT';
 
-        const consolidatedItems = items.map(it => ({
-            name: it.name,
-            spec: it.spec || '',
-            qty: parseInt(it.qty) || 1,
-            unit: it.unit || 'unit',
-            estPrice: parseFloat(it.estPrice || 0),
-            fundingSource: it.fundingSource || 'Yayasan',
-            notes: it.notes || ''
-        }));
+        const consolidatedItems = items.map(it => {
+            const price = parseFloat(it.estPrice ?? it.estimatedPrice ?? it.price ?? 0) || 0;
+            return {
+                name: it.name,
+                spec: it.spec || '',
+                qty: parseInt(it.qty) || 1,
+                unit: it.unit || 'unit',
+                estPrice: price,
+                estimatedPrice: price,
+                price: price,
+                fundingSource: it.fundingSource || 'Yayasan',
+                notes: it.notes || ''
+            };
+        });
 
         const kabidUser = await prisma.user.findFirst({
             where: {

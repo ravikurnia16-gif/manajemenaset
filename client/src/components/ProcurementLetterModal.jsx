@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, CheckCircle2, ShieldCheck, Clock, FileText, AlertCircle, PenTool, Loader2 } from 'lucide-react';
 import api from '../lib/axios';
 import SignaturePad from './SignaturePad';
+import QRCode from 'react-qr-code';
 
 const formatKopAddress = (addr) => {
     if (!addr) return 'Sumatera Barat';
@@ -101,7 +102,7 @@ const ProcurementLetterModal = ({
     };
 
     const totalEstimate = items.reduce((acc, it) => {
-        const p = parseFloat(it.estimatedPrice || it.price || 0) || 0;
+        const p = parseFloat(it.estPrice ?? it.estimatedPrice ?? it.price ?? it.finalPrice ?? it.unitPrice ?? it.harga ?? 0) || 0;
         const q = parseFloat(it.qty || it.quantity || 1) || 1;
         return acc + (p * q);
     }, 0);
@@ -314,7 +315,7 @@ const ProcurementLetterModal = ({
                                     ) : (
                                         items.map((item, idx) => {
                                             const qty = parseFloat(item.qty || item.quantity || 1) || 1;
-                                            const price = parseFloat(item.estimatedPrice || item.price || 0) || 0;
+                                            const price = parseFloat(item.estPrice ?? item.estimatedPrice ?? item.price ?? item.finalPrice ?? item.unitPrice ?? item.harga ?? 0) || 0;
                                             const subtotal = qty * price;
                                             return (
                                                 <tr key={idx}>
@@ -446,7 +447,7 @@ const ProcurementLetterModal = ({
                                     </div>
                                 </div>
 
-                                {/* Kolom 3: Diterima / Mengetahui: Kepala Bidang Sarana (TTE) */}
+                                {/* Kolom 3: Diterima / Mengetahui: Kepala Bidang Sarana (TTE QR Code dengan Logo) */}
                                 <div className="flex flex-col items-center justify-between min-h-[145px]">
                                     <div>
                                         <p className="font-medium">Diterima / Mengetahui,</p>
@@ -454,15 +455,31 @@ const ProcurementLetterModal = ({
                                     </div>
                                     <div className="my-1 flex items-center justify-center h-20 w-full">
                                         {kabidTte ? (
-                                            <div className="border-2 border-emerald-600 bg-emerald-50 rounded-lg p-2 text-center shadow-xs">
-                                                <div className="flex items-center justify-center gap-1 text-emerald-700 font-bold text-[9pt] font-sans">
-                                                    <ShieldCheck size={14} className="text-emerald-600" />
-                                                    <span>TERVERIFIKASI TTE</span>
+                                            <div className="flex flex-col items-center justify-center">
+                                                <div className="relative p-1 bg-white border border-emerald-300 rounded-lg shadow-xs flex items-center justify-center">
+                                                    <QRCode
+                                                        value={`https://sarpras.dareliman.or.id/verify-doc?type=PERMOHONAN&no=${encodeURIComponent(letterNumber || '-')}&kabid=${encodeURIComponent(displayKabidName)}`}
+                                                        size={56}
+                                                        level="H"
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                            <img
+                                                                src="/Sarpras.jpeg"
+                                                                alt="Logo Bidang Sarana"
+                                                                className="w-3.5 h-3.5 object-contain rounded-xs"
+                                                                onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="text-[7.5pt] text-emerald-800 mt-0.5 font-sans leading-tight">
-                                                    Dokumen Sah Elektronik
+                                                <div className="text-center font-sans mt-0.5">
+                                                    <div className="flex items-center justify-center gap-0.5 text-emerald-700 font-bold text-[7pt]">
+                                                        <ShieldCheck size={10} className="text-emerald-600 flex-shrink-0" />
+                                                        <span>TERVERIFIKASI TTE</span>
+                                                    </div>
                                                     {kabidTteAt && (
-                                                        <span className="block text-slate-500">
+                                                        <span className="text-[6.5pt] text-slate-400 block leading-none">
                                                             {new Date(kabidTteAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                         </span>
                                                     )}

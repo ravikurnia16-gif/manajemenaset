@@ -160,8 +160,24 @@ const ProcurementList = () => {
             setLoadingLetterId(procurementId);
             const res = await api.get(`/procurements/${procurementId}`);
             if (res.data?.requestLetter) {
+                const reqItems = res.data.items || [];
+                const letter = res.data.requestLetter;
+                const mergedItems = (letter.items && letter.items.length > 0)
+                    ? letter.items.map((it, idx) => {
+                        const match = reqItems.find(ri => ri.name === it.name) || reqItems[idx];
+                        const p = parseFloat(it.estPrice ?? it.estimatedPrice ?? it.price ?? match?.estPrice ?? 0) || 0;
+                        return {
+                            ...it,
+                            estPrice: p,
+                            estimatedPrice: p,
+                            price: p
+                        };
+                    })
+                    : reqItems;
+
                 setSelectedLetterData({
-                    ...res.data.requestLetter,
+                    ...letter,
+                    items: mergedItems,
                     procurementId
                 });
                 setShowLetterModal(true);
