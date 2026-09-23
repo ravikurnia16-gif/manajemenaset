@@ -6022,6 +6022,7 @@ const ProcurementDetail = () => {
                 onClose={() => setShowPoModal(false)}
                 req={req}
                 currentUser={user}
+                kabidName={kabidUser?.name || 'Ravi Kurnia, S.T.'}
             />
 
             {/* Print CSS Styles for BAST Modal (Guaranteed 1-page A4 print) */}

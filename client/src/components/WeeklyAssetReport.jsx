@@ -4,7 +4,8 @@ import {
     Calendar, CalendarRange, Printer, RefreshCw, Eye, Download,
     CheckCircle2, AlertCircle, Clock, Search, ChevronRight, Layers,
     Loader2, FileText, BarChart2, TrendingUp, Building2, Activity,
-    SlidersHorizontal, Sparkles
+    SlidersHorizontal, Sparkles, Copy, Check, ChevronDown, ChevronUp,
+    Lightbulb, ShieldCheck, Zap
 } from 'lucide-react';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
@@ -37,6 +38,13 @@ export default function WeeklyAssetReport({ currentUser }) {
     const [showPrintPreview, setShowPrintPreview] = useState(false);
     const [showIndividualAssetList, setShowIndividualAssetList] = useState(false);
     const [searchUnitKeyword, setSearchUnitKeyword] = useState('');
+
+    // State Ringkasan AI
+    const [aiSummary, setAiSummary] = useState(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState(null);
+    const [showAiCard, setShowAiCard] = useState(true);
+    const [copiedAi, setCopiedAi] = useState(false);
 
     // Hitung tanggal berdasarkan preset
     const calculatePresetDates = (selectedPreset) => {
@@ -113,11 +121,81 @@ export default function WeeklyAssetReport({ currentUser }) {
 
             const res = await api.get('/dashboard/weekly-report', { params });
             setData(res.data);
+            fetchAiSummary(res.data);
         } catch (err) {
             console.error('Failed to load weekly asset report:', err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchAiSummary = async (overrideData = null) => {
+        try {
+            setAiLoading(true);
+            setAiError(null);
+            const activeData = overrideData || data;
+            const payload = {
+                startDate,
+                endDate,
+                unitId: selectedUnit !== 'all' ? selectedUnit : undefined,
+                summary: activeData?.summary,
+                statistics: activeData?.statistics,
+                details: activeData?.details,
+                unitSummary: activeData?.unitSummary,
+                period: activeData?.period,
+                unit: activeData?.unit
+            };
+
+            const res = await api.post('/dashboard/weekly-report/ai-summary', payload);
+            if (res.data?.success) {
+                setAiSummary(res.data.data);
+            }
+        } catch (err) {
+            console.error('Failed to load AI summary for weekly asset report:', err);
+            setAiError(err.response?.data?.error || err.message || 'Gagal memuat ringkasan AI');
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    const handleCopyAiSummary = () => {
+        if (!aiSummary) return;
+        const periodStr = data?.period?.formattedPeriod || `${startDate} s/d ${endDate}`;
+        const unitStr = data?.unit || (selectedUnit === 'all' ? 'Seluruh Unit' : 'Unit Terpilih');
+        
+        let text = `*RINGKASAN EKSEKUTIF MANAJEMEN ASET (AI)*\n`;
+        text += `*Periode:* ${periodStr}\n`;
+        text += `*Unit:* ${unitStr}\n`;
+        text += `*Status Operasional:* ${aiSummary.operationalStatusLabel || aiSummary.operationalStatus || 'Operasional Terpantau'}\n\n`;
+        text += `*Ringkasan Naratif:*\n${aiSummary.narrativeSummary || '-'}\n\n`;
+        
+        if (aiSummary.keyHighlights && aiSummary.keyHighlights.length > 0) {
+            text += `*Sorotan Kegiatan Utama:*\n`;
+            aiSummary.keyHighlights.forEach((h, idx) => {
+                text += `${idx + 1}. ${h}\n`;
+            });
+            text += `\n`;
+        }
+        
+        if (aiSummary.strategicRecommendations && aiSummary.strategicRecommendations.length > 0) {
+            text += `*Rekomendasi Tindak Lanjut:*\n`;
+            aiSummary.strategicRecommendations.forEach((r, idx) => {
+                text += `• ${r}\n`;
+            });
+        }
+        
+        if (navigator?.clipboard?.writeText) {
+            navigator.clipboard.writeText(text);
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+        }
+        setCopiedAi(true);
+        setTimeout(() => setCopiedAi(false), 2000);
     };
 
     const handlePresetChange = (newPreset) => {
@@ -140,7 +218,19 @@ export default function WeeklyAssetReport({ currentUser }) {
         disposalsCount: 0
     };
 
-    const unitSummary = data?.unitSummary || [];
+    const unitSummary = useMemo(() => {
+        return (data?.unitSummary || []).map(u => ({
+            ...u,
+            newAssets: u.newAssetsCount ?? u.newAssets ?? 0,
+            movements: u.movementsCount ?? u.movements ?? 0,
+            maintenance: u.maintenancesCount ?? u.maintenance ?? 0,
+            audit: u.auditCount ?? u.audit ?? 0,
+            loans: u.loansCount ?? u.loans ?? 0,
+            disposals: u.disposalsCount ?? u.disposals ?? 0,
+            activeAssetsCount: u.totalAssets ?? u.activeAssetsCount ?? 0,
+            totalAssets: u.totalAssets ?? u.activeAssetsCount ?? 0
+        }));
+    }, [data?.unitSummary]);
 
     const statistics = data?.statistics || {
         categoryDistribution: [],
@@ -237,6 +327,31 @@ export default function WeeklyAssetReport({ currentUser }) {
             doc.text(`Periode: ${data?.period?.formattedPeriod || '-'}   |   Unit: ${data?.unit || 'Seluruh Unit'}`, pageW / 2, 43, { align: 'center' });
 
             let currentY = 48;
+
+            // RINGKASAN EKSEKUTIF AI (JIKA TERSEDIA)
+            if (aiSummary?.narrativeSummary) {
+                doc.setFontSize(8.5);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(79, 70, 229);
+                doc.text(`Ringkasan Eksekutif Operasional Aset (${aiSummary.operationalStatusLabel || 'Analisis Cerdas AI'})`, 14, currentY);
+                currentY += 3.5;
+
+                doc.setFontSize(7.5);
+                doc.setFont(undefined, 'normal');
+                doc.setTextColor(51, 65, 85);
+                const splitText = doc.splitTextToSize(aiSummary.narrativeSummary, pageW - 36);
+                const textHeight = splitText.length * 3.5 + 4;
+
+                doc.setFillColor(248, 250, 252);
+                doc.setDrawColor(226, 232, 240);
+                doc.roundedRect(14, currentY, pageW - 28, textHeight, 1.5, 1.5, 'FD');
+
+                doc.setFillColor(79, 70, 229);
+                doc.rect(14, currentY, 1.5, textHeight, 'F');
+
+                doc.text(splitText, 18, currentY + 3.5);
+                currentY += textHeight + 5;
+            }
 
             // 3. TABEL I: RINGKASAN REKAPITULASI METRIK (FOKUS KUANTITAS - TANPA HARGA)
             doc.setFontSize(10);
@@ -360,36 +475,38 @@ export default function WeeklyAssetReport({ currentUser }) {
                 const unitRows = unitSummary.map((u, idx) => [
                     idx + 1,
                     u.name,
-                    u.code,
-                    `${u.newAssetsCount}`,
-                    `${u.movementsCount}`,
-                    `${u.maintenancesCount}`,
-                    `${u.auditCount}`,
-                    `${u.loansCount}`,
-                    `${u.totalAssets}`
+                    u.code || '-',
+                    `${u.newAssets || 0}`,
+                    `${u.movements || 0}`,
+                    `${u.maintenance || 0}`,
+                    `${u.audit || 0}`,
+                    `${u.loans || 0}`,
+                    `${u.disposals || 0}`,
+                    `${(u.activeAssetsCount || 0).toLocaleString('id-ID')}`
                 ]);
 
-                const totalAllUnitAssets = unitSummary.reduce((sum, u) => sum + (u.totalAssets || 0), 0);
+                const totalAllUnitAssets = unitSummary.reduce((sum, u) => sum + (u.activeAssetsCount || 0), 0);
 
                 doc.autoTable({
                     startY: currentY + 3,
-                    head: [['No', 'Unit Kerja / Satker', 'Kode', 'Baru', 'Mutasi', 'Servis', 'Audit', 'Pinjam', 'Total Aset']],
+                    head: [['No', 'Unit Kerja / Satker', 'Kode', 'Baru', 'Mutasi', 'Servis', 'Audit', 'Pinjam', 'Hapus', 'Total Aset']],
                     body: unitRows,
-                    foot: [['', 'Total Akumulasi Seluruh Unit', '', `${summary.newAssetsCount}`, `${summary.movementsCount}`, `${summary.maintenanceCount}`, `${summary.auditCount}`, `${summary.loansCount}`, `${totalAllUnitAssets}`]],
+                    foot: [['', 'Total Akumulasi Seluruh Unit', '', `${summary.newAssetsCount}`, `${summary.movementsCount}`, `${summary.maintenanceCount}`, `${summary.auditCount}`, `${summary.loansCount}`, `${summary.disposalsCount}`, `${totalAllUnitAssets.toLocaleString('id-ID')}`]],
                     theme: 'striped',
                     headStyles: { fillColor: [30, 58, 138], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
                     bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
                     footStyles: { fillColor: [241, 245, 249], fontSize: 7.5, fontStyle: 'bold', textColor: [15, 23, 42] },
                     columnStyles: {
                         0: { cellWidth: 8, halign: 'center' },
-                        1: { cellWidth: 62 },
-                        2: { cellWidth: 22, halign: 'center' },
-                        3: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-                        4: { cellWidth: 15, halign: 'center' },
-                        5: { cellWidth: 15, halign: 'center' },
-                        6: { cellWidth: 15, halign: 'center' },
-                        7: { cellWidth: 15, halign: 'center' },
-                        8: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+                        1: { cellWidth: 56 },
+                        2: { cellWidth: 18, halign: 'center' },
+                        3: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+                        4: { cellWidth: 13, halign: 'center' },
+                        5: { cellWidth: 13, halign: 'center' },
+                        6: { cellWidth: 13, halign: 'center' },
+                        7: { cellWidth: 13, halign: 'center' },
+                        8: { cellWidth: 13, halign: 'center' },
+                        9: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
                     },
                     margin: { left: 14, right: 14 }
                 });
@@ -735,6 +852,194 @@ export default function WeeklyAssetReport({ currentUser }) {
                         {exporting ? 'Mengekspor PDF...' : 'Download PDF Resmi'}
                     </button>
                 </div>
+            </div>
+
+            {/* 1.5. RINGKASAN EKSEKUTIF AI (GOOGLE GEMINI) - SCREEN ONLY */}
+            <div className="print:hidden bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-3xl p-5 md:p-6 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden transition-all">
+                {/* Decorative background glow */}
+                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+                {/* CARD HEADER */}
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                    <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                                <Sparkles size={14} className="animate-pulse text-amber-300" />
+                                Ringkasan Eksekutif AI
+                            </span>
+                            {aiSummary?.operationalStatus && (
+                                <span className={cn(
+                                    "px-2.5 py-0.5 rounded-full text-[11px] font-bold border",
+                                    aiSummary.operationalStatus === 'OPTIMAL'
+                                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                        : aiSummary.operationalStatus === 'STABIL'
+                                            ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                                            : "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                )}>
+                                    ● {aiSummary.operationalStatusLabel || aiSummary.operationalStatus}
+                                </span>
+                            )}
+                            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                                • {data?.period?.formattedPeriod || (startDate && endDate ? `${startDate} s/d ${endDate}` : '-')}
+                            </span>
+                        </div>
+                        <h3 className="text-lg md:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                            Rangkuman Operasional Sarana & Aset
+                            <span className="text-xs font-normal text-indigo-200/80 px-2.5 py-0.5 rounded-md bg-white/10 border border-white/10">
+                                {data?.unit || (selectedUnit === 'all' ? 'Seluruh Unit' : 'Unit Terpilih')}
+                            </span>
+                        </h3>
+                    </div>
+
+                    {/* ACTION BUTTONS */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {aiSummary && (
+                            <button
+                                type="button"
+                                onClick={handleCopyAiSummary}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-slate-200 transition-all border border-white/15 cursor-pointer"
+                                title="Salin ringkasan ke clipboard (format WhatsApp/Memo)"
+                            >
+                                {copiedAi ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                                {copiedAi ? 'Tersalin!' : 'Salin Ringkasan'}
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={fetchAiSummary}
+                            disabled={aiLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition-all border border-indigo-400/30 disabled:opacity-50 cursor-pointer"
+                            title="Analisis Ulang AI sesuai tanggal terpilih"
+                        >
+                            <RefreshCw size={14} className={cn(aiLoading && "animate-spin text-amber-300")} />
+                            {aiLoading ? 'Menganalisis...' : 'Analisis Ulang AI'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowAiCard(!showAiCard)}
+                            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                            title={showAiCard ? 'Perkecil Tampilan' : 'Perbesar Tampilan'}
+                        >
+                            {showAiCard ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+                    </div>
+                </div>
+
+                {/* CARD BODY (COLLAPSIBLE) */}
+                {showAiCard && (
+                    <div className="relative z-10 pt-4 space-y-4">
+                        {aiLoading && !aiSummary ? (
+                            <div className="py-8 flex flex-col items-center justify-center space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-600/40 border border-indigo-400/30 flex items-center justify-center animate-pulse">
+                                    <Sparkles size={24} className="text-amber-300 animate-spin" />
+                                </div>
+                                <div className="text-center space-y-1">
+                                    <p className="text-sm font-bold text-white">Google Gemini AI sedang merangkum kegiatan aset...</p>
+                                    <p className="text-xs text-slate-400">
+                                        Menganalisis penambahan barang baru, mutasi, efisiensi servis, serta verifikasi audit periode {data?.period?.formattedPeriod || `${startDate} s/d ${endDate}`}.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : aiError && !aiSummary ? (
+                            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-200 text-xs flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle size={16} className="text-rose-400 shrink-0" />
+                                    <span>{aiError}</span>
+                                </div>
+                                <button
+                                    onClick={fetchAiSummary}
+                                    className="px-3 py-1 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-500 transition-all cursor-pointer"
+                                >
+                                    Coba Lagi
+                                </button>
+                            </div>
+                        ) : aiSummary ? (
+                            <>
+                                {/* 1. NARASI EKSEKUTIF LENGKAP */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 relative overflow-hidden backdrop-blur-xs">
+                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-400 to-amber-400"></div>
+                                    <p className="text-sm leading-relaxed text-slate-100 font-medium pl-2.5">
+                                        {aiSummary.narrativeSummary}
+                                    </p>
+                                </div>
+
+                                {/* 2. HIGHLIGHT KEGIATAN UTAMA (4 CARDS) */}
+                                {aiSummary.keyHighlights && aiSummary.keyHighlights.length > 0 && (
+                                    <div>
+                                        <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                                            <Zap size={13} className="text-amber-400" />
+                                            Sorotan Dinamika & Kegiatan Utama
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                            {aiSummary.keyHighlights.map((hl, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 text-xs flex items-start gap-2.5 transition-all"
+                                                >
+                                                    <div className="w-5 h-5 rounded-full bg-indigo-500/30 text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 border border-indigo-400/30">
+                                                        {idx + 1}
+                                                    </div>
+                                                    <span className="text-slate-200 leading-snug">{hl}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 3. EVALUASI OPERASIONAL & REKOMENDASI STRATEGIS */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                                    {/* EVALUASI PILAR */}
+                                    {aiSummary.operationalEvaluation && (
+                                        <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 space-y-2">
+                                            <div className="text-[11px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                                                <ShieldCheck size={14} className="text-indigo-400" />
+                                                Catatan Efisiensi & Kontrol
+                                            </div>
+                                            <div className="space-y-1.5 text-xs">
+                                                {aiSummary.operationalEvaluation.procurementNote && (
+                                                    <div className="text-slate-300">
+                                                        <span className="font-bold text-slate-100">Pengadaan:</span> {aiSummary.operationalEvaluation.procurementNote}
+                                                    </div>
+                                                )}
+                                                {aiSummary.operationalEvaluation.maintenanceEfficiency && (
+                                                    <div className="text-slate-300">
+                                                        <span className="font-bold text-slate-100">Pemeliharaan:</span> {aiSummary.operationalEvaluation.maintenanceEfficiency}
+                                                    </div>
+                                                )}
+                                                {aiSummary.operationalEvaluation.assetControl && (
+                                                    <div className="text-slate-300">
+                                                        <span className="font-bold text-slate-100">Audit & Kontrol:</span> {aiSummary.operationalEvaluation.assetControl}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* REKOMENDASI TINDAK LANJUT */}
+                                    {aiSummary.strategicRecommendations && aiSummary.strategicRecommendations.length > 0 && (
+                                        <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 space-y-2">
+                                            <div className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                                                <Lightbulb size={14} className="text-amber-400" />
+                                                Rekomendasi Tindak Lanjut Strategis
+                                            </div>
+                                            <ul className="space-y-1.5 text-xs text-slate-300">
+                                                {aiSummary.strategicRecommendations.map((rec, rIdx) => (
+                                                    <li key={rIdx} className="flex items-start gap-2">
+                                                        <span className="text-amber-400 font-bold mt-0.5">•</span>
+                                                        <span className="leading-snug">{rec}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        ) : null}
+                    </div>
+                )}
             </div>
 
             {/* 2. SUMMARY METRIC CARDS (SCREEN ONLY - ZERO PRICE, VOLUME FOCUS) */}
@@ -1089,7 +1394,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-center font-black text-slate-800 text-sm bg-slate-50/50">
-                                                    {u.activeAssetsCount} unit
+                                                    {(u.activeAssetsCount || 0).toLocaleString('id-ID')} unit
                                                 </td>
                                             </tr>
                                         ))}
@@ -1106,7 +1411,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                                         <td className="px-4 py-3 text-center text-violet-700">{summary.loansCount}</td>
                                         <td className="px-4 py-3 text-center text-rose-700">{summary.disposalsCount}</td>
                                         <td className="px-4 py-3 text-center font-black text-slate-900 bg-slate-200/50">
-                                            {unitSummary.reduce((acc, u) => acc + (u.activeAssetsCount || 0), 0)} unit
+                                            {unitSummary.reduce((acc, u) => acc + (u.activeAssetsCount || 0), 0).toLocaleString('id-ID')} unit
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -1637,6 +1942,24 @@ export default function WeeklyAssetReport({ currentUser }) {
                     </p>
                 </div>
 
+                {/* RINGKASAN EKSEKUTIF AI PADA CETAK RESMI */}
+                {aiSummary?.narrativeSummary && (
+                    <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs space-y-1">
+                        <div className="flex items-center justify-between font-bold text-indigo-900 border-b border-slate-200 pb-1">
+                            <span className="flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                                <Sparkles size={12} className="text-amber-500" />
+                                Ringkasan Eksekutif Operasional Aset (Analisis Cerdas AI)
+                            </span>
+                            <span className="text-[10px] text-slate-600 font-semibold">
+                                Status: {aiSummary.operationalStatusLabel || 'Operasional Terpantau'}
+                            </span>
+                        </div>
+                        <p className="text-slate-800 leading-relaxed text-[11px] pt-0.5">
+                            {aiSummary.narrativeSummary}
+                        </p>
+                    </div>
+                )}
+
                 {/* I. REKAPITULASI METRIK */}
                 <div className="space-y-2">
                     <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
@@ -1778,13 +2101,13 @@ export default function WeeklyAssetReport({ currentUser }) {
                                     <tr key={u.id}>
                                         <td className="border border-slate-300 px-2 py-1 text-center">{idx + 1}</td>
                                         <td className="border border-slate-300 px-2 py-1 font-bold text-slate-900">{u.name}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.newAssets || '-'}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.movements || '-'}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.maintenance || '-'}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.audit || '-'}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.loans || '-'}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.disposals || '-'}</td>
-                                        <td className="border border-slate-300 px-2 py-1 text-center font-black text-slate-900">{u.activeAssetsCount} unit</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.newAssets ? u.newAssets : '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.movements ? u.movements : '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.maintenance ? u.maintenance : '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.audit ? u.audit : '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.loans ? u.loans : '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center">{u.disposals ? u.disposals : '-'}</td>
+                                        <td className="border border-slate-300 px-2 py-1 text-center font-black text-slate-900">{(u.activeAssetsCount || 0).toLocaleString('id-ID')} unit</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1797,7 +2120,7 @@ export default function WeeklyAssetReport({ currentUser }) {
                                     <td className="border border-slate-300 px-2 py-1 text-center">{summary.auditCount}</td>
                                     <td className="border border-slate-300 px-2 py-1 text-center">{summary.loansCount}</td>
                                     <td className="border border-slate-300 px-2 py-1 text-center">{summary.disposalsCount}</td>
-                                    <td className="border border-slate-300 px-2 py-1 text-center font-black">{unitSummary.reduce((acc, u) => acc + (u.activeAssetsCount || 0), 0)} unit</td>
+                                    <td className="border border-slate-300 px-2 py-1 text-center font-black">{unitSummary.reduce((acc, u) => acc + (u.activeAssetsCount || 0), 0).toLocaleString('id-ID')} unit</td>
                                 </tr>
                             </tfoot>
                         </table>

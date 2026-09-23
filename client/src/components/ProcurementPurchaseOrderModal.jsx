@@ -1,21 +1,26 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, FileText, MessageSquare, ShieldCheck, Store, Package, Info, Calendar, Building2, ExternalLink } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import api from '../lib/axios';
 
 const ProcurementPurchaseOrderModal = ({
     isOpen,
     onClose,
     req,
-    currentUser = null
+    currentUser = null,
+    kabidName: propKabidName = ''
 }) => {
     const printAreaRef = useRef(null);
-    const [fetchedKabidName, setFetchedKabidName] = useState('');
+    const [fetchedKabidName, setFetchedKabidName] = useState(propKabidName || '');
     const [selectedVendorFilter, setSelectedVendorFilter] = useState('ALL');
     const [deliveryDeadline, setDeliveryDeadline] = useState('');
     const [specialNotes, setSpecialNotes] = useState('');
 
     useEffect(() => {
         if (!isOpen) return;
+        if (propKabidName) {
+            setFetchedKabidName(propKabidName);
+        }
         // Ambil nama user yang memiliki position "Kepala Bidang Sarana"
         api.get('/users')
             .then(res => {
@@ -28,7 +33,7 @@ const ProcurementPurchaseOrderModal = ({
                 }
             })
             .catch(() => {});
-    }, [isOpen]);
+    }, [isOpen, propKabidName]);
 
     if (!isOpen || !req) return null;
 
@@ -66,7 +71,7 @@ const ProcurementPurchaseOrderModal = ({
         return acc + (p * q);
     }, 0);
 
-    const kabidName = fetchedKabidName || 'Kepala Bidang Sarana';
+    const kabidName = fetchedKabidName || propKabidName || 'Kepala Bidang Sarana';
 
     // Cari kontak vendor dari comparisonVendors jika ada
     let vendorContact = '';
@@ -79,6 +84,7 @@ const ProcurementPurchaseOrderModal = ({
     }
 
     const poNumber = `PO/SRN/${req.code || req.id}/${new Date().getFullYear()}`;
+    const qrVerifyUrl = `https://sarpras.dareliman.or.id/verify-doc?type=PURCHASE_ORDER&no=${encodeURIComponent(poNumber)}&kabid=${encodeURIComponent(kabidName)}`;
 
     const handlePrint = () => {
         window.print();
@@ -111,9 +117,19 @@ const ProcurementPurchaseOrderModal = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0">
-            {/* Embedded Print Styling */}
+            {/* Embedded Print Styling - Optimized for 1-page A4 */}
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
+                    @page {
+                        size: A4 portrait;
+                        margin: 8mm 12mm 8mm 12mm;
+                    }
+                    html, body {
+                        width: 210mm !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #ffffff !important;
+                    }
                     body * {
                         visibility: hidden !important;
                     }
@@ -126,10 +142,11 @@ const ProcurementPurchaseOrderModal = ({
                         top: 0 !important;
                         width: 100% !important;
                         max-width: 100% !important;
-                        padding: 10mm 15mm !important;
+                        padding: 0 !important;
                         margin: 0 !important;
                         box-shadow: none !important;
                         border: none !important;
+                        page-break-inside: avoid !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
@@ -196,42 +213,42 @@ const ProcurementPurchaseOrderModal = ({
                     <div
                         id="purchase-order-sheet"
                         ref={printAreaRef}
-                        className="bg-white mx-auto max-w-[820px] p-6 sm:p-10 rounded-lg shadow-sm print:shadow-none border border-slate-200 print:border-none text-slate-900"
-                        style={{ fontFamily: "'Times New Roman', Times, serif", lineHeight: 1.4, fontSize: '11.5pt' }}
+                        className="bg-white mx-auto max-w-[800px] p-6 sm:p-8 rounded-lg shadow-sm print:shadow-none border border-slate-200 print:border-none text-slate-900 print:p-0"
+                        style={{ fontFamily: "'Times New Roman', Times, serif", lineHeight: 1.35, fontSize: '10pt' }}
                     >
                         {/* KOP RESMI: YAYASAN DAR EL-IMAN PADANG - BIDANG SARANA */}
-                        <div className="pb-3 mb-4 border-b-[3px] border-double border-slate-900">
-                            <div className="flex items-center justify-between gap-4">
-                                <div className="w-20 sm:w-24 flex-shrink-0 text-left">
+                        <div className="pb-2.5 mb-3 border-b-[2.5px] border-double border-slate-900">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="w-18 sm:w-20 flex-shrink-0 text-left">
                                     <img
                                         src="/logo_yayasan.jpg"
                                         alt="Logo Yayasan"
-                                        className="h-16 sm:h-20 w-auto object-contain mx-auto"
+                                        className="h-14 sm:h-16 w-auto object-contain mx-auto"
                                         onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                 </div>
-                                <div className="flex-1 text-center px-2">
-                                    <h4 className="text-base sm:text-lg font-bold tracking-wider text-emerald-800 uppercase font-sans">
+                                <div className="flex-1 text-center px-1">
+                                    <h4 className="text-sm sm:text-base font-bold tracking-wider text-emerald-800 uppercase font-sans">
                                         YAYASAN DAR EL-IMAN
                                     </h4>
-                                    <h2 className="text-xl sm:text-2xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
+                                    <h2 className="text-lg sm:text-xl font-black tracking-wide text-amber-700 uppercase font-sans mt-0.5">
                                         BIDANG SARANA
                                     </h2>
-                                    <p className="text-[10pt] text-slate-600 italic font-serif mt-0.5">
+                                    <p className="text-[9pt] text-slate-600 italic font-serif mt-0.5">
                                         &ldquo;Merawat dengan Ikhlas, Melayani dengan Sunnah&rdquo;
                                     </p>
-                                    <p className="text-[8.5pt] text-slate-600 font-sans mt-1 leading-tight">
+                                    <p className="text-[8pt] text-slate-600 font-sans mt-0.5 leading-tight">
                                         Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat 25173
                                     </p>
-                                    <p className="text-[8pt] text-slate-600 font-sans">
+                                    <p className="text-[7.5pt] text-slate-600 font-sans">
                                         WA: 0895-3202-42508 • Email: dar.el.imansarpras@gmail.com
                                     </p>
                                 </div>
-                                <div className="w-20 sm:w-24 flex-shrink-0 text-right">
+                                <div className="w-18 sm:w-20 flex-shrink-0 text-right">
                                     <img
                                         src="/Sarpras.jpeg"
                                         alt="Logo Sarpras"
-                                        className="h-16 sm:h-20 w-auto object-contain mx-auto"
+                                        className="h-14 sm:h-16 w-auto object-contain mx-auto"
                                         onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                 </div>
@@ -239,41 +256,41 @@ const ProcurementPurchaseOrderModal = ({
                         </div>
 
                         {/* JUDUL SURAT PESANAN */}
-                        <div className="text-center mb-5">
+                        <div className="text-center mb-3">
                             <h3 className="text-base sm:text-lg font-black uppercase tracking-wide text-slate-950 underline decoration-2 underline-offset-4">
                                 SURAT PESANAN RESMI (PURCHASE ORDER)
                             </h3>
-                            <p className="text-[10pt] text-slate-700 font-mono mt-1 font-bold">
+                            <p className="text-[9.5pt] text-slate-700 font-mono mt-0.5 font-bold">
                                 Nomor: {poNumber}
                             </p>
                         </div>
 
                         {/* INFORMASI VENDOR & PENGADAAN */}
-                        <div className="mb-4 flex flex-col sm:flex-row justify-between gap-4 text-[10.5pt]">
+                        <div className="mb-3 flex flex-col sm:flex-row justify-between gap-3 text-[9.5pt]">
                             {/* Kepada Yth: Vendor */}
-                            <div className="flex-1 p-3 rounded border border-slate-300 bg-slate-50/70">
-                                <span className="text-[9pt] uppercase tracking-wider font-bold text-slate-600 font-sans block mb-1">
+                            <div className="flex-1 p-2.5 rounded border border-slate-300 bg-slate-50/70">
+                                <span className="text-[8.5pt] uppercase tracking-wider font-bold text-slate-600 font-sans block mb-0.5">
                                     Ditujukan Kepada Penyedia / Vendor:
                                 </span>
-                                <div className="font-bold text-slate-950 text-[11.5pt]">
+                                <div className="font-bold text-slate-950 text-[10.5pt]">
                                     {selectedVendorFilter !== 'ALL' ? selectedVendorFilter : (uniqueVendors.join(', ') || 'Penyedia Rekanan')}
                                 </div>
                                 {vendorContact && (
-                                    <div className="text-slate-600 text-[10pt] mt-0.5">
+                                    <div className="text-slate-600 text-[9pt] mt-0.5">
                                         Kontak: {vendorContact}
                                     </div>
                                 )}
-                                <div className="text-slate-500 text-[9.5pt] italic mt-0.5">
+                                <div className="text-slate-500 text-[8.5pt] italic mt-0.5">
                                     Tempat / Di Lokasi
                                 </div>
                             </div>
 
                             {/* Data Pemesan */}
-                            <div className="flex-1 p-3 rounded border border-slate-300 bg-slate-50/70">
-                                <span className="text-[9pt] uppercase tracking-wider font-bold text-slate-600 font-sans block mb-1">
+                            <div className="flex-1 p-2.5 rounded border border-slate-300 bg-slate-50/70">
+                                <span className="text-[8.5pt] uppercase tracking-wider font-bold text-slate-600 font-sans block mb-0.5">
                                     Identitas Pemesan:
                                 </span>
-                                <table className="text-slate-800 text-[10pt]">
+                                <table className="text-slate-800 text-[9pt]">
                                     <tbody>
                                         <tr>
                                             <td className="pr-2 font-semibold">Unit Kebutuhan</td>
@@ -296,27 +313,27 @@ const ProcurementPurchaseOrderModal = ({
                         </div>
 
                         {/* DESKRIPSI PENGANTAR */}
-                        <p className="mb-3 text-justify text-[10.5pt]">
+                        <p className="mb-2 text-justify text-[9.5pt] leading-normal">
                             Dengan hormat, sehubungan dengan hasil evaluasi pengadaan barang/jasa, bersama surat ini kami sampaikan pemesanan barang/jasa dengan rincian kebutuhan sebagai berikut:
                         </p>
 
                         {/* TABEL RINCIAN PESANAN */}
-                        <div className="mb-4 overflow-x-auto">
-                            <table className="w-full border-collapse border border-slate-900 text-[10pt]">
+                        <div className="mb-3 overflow-x-auto">
+                            <table className="w-full border-collapse border border-slate-900 text-[9pt]">
                                 <thead>
                                     <tr className="bg-slate-100 text-slate-950 font-bold">
-                                        <th className="border border-slate-900 px-2 py-1.5 text-center w-8">No</th>
-                                        <th className="border border-slate-900 px-3 py-1.5 text-left">Nama Barang / Deskripsi</th>
-                                        <th className="border border-slate-900 px-2 py-1.5 text-center w-24">Merk / Brand</th>
-                                        <th className="border border-slate-900 px-2 py-1.5 text-center w-20">Volume</th>
-                                        <th className="border border-slate-900 px-2.5 py-1.5 text-right w-28">Harga Satuan</th>
-                                        <th className="border border-slate-900 px-3 py-1.5 text-right w-32">Total Harga</th>
+                                        <th className="border border-slate-900 px-2 py-1 text-center w-8">No</th>
+                                        <th className="border border-slate-900 px-2.5 py-1 text-left">Nama Barang / Deskripsi</th>
+                                        <th className="border border-slate-900 px-2 py-1 text-center w-24">Merk / Brand</th>
+                                        <th className="border border-slate-900 px-2 py-1 text-center w-20">Volume</th>
+                                        <th className="border border-slate-900 px-2.5 py-1 text-right w-28">Harga Satuan</th>
+                                        <th className="border border-slate-900 px-2.5 py-1 text-right w-32">Total Harga</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {displayItems.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="border border-slate-900 px-3 py-4 text-center italic text-slate-500">
+                                            <td colSpan={6} className="border border-slate-900 px-3 py-3 text-center italic text-slate-500">
                                                 Belum ada barang yang difinalisasi ke vendor eksternal.
                                             </td>
                                         </tr>
@@ -328,27 +345,27 @@ const ProcurementPurchaseOrderModal = ({
 
                                             return (
                                                 <tr key={idx} className={idx % 2 === 1 ? 'bg-slate-50/60' : ''}>
-                                                    <td className="border border-slate-900 px-2 py-2 text-center align-top font-semibold">
+                                                    <td className="border border-slate-900 px-2 py-1 text-center align-top font-semibold">
                                                         {idx + 1}
                                                     </td>
-                                                    <td className="border border-slate-900 px-3 py-2 align-top">
+                                                    <td className="border border-slate-900 px-2.5 py-1 align-top">
                                                         <div className="font-bold text-slate-950">{item.name}</div>
                                                         {item.spec && (
-                                                            <div className="text-[9pt] text-slate-600 mt-0.5 whitespace-pre-line italic">
+                                                            <div className="text-[8pt] text-slate-600 mt-0.5 whitespace-pre-line italic">
                                                                 {item.spec}
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="border border-slate-900 px-2 py-2 text-center align-top font-medium">
+                                                    <td className="border border-slate-900 px-2 py-1 text-center align-top font-medium">
                                                         {item.brand || '—'}
                                                     </td>
-                                                    <td className="border border-slate-900 px-2 py-2 text-center align-top whitespace-nowrap font-medium">
+                                                    <td className="border border-slate-900 px-2 py-1 text-center align-top whitespace-nowrap font-medium">
                                                         {qty} {item.unit || 'Unit'}
                                                     </td>
-                                                    <td className="border border-slate-900 px-2.5 py-2 text-right align-top whitespace-nowrap font-mono">
+                                                    <td className="border border-slate-900 px-2.5 py-1 text-right align-top whitespace-nowrap font-mono">
                                                         {formatCurrency(price)}
                                                     </td>
-                                                    <td className="border border-slate-900 px-3 py-2 text-right align-top whitespace-nowrap font-mono font-bold text-slate-950">
+                                                    <td className="border border-slate-900 px-2.5 py-1 text-right align-top whitespace-nowrap font-mono font-bold text-slate-950">
                                                         {formatCurrency(subtotal)}
                                                     </td>
                                                 </tr>
@@ -357,11 +374,11 @@ const ProcurementPurchaseOrderModal = ({
                                     )}
                                 </tbody>
                                 <tfoot>
-                                    <tr className="bg-slate-100 font-bold text-[10.5pt] border-t-2 border-slate-900">
-                                        <td colSpan={5} className="border border-slate-900 px-3 py-2 text-right">
+                                    <tr className="bg-slate-100 font-bold text-[9.5pt] border-t-2 border-slate-900">
+                                        <td colSpan={5} className="border border-slate-900 px-2.5 py-1.5 text-right">
                                             Total Nilai Pemesanan:
                                         </td>
-                                        <td className="border border-slate-900 px-3 py-2 text-right font-mono font-bold text-slate-950">
+                                        <td className="border border-slate-900 px-2.5 py-1.5 text-right font-mono font-bold text-slate-950">
                                             {formatCurrency(totalPoAmount)}
                                         </td>
                                     </tr>
@@ -370,8 +387,8 @@ const ProcurementPurchaseOrderModal = ({
                         </div>
 
                         {/* SYARAT & KETENTUAN PESANAN */}
-                        <div className="mb-5 p-3 rounded border border-slate-300 bg-slate-50 text-[10pt] leading-relaxed">
-                            <span className="font-bold block text-slate-900 mb-1">Syarat &amp; Ketentuan Pemesanan:</span>
+                        <div className="mb-3 p-2.5 rounded border border-slate-300 bg-slate-50 text-[9pt] leading-relaxed">
+                            <span className="font-bold block text-slate-900 mb-0.5">Syarat &amp; Ketentuan Pemesanan:</span>
                             <ol className="list-decimal pl-5 space-y-0.5 text-slate-700">
                                 <li>Barang yang dikirim harus dalam keadaan 100% baru, berkualitas baik, dan sesuai dengan spesifikasi/merk yang tertera.</li>
                                 <li>Pengiriman disertai dengan Faktur / Nota Pembelian resmi dan Surat Jalan.</li>
@@ -386,49 +403,49 @@ const ProcurementPurchaseOrderModal = ({
                         </div>
 
                         {/* PERNYATAAN PENUTUP */}
-                        <p className="mb-6 text-justify text-[10.5pt]">
+                        <p className="mb-3 text-justify text-[9.5pt] leading-normal">
                             Demikian Surat Pesanan ini kami sampaikan untuk dapat ditindaklanjuti. Atas perhatian dan kerjasamanya kami ucapkan terima kasih.
                         </p>
 
-                        {/* TANDA TANGAN (2 PIHAK: PENYEDIA/VENDOR & KEPALA BIDANG SARANA) */}
-                        <div className="pt-2">
-                            <div className="grid grid-cols-2 gap-12 text-center text-[11pt]">
-                                {/* Pihak 1: Penyedia / Vendor */}
-                                <div className="flex flex-col items-center justify-between min-h-[140px]">
-                                    <div>
-                                        <p className="font-medium">Diterima &amp; Disetujui Oleh,</p>
-                                        <p className="text-slate-600 text-[9.5pt]">Penyedia / Rekanan</p>
-                                    </div>
-                                    <div className="my-2 flex items-center justify-center h-16 w-full">
-                                        <div className="border-b border-dashed border-slate-300 w-36 h-12 flex items-end justify-center text-slate-400 text-[9pt] italic pb-1">
-                                            (Tanda Tangan &amp; Stempel)
-                                        </div>
-                                    </div>
-                                    <div className="w-full">
-                                        <p className="font-bold underline text-slate-950">
-                                            {selectedVendorFilter !== 'ALL' ? selectedVendorFilter : (uniqueVendors[0] || 'Nama Terang Penyedia')}
-                                        </p>
-                                        <p className="text-slate-600 text-[9pt]">Penyedia / Vendor Rekanan</p>
-                                    </div>
+                        {/* TANDA TANGAN RESMI: KEPALA BIDANG SARANA (TTE ELEKTRONIK DENGAN QR CODE & LOGO) */}
+                        <div className="pt-2 flex justify-end" style={{ pageBreakInside: 'avoid' }}>
+                            <div className="w-64 text-center flex flex-col items-center">
+                                <div>
+                                    <p className="text-[9.5pt] font-medium text-slate-800">Hormat Kami,</p>
+                                    <p className="text-[10pt] font-bold text-slate-950 mt-0.5">Kepala Bidang Sarana</p>
                                 </div>
 
-                                {/* Pihak 2: Kepala Bidang Sarana */}
-                                <div className="flex flex-col items-center justify-between min-h-[140px]">
-                                    <div>
-                                        <p className="font-medium">Hormat Kami,</p>
-                                        <p className="text-slate-600 text-[9.5pt]">Kepala Bidang Sarana</p>
-                                    </div>
-                                    <div className="my-2 flex items-center justify-center h-16 w-full">
-                                        <div className="border border-emerald-300 bg-emerald-50/50 rounded px-3 py-1.5 text-center flex flex-col items-center justify-center shadow-xs">
-                                            <ShieldCheck size={16} className="text-emerald-600 mb-0.5" />
-                                            <span className="text-[8pt] text-emerald-800 font-bold font-sans">TERVERIFIKASI SISTEM</span>
-                                            <span className="text-[7pt] text-slate-500 font-mono">TTE KABID SARANA</span>
+                                {/* QR Code TTE dengan Logo Bidang Sarana di tengah */}
+                                <div className="my-2 flex flex-col items-center justify-center">
+                                    <div className="relative p-1.5 bg-white border border-emerald-400 rounded-lg shadow-xs flex items-center justify-center">
+                                        <QRCode
+                                            value={qrVerifyUrl}
+                                            size={68}
+                                            level="H"
+                                        />
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                            <div className="bg-white p-0.5 rounded border border-slate-200 shadow-xs flex items-center justify-center">
+                                                <img
+                                                    src="/Sarpras.jpeg"
+                                                    alt="Logo Bidang Sarana"
+                                                    className="w-4 h-4 object-contain rounded-xs"
+                                                    onError={(e) => { e.target.src = '/logo_yayasan.jpg'; }}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="w-full">
-                                        <p className="font-bold underline text-slate-950">{kabidName}</p>
-                                        <p className="text-slate-600 text-[9pt]">Kepala Bidang Sarana</p>
+                                    <div className="flex items-center gap-1 text-emerald-700 font-bold text-[7.5pt] font-sans mt-1">
+                                        <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0" />
+                                        <span>DITANDATANGANI ELEKTRONIK (TTE)</span>
                                     </div>
+                                    <span className="text-[6.5pt] text-slate-500 font-mono leading-tight">
+                                        TTE SAH KEPALA BIDANG SARANA
+                                    </span>
+                                </div>
+
+                                <div className="w-full">
+                                    <p className="font-bold underline text-slate-950 text-[10pt]">{kabidName}</p>
+                                    <p className="text-slate-600 text-[8.5pt]">Kepala Bidang Sarana dan Prasarana</p>
                                 </div>
                             </div>
                         </div>
@@ -487,3 +504,4 @@ const ProcurementPurchaseOrderModal = ({
 };
 
 export default ProcurementPurchaseOrderModal;
+
