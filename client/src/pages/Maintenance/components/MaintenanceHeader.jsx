@@ -14,8 +14,9 @@ export default function MaintenanceHeader({
     onBack,
     onOpenSPK
 }) {
-    const currentStepIndex = statusSteps.findIndex(s => s.key === report.status);
-    const isRejected = report.status === 'REJECTED';
+    const currentStepIndex = statusSteps.findIndex(s => s.key === report?.status);
+    const isRejected = report?.status === 'REJECTED';
+    const isPembangunan = report?.targetDept === 'PEMBANGUNAN';
 
     return (
         <div className="space-y-6">
