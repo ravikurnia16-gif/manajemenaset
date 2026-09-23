@@ -38,15 +38,17 @@ export default function MaintenanceHeader({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button
-                        onClick={onOpenSPK}
-                        className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
-                        title="Cetak Surat Perintah Kerja (SPK) / Berita Acara"
-                    >
-                        <Printer size={15} /> Cetak SPK
-                    </button>
-                </div>
+                {!isPembangunan && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                            onClick={onOpenSPK}
+                            className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                            title="Cetak Surat Perintah Kerja (SPK)"
+                        >
+                            <Printer size={15} /> Cetak SPK
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Progress Bar Tahapan */}

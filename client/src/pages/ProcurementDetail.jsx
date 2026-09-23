@@ -720,22 +720,41 @@ const ProcurementDetail = () => {
                         cleanSpec = cleanSpec.replace(/\[Catatan:\s*[\s\S]*?\]$/, '').trim();
                     }
                 }
+                // Resolve vendor state for form rendering
+                const parsedCVs = safeJSON(item.comparisonVendors);
+                const isGudang = item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana' || item.vendorName === 'Gudang Sarpras (Internal)' || item.vendorName === 'Gudang Sarpras';
+                // Check if the vendorName is one of the comparison vendor candidates
+                const isKnownCV = parsedCVs.some(cv => cv.name === item.vendorName);
+                // If vendorName exists but is NOT a known comparison vendor and NOT gudang → manual entry
+                const isManualVendor = !isGudang && item.vendorName && !isKnownCV;
+
+                let resolvedVendorId;
+                if (isGudang) {
+                    resolvedVendorId = 'GUDANG';
+                } else if (isManualVendor) {
+                    // Restore 'OTHER' so the manual input field shows again
+                    resolvedVendorId = 'OTHER';
+                } else if (item.vendorId) {
+                    resolvedVendorId = item.vendorId;
+                } else if (item.vendorName) {
+                    resolvedVendorId = `CV-${item.vendorName}`;
+                } else {
+                    resolvedVendorId = '';
+                }
+
                 return {
                     ...item,
                     spec: cleanSpec,
                     notes: itemNotes,
-                    newVendorName: '',
+                    // Restore newVendorName for manually-entered vendors so the input field is pre-filled
+                    newVendorName: isManualVendor ? (item.vendorName || '') : '',
                     brand: item.brand || '',
                     usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
                     finalPrice: item.finalPrice || item.estPrice,
                     fundingSource: (item.fundingSource && item.fundingSource !== 'Mandiri') ? item.fundingSource : 'Yayasan',
-                    vendorId: (item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana' || item.vendorName === 'Gudang Sarpras (Internal)' || item.vendorName === 'Gudang Sarpras')
-                        ? 'GUDANG'
-                        : (item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : '')),
-                    vendorName: (item.vendorId === 'GUDANG' || item.vendorName === 'Bidang Sarana' || item.vendorName === 'Gudang Sarpras (Internal)' || item.vendorName === 'Gudang Sarpras')
-                        ? 'Bidang Sarana'
-                        : (item.vendorName || ''),
-                    comparisonVendors: safeJSON(item.comparisonVendors),
+                    vendorId: resolvedVendorId,
+                    vendorName: isGudang ? 'Bidang Sarana' : (item.vendorName || ''),
+                    comparisonVendors: parsedCVs,
                     needComparison: item.needComparison !== false,
                     assignedTo: item.assignedTo || '',
                     assignedToId: item.assignedToId || null,
@@ -909,6 +928,25 @@ const ProcurementDetail = () => {
                 categoryId: item.categoryId ? parseInt(item.categoryId) : null
             });
 
+            // After save: normalize vendorId in React state so vendor name persists on tab switch.
+            // If vendorId was 'OTHER', update it to reflect the saved vendorName so the
+            // select dropdown shows the correct state without requiring a full fetchDetail.
+            if (item.vendorId === 'OTHER' && resolvedVendorName) {
+                setReq(prev => {
+                    if (!prev?.items) return prev;
+                    const idx = prev.items.findIndex(i => i.id === item.id);
+                    if (idx === -1) return prev;
+                    const nextItems = [...prev.items];
+                    nextItems[idx] = {
+                        ...nextItems[idx],
+                        vendorId: 'OTHER',
+                        vendorName: resolvedVendorName,
+                        newVendorName: resolvedVendorName
+                    };
+                    return { ...prev, items: nextItems };
+                });
+            }
+
             if (!silent) {
                 setSavingItems(prev => ({ ...prev, [item.id]: 'done' }));
                 setTimeout(() => {
@@ -918,7 +956,6 @@ const ProcurementDetail = () => {
                         return next;
                     });
                 }, 2000);
-                // fetchDetail(); // Optional if we trust optimistic state
             }
         } catch (e) {
             if (!silent) {
@@ -3868,18 +3905,37 @@ const ProcurementDetail = () => {
                                 }}>
                                     <CheckCircle size={15} /> Serah Terima Selesai
                                 </span>
-                            ) : req.type === 'ASSET' ? (
-                                <Btn variant="primary" onClick={() => {
-                                    if (!bastDate) return alert('Pilih tanggal serah terima (BAST) terlebih dahulu');
-                                    setActiveTab(6);
-                                }}>
-                                    Lanjut ke Pemilihan Ruangan <ChevronRight size={14} />
-                                </Btn>
                             ) : (
-                                <Btn variant="success" onClick={handleBAST} disabled={loading}>
-                                    {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                                    Selesaikan Pengadaan
-                                </Btn>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    {/* Simpan draft BAST: garansi, TTD, foto sebelum finalisasi */}
+                                    {(isAdmin || isAssignedToAny || isRequester) && (
+                                        <Btn
+                                            variant="ghost"
+                                            style={{ fontSize: 12, padding: '7px 13px', borderColor: T.gold, color: T.warn }}
+                                            disabled={isSavingSignatures}
+                                            onClick={handleSaveSignaturesOnly}
+                                            title="Simpan data BAST (garansi, tanda tangan, nama penerima) tanpa menyelesaikan pengadaan"
+                                        >
+                                            {isSavingSignatures
+                                                ? <><Loader2 size={13} className="animate-spin" /> Menyimpan...</>
+                                                : <><Save size={13} /> Simpan Draft BAST</>
+                                            }
+                                        </Btn>
+                                    )}
+                                    {req.type === 'ASSET' ? (
+                                        <Btn variant="primary" onClick={() => {
+                                            if (!bastDate) return alert('Pilih tanggal serah terima (BAST) terlebih dahulu');
+                                            setActiveTab(6);
+                                        }}>
+                                            Lanjut ke Pemilihan Ruangan <ChevronRight size={14} />
+                                        </Btn>
+                                    ) : (
+                                        <Btn variant="success" onClick={handleBAST} disabled={loading}>
+                                            {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                            Selesaikan Pengadaan
+                                        </Btn>
+                                    )}
+                                </div>
                             )}
                         </CardHeader>
 
