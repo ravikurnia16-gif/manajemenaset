@@ -571,6 +571,7 @@ export default function MaintenanceSPKModal({ show, onClose, report, currentUser
                                         </div>
                                     )}
                                 </div>
+                            </div>
                         </div>
 
                         {/* ══ FOOTER ══ */}
