@@ -1270,16 +1270,12 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
         if (options.kabidName !== undefined) parsedSigs.kabidName = options.kabidName;
         if (options.kabidPosition !== undefined) parsedSigs.kabidPosition = options.kabidPosition;
 
-        // Find Kepala Bidang Sarana
+        // Find Kepala Bidang Sarana berdasarkan Position (bukan Role Kepala Bidang)
         let kabidUser = await prisma.user.findFirst({
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana' },
-                    { position: { contains: 'Kepala Bidang Sarana' } },
-                    { position: { contains: 'Sarana' } },
-                    { position: { contains: 'Kabid' } },
-                    { role: 'KEPALA_BIDANG' },
-                    { role: 'KABID_SARPRAS' }
+                    { position: { contains: 'Kepala Bidang Sarana' } }
                 ]
             }
         }) || { id: 1, name: 'Ravi Kurnia, S.T.', position: 'Kepala Bidang Sarana', nip: '-' };
@@ -1299,6 +1295,16 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
         // Document Status: SIGNED if both parties have signed or procurement is COMPLETED
         const docStatus = (hasP1 && hasP2) || isCompleted ? 'SIGNED' : ((hasP1 || hasP2) ? 'PENDING_APPROVAL' : 'DRAFT');
 
+        // Pastikan nama dan jabatan Pihak 1 selalu Kepala Bidang Sarana (bukan divisi lain seperti Pendidikan)
+        const isNonSarana = (name = '', pos = '') => {
+            const str = (name + ' ' + pos).toLowerCase();
+            return str.includes('pendidikan') || str.includes('dakwah') || str.includes('sosial');
+        };
+        const resolvedKabidName = (parsedSigs.kabidName && !isNonSarana(parsedSigs.kabidName, parsedSigs.kabidPosition))
+            ? parsedSigs.kabidName
+            : (kabidUser.name || 'Ravi Kurnia, S.T.');
+        const resolvedKabidPosition = 'Kepala Bidang Sarana';
+
         // Prepare item details for content JSON
         const itemsList = (procurement.items || []).map(it => ({
             name: it.name,
@@ -1314,8 +1320,8 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
             procurementCode: procurement.code,
             procurementTitle: procurement.title,
             unitName: procurement.unit?.name || 'Unit Pemohon',
-            kabidName: parsedSigs.kabidName || kabidUser.name,
-            kabidPosition: parsedSigs.kabidPosition || kabidUser.position || 'Kepala Bidang Sarana',
+            kabidName: resolvedKabidName,
+            kabidPosition: resolvedKabidPosition,
             unitKerja: 'Bidang Sarana',
             receiverName: receiverName,
             receiverUnit: procurement.unit?.name || 'Unit Pemohon',
@@ -1351,8 +1357,8 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
                     status: docStatus,
                     signedById: hasP1 ? (options.signerId || kabidUser.id) : null,
                     signedAt: hasP1 ? kabidSignedAt : null,
-                    party1Name: parsedSigs.kabidName || kabidUser.name,
-                    party1Title: parsedSigs.kabidPosition || kabidUser.position || 'Kepala Bidang Sarana',
+                    party1Name: resolvedKabidName,
+                    party1Title: resolvedKabidPosition,
                     party1Org: 'Bidang Sarana',
                     party1SignedAt: hasP1 ? kabidSignedAt : null,
                     party2Name: receiverName,
@@ -1382,8 +1388,8 @@ const syncBastToOfficeDocument = async (procurementId, options = {}) => {
                 where: { id: bastDoc.id },
                 data: {
                     content: JSON.stringify(mergedContent),
-                    party1Name: parsedSigs.kabidName || kabidUser.name,
-                    party1Title: parsedSigs.kabidPosition || kabidUser.position || 'Kepala Bidang Sarana',
+                    party1Name: resolvedKabidName,
+                    party1Title: resolvedKabidPosition,
                     party1Org: 'Bidang Sarana',
                     party1SignedAt: party1SignedAtVal,
                     signedById: party1SignerId,
@@ -1492,10 +1498,10 @@ exports.signBastKabidTte = async (req, res) => {
 
     const pos = (currentUser?.position || '').toLowerCase();
     const role = (currentUser?.role || '').toUpperCase();
-    const isKabid = pos.includes('kepala bidang sarana') || pos.includes('kabid') || role === 'SUPER_ADMIN' || role === 'KEPALA_BIDANG' || role === 'KABID_SARPRAS';
+    const isKabidSarana = pos.includes('kepala bidang sarana') || role === 'SUPER_ADMIN';
 
-    if (!isKabid) {
-        return res.status(403).json({ error: 'Akses ditolak: Hanya Kepala Bidang Sarana yang berwenang membubuhkan TTE Berita Acara (BAST).' });
+    if (!isKabidSarana) {
+        return res.status(403).json({ error: 'Akses ditolak: Hanya pengguna dengan jabatan Kepala Bidang Sarana yang berwenang membubuhkan TTE Berita Acara (BAST).' });
     }
 
     try {
@@ -1505,23 +1511,21 @@ exports.signBastKabidTte = async (req, res) => {
         });
         if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan' });
 
-        // Identify official Kabid account or current user
+        // Identify official Kabid Sarana account berdasarkan Position (bukan role Kepala Bidang)
         let kabidUser = await prisma.user.findFirst({
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana' },
-                    { position: { contains: 'Kepala Bidang Sarana' } },
-                    { role: 'KEPALA_BIDANG' },
-                    { role: 'KABID_SARPRAS' }
+                    { position: { contains: 'Kepala Bidang Sarana' } }
                 ]
             }
         });
-        if (!kabidUser || (pos.includes('kepala bidang sarana') || pos.includes('kabid'))) {
+        if (pos.includes('kepala bidang sarana')) {
             kabidUser = await prisma.user.findUnique({ where: { id: currentUser.id } }) || kabidUser;
         }
 
-        const kabidName = kabidUser?.name || currentUser.name || currentUser.username || 'Ravi Kurnia, S.T.';
-        const kabidPosition = kabidUser?.position || 'Kepala Bidang Sarana';
+        const kabidName = kabidUser?.name || 'Ravi Kurnia, S.T.';
+        const kabidPosition = 'Kepala Bidang Sarana';
         const now = new Date();
 
         // Update bastFile in procurement

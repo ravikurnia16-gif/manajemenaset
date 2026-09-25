@@ -478,18 +478,34 @@ const ProcurementDetail = () => {
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const userPos = (user?.position || '').toLowerCase();
-    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
-    const isKabid = user?.role === 'SUPER_ADMIN' || userPos.includes('kepala bidang sarana') || userPos.includes('kabid') || user?.role === 'KEPALA_BIDANG' || user?.role === 'KABID_SARPRAS';
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT'].includes(user?.role);
+    const isKabid = user?.role === 'SUPER_ADMIN' || userPos.includes('kepala bidang sarana');
     const isStaffAset = user?.role === 'ADMIN_ASET' || userPos.includes('staff manajemen aset');
     const canIssueAssignmentOrder = isKabid || isStaffAset;
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
     const isRequester = req?.userId === user?.id;
 
+    // Cari pejabat resmi Kepala Bidang Sarana murni berdasarkan Position (bukan Role Kepala Bidang)
     const kabidUser = (users || []).find(u =>
-        (u.position && (u.position.toLowerCase().includes('sarana') || u.position.toLowerCase().includes('kabid'))) ||
-        u.role === 'KEPALA_BIDANG' || u.role === 'KABID_SARPRAS'
+        u.position && u.position.toLowerCase().includes('kepala bidang sarana')
     ) || { name: 'Ravi Kurnia, S.T.', position: 'Kepala Bidang Sarana', nip: '-' };
+
+    // Nama & Jabatan Pihak 1 (Kepala Bidang Sarana) yang bersih dari nama non-sarana (seperti Pendidikan)
+    const isNonSarana = (name = '', pos = '') => {
+        const str = (name + ' ' + pos).toLowerCase();
+        return str.includes('pendidikan') || str.includes('dakwah') || str.includes('sosial');
+    };
+    const displayPihak1Name = (() => {
+        if (bastSignatures?.kabidName && !isNonSarana(bastSignatures.kabidName, bastSignatures.kabidPosition)) {
+            return bastSignatures.kabidName;
+        }
+        if (bastDoc?.party1Name && !isNonSarana(bastDoc.party1Name, bastDoc.party1Title)) {
+            return bastDoc.party1Name;
+        }
+        return kabidUser?.name || 'Ravi Kurnia, S.T.';
+    })();
+    const displayPihak1Title = 'Kepala Bidang Sarana';
 
     const isPihak1Tte = Boolean(bastSignatures?.kabidTte || (bastDoc?.party1SignedAt && bastSignatures?.kabidTte !== false));
 
@@ -4720,10 +4736,10 @@ const ProcurementDetail = () => {
                                                 </div>
                                                 <div style={{ borderTop: `1px solid ${T.border}`, width: '100%', paddingTop: 8, marginTop: 4 }}>
                                                     <div style={{ fontSize: 13, fontWeight: 800, color: T.navy }}>
-                                                        {bastSignatures?.kabidName || bastDoc?.party1Name || kabidUser?.name || 'Ravi Kurnia, S.T.'}
+                                                        {displayPihak1Name}
                                                     </div>
                                                     <div style={{ fontSize: 11, color: T.slate }}>
-                                                        {bastSignatures?.kabidPosition || bastDoc?.party1Title || kabidUser?.position || 'Kepala Bidang Sarana'}
+                                                        {displayPihak1Title}
                                                     </div>
                                                 </div>
                                                 {!isPihak1Tte && isKabid && (
@@ -5189,7 +5205,7 @@ const ProcurementDetail = () => {
                                                                                             <option value="">— Pilih Ruangan —</option>
                                                                                             {availableRooms.map(r => (
                                                                                                 <option key={r.id} value={r.id}>
-                                                                                                    {r.name} {r.building ? `— ${r.building}` : ''} {r.floor ? `(Lt. ${r.floor})` : ''}
+                                                                                                    {r.name}
                                                                                                 </option>
                                                                                             ))}
                                                                                         </Select>
@@ -5320,7 +5336,7 @@ const ProcurementDetail = () => {
                                                                                         <option value="">— Pilih Ruangan ({activeUnitName}) —</option>
                                                                                         {availableRooms.map(r => (
                                                                                             <option key={r.id} value={r.id}>
-                                                                                                {r.name} {r.building ? `— ${r.building}` : ''}
+                                                                                                {r.name}
                                                                                             </option>
                                                                                         ))}
                                                                                     </Select>
@@ -5703,10 +5719,14 @@ const ProcurementDetail = () => {
 
                     {/* Printable Paper */}
                     {(() => {
-                        const kabidUser = users.find(u =>
-                            (u.position && (u.position.toLowerCase().includes('sarana') || u.position.toLowerCase().includes('kabid'))) ||
-                            u.role === 'KEPALA_BIDANG' || u.role === 'KABID_SARPRAS'
-                        ) || { name: 'Ravi Kurnia', position: 'Kepala Bidang Sarana', nip: '-' };
+                        const effectiveKabid = users.find(u =>
+                            u.position && u.position.toLowerCase().includes('kepala bidang sarana')
+                        ) || { name: 'Ravi Kurnia, S.T.', position: 'Kepala Bidang Sarana', nip: '-' };
+
+                        const modalPihak1Name = (bastDoc?.party1Name && !isNonSarana(bastDoc.party1Name, bastDoc.party1Title))
+                            ? bastDoc.party1Name
+                            : (effectiveKabid.name || 'Ravi Kurnia, S.T.');
+                        const modalPihak1Title = 'Kepala Bidang Sarana';
 
                         const effectiveBastDate = bastDoc?.date || bastDate || bastSignatures?.bastDate || req.bastDate || req.createdAt;
                         const bastDateParsed = formatIndonesianDate(effectiveBastDate);
@@ -5791,19 +5811,19 @@ const ProcurementDetail = () => {
                                                 <td style={{ width: 20, verticalAlign: 'top', fontWeight: 'bold' }}>1.</td>
                                                 <td style={{ width: 130, verticalAlign: 'top', fontWeight: 'bold' }}>Nama</td>
                                                 <td style={{ width: 10, verticalAlign: 'top' }}>:</td>
-                                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}</td>
+                                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{modalPihak1Name}</td>
                                             </tr>
                                             <tr>
                                                 <td></td>
                                                 <td style={{ verticalAlign: 'top' }}>Jabatan</td>
                                                 <td style={{ verticalAlign: 'top' }}>:</td>
-                                                <td style={{ verticalAlign: 'top' }}>{bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}</td>
+                                                <td style={{ verticalAlign: 'top' }}>{modalPihak1Title}</td>
                                             </tr>
                                             <tr>
                                                 <td></td>
                                                 <td style={{ verticalAlign: 'top' }}>Unit Kerja</td>
                                                 <td style={{ verticalAlign: 'top' }}>:</td>
-                                                <td style={{ verticalAlign: 'top' }}>{bastDoc?.party1Org || 'Bidang Sarana'}</td>
+                                                <td style={{ verticalAlign: 'top' }}>Bidang Sarana</td>
                                             </tr>
                                             <tr>
                                                 <td></td>
@@ -6004,13 +6024,13 @@ const ProcurementDetail = () => {
                                                 )}
                                             </div>
                                             <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: 11.5 }}>
-                                                {bastDoc?.party1Name || kabidUser.name || 'Kepala Bidang Sarana'}
+                                                {modalPihak1Name}
                                             </div>
                                             <div style={{ fontSize: 9.5, color: '#4b5563' }}>
-                                                {bastDoc?.party1Title || kabidUser.position || 'Kepala Bidang Sarana'}
+                                                {modalPihak1Title}
                                             </div>
                                             <div style={{ fontSize: 9, color: '#6b7280' }}>
-                                                {kabidUser?.nip && kabidUser.nip !== '-' ? `NIY. ${kabidUser.nip}` : (bastDoc?.party1Org || 'Bidang Sarana')}
+                                                {effectiveKabid?.nip && effectiveKabid.nip !== '-' ? `NIY. ${effectiveKabid.nip}` : 'Bidang Sarana'}
                                             </div>
                                         </div>
                                     </div>

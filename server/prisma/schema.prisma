@@ -86,6 +86,8 @@ model User {
   vehiclesPIC           Vehicle[]        @relation("VehiclePICs")
   vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
   busDriverBookings     BusBooking[]     @relation("BusDriver")
+  requestedVehicleServices VehicleService[] @relation("VehicleServiceRequester")
+  approvedVehicleServices  VehicleService[] @relation("VehicleServiceApprover")
 
   // Lelang (Pelelangan)
   wonDisposals          AssetDisposal[]  @relation("DisposalWinner")
@@ -775,21 +777,44 @@ model VehicleLocationHistory {
 
 model VehicleService {
   id                  Int       @id @default(autoincrement())
+  code                String?   @unique // e.g. PK/2026/001
   vehicleId           Int
   vehicle             Vehicle   @relation(fields: [vehicleId], references: [id])
-  date                DateTime
+  date                DateTime  @default(now())
   category            String    @default("ROUTINE") // ROUTINE, NON_ROUTINE
-  type                String // SERVICE_RUTIN, GANTI_OLI, PAJAK, PERBAIKAN, OTHER
+  type                String    // SERVICE_RUTIN, GANTI_OLI, PAJAK, PERBAIKAN, OTHER
   description         String    @db.Text
-  cost                Float
+  cost                Float     @default(0)
   odometer            Int?
-  nextServiceOdometer Int? // KM service berikutnya (Routine only)
+  nextServiceOdometer Int?      // KM service berikutnya (Routine only)
   nextServiceDate     DateTime? // Tanggal service berikutnya (hybrid reminder)
-  items               Json? // Array of { name, cost, nextKm?, nextDate?, isRoutine }
-  workshop            String? // Bengkel
-  proofFile           String? // Foto Nota
+  items               Json?     // Array of { name, cost, nextKm?, nextDate?, isRoutine }
+  workshop            String?   // Bengkel
+  proofFile           String?   // Foto Nota
 
-  createdAt DateTime @default(now())
+  // Workflow Pengajuan Kendaraan
+  status          String    @default("COMPLETED") // PENDING, APPROVED, IN_PROGRESS, COMPLETED, REJECTED
+  urgency         String    @default("NORMAL")    // NORMAL, URGENT, EMERGENCY
+  estimatedCost   Float?
+  complaintPhoto  String?   // Foto kondisi awal / kendala saat pengajuan
+  targetDate      DateTime? // Target pengerjaan selesai dari Kabid
+
+  // Relasi Pemohon & Persetujuan
+  requesterId     Int?
+  requester       User?     @relation("VehicleServiceRequester", fields: [requesterId], references: [id])
+  approvedById    Int?
+  approvedBy      User?     @relation("VehicleServiceApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  approvalNote    String?   @db.Text
+  rejectionReason String?   @db.Text
+
+  // E-Office & SPK
+  spkNumber       String?   // e.g. 002/SPK/SRN/IX/2026
+  spkUuid         String?   // UUID OfficeDocument
+  spkQrCode       String?   @db.Text
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt @default(now())
 }
 
 model VehicleMaintenanceReminder {

@@ -6,6 +6,8 @@ const { createNotification } = require('./notificationController');
 const predictiveService = require('../services/predictiveService');
 const aiService = require('../services/aiService');
 const crypto = require('crypto');
+const { generateDocumentNumber } = require('../services/documentNumberingService');
+const { generateVerificationQR } = require('../services/officePdfService');
 
 // --- Business Day & Working Hours Helpers for SLA Respon Awal (07:15 - 16:15 WIB, Senin - Jumat) ---
 
@@ -1738,6 +1740,397 @@ exports.diagnoseMaintenanceAI = async (req, res) => {
     } catch (error) {
         console.error('[Maintenance AI Diagnosis Error]:', error);
         res.status(500).json({ error: error.message || 'Gagal melakukan analisis AI' });
+    }
+};
+
+// ==================== SPK & E-OFFICE INTEGRATION ====================
+
+/**
+ * GET /api/maintenance/:id/spk
+ * Fetch or preview SPK data connected to E-Office
+ */
+exports.getReportSPK = async (req, res) => {
+    try {
+        const reportId = parseInt(req.params.id);
+        const report = await prisma.maintenance.findUnique({
+            where: { id: reportId },
+            include: {
+                user: { select: { id: true, name: true, username: true, phone: true } },
+                unit: { select: { id: true, name: true } },
+                assets: true,
+            }
+        });
+
+        if (!report) {
+            return res.status(404).json({ error: 'Laporan pemeliharaan tidak ditemukan' });
+        }
+
+        // Check if an OfficeDocument already exists for this report
+        let officeDoc = await prisma.officeDocument.findFirst({
+            where: {
+                category: 'SPK',
+                referenceNumber: report.code,
+            },
+            include: {
+                signedBy: { select: { id: true, name: true, username: true, position: true } }
+            }
+        });
+
+        let spkData = {};
+        let savedMeta = (report.aiDiagnosis && typeof report.aiDiagnosis === 'object' && !Array.isArray(report.aiDiagnosis))
+            ? (report.aiDiagnosis.spk || {})
+            : {};
+
+        if (officeDoc) {
+            let docContent = {};
+            try {
+                docContent = officeDoc.content ? JSON.parse(officeDoc.content) : {};
+            } catch (e) {
+                docContent = {};
+            }
+
+            spkData = {
+                documentId: officeDoc.id,
+                documentUuid: officeDoc.uuid,
+                documentNumber: officeDoc.number,
+                status: officeDoc.status,
+                isSigned: officeDoc.status === 'SIGNED',
+                signedAt: officeDoc.signedAt,
+                signedBy: officeDoc.signedBy ? (officeDoc.signedBy.name || officeDoc.signedBy.username) : (savedMeta.signedBy || null),
+                signedByPosition: officeDoc.signedBy?.position || savedMeta.signedByPosition || 'Kepala Bidang Sarana',
+                qrCodeData: officeDoc.qrCodeData || savedMeta.qrCodeData || null,
+                maintenanceType: docContent.maintenanceType || savedMeta.maintenanceType || (report.targetDept === 'PEMBANGUNAN' ? 'Pemeliharaan Bangunan' : 'Pemeliharaan Aset'),
+                targetEndDate: docContent.targetEndDate || savedMeta.targetEndDate || null,
+                scopeText: docContent.scopeText || savedMeta.scopeText || (report.description || report.title || ''),
+            };
+        } else {
+            // Generate official preview number following E-Office pattern: {URUT}/SPK/SRN/{BULAN_ROMAWI}/{TAHUN}
+            const previewNumber = await generateDocumentNumber('SPK', 'SURAT_KELUAR');
+            spkData = {
+                documentId: null,
+                documentUuid: null,
+                documentNumber: savedMeta.documentNumber || previewNumber,
+                status: 'DRAFT',
+                isSigned: false,
+                signedAt: null,
+                signedBy: null,
+                signedByPosition: null,
+                qrCodeData: null,
+                maintenanceType: savedMeta.maintenanceType || (report.targetDept === 'PEMBANGUNAN' ? 'Pemeliharaan Bangunan' : 'Pemeliharaan Aset'),
+                targetEndDate: savedMeta.targetEndDate || null,
+                scopeText: savedMeta.scopeText || (report.description || report.title || ''),
+            };
+        }
+
+        res.json({
+            report: {
+                id: report.id,
+                code: report.code,
+                title: report.title,
+                description: report.description,
+                status: report.status,
+                category: report.category,
+                urgency: report.urgency,
+                targetDept: report.targetDept,
+                technician: report.technician,
+                technicianPhone: report.technicianPhone || (report.user?.phone) || '-',
+                createdAt: report.createdAt,
+                approvedAt: report.approvedAt || report.createdAt,
+                unit: report.unit,
+                assets: report.assets,
+            },
+            spk: spkData
+        });
+    } catch (error) {
+        console.error('[Maintenance getReportSPK Error]:', error);
+        res.status(500).json({ error: error.message || 'Gagal memuat data SPK' });
+    }
+};
+
+/**
+ * PUT /api/maintenance/:id/spk
+ * Save SPK draft details (maintenanceType, targetEndDate, scopeText)
+ */
+exports.saveReportSPK = async (req, res) => {
+    try {
+        const reportId = parseInt(req.params.id);
+        const { maintenanceType, targetEndDate, scopeText } = req.body;
+
+        const report = await prisma.maintenance.findUnique({
+            where: { id: reportId },
+            include: { unit: true, assets: true }
+        });
+        if (!report) {
+            return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        }
+
+        let metadata = report.aiDiagnosis || {};
+        if (typeof metadata !== 'object' || Array.isArray(metadata)) {
+            metadata = {};
+        }
+
+        metadata.spk = {
+            ...(metadata.spk || {}),
+            maintenanceType: maintenanceType || (report.targetDept === 'PEMBANGUNAN' ? 'Pemeliharaan Bangunan' : 'Pemeliharaan Aset'),
+            targetEndDate: targetEndDate || null,
+            scopeText: scopeText !== undefined ? scopeText : (report.description || report.title || ''),
+            updatedAt: new Date().toISOString()
+        };
+
+        await prisma.maintenance.update({
+            where: { id: reportId },
+            data: { aiDiagnosis: metadata }
+        });
+
+        // Also update existing officeDoc if exists
+        const existingDoc = await prisma.officeDocument.findFirst({
+            where: { category: 'SPK', referenceNumber: report.code }
+        });
+        if (existingDoc) {
+            let contentObj = {};
+            try { contentObj = existingDoc.content ? JSON.parse(existingDoc.content) : {}; } catch (e) {}
+            contentObj = {
+                ...contentObj,
+                maintenanceType: metadata.spk.maintenanceType,
+                targetEndDate: metadata.spk.targetEndDate,
+                scopeText: metadata.spk.scopeText,
+            };
+            await prisma.officeDocument.update({
+                where: { id: existingDoc.id },
+                data: { content: JSON.stringify(contentObj) }
+            });
+        }
+
+        res.json({ message: 'Rincian SPK berhasil disimpan', spk: metadata.spk });
+    } catch (error) {
+        console.error('[Maintenance saveReportSPK Error]:', error);
+        res.status(500).json({ error: error.message || 'Gagal menyimpan data SPK' });
+    }
+};
+
+/**
+ * POST /api/maintenance/:id/spk/tte
+ * Sign SPK via TTE by Kepala Bidang Sarana and connect to E-Office
+ */
+exports.signReportSPKTte = async (req, res) => {
+    try {
+        const reportId = parseInt(req.params.id);
+        const { maintenanceType, targetEndDate, scopeText } = req.body;
+
+        // 1. Validasi Posisi / Hak Akses: Kepala Bidang Sarana (atau Super Admin)
+        const currentUser = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { id: true, name: true, username: true, role: true, position: true, phone: true }
+        });
+
+        const userPosition = (currentUser?.position || '').toLowerCase();
+        const isKabidSarana = userPosition.includes('kepala bidang sarana') || currentUser?.role === 'SUPER_ADMIN';
+
+        if (!isKabidSarana) {
+            return res.status(403).json({
+                error: 'Hak akses ditolak: Hanya pengguna dengan jabatan Kepala Bidang Sarana yang berwenang membubuhkan TTE pada SPK.'
+            });
+        }
+
+        const report = await prisma.maintenance.findUnique({
+            where: { id: reportId },
+            include: { unit: true, assets: true, user: true }
+        });
+        if (!report) {
+            return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        }
+
+        const chosenType = maintenanceType || (report.targetDept === 'PEMBANGUNAN' ? 'Pemeliharaan Bangunan' : 'Pemeliharaan Aset');
+        const chosenScope = scopeText !== undefined ? scopeText : (report.description || report.title || '');
+
+        // 2. Cari atau Buat OfficeDocument di E-Office
+        let officeDoc = await prisma.officeDocument.findFirst({
+            where: { category: 'SPK', referenceNumber: report.code }
+        });
+
+        let docUuid = officeDoc?.uuid || crypto.randomUUID();
+        let qrCodeData = await generateVerificationQR(docUuid);
+
+        let docNumber = officeDoc?.number;
+        if (!docNumber) {
+            docNumber = await generateDocumentNumber('SPK', 'SURAT_KELUAR');
+        }
+
+        const contentObj = {
+            maintenanceId: report.id,
+            maintenanceCode: report.code,
+            maintenanceType: chosenType,
+            targetEndDate: targetEndDate || null,
+            scopeText: chosenScope,
+            technician: report.technician || '-',
+            technicianPhone: report.technicianPhone || (report.user?.phone) || '-',
+            unitName: report.unit?.name || '-',
+            location: report.location || '-',
+            assets: (report.assets || []).map(a => ({ id: a.id, code: a.code, name: a.name, condition: a.condition })),
+            signedByName: currentUser.name || currentUser.username,
+            signedByPosition: currentUser.position || 'Kepala Bidang Sarana',
+            signedAt: new Date().toISOString()
+        };
+
+        if (officeDoc) {
+            officeDoc = await prisma.officeDocument.update({
+                where: { id: officeDoc.id },
+                data: {
+                    type: 'SURAT_KELUAR',
+                    category: 'SPK',
+                    status: 'SIGNED',
+                    number: docNumber,
+                    subject: `Surat Perintah Kerja (SPK) - ${report.title} (${report.code})`,
+                    referenceNumber: report.code,
+                    signedById: currentUser.id,
+                    signedAt: new Date(),
+                    qrCodeData: qrCodeData,
+                    content: JSON.stringify(contentObj),
+                },
+                include: {
+                    signedBy: { select: { id: true, name: true, username: true, position: true } }
+                }
+            });
+        } else {
+            officeDoc = await prisma.officeDocument.create({
+                data: {
+                    uuid: docUuid,
+                    type: 'SURAT_KELUAR',
+                    category: 'SPK',
+                    status: 'SIGNED',
+                    number: docNumber,
+                    subject: `Surat Perintah Kerja (SPK) - ${report.title} (${report.code})`,
+                    referenceNumber: report.code,
+                    authorId: currentUser.id,
+                    signedById: currentUser.id,
+                    signedAt: new Date(),
+                    qrCodeData: qrCodeData,
+                    content: JSON.stringify(contentObj),
+                },
+                include: {
+                    signedBy: { select: { id: true, name: true, username: true, position: true } }
+                }
+            });
+        }
+
+        // 3. Update report.aiDiagnosis metadata
+        let metadata = report.aiDiagnosis || {};
+        if (typeof metadata !== 'object' || Array.isArray(metadata)) {
+            metadata = {};
+        }
+
+        metadata.spk = {
+            documentId: officeDoc.id,
+            documentUuid: officeDoc.uuid,
+            documentNumber: officeDoc.number,
+            maintenanceType: chosenType,
+            targetEndDate: targetEndDate || null,
+            scopeText: chosenScope,
+            isSigned: true,
+            signedAt: officeDoc.signedAt,
+            signedBy: currentUser.name || currentUser.username,
+            signedByPosition: currentUser.position || 'Kepala Bidang Sarana',
+            qrCodeData: officeDoc.qrCodeData,
+        };
+
+        await prisma.maintenance.update({
+            where: { id: reportId },
+            data: { aiDiagnosis: metadata }
+        });
+
+        // 4. Catat riwayat pengerjaan (MaintenanceProgress)
+        try {
+            await prisma.maintenanceProgress.create({
+                data: {
+                    maintenanceId: reportId,
+                    userId: currentUser.id,
+                    status: report.status,
+                    note: `Surat Perintah Kerja (SPK) No. ${officeDoc.number} telah dibubuhi TTE oleh ${currentUser.name || currentUser.username} (${currentUser.position || 'Kepala Bidang Sarana'}).`,
+                }
+            });
+        } catch (progErr) {
+            console.error('Error logging SPK TTE progress:', progErr);
+        }
+
+        res.json({
+            message: 'TTE berhasil dibubuhkan pada SPK dan tercatat di E-Office',
+            spk: {
+                documentId: officeDoc.id,
+                documentUuid: officeDoc.uuid,
+                documentNumber: officeDoc.number,
+                status: officeDoc.status,
+                isSigned: true,
+                signedAt: officeDoc.signedAt,
+                signedBy: currentUser.name || currentUser.username,
+                signedByPosition: currentUser.position || 'Kepala Bidang Sarana',
+                qrCodeData: officeDoc.qrCodeData,
+                maintenanceType: chosenType,
+                targetEndDate: targetEndDate || null,
+                scopeText: chosenScope,
+            }
+        });
+    } catch (error) {
+        console.error('[Maintenance signReportSPKTte Error]:', error);
+        res.status(500).json({ error: error.message || 'Gagal menandatangani TTE pada SPK' });
+    }
+};
+
+/**
+ * DELETE /api/maintenance/:id/spk/tte
+ * Cancel TTE on SPK by Kepala Bidang Sarana
+ */
+exports.cancelReportSPKTte = async (req, res) => {
+    try {
+        const reportId = parseInt(req.params.id);
+
+        const currentUser = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { id: true, name: true, username: true, role: true, position: true }
+        });
+
+        const userPosition = (currentUser?.position || '').toLowerCase();
+        const isKabidSarana = userPosition.includes('kepala bidang sarana') || currentUser?.role === 'SUPER_ADMIN';
+
+        if (!isKabidSarana) {
+            return res.status(403).json({
+                error: 'Hak akses ditolak: Hanya Kepala Bidang Sarana yang dapat membatalkan TTE.'
+            });
+        }
+
+        const report = await prisma.maintenance.findUnique({ where: { id: reportId } });
+        if (!report) {
+            return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        }
+
+        const officeDoc = await prisma.officeDocument.findFirst({
+            where: { category: 'SPK', referenceNumber: report.code }
+        });
+        if (officeDoc) {
+            await prisma.officeDocument.update({
+                where: { id: officeDoc.id },
+                data: {
+                    status: 'DRAFT',
+                    signedById: null,
+                    signedAt: null,
+                }
+            });
+        }
+
+        let metadata = report.aiDiagnosis || {};
+        if (typeof metadata === 'object' && !Array.isArray(metadata) && metadata.spk) {
+            metadata.spk.isSigned = false;
+            metadata.spk.signedAt = null;
+            metadata.spk.signedBy = null;
+            await prisma.maintenance.update({
+                where: { id: reportId },
+                data: { aiDiagnosis: metadata }
+            });
+        }
+
+        res.json({ message: 'TTE pada SPK berhasil dibatalkan.' });
+    } catch (error) {
+        console.error('[Maintenance cancelReportSPKTte Error]:', error);
+        res.status(500).json({ error: error.message || 'Gagal membatalkan TTE SPK' });
     }
 };
 

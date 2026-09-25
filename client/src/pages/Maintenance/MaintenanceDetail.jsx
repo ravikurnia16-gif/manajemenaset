@@ -678,6 +678,7 @@ const MaintenanceDetail = () => {
                 onClose={() => setShowSPKModal(false)}
                 report={report}
                 currentUser={user}
+                onReportUpdated={fetchReport}
             />
 
             <MaintenanceAssetHistoryModal 

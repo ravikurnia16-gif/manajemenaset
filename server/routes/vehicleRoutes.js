@@ -41,6 +41,12 @@ const maintenanceCtrl = require('../controllers/vehicleMaintenanceController');
 router.get('/maintenance/all', verifyToken, maintenanceCtrl.getAllMaintenanceLogs);
 router.get('/maintenance/:id', verifyToken, maintenanceCtrl.getMaintenanceLogById);
 router.post('/maintenance', verifyToken, maintenanceCtrl.createMaintenanceLog);
+router.post('/maintenance/request', verifyToken, handleUpload('complaintPhoto', 'vehicles'), maintenanceCtrl.createMaintenanceRequest);
+router.put('/maintenance/:id/approve', verifyToken, maintenanceCtrl.approveMaintenanceRequest);
+router.put('/maintenance/:id/reject', verifyToken, maintenanceCtrl.rejectMaintenanceRequest);
+router.put('/maintenance/:id/start-progress', verifyToken, maintenanceCtrl.startMaintenanceProgress);
+router.put('/maintenance/:id/complete', verifyToken, handleUpload('proofFile', 'vehicles'), maintenanceCtrl.completeMaintenanceService);
+router.get('/maintenance/:id/spk', verifyToken, maintenanceCtrl.getVehicleServiceSPK);
 router.put('/maintenance/:id', verifyToken, maintenanceCtrl.updateMaintenanceLog);
 router.delete('/maintenance/:id', verifyToken, maintenanceCtrl.deleteMaintenanceLog);
 

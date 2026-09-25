@@ -16,5 +16,9 @@ router.put('/:id/status', verifyToken, maintenanceController.updateStatus);
 router.put('/quick-complete/:token', maintenanceController.quickComplete);
 router.put('/:id/complete-asset/:assetId', verifyToken, maintenanceController.completeAssetMaintenance);
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG']), maintenanceController.deleteReport);
+router.get('/:id/spk', verifyToken, maintenanceController.getReportSPK);
+router.put('/:id/spk', verifyToken, maintenanceController.saveReportSPK);
+router.post('/:id/spk/tte', verifyToken, maintenanceController.signReportSPKTte);
+router.delete('/:id/spk/tte', verifyToken, maintenanceController.cancelReportSPKTte);
 
 module.exports = router;
