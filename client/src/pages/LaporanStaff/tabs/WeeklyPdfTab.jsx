@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-    Printer, Camera, Sparkles, Loader2, Bot, Check, Edit3, 
-    RefreshCw, CheckCircle2, AlertTriangle, FileText, ChevronDown 
+import {
+    Printer, Camera, Sparkles, Loader2, Bot, Check, Edit3,
+    RefreshCw, CheckCircle2, AlertTriangle, FileText, ChevronDown
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import api from '../../../lib/axios';
@@ -138,7 +138,8 @@ export default function WeeklyPdfTab({
     return (
         <div className="space-y-6 animate-in fade-in duration-300 print:p-0 print:m-0 print:space-y-0 print:animate-none">
             {/* ISOLATED STRICT PRINT STYLES FOR SAFE BROWSER PRINTING */}
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 @media print {
                     /* Sembunyikan seluruh elemen di luar dokumen PDF cetak */
                     body * {
@@ -204,12 +205,12 @@ export default function WeeklyPdfTab({
                         </div>
                         <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
                             <span>NIY:</span>
-                            <input 
-                                type="text" 
-                                value={customKabidNiy} 
-                                onChange={(e) => setCustomKabidNiy(e.target.value)} 
-                                placeholder="NIY Kepala..." 
-                                className="w-28 bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-xs outline-none" 
+                            <input
+                                type="text"
+                                value={customKabidNiy}
+                                onChange={(e) => setCustomKabidNiy(e.target.value)}
+                                placeholder="NIY Kepala..."
+                                className="w-28 bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-xs outline-none"
                                 title="Nomor Induk Yayasan (NIY) Kepala Bidang Sarana"
                             />
                         </div>
@@ -306,9 +307,9 @@ export default function WeeklyPdfTab({
             <div id="weekly-pdf-sheet" className="bg-white p-8 md:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-8 max-w-4xl mx-auto text-slate-800 print:border-none print:shadow-none print:p-0">
                 {/* KOP SURAT YAYASAN */}
                 <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
-                    <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">YAYASAN PONDOK PESANTREN ISLAM AL-MUKMIN NGRUKI</h2>
+                    <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">YAYASAN DAR EL IMAN</h2>
                     <h3 className="text-base font-black text-indigo-950 uppercase tracking-widest">BIDANG SARANA & PRASARANA</h3>
-                    <p className="text-[11px] text-slate-600">Ngruki, Cemani, Grogol, Sukoharjo, Jawa Tengah</p>
+                    <p className="text-[11px] text-slate-600">Jl. Gunung Juaro, Kel. Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat</p>
                 </div>
 
                 {/* TITLE */}
@@ -446,7 +447,7 @@ export default function WeeklyPdfTab({
                 <div className="pt-8 flex justify-end break-inside-avoid">
                     <div className="text-center space-y-16">
                         <div>
-                            <p className="text-xs font-medium">Sukoharjo, {dayjs().format('DD MMMM YYYY')}</p>
+                            <p className="text-xs font-medium">Padang, {dayjs().format('DD MMMM YYYY')}</p>
                             <p className="text-xs font-bold uppercase mt-1">Kepala Bidang Sarana & Prasarana</p>
                         </div>
                         <div className="space-y-0.5">
@@ -486,10 +487,10 @@ export default function WeeklyPdfTab({
                                     {weeklyData.documentationPhotos.map((doc, pIdx) => (
                                         <div key={pIdx} className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 space-y-2 flex flex-col justify-between break-inside-avoid shadow-2xs">
                                             <div className="w-full h-44 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
-                                                <img 
-                                                    src={getMediaUrl(doc.photoUrl)} 
-                                                    alt={doc.activity} 
-                                                    className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                                                <img
+                                                    src={getMediaUrl(doc.photoUrl)}
+                                                    alt={doc.activity}
+                                                    className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
                                                     onClick={() => setLightboxPhoto(getMediaUrl(doc.photoUrl))}
                                                     onError={(e) => {
                                                         e.target.onerror = null;
@@ -531,7 +532,7 @@ export default function WeeklyPdfTab({
 
                         {/* Catatan Kaki Lampiran */}
                         <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 mt-6">
-                            <span>Sistem Informasi Manajemen Aset & Sarpras Yayasan Pondok Pesantren Islam Al-Mukmin Ngruki</span>
+                            <span>Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El Iman Padang</span>
                             <span>Halaman Lampiran Dokumentasi Foto Kegiatan Lapangan</span>
                         </div>
                     </div>
