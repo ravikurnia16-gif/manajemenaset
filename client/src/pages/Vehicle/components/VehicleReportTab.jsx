@@ -715,7 +715,70 @@ export default function VehicleReportTab({
                 });
             }
 
-            // 4. SIGNATURES SECTION
+            // 4. ANALISIS & EVALUASI MANAJEMEN KENDARAAN (RENTANG TANGGAL)
+            const lastTableY = doc.lastAutoTable ? doc.lastAutoTable.finalY : startY;
+            if (lastTableY > doc.internal.pageSize.getHeight() - 85) {
+                doc.addPage();
+                startY = 20;
+            } else {
+                startY = lastTableY + 8;
+            }
+
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text('ANALISIS & EVALUASI STRATEGIS MANAJEMEN KENDARAAN (SARPRAS):', 14, startY);
+
+            // Analytical calculations
+            const perfList = filteredPerformance || [];
+            const totalKm = perfList.reduce((acc, v) => acc + (v.totalKm || 0), 0);
+            const activeVehCount = perfList.filter(v => (v.totalKm || 0) > 0).length;
+            const avgKmPerActive = activeVehCount > 0 ? Math.round(totalKm / activeVehCount) : 0;
+            const bestKmUnit = [...perfList].sort((a, b) => (b.totalKm || 0) - (a.totalKm || 0))[0];
+
+            let evalText1 = `Total mobilitas armada dalam rentang tanggal ini tercatat ${Math.round(totalKm).toLocaleString('id-ID')} KM dengan ${activeVehCount} unit beroperasi aktif (rata-rata ${avgKmPerActive.toLocaleString('id-ID')} KM/unit).`;
+            if (bestKmUnit && bestKmUnit.totalKm > 0) {
+                evalText1 += ` Beban mobilitas tertinggi tercatat pada ${bestKmUnit.name} (${bestKmUnit.plate}) sebesar ${Math.round(bestKmUnit.totalKm).toLocaleString('id-ID')} KM.`;
+            }
+
+            let evalText2 = '';
+            if (reportType === 'FUEL_LOGS') {
+                const totalFuel = filteredFuelTransactions.reduce((acc, t) => acc + (t.cost || 0), 0);
+                const totalL = filteredFuelTransactions.reduce((acc, t) => acc + (t.liters || 0), 0);
+                evalText2 = `Total belanja bahan bakar pada periode ini adalah Rp ${Math.round(totalFuel).toLocaleString('id-ID')} (${totalL.toFixed(1)} Liter). Disarankan pengawasan rasio konsumsi KM/L berkala.`;
+            } else if (reportType === 'MAINTENANCE') {
+                const totalMaint = filteredMaintenance.reduce((acc, l) => acc + (l.cost || 0), 0);
+                evalText2 = `Total pengeluaran servis & perawatan berkala tercatat Rp ${Math.round(totalMaint).toLocaleString('id-ID')} dari ${filteredMaintenance.length} kali kegiatan perawatan.`;
+            } else if (reportType === 'CHECKLISTS') {
+                evalText2 = `Tercatat ${filteredChecklists.length} inspeksi ceklis kendaraan. Pemeriksaan rutin menjamin kelaikan rem, oli, lampu dan ban sebelum armada ditugaskan.`;
+            } else if (reportType === 'COMPLIANCE') {
+                const overdueCount = filteredCompliance.filter(v => (v.taxDueDate && new Date(v.taxDueDate) < now) || (v.stnkDueDate && new Date(v.stnkDueDate) < now)).length;
+                evalText2 = `Monitoring legalitas: Terdapat ${overdueCount} unit berstatus jatuh tempo dokumen yang wajib segera diproses pembayarannya ke Samsat.`;
+            } else {
+                evalText2 = `Efisiensi biaya dan utilisasi armada dinilai optimal, disarankan rotasi penugasan berkala guna mencegah ketimpangan beban kerja antar kendaraan.`;
+            }
+
+            const analysisRows = [
+                ['Evaluasi Mobilitas & Beban Operasional', evalText1],
+                ['Evaluasi Efisiensi & Kelaikan Teknis', evalText2],
+                ['Rekomendasi Manajerial Bidang Sarana', '1. Jadwalkan rotasi kendaraan operasional dinas untuk menyeimbangkan angka odometer.\n2. Prioritaskan servis berkala pada unit yang mendekati interval kilometer batas oli.\n3. Pertahankan standar tertib pelaporan administrasi logbook pengemudi.']
+            ];
+
+            doc.autoTable({
+                startY: startY + 3,
+                head: [['ASPEK MANAJEMEN KENDARAAN', 'HASIL ANALISIS EVALUASI & REKOMENDASI BIDANG SARANA']],
+                body: analysisRows,
+                theme: 'grid',
+                headStyles: { fillColor: [51, 65, 85], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59], cellPadding: 3 },
+                columnStyles: {
+                    0: { cellWidth: 55, fontStyle: 'bold', textColor: [79, 70, 229] },
+                    1: { cellWidth: 'auto' }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            // 5. SIGNATURES SECTION
             const lastY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 14 : startY + 20;
             let signY = lastY;
 

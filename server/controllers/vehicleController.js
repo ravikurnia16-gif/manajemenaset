@@ -821,30 +821,44 @@ exports.getVehicleDashboard = async (req, res) => {
         const onTripSet = new Set(onTripVehicleIds.map(b => b.vehicleId));
         const availableCount = allVehicles.filter(v => !onTripSet.has(v.id)).length;
 
-        // 8. Recent Bookings (last 8)
+        // 8. Recent Bookings (Filtered to date range if not summary)
+        const recentBookingsWhere = {};
+        if (!isSummary) {
+            recentBookingsWhere.OR = [
+                { startDate: { gte: filterStart, lte: filterEnd } },
+                { tripEndTime: { gte: filterStart, lte: filterEnd } },
+                { createdAt: { gte: filterStart, lte: filterEnd } }
+            ];
+        }
         const recentBookings = await prisma.vehicleBooking.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: 8,
+            where: recentBookingsWhere,
+            orderBy: { startDate: 'desc' },
+            take: isSummary ? 8 : 100,
             select: {
                 id: true, destination: true, purpose: true, status: true,
                 startDate: true, endDate: true, createdAt: true,
+                startKm: true, endKm: true,
                 user: { select: { name: true, username: true } },
                 vehicle: { select: { name: true, plateNumber: true } }
             }
         });
 
         // 9. Upcoming & Recent Bus Bookings (Jadwal Reservasi Bus)
+        const busBookingsWhere = {
+            status: { not: 'CANCELLED' }
+        };
+        if (!isSummary) {
+            busBookingsWhere.startDate = { gte: filterStart, lte: filterEnd };
+        }
         const upcomingBusBookings = await prisma.busBooking.findMany({
-            where: {
-                status: { not: 'CANCELLED' }
-            },
+            where: busBookingsWhere,
             include: {
                 vehicle: { select: { id: true, name: true, plateNumber: true } },
                 user: { select: { id: true, name: true, unit: { select: { name: true } } } },
                 driver: { select: { id: true, name: true, phone: true } }
             },
             orderBy: { startDate: 'desc' },
-            take: 8
+            take: isSummary ? 8 : 100
         });
 
         const activeBusBookingsCount = await prisma.busBooking.count({
@@ -889,6 +903,9 @@ exports.getVehicleDashboard = async (req, res) => {
                 fleetCostPerKm: totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0,
                 fleetKml: fuelLiters > 0 && totalKmAll > 0 ? parseFloat((totalKmAll / fuelLiters).toFixed(2)) : null,
                 totalFuelCost: fuelTotal,
+                totalFuelLiters: fuelLiters,
+                periodTotalKm: totalKmAll,
+                periodServiceCost: serviceTotal,
                 totalServiceCostYearly: serviceTotalYearly
             },
             availability: {

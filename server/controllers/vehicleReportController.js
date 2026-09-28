@@ -59,14 +59,42 @@ exports.createWeeklyReport = async (req, res) => {
 
 exports.getVehicleReports = async (req, res) => {
     const { id } = req.params;
+    const { startDate, endDate } = req.query;
 
     try {
+        const where = { vehicleId: parseInt(id) };
+        if (startDate || endDate) {
+            where.AND = [];
+            if (startDate) {
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                where.AND.push({
+                    OR: [
+                        { weekEndDate: { gte: s } },
+                        { weekStartDate: { gte: s } },
+                        { createdAt: { gte: s } }
+                    ]
+                });
+            }
+            if (endDate) {
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                where.AND.push({
+                    OR: [
+                        { weekStartDate: { lte: e } },
+                        { weekEndDate: { lte: e } },
+                        { createdAt: { lte: e } }
+                    ]
+                });
+            }
+        }
+
         const reports = await prisma.vehicleWeeklyReport.findMany({
-            where: { vehicleId: parseInt(id) },
+            where,
             include: {
                 user: { select: { name: true } }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { weekStartDate: 'desc' }
         });
 
         res.json(reports);

@@ -144,7 +144,7 @@ const VehicleDashboard = () => {
         }
     };
 
-    // --- PDF EXPORT ---
+    // --- PDF EXPORT (DATE RANGE STRICT DATA & VEHICLE MANAGEMENT ANALYSIS) ---
     const handleExportPDF = async () => {
         if (!data) return;
         setExporting(true);
@@ -152,8 +152,10 @@ const VehicleDashboard = () => {
             const jsPDF = await loadJsPDF();
             const doc = new jsPDF('landscape', 'mm', 'a4');
             const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
             const now = new Date();
-            let periodLabel = 'Ringkasan Keseluruhan';
+
+            let periodLabel = 'Ringkasan Kumulatif Semua Periode';
             if (data.startDate && data.endDate) {
                 const sStr = new Date(data.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
                 const eStr = new Date(data.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -162,127 +164,247 @@ const VehicleDashboard = () => {
                 periodLabel = `Bulan ${data.period}`;
             }
 
-            // Header Kop Bidang Sarana
-            doc.setFontSize(16);
+            const printDateStr = now.toLocaleDateString('id-ID', { 
+                day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+            });
+
+            // Strict date matching helpers for tables
+            const isMatchingRange = (dateStr) => {
+                if (!dateStr) return false;
+                if (!data.startDate && !data.endDate) return true;
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return false;
+                if (data.startDate) {
+                    const s = new Date(data.startDate);
+                    s.setHours(0, 0, 0, 0);
+                    if (d < s) return false;
+                }
+                if (data.endDate) {
+                    const e = new Date(data.endDate);
+                    e.setHours(23, 59, 59, 999);
+                    if (d > e) return false;
+                }
+                return true;
+            };
+
+            const filteredBookings = (data.recentBookings || []).filter(b => isMatchingRange(b.startDate || b.createdAt || b.tripEndTime));
+            const filteredBusBookings = (data.upcomingBusBookings || []).filter(b => isMatchingRange(b.startDate));
+            const vStats = data.vStats || [];
+
+            // Metrics calculation strictly for the period
+            const totalPeriodKm = data.stats.periodTotalKm !== undefined ? data.stats.periodTotalKm : vStats.reduce((acc, v) => acc + (v.totalKm || 0), 0);
+            const totalFuelCost = data.stats.totalFuelCost || 0;
+            const totalFuelLiters = data.stats.totalFuelLiters !== undefined ? data.stats.totalFuelLiters : vStats.reduce((acc, v) => acc + (v.liters || 0), 0);
+            const periodServiceCost = data.stats.periodServiceCost !== undefined ? data.stats.periodServiceCost : (data.stats.totalServiceCostYearly || 0);
+            const avgFleetKml = data.stats.fleetKml ? `${data.stats.fleetKml.toFixed(1)} KM/L` : (totalFuelLiters > 0 && totalPeriodKm > 0 ? `${(totalPeriodKm / totalFuelLiters).toFixed(1)} KM/L` : '-');
+            const avgCostPerKm = data.stats.fleetCostPerKm ? `Rp ${Math.round(data.stats.fleetCostPerKm).toLocaleString('id-ID')}` : (totalPeriodKm > 0 ? `Rp ${Math.round((totalFuelCost + periodServiceCost) / totalPeriodKm).toLocaleString('id-ID')}` : 'Rp 0');
+
+            // Analytical variables
+            const activeUnits = vStats.filter(v => (v.totalKm || 0) > 0);
+            const idleUnits = vStats.filter(v => (v.totalKm || 0) === 0);
+            const highestKmVeh = [...vStats].sort((a, b) => (b.totalKm || 0) - (a.totalKm || 0))[0];
+            const sortedEfficiency = [...vStats].filter(v => v.fuelCpkm > 0).sort((a, b) => a.fuelCpkm - b.fuelCpkm);
+            const bestVeh = sortedEfficiency[0];
+            const worstVeh = sortedEfficiency.length > 0 ? sortedEfficiency[sortedEfficiency.length - 1] : null;
+            const serviceNeedingCount = data.stats.needingService || 0;
+            const taxWarningCount = data.stats.taxWarnings || 0;
+
+            // ==========================================
+            // PAGE 1: KOP SURAT, KPI & MATRIKS PERFORMA
+            // ==========================================
+            doc.setFontSize(14);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(30, 41, 59);
-            doc.text('BIDANG SARANA', pageW / 2, 15, { align: 'center' });
+            doc.text('YAYASAN DAR EL-IMAN PADANG', pageW / 2, 13, { align: 'center' });
 
-            doc.setFontSize(12);
+            doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(79, 70, 229);
-            doc.text('RINGKASAN EKSEKUTIF DASHBOARD ARMADA', pageW / 2, 22, { align: 'center' });
+            doc.text('BIDANG SARANA & PRASARANA (SARPRAS)', pageW / 2, 18, { align: 'center' });
 
-            doc.setFontSize(9);
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(15, 23, 42);
+            doc.text('LAPORAN EKSEKUTIF MANAJEMEN ARMADA KENDARAAN', pageW / 2, 24, { align: 'center' });
+
+            doc.setFontSize(8.5);
             doc.setFont(undefined, 'normal');
             doc.setTextColor(100, 116, 139);
-            doc.text(`Periode: ${periodLabel}  |  Tanggal Cetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageW / 2, 28, { align: 'center' });
+            doc.text(`Periode Data: ${periodLabel}   |   Waktu Cetak: ${printDateStr}`, pageW / 2, 29, { align: 'center' });
 
-            // KPI Summary
-            doc.setFontSize(12);
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.5);
+            doc.line(14, 32, pageW - 14, 32);
+
+            // 1. KPI SUMMARY TABLE (RENTANG TANGGAL)
+            doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
-            doc.text('Ringkasan KPI', 14, 35);
+            doc.setTextColor(30, 41, 59);
+            doc.text('1. RINGKASAN METRIK OPERASIONAL ARMADA (Rentang Tanggal Terpilih)', 14, 38);
+
             doc.autoTable({
-                startY: 38,
-                head: [['Total Armada', 'Total Biaya BBM', 'Biaya Service (Tahunan)']],
+                startY: 41,
+                head: [['Total Armada', 'Total Jarak Tempuh', 'Biaya BBM Periode', 'Biaya Servis Periode', 'Rata-rata Efisiensi', 'Biaya Operasional / KM']],
                 body: [[
-                    data.stats.totalVehicles,
-                    `Rp ${Math.round(data.stats.totalFuelCost || 0).toLocaleString('id-ID')}`,
-                    `Rp ${Math.round(data.stats.totalServiceCostYearly || 0).toLocaleString('id-ID')}`
+                    `${data.stats.totalVehicles} Unit`,
+                    `${Math.round(totalPeriodKm).toLocaleString('id-ID')} KM`,
+                    `Rp ${Math.round(totalFuelCost).toLocaleString('id-ID')}`,
+                    `Rp ${Math.round(periodServiceCost).toLocaleString('id-ID')}`,
+                    avgFleetKml,
+                    avgCostPerKm
                 ]],
                 theme: 'grid',
-                headStyles: { fillColor: [99, 102, 241], fontSize: 9, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 10, fontStyle: 'bold' },
+                headStyles: { fillColor: [79, 70, 229], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+                bodyStyles: { fontSize: 8.5, fontStyle: 'bold', halign: 'center', textColor: [30, 41, 59] },
                 margin: { left: 14, right: 14 }
             });
 
-            // Availability
-            doc.setFontSize(12);
+            // 2. AVAILABILITY TABLE
+            doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
-            doc.text('Status Ketersediaan Armada', 14, doc.lastAutoTable.finalY + 10);
+            doc.setTextColor(30, 41, 59);
+            doc.text('2. STATUS KETERSEDIAAN ARMADA SAAT INI', 14, doc.lastAutoTable.finalY + 8);
+
             doc.autoTable({
-                startY: doc.lastAutoTable.finalY + 13,
-                head: [['Tersedia', 'Sedang Digunakan', 'Total Armada']],
-                body: [[data.availability?.available || 0, data.availability?.onTrip || 0, data.availability?.total || 0]],
+                startY: doc.lastAutoTable.finalY + 11,
+                head: [['Armada Tersedia (Siap Jalan)', 'Armada Sedang Digunakan (On-Trip)', 'Total Armada Terdaftar']],
+                body: [[
+                    `${data.availability?.available || 0} Unit (${data.stats.totalVehicles > 0 ? Math.round((data.availability?.available || 0) / data.stats.totalVehicles * 100) : 0}%)`,
+                    `${data.availability?.onTrip || 0} Unit (${data.stats.totalVehicles > 0 ? Math.round((data.availability?.onTrip || 0) / data.stats.totalVehicles * 100) : 0}%)`,
+                    `${data.availability?.total || 0} Unit`
+                ]],
                 theme: 'grid',
-                headStyles: { fillColor: [16, 185, 129], fontSize: 9, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 10, fontStyle: 'bold' },
+                headStyles: { fillColor: [16, 185, 129], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+                bodyStyles: { fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
                 margin: { left: 14, right: 14 }
             });
 
-            // Performance Matrix
-            doc.setFontSize(12);
+            // 3. MATRIKS PERFORMA TIAP KENDARAAN (RENTANG TANGGAL)
+            doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
-            doc.text('Matriks Performa Kendaraan', 14, doc.lastAutoTable.finalY + 10);
-            const vStatsRows = (data.vStats || []).map((v, i) => [
-                i + 1, v.name, v.plate,
+            doc.setTextColor(30, 41, 59);
+            doc.text('3. MATRIKS PERFORMA & UTILISASI ARMADA DALAM RENTANG TANGGAL', 14, doc.lastAutoTable.finalY + 8);
+
+            const vStatsRows = vStats.map((v, i) => [
+                i + 1,
+                v.name,
+                v.plate,
+                `${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM`,
+                `${v.liters ? v.liters.toFixed(1) + ' L / ' : ''}Rp ${Math.round(v.fuelCost || 0).toLocaleString('id-ID')}`,
                 v.kml && v.kml > 0 ? `${v.kml.toFixed(1)} KM/L` : '-',
-                (v.utilization || 0).toFixed(0) + '%',
-                `Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}`,
-                (v.totalKm || 0).toLocaleString('id-ID') + ' KM'
+                `${(v.utilization || 0).toFixed(0)}%`,
+                `Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}`
             ]);
+
+            const avgUtil = vStats.length > 0 ? (vStats.reduce((acc, v) => acc + (v.utilization || 0), 0) / vStats.length).toFixed(0) : '0';
+
             doc.autoTable({
-                startY: doc.lastAutoTable.finalY + 13,
-                head: [['#', 'Kendaraan', 'Plat', 'Efisiensi', 'Utilisasi', 'Cost/KM', 'Total Jarak']],
+                startY: doc.lastAutoTable.finalY + 11,
+                head: [['#', 'Kendaraan', 'Plat Nomor', 'Total Jarak', 'Konsumsi BBM', 'Efisiensi BBM', 'Utilisasi', 'Biaya Ops/KM']],
                 body: vStatsRows,
+                foot: [[
+                    '', 'TOTAL / RATA-RATA ARMADA', '',
+                    `${Math.round(totalPeriodKm).toLocaleString('id-ID')} KM`,
+                    `${totalFuelLiters > 0 ? totalFuelLiters.toFixed(1) + ' L / ' : ''}Rp ${Math.round(totalFuelCost).toLocaleString('id-ID')}`,
+                    avgFleetKml,
+                    `${avgUtil}%`,
+                    avgCostPerKm
+                ]],
                 theme: 'striped',
-                headStyles: { fillColor: [99, 102, 241], fontSize: 8, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 8 },
+                headStyles: { fillColor: [51, 65, 85], fontSize: 7.5, fontStyle: 'bold' },
+                footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontSize: 7.5, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 7 },
                 margin: { left: 14, right: 14 }
             });
 
-            // Efficiency Ranking
-            const sorted = [...(data.vStats || [])].filter(v => v.fuelCpkm > 0).sort((a, b) => a.fuelCpkm - b.fuelCpkm);
-            doc.addPage();
-            doc.setFontSize(12);
+            // ==========================================
+            // PAGE 2: PERINGKAT BBM, LOGBOOK & BUS
+            // ==========================================
+            doc.addPage('landscape', 'a4');
+
+            // Header Mini Kop Page 2
+            doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
-            doc.text('Peringkat Efisiensi BBM (Rp/KM)', 14, 18);
-            const rankRows = sorted.map((v, i) => [
-                i + 1, v.name, v.plate, `Rp ${Math.round(v.fuelCpkm || 0).toLocaleString('id-ID')}/KM`,
-                (v.totalKm || 0).toLocaleString('id-ID') + ' KM',
-                i === 0 ? '🏆 Terhemat' : i === sorted.length - 1 ? '⚠️ Terboros' : ''
+            doc.setTextColor(79, 70, 229);
+            doc.text('BIDANG SARANA & PRASARANA  |  YAYASAN DAR EL-IMAN', 14, 14);
+
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Periode: ${periodLabel}`, pageW - 14, 14, { align: 'right' });
+
+            doc.setDrawColor(226, 232, 240);
+            doc.line(14, 17, pageW - 14, 17);
+
+            // 4. PERINGKAT EFISIENSI BBM
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('4. PERINGKAT EFISIENSI KONSUMSI BBM (Rp/KM)', 14, 23);
+
+            const rankRows = sortedEfficiency.map((v, i) => [
+                i + 1,
+                v.name,
+                v.plate,
+                `Rp ${Math.round(v.fuelCpkm || 0).toLocaleString('id-ID')}/KM`,
+                v.kml && v.kml > 0 ? `${v.kml.toFixed(1)} KM/L` : '-',
+                `${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM`,
+                i === 0 ? '🏆 Paling Hemat' : i === sortedEfficiency.length - 1 ? '⚠️ Paling Boros' : 'Efisien'
             ]);
+
             doc.autoTable({
-                startY: 22,
-                head: [['Rank', 'Kendaraan', 'Plat', 'Biaya BBM/KM', 'Total Jarak', 'Keterangan']],
-                body: rankRows,
+                startY: 26,
+                head: [['Rank', 'Kendaraan', 'Plat Nomor', 'Biaya BBM/KM', 'Rasio KM/L', 'Total Jarak', 'Status / Keterangan']],
+                body: rankRows.length > 0 ? rankRows : [['-', 'Tidak ada data konsumsi BBM dalam rentang tanggal ini', '-', '-', '-', '-', '-']],
                 theme: 'striped',
-                headStyles: { fillColor: [245, 158, 11], fontSize: 8, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 8 },
+                headStyles: { fillColor: [245, 158, 11], fontSize: 7.5, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 7 },
                 margin: { left: 14, right: 14 }
             });
 
-            // Recent Bookings
-            if (data.recentBookings?.length > 0) {
-                doc.setFontSize(12);
-                doc.setFont(undefined, 'bold');
-                doc.text('Riwayat Peminjaman Terbaru', 14, doc.lastAutoTable.finalY + 10);
-                const bookingRows = data.recentBookings.map(b => [
-                    b.vehicle?.name || '-', b.vehicle?.plateNumber || '-',
-                    b.user?.name || b.user?.username || '-',
-                    b.destination || '-',
-                    BOOKING_STATUS_MAP[b.status]?.label || b.status,
-                    new Date(b.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-                ]);
-                doc.autoTable({
-                    startY: doc.lastAutoTable.finalY + 13,
-                    head: [['Kendaraan', 'Plat', 'Peminjam', 'Tujuan', 'Status', 'Tanggal']],
-                    body: bookingRows,
-                    theme: 'striped',
-                    headStyles: { fillColor: [59, 130, 246], fontSize: 8, fontStyle: 'bold' },
-                    bodyStyles: { fontSize: 8 },
-                    margin: { left: 14, right: 14 }
-                });
-            }
+            // 5. RIWAYAT PEMINJAMAN / LOGBOOK (RENTANG TANGGAL)
+            let nextY = doc.lastAutoTable.finalY + 8;
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text(`5. RIWAYAT LOGBOOK PEMINJAMAN KENDARAAN (Rentang: ${periodLabel})`, 14, nextY);
 
-            // Agenda Jadwal Reservasi Bus (Jika ada)
-            if (data.upcomingBusBookings && data.upcomingBusBookings.length > 0) {
-                doc.setFontSize(12);
+            const bookingRows = filteredBookings.map((b, i) => [
+                i + 1,
+                b.vehicle?.name || '-',
+                b.vehicle?.plateNumber || '-',
+                b.user?.name || b.user?.username || '-',
+                b.destination || '-',
+                b.purpose || '-',
+                new Date(b.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+                b.startKm && b.endKm ? `${Math.max(0, b.endKm - b.startKm).toLocaleString('id-ID')} KM` : '-',
+                BOOKING_STATUS_MAP[b.status]?.label || b.status
+            ]);
+
+            doc.autoTable({
+                startY: nextY + 3,
+                head: [['#', 'Kendaraan', 'Plat Nomor', 'Peminjam', 'Tujuan', 'Keperluan', 'Tanggal', 'Jarak', 'Status']],
+                body: bookingRows.length > 0 ? bookingRows : [['-', 'Tidak ada logbook peminjaman dalam rentang tanggal yang dipilih', '-', '-', '-', '-', '-', '-', '-']],
+                theme: 'striped',
+                headStyles: { fillColor: [59, 130, 246], fontSize: 7.5, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 7 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // 6. AGENDA RESERVASI BUS (RENTANG TANGGAL)
+            if (filteredBusBookings.length > 0) {
+                let busY = doc.lastAutoTable.finalY + 8;
+                if (busY > pageH - 45) {
+                    doc.addPage('landscape', 'a4');
+                    busY = 20;
+                }
+
+                doc.setFontSize(10);
                 doc.setFont(undefined, 'bold');
                 doc.setTextColor(30, 41, 59);
-                doc.text('Agenda Jadwal Reservasi Bus Operasional', 14, doc.lastAutoTable.finalY + 10);
+                doc.text(`6. AGENDA JADWAL RESERVASI BUS OPERASIONAL (Rentang: ${periodLabel})`, 14, busY);
 
-                const busRows = data.upcomingBusBookings.map((b, i) => [
+                const busRows = filteredBusBookings.map((b, i) => [
                     i + 1,
                     `${new Date(b.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(b.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}`,
                     `${b.vehicle?.name || '-'} (${b.vehicle?.plateNumber || '-'})`,
@@ -293,28 +415,120 @@ const VehicleDashboard = () => {
                 ]);
 
                 doc.autoTable({
-                    startY: doc.lastAutoTable.finalY + 13,
+                    startY: busY + 3,
                     head: [['#', 'Jadwal Keberangkatan', 'Armada Bus', 'Pemesan & Unit', 'Tujuan', 'Driver', 'Status']],
                     body: busRows,
                     theme: 'striped',
-                    headStyles: { fillColor: [147, 51, 234], fontSize: 8, fontStyle: 'bold' },
-                    bodyStyles: { fontSize: 8 },
+                    headStyles: { fillColor: [147, 51, 234], fontSize: 7.5, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 7 },
                     margin: { left: 14, right: 14 }
                 });
             }
 
-            // Footer
-            const pageCount = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.setFontSize(8);
-                doc.setFont(undefined, 'normal');
-                doc.text(`Halaman ${i} dari ${pageCount}  |  Bidang Sarana`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+            // ==============================================================
+            // PAGE 3: ANALISIS & EVALUASI MODUL MANAJEMEN KENDARAAN (SARPRAS)
+            // ==========================================
+            doc.addPage('landscape', 'a4');
+
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('ANALISIS & EVALUASI STRATEGIS MANAJEMEN KENDARAAN', pageW / 2, 14, { align: 'center' });
+
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text(`AUDIT OPERASIONAL, EFISIENSI BIAYA, DAN KELAIKAN ARMADA (Periode: ${periodLabel})`, pageW / 2, 19, { align: 'center' });
+
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.5);
+            doc.line(14, 23, pageW - 14, 23);
+
+            // Construct 4 Dimensions of Vehicle Management Analysis
+            const analysisBlocks = [
+                [
+                    'A. Mobilitas & Distribusi Beban Operasional Armada',
+                    `1. Akumulasi Jarak Tempuh: Seluruh armada menempuh total ${Math.round(totalPeriodKm).toLocaleString('id-ID')} KM selama rentang tanggal ${periodLabel}.\n` +
+                    `2. Tingkat Keaktifan Armada: ${activeUnits.length} dari ${data.stats.totalVehicles} unit aktif beroperasi (${data.stats.totalVehicles > 0 ? Math.round(activeUnits.length / data.stats.totalVehicles * 100) : 0}%). Sebanyak ${idleUnits.length} unit berstatus pasif/cadangan tanpa mobilitas pada periode ini.\n` +
+                    `3. Konsentrasi Mobilitas Tertinggi: Dipimpin oleh ${highestKmVeh ? `${highestKmVeh.name} (${highestKmVeh.plate}) dengan jarak ${Math.round(highestKmVeh.totalKm || 0).toLocaleString('id-ID')} KM (${totalPeriodKm > 0 ? Math.round((highestKmVeh.totalKm || 0) / totalPeriodKm * 100) : 0}% dari seluruh mobilitas armada).` : '-'}\n` +
+                    `4. Evaluasi Risiko: Pembebanan kilometer yang terkonsentrasi pada segelintir unit meningkatkan risiko keausan dini pada pelumas, ban, dan kaki-kaki kendaraan.`
+                ],
+                [
+                    'B. Efisiensi Bahan Bakar & Pengendalian Biaya Operasional',
+                    `1. Realisasi Belanja BBM: Total pengeluaran bahan bakar sebesar Rp ${Math.round(totalFuelCost).toLocaleString('id-ID')} dengan volume ${totalFuelLiters > 0 ? totalFuelLiters.toFixed(1) + ' Liter' : '-'}.\n` +
+                    `2. Rasio Efisiensi Armada: Rata-rata rasio efisiensi BBM berada pada level ${avgFleetKml} dengan biaya operasional rata-rata ${avgCostPerKm} per kilometer tempuh.\n` +
+                    `3. Benchmark Efisiensi: Unit paling hemat adalah ${bestVeh ? `${bestVeh.name} (${bestVeh.plate}) dengan biaya Rp ${Math.round(bestVeh.fuelCpkm).toLocaleString('id-ID')}/KM (${bestVeh.kml ? bestVeh.kml.toFixed(1) + ' KM/L' : '-'})` : '-'}.\n` +
+                    `4. Indikasi Anomali Konsumsi: ${worstVeh && worstVeh.plate !== bestVeh?.plate ? `${worstVeh.name} (${worstVeh.plate}) mencapai biaya Rp ${Math.round(worstVeh.fuelCpkm).toLocaleString('id-ID')}/KM (${worstVeh.kml ? worstVeh.kml.toFixed(1) + ' KM/L' : '-'}), dianjurkan untuk pemeriksaan sistem pengapian dan injeksi.` : 'Seluruh armada terpantau beroperasi dalam koridor efisiensi normal.'}`
+                ],
+                [
+                    'C. Kelaikan Teknis, Pemeliharaan Servis & Kepatuhan Legalitas',
+                    `1. Realisasi Belanja Pemeliharaan: Pengeluaran biaya servis dan pemeliharaan tercatat Rp ${Math.round(periodServiceCost).toLocaleString('id-ID')}.\n` +
+                    `2. Status Servis Rutin: ${serviceNeedingCount > 0 ? `Terdapat ${serviceNeedingCount} unit kendaraan yang telah melewati batas rekomendasi servis kilometer (overdue service) dan memerlukan penanganan segera.` : 'Seluruh armada terpantau dalam siklus servis berkala yang tertib.'}\n` +
+                    `3. Kepatuhan Legalitas Dokumen: ${taxWarningCount > 0 ? `Terdapat ${taxWarningCount} dokumen kendaraan (Pajak Tahunan, STNK 5 Tahunan, atau Uji KIR) yang mendekati atau telah jatuh tempo.` : 'Seluruh armada memiliki legalitas surat-surat operasional yang masih berlaku sah.'}`
+                ],
+                [
+                    'D. Kesimpulan & Rekomendasi Manajerial Bidang Sarana',
+                    `1. Pemerataan Penugasan: Lakukan rotasi armada untuk perjalanan dinas luar kota agar beban kilometer terbagi merata dan mencegah depresiasi dini pada unit tertentu.\n` +
+                    `2. Optimalisasi Konsumsi Bahan Bakar: Jadwalkan tune-up dan pembersihan ruang bakar serta saringan udara pada unit dengan rasio KM/L terendah guna menekan belanja BBM.\n` +
+                    `3. Disiplin Pemeliharaan Rutin: Percepat koordinasi ke bengkel rekanan resmi Sarpras untuk unit yang telah mencapai ambang kilometer servis oli dan pengecekan rem.\n` +
+                    `4. Ketertiban Administrasi & Logbook: Wajibkan supir dan peminjam mengisi pencatatan KM awal dan akhir secara presisi serta mengunggah struk pembelian BBM asli.`
+                ]
+            ];
+
+            doc.autoTable({
+                startY: 27,
+                head: [['ASPEK MANAJEMEN KENDARAAN', 'HASIL ANALISIS EVALUASI & REKOMENDASI BIDANG SARANA']],
+                body: analysisBlocks,
+                theme: 'grid',
+                headStyles: { fillColor: [30, 41, 59], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59], cellPadding: 3.5 },
+                columnStyles: {
+                    0: { cellWidth: 70, fontStyle: 'bold', textColor: [79, 70, 229] },
+                    1: { cellWidth: 'auto' }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            // TANDA TANGAN PENGESAHAN
+            let signY = doc.lastAutoTable.finalY + 10;
+            if (signY > pageH - 35) {
+                doc.addPage('landscape', 'a4');
+                signY = 25;
             }
 
-            doc.save(`Laporan_Armada_${periodLabel.replace(/[/ ]/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`);
+            doc.setFontSize(8.5);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(51, 65, 85);
+
+            // Left: Mengetahui
+            doc.text('Mengetahui & Menyetujui,', 30, signY);
+            doc.text('Kepala Bidang Sarana & Prasarana', 30, signY + 4);
+            doc.text('( ................................................................ )', 30, signY + 22);
+
+            // Right: Disusun
+            doc.text('Padang, ' + now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), pageW - 90, signY);
+            doc.text('Staf Pengelola Administrasi Armada,', pageW - 90, signY + 4);
+            doc.text('( ................................................................ )', pageW - 90, signY + 22);
+
+            // Page Numbers on all pages
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                doc.setFontSize(7.5);
+                doc.setFont(undefined, 'normal');
+                doc.setTextColor(148, 163, 184);
+                doc.text(
+                    `Halaman ${i} dari ${totalPages}  |  Laporan Eksekutif Manajemen Kendaraan  |  Bidang Sarpras Yayasan Dar El-Iman`,
+                    pageW / 2,
+                    pageH - 7,
+                    { align: 'center' }
+                );
+            }
+
+            doc.save(`Laporan_Eksekutif_Armada_${periodLabel.replace(/[/ ]/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`);
         } catch (err) {
             console.error('PDF Export Error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
         } finally {
             setExporting(false);
         }
