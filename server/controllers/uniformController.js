@@ -2038,10 +2038,19 @@ exports.importStocks = async (req, res) => {
 
 exports.getStockTransactions = async (req, res) => {
     try {
-        const { type, warehouseId } = req.query;
+        const { type, warehouseId, startDate, endDate } = req.query;
         const where = {};
         if (type) where.type = type;
         if (warehouseId) where.warehouseId = parseInt(warehouseId);
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate) where.createdAt.gte = new Date(startDate);
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                where.createdAt.lte = eDate;
+            }
+        }
 
         const data = await prisma.uniformStockTransaction.findMany({
             where,
@@ -2318,11 +2327,20 @@ exports.deleteVendor = async (req, res) => {
 
 exports.getSales = async (req, res) => {
     try {
-        const { type, status, paymentStatus, search } = req.query;
+        const { type, status, paymentStatus, search, startDate, endDate } = req.query;
         const where = {};
         if (type) where.type = type;
         if (status) where.status = status;
         if (paymentStatus) where.paymentStatus = paymentStatus;
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate) where.createdAt.gte = new Date(startDate);
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                where.createdAt.lte = eDate;
+            }
+        }
         if (search) {
             where.OR = [
                 { code: { contains: search } },
@@ -2356,7 +2374,7 @@ exports.getSales = async (req, res) => {
 
 exports.exportSalesToExcel = async (req, res) => {
     try {
-        const { type, status, paymentStatus, search, isOverdue30Days } = req.query;
+        const { type, status, paymentStatus, search, isOverdue30Days, startDate, endDate } = req.query;
         const where = {};
         if (type) {
             if (type === 'SPMB') {
@@ -2369,6 +2387,15 @@ exports.exportSalesToExcel = async (req, res) => {
         }
         if (status) where.status = status;
         if (paymentStatus) where.paymentStatus = paymentStatus;
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate) where.createdAt.gte = new Date(startDate);
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                where.createdAt.lte = eDate;
+            }
+        }
         if (search) {
             where.OR = [
                 { code: { contains: search } },
@@ -4650,9 +4677,32 @@ exports.deleteSchedule = async (req, res) => {
 
 exports.getDashboardStats = async (req, res) => {
     try {
-        const { warehouseId } = req.query;
+        const { warehouseId, startDate, endDate } = req.query;
         const whId = warehouseId ? parseInt(warehouseId) : null;
         const stockWhere = whId ? { warehouseId: whId } : {};
+
+        const salesWhere = {};
+        const trxWhere = whId ? { warehouseId: whId } : {};
+        const excWhere = {};
+
+        if (startDate || endDate) {
+            salesWhere.createdAt = {};
+            trxWhere.createdAt = {};
+            excWhere.createdAt = {};
+            if (startDate) {
+                const sDate = new Date(startDate);
+                salesWhere.createdAt.gte = sDate;
+                trxWhere.createdAt.gte = sDate;
+                excWhere.createdAt.gte = sDate;
+            }
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                salesWhere.createdAt.lte = eDate;
+                trxWhere.createdAt.lte = eDate;
+                excWhere.createdAt.lte = eDate;
+            }
+        }
 
         // 1. Basic Counts & Stock Aggregation
         const [
@@ -4680,6 +4730,7 @@ exports.getDashboardStats = async (req, res) => {
                 }
             }),
             prisma.uniformSale.findMany({
+                where: salesWhere,
                 select: {
                     id: true, code: true, type: true, status: true, 
                     subtotal: true, discount: true, totalAmount: true, 
@@ -4689,6 +4740,7 @@ exports.getDashboardStats = async (req, res) => {
                 orderBy: { createdAt: 'desc' }
             }),
             prisma.uniformSaleItem.findMany({
+                where: (startDate || endDate) ? { sale: salesWhere } : undefined,
                 select: {
                     id: true, itemName: true, size: true, qty: true, 
                     unitPrice: true, totalPrice: true, status: true,
@@ -4706,7 +4758,8 @@ exports.getDashboardStats = async (req, res) => {
                 LIMIT 20
             `.catch(() => []),
             prisma.uniformStockTransaction.findMany({
-                take: 10,
+                where: trxWhere,
+                take: 30,
                 orderBy: { createdAt: 'desc' },
                 include: {
                     variant: { include: { item: true } },
@@ -4715,7 +4768,8 @@ exports.getDashboardStats = async (req, res) => {
                 }
             }),
             prisma.uniformExchange.findMany({
-                take: 6,
+                where: excWhere,
+                take: 20,
                 orderBy: { createdAt: 'desc' },
                 include: {
                     fromVariant: { include: { item: true } },
@@ -4821,7 +4875,7 @@ exports.getDashboardStats = async (req, res) => {
                 note: exc.note || exc.reason || '',
                 date: exc.createdAt
             }))
-        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50);
 
         // 6. Comprehensive Urgent Restock Calculation
         const allActiveVariants = await prisma.uniformVariant.findMany({
@@ -4920,6 +4974,10 @@ exports.getDashboardStats = async (req, res) => {
         });
 
         res.json({
+            period: {
+                startDate: startDate || null,
+                endDate: endDate || null
+            },
             totalItems,
             totalVariants,
             totalStock: totalStockAgg._sum.quantity || 0,
@@ -6375,10 +6433,30 @@ exports.receiveProjectGoods = async (req, res) => {
 
 exports.getFinanceReport = async (req, res) => {
     try {
+        const { startDate, endDate } = req.query;
+        const salesWhere = { status: { not: 'CANCELLED' } };
+        const projectWhere = { status: 'SELESAI' };
+
+        if (startDate || endDate) {
+            salesWhere.createdAt = {};
+            projectWhere.updatedAt = {};
+            if (startDate) {
+                const sDate = new Date(startDate);
+                salesWhere.createdAt.gte = sDate;
+                projectWhere.updatedAt.gte = sDate;
+            }
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                salesWhere.createdAt.lte = eDate;
+                projectWhere.updatedAt.lte = eDate;
+            }
+        }
+
         // 1. Total Pendapatan (Revenue)
         // Penjualan yang statusnya bukan CANCELLED
         const sales = await prisma.uniformSale.findMany({
-            where: { status: { not: 'CANCELLED' } },
+            where: salesWhere,
             include: { items: true }
         });
 
@@ -6417,7 +6495,7 @@ exports.getFinanceReport = async (req, res) => {
         // 2. Total Pengeluaran (Expenses)
         // Proyek yang sudah SELESAI
         const completedProjects = await prisma.uniformProject.findMany({
-            where: { status: 'SELESAI' },
+            where: projectWhere,
             include: { selections: { where: { status: 'DIPILIH' } } }
         });
 
@@ -6466,6 +6544,10 @@ exports.getFinanceReport = async (req, res) => {
         cashFlow.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         res.json({
+            period: {
+                startDate: startDate || null,
+                endDate: endDate || null
+            },
             summary: {
                 totalRevenue,
                 totalExpenses,

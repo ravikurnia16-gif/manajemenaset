@@ -159,16 +159,43 @@ exports.getDashboardStats = async (req, res) => {
             spendingData.push({ name: monthName, value: totalSpent });
         }
 
-        // 7. Status Operations Data (5 Modules)
-        // A. Maintenance Statuses
+        // 7. Status Operations Data (Modules)
+        // A. Maintenance Statuses (Separated by targetDept: SARPRAS & PEMBANGUNAN)
         const maintenanceStats = await prisma.maintenance.groupBy({
-            by: ['status'],
+            by: ['status', 'targetDept'],
             where: where.unitId ? { unitId: where.unitId } : {},
             _count: { _all: true }
         });
-        const maintenanceData = maintenanceStats.map(s => ({
-            name: s.status,
-            value: s._count._all
+
+        const statusMapAll = {};
+        const statusMapSarpras = {};
+        const statusMapPembangunan = {};
+
+        maintenanceStats.forEach(s => {
+            const count = s._count?._all || 0;
+            const status = s.status;
+            const dept = (s.targetDept || 'SARPRAS').toUpperCase();
+
+            statusMapAll[status] = (statusMapAll[status] || 0) + count;
+
+            if (dept === 'PEMBANGUNAN') {
+                statusMapPembangunan[status] = (statusMapPembangunan[status] || 0) + count;
+            } else {
+                statusMapSarpras[status] = (statusMapSarpras[status] || 0) + count;
+            }
+        });
+
+        const maintenanceData = Object.keys(statusMapAll).map(name => ({
+            name,
+            value: statusMapAll[name]
+        }));
+        const maintenanceDataSarpras = Object.keys(statusMapSarpras).map(name => ({
+            name,
+            value: statusMapSarpras[name]
+        }));
+        const maintenanceDataPembangunan = Object.keys(statusMapPembangunan).map(name => ({
+            name,
+            value: statusMapPembangunan[name]
         }));
 
         // B. Procurement Statuses
@@ -302,6 +329,8 @@ exports.getDashboardStats = async (req, res) => {
             conditionData,
             procurementData,
             maintenanceData,
+            maintenanceDataSarpras,
+            maintenanceDataPembangunan,
             movementData,
             loanData,
             disposalData,

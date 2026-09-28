@@ -1,23 +1,55 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Shirt, Package, AlertCircle, ShoppingCart, TrendingUp, Clock, 
   Building, CheckCircle2, ArrowUpRight, ArrowDownRight, RefreshCw, 
   ExternalLink, Layers, ChevronRight, DollarSign, Sparkles, Filter,
-  AlertTriangle, Search, Download, FileSpreadsheet, Check
+  AlertTriangle, Search, Download, FileSpreadsheet, Check, Calendar,
+  FileText, Printer, Loader2
 } from 'lucide-react';
 import { Badge } from './UIComponents';
+
+/* ── jsPDF + autoTable CDN loader ── */
+function loadJsPDF() {
+  return new Promise((resolve) => {
+    if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = () => {
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+      s2.onload = () => resolve(window.jspdf.jsPDF);
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  });
+}
 
 export const DashboardTab = ({ 
   stats = {}, 
   warehouses = [], 
   selectedWarehouseId = '', 
   onSelectWarehouse, 
+  datePreset = 'ALL',
+  startDate = '',
+  endDate = '',
+  onPresetChange,
+  onCustomDateChange,
   onRefresh, 
   onNavigate 
 }) => {
   const [activeTableTab, setActiveTableTab] = useState('urgent_restock'); // 'urgent_restock' | 'low_stock' | 'activity'
   const [restockFilter, setRestockFilter] = useState('ALL'); // 'ALL' | 'CRITICAL_URGENT' | 'OUT_OF_STOCK' | 'LOW_STOCK'
   const [restockSearch, setRestockSearch] = useState('');
+  const [customStart, setCustomStart] = useState(startDate);
+  const [customEnd, setCustomEnd] = useState(endDate);
+  const [showCustomRange, setShowCustomRange] = useState(datePreset === 'CUSTOM');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  useEffect(() => {
+    setCustomStart(startDate);
+    setCustomEnd(endDate);
+    setShowCustomRange(datePreset === 'CUSTOM');
+  }, [startDate, endDate, datePreset]);
 
   const {
     totalItems = 0,
@@ -120,51 +152,401 @@ export const DashboardTab = ({
     document.body.removeChild(link);
   };
 
+  const handleExportExcel = () => {
+    const params = new URLSearchParams();
+    if (selectedWarehouseId) params.append('warehouseId', selectedWarehouseId);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    window.open(`/api/uniforms/export-sales?${params.toString()}`, '_blank');
+  };
+
+  const handleExportPDF = async () => {
+    setIsExportingPdf(true);
+    try {
+      const jsPDF = await loadJsPDF();
+      const doc = new jsPDF('portrait', 'mm', 'a4');
+      const pageW = doc.internal.pageSize.getWidth();
+      const now = new Date();
+
+      let periodLabel = 'Semua Riwayat Data';
+      if (startDate && endDate) {
+        const sStr = new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const eStr = new Date(endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        periodLabel = `${sStr} s/d ${eStr}`;
+        if (datePreset === 'LAST_7_DAYS' || datePreset === 'THIS_WEEK') {
+          periodLabel += ' (Mingguan)';
+        }
+      } else if (startDate) {
+        periodLabel = `Mulai ${new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+      }
+      const printDateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      const whName = selectedWarehouseId 
+        ? (warehouseBreakdown.find(w => String(w.id) === String(selectedWarehouseId))?.name || 'Gudang Terpilih')
+        : 'Semua Gudang (Global)';
+
+      // 1. KOP SURAT
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('BIDANG SARANA & PRASARANA', pageW / 2, 16, { align: 'center' });
+
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(37, 99, 235);
+      doc.text('LAPORAN MINGGUAN & PERIODIK MANAJEMEN SERAGAM', pageW / 2, 23, { align: 'center' });
+
+      doc.setFontSize(8.5);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Periode: ${periodLabel}   |   Gudang: ${whName}   |   Dicetak: ${printDateStr}`, pageW / 2, 29, { align: 'center' });
+
+      // Separator Line
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.6);
+      doc.line(14, 32, pageW - 14, 32);
+
+      let startY = 37;
+
+      // 2. RINGKASAN EKSEKUTIF / KPI
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('1. Ringkasan Kinerja & Omset Penjualan Seragam', 14, startY);
+      startY += 4;
+
+      doc.autoTable({
+        startY,
+        head: [['Total Pesanan', 'Omset Tagihan', 'Terbayar', 'Sisa Piutang', 'Pesanan Selesai', 'Item Inden', 'Total Stok Fisik']],
+        body: [[
+          `${totalSalesCount} Pesanan`,
+          `Rp ${totalRevenue.toLocaleString('id-ID')}`,
+          `Rp ${totalPaid.toLocaleString('id-ID')}`,
+          `Rp ${totalUnpaid.toLocaleString('id-ID')}`,
+          `${sales.completed || 0} Trx`,
+          `${fulfillment.indent || 0} Pcs`,
+          `${totalStock.toLocaleString('id-ID')} Pcs`
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+        bodyStyles: { fontSize: 8, fontStyle: 'bold', halign: 'center', textColor: [30, 41, 59] },
+        margin: { left: 14, right: 14 }
+      });
+
+      startY = doc.lastAutoTable.finalY + 8;
+
+      // 3. TABEL TOP PENJUALAN
+      if (topSellingItems.length > 0) {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('2. Rekapitulasi Produk Seragam Terlaris dalam Periode', 14, startY);
+        startY += 4;
+
+        const headSelling = [['#', 'Nama Seragam / Produk', 'Qty Terjual', 'Estimasi Omset']];
+        const bodySelling = topSellingItems.map((item, i) => [
+          i + 1,
+          item.itemName || '-',
+          `${item.qty} pcs`,
+          `Rp ${(item.revenue || 0).toLocaleString('id-ID')}`
+        ]);
+
+        doc.autoTable({
+          startY,
+          head: headSelling,
+          body: bodySelling,
+          theme: 'striped',
+          headStyles: { fillColor: [79, 70, 229], fontSize: 8, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 8 },
+          margin: { left: 14, right: 14 }
+        });
+
+        startY = doc.lastAutoTable.finalY + 8;
+      }
+
+      // 4. TABEL MUTASI & PERGERAKAN STOK
+      if (recentActivity.length > 0) {
+        if (startY > doc.internal.pageSize.getHeight() - 60) {
+          doc.addPage();
+          startY = 20;
+        }
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('3. Riwayat Mutasi & Pergerakan Stok dalam Periode', 14, startY);
+        startY += 4;
+
+        const headAct = [['#', 'Waktu', 'Aktivitas', 'Nama Seragam', 'Ukuran', 'Jumlah', 'Lokasi / Pihak', 'Catatan']];
+        const bodyAct = recentActivity.slice(0, 25).map((act, i) => [
+          i + 1,
+          act.date ? new Date(act.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+          act.title || act.type || '-',
+          act.itemName || '-',
+          act.size || '-',
+          `${act.qty || 0} pcs`,
+          act.warehouse || '-',
+          act.note || '-'
+        ]);
+
+        doc.autoTable({
+          startY,
+          head: headAct,
+          body: bodyAct,
+          theme: 'striped',
+          headStyles: { fillColor: [16, 185, 129], fontSize: 8, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 7.5 },
+          margin: { left: 14, right: 14 }
+        });
+
+        startY = doc.lastAutoTable.finalY + 8;
+      }
+
+      // 5. TABEL URGENT RESTOCK / BACKORDER
+      if (urgentRestockItems.length > 0) {
+        if (startY > doc.internal.pageSize.getHeight() - 60) {
+          doc.addPage();
+          startY = 20;
+        }
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(225, 29, 72);
+        doc.text('4. Peringatan Stok Menipis & Kebutuhan Pengadaan Mendesak', 14, startY);
+        startY += 4;
+
+        const headRestock = [['#', 'Nama Seragam', 'Jenjang', 'Ukuran', 'Sisa Stok', 'Inden', 'Rekomendasi PO', 'Status']];
+        const bodyRestock = urgentRestockItems.slice(0, 15).map((item, i) => [
+          i + 1,
+          item.itemName || '-',
+          item.unitName || '-',
+          item.sizeName || '-',
+          `${item.currentStock || 0} pcs`,
+          `${item.totalIndentDemand || 0} pcs`,
+          `${item.recommendedQty || 0} pcs`,
+          item.urgencyLabel || '-'
+        ]);
+
+        doc.autoTable({
+          startY,
+          head: headRestock,
+          body: bodyRestock,
+          theme: 'striped',
+          headStyles: { fillColor: [225, 29, 72], fontSize: 8, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 7.5 },
+          margin: { left: 14, right: 14 }
+        });
+
+        startY = doc.lastAutoTable.finalY + 12;
+      }
+
+      // 6. LEMBAR PENGESAHAN / TANDA TANGAN
+      if (startY > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        startY = 25;
+      }
+
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85);
+      doc.setFont(undefined, 'normal');
+
+      doc.text('Dibuat Oleh,', 25, startY);
+      doc.text('Staf / Penanggung Jawab Seragam', 25, startY + 5);
+      doc.text('( ............................................. )', 25, startY + 26);
+
+      doc.text('Mengetahui,', pageW - 85, startY);
+      doc.text('Kepala Bidang Sarana', pageW - 85, startY + 5);
+      doc.text('( ............................................. )', pageW - 85, startY + 26);
+
+      // 7. FOOTER PAGE NUMBERING
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.text(
+          `Halaman ${i} dari ${pageCount}  |  Laporan Manajemen Seragam Bidang Sarana`,
+          pageW / 2,
+          doc.internal.pageSize.getHeight() - 8,
+          { align: 'center' }
+        );
+      }
+
+      doc.save(`Laporan_Seragam_${startDate || 'All'}_sd_${endDate || 'All'}_${now.toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+      alert('Gagal mengekspor PDF laporan seragam: ' + err.message);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleApplyCustomDate = () => {
+    if (onCustomDateChange) {
+      onCustomDateChange(customStart, customEnd);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
 
-      {/* Top Filter & Quick Control Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
-            <Building size={14} className="text-blue-600" />
-            <span>Filter Gudang:</span>
-            <select
-              value={selectedWarehouseId}
-              onChange={(e) => onSelectWarehouse && onSelectWarehouse(e.target.value)}
-              className="bg-transparent font-extrabold text-blue-700 outline-none cursor-pointer"
-            >
-              <option value="">Semua Gudang (Global)</option>
-              {warehouseBreakdown.map(w => (
-                <option key={w.id} value={w.id}>{w.name} ({w.totalStock} pcs)</option>
-              ))}
-            </select>
+      {/* Top Filter & Reporting Control Bar */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+          
+          {/* Warehouse and Period Preset Group */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            {/* Filter Gudang */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
+              <Building size={14} className="text-blue-600" />
+              <span>Gudang:</span>
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => onSelectWarehouse && onSelectWarehouse(e.target.value)}
+                className="bg-transparent font-extrabold text-blue-700 outline-none cursor-pointer"
+              >
+                <option value="">Semua Gudang (Global)</option>
+                {warehouseBreakdown.map(w => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.totalStock} pcs)</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter Periode Laporan */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
+              <Calendar size={14} className="text-indigo-600" />
+              <span>Periode:</span>
+              <select
+                value={datePreset}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'CUSTOM') {
+                    setShowCustomRange(true);
+                  } else {
+                    setShowCustomRange(false);
+                  }
+                  if (onPresetChange) onPresetChange(val);
+                }}
+                className="bg-transparent font-extrabold text-indigo-700 outline-none cursor-pointer"
+              >
+                <option value="ALL">⚡ Semua Riwayat Data</option>
+                <option value="LAST_7_DAYS">📅 7 Hari Terakhir (Mingguan)</option>
+                <option value="THIS_WEEK">📅 Minggu Ini</option>
+                <option value="THIS_MONTH">📅 Bulan Ini</option>
+                <option value="LAST_30_DAYS">📅 30 Hari Terakhir</option>
+                <option value="CUSTOM">🗓️ Pilih Rentang Tanggal...</option>
+              </select>
+            </div>
+
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold border border-slate-200 transition"
+                title="Perbarui data statistik"
+              >
+                <RefreshCw size={13} />
+                <span>Refresh</span>
+              </button>
+            )}
           </div>
 
-          {onRefresh && (
+          {/* Action Export Buttons */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
             <button
-              onClick={onRefresh}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold border border-slate-200 transition"
-              title="Perbarui data statistik"
+              onClick={handleExportPDF}
+              disabled={isExportingPdf}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-blue-500/20 disabled:opacity-50"
+              title="Cetak Laporan PDF Mingguan atau Per Tanggal"
             >
-              <RefreshCw size={13} />
-              <span>Refresh</span>
+              {isExportingPdf ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Printer size={14} />
+              )}
+              <span>{isExportingPdf ? 'Menyusun PDF...' : 'Cetak Laporan PDF'}</span>
             </button>
-          )}
+
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-emerald-500/20"
+              title="Unduh Data Pesanan & Distribusi ke Excel"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Ekspor Excel</span>
+            </button>
+
+            <a
+              href="/pesan-seragam"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition"
+            >
+              <ExternalLink size={13} className="text-slate-500" />
+              <span>Form Publik ↗</span>
+            </a>
+          </div>
         </div>
 
-        {/* Action Shortcuts */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-          <a
-            href="/pesan-seragam"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-sm"
-          >
-            <ExternalLink size={13} className="text-emerald-600" />
-            <span>Form Publik ↗</span>
-          </a>
-        </div>
+        {/* Custom Date Range Picker Row (shown when CUSTOM or user opens it) */}
+        {(showCustomRange || datePreset === 'CUSTOM') && (
+          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-100 bg-slate-50/50 p-3 rounded-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">Mulai:</span>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">Sampai:</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
+              />
+            </div>
+            <button
+              onClick={handleApplyCustomDate}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs"
+            >
+              Terapkan Tanggal
+            </button>
+            <button
+              onClick={() => {
+                setShowCustomRange(false);
+                if (onPresetChange) onPresetChange('ALL');
+              }}
+              className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition"
+            >
+              Reset ke Semua
+            </button>
+          </div>
+        )}
+
+        {/* Active Filter Period Badge */}
+        {(startDate || endDate) && (
+          <div className="flex items-center justify-between text-xs bg-blue-50/70 border border-blue-200/80 rounded-xl px-3.5 py-2 text-blue-900">
+            <div className="flex items-center gap-2">
+              <Clock size={14} className="text-blue-600" />
+              <span>
+                <strong>Filter Aktif:</strong> {startDate ? new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Awal'} s/d {endDate ? new Date(endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari Ini'}
+                {datePreset === 'LAST_7_DAYS' && ' (7 Hari Terakhir / Mingguan)'}
+                {datePreset === 'THIS_WEEK' && ' (Minggu Ini)'}
+                {datePreset === 'THIS_MONTH' && ' (Bulan Ini)'}
+                {datePreset === 'LAST_30_DAYS' && ' (30 Hari Terakhir)'}
+              </span>
+            </div>
+            <button
+              onClick={() => onPresetChange && onPresetChange('ALL')}
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 underline ml-3"
+            >
+              Tampilkan Semua
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Hero Alert Banner for Urgent Restock */}

@@ -1,0 +1,744 @@
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+    ArrowLeft, Plus, Trash2, Upload, FileSpreadsheet, Download,
+    FileText, PenTool, Printer, CheckCircle2, Building2, User as UserIcon, Clock
+} from 'lucide-react';
+import * as XLSX from 'xlsx'; // Import XLSX for reading
+import ExcelJS from 'exceljs'; // Import ExcelJS for writing with validation
+import api from '../../lib/axios';
+import SignaturePad from '../../components/SignaturePad';
+import ProcurementLetterModal from './components/ProcurementLetterModal';
+
+const ProcurementForm = () => {
+    const navigate = useNavigate();
+    const [header, setHeader] = useState({ title: '', notes: '', rkbId: '', isDirectOrder: false, assignedStaffId: '', type: 'ASSET' });
+    const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'BOS', 'Cashback', 'Lainnya']);
+    const [categories, setCategories] = useState([]);
+    const [staffList, setStaffList] = useState([]);
+    const [items, setItems] = useState([
+        { name: '', spec: '', notes: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }
+    ]);
+    const [loading, setLoading] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAuthorizedForDirectOrder = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana';
+
+    // Letter & Unit States
+    const [units, setUnits] = useState([]);
+    const [usersList, setUsersList] = useState([]);
+    const [selectedUnitId, setSelectedUnitId] = useState(user.unitId ? String(user.unitId) : '');
+    const [letterNumber, setLetterNumber] = useState('');
+    const [headUnitName, setHeadUnitName] = useState('');
+    const [headUnitPhone, setHeadUnitPhone] = useState('');
+    const [isAutoDetectedHead, setIsAutoDetectedHead] = useState(false);
+    const [requesterSignature, setRequesterSignature] = useState(() => {
+        try {
+            return localStorage.getItem('saved_user_signature') || null;
+        } catch (e) {
+            return null;
+        }
+    });
+    const [showSignaturePad, setShowSignaturePad] = useState(false);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+    useEffect(() => {
+        api.get('/master/units')
+            .then(res => setUnits(res.data || []))
+            .catch(err => console.error("Failed to fetch units:", err));
+
+        api.get('/users')
+            .then(res => setUsersList(res.data || []))
+            .catch(err => console.error("Failed to fetch users:", err));
+    }, []);
+
+    useEffect(() => {
+        const uId = selectedUnitId || user.unitId;
+        if (!uId) return;
+
+        // 1. Fetch next unit letter number
+        api.get('/procurements/unit-letter-number', { params: { unitId: uId } })
+            .then(res => {
+                if (res.data?.letterNumber) {
+                    setLetterNumber(res.data.letterNumber);
+                }
+            })
+            .catch(err => console.error("Failed to fetch unit letter number:", err));
+
+        // 2. Auto-detect Kepala Unit from users in this unit
+        const parsedUnitId = parseInt(uId);
+        const head = usersList.find(u => 
+            u.unitId === parsedUnitId && 
+            u.position && (
+                u.position.toLowerCase().includes('kepala unit') ||
+                u.position.toLowerCase().includes('kepala sekolah') ||
+                u.position.toLowerCase().includes('pimpinan')
+            )
+        );
+
+        if (head) {
+            setHeadUnitName(head.name || head.username);
+            setHeadUnitPhone(head.phone || '');
+            setIsAutoDetectedHead(true);
+        } else {
+            const unitObj = units.find(u => u.id === parsedUnitId);
+            if (unitObj?.headName) {
+                setHeadUnitName(unitObj.headName);
+                setIsAutoDetectedHead(true);
+            } else {
+                setIsAutoDetectedHead(false);
+            }
+        }
+    }, [selectedUnitId, usersList, units]);
+
+    useEffect(() => {
+        api.get('/assets/funding-sources')
+            .then(res => {
+                if (Array.isArray(res.data)) {
+                    // Merge defaults with API data, convert to Set to remove duplicates
+                    const defaults = ['Yayasan', 'Hibah', 'Wakaf', 'BOS', 'Cashback', 'Lainnya'];
+                    const uniqueSources = [...new Set([...defaults, ...res.data])];
+                    setFundingSources(uniqueSources);
+                } else {
+                    setFundingSources(['Yayasan', 'Hibah', 'Wakaf', 'BOS', 'Cashback', 'Lainnya']);
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch funding sources:", err);
+                setFundingSources(['Yayasan']);
+            });
+
+        if (isAuthorizedForDirectOrder) {
+            api.get('/users/staff')
+                .then(res => {
+                    setStaffList(res.data || []);
+                })
+                .catch(err => console.error("Failed to fetch staff:", err));
+        }
+
+        api.get('/master/categories')
+            .then(res => setCategories(res.data || []))
+            .catch(err => console.error("Failed to fetch categories:", err));
+    }, [isAuthorizedForDirectOrder]);
+
+    const handleItemChange = (index, field, value) => {
+        setItems(prevItems => prevItems.map((item, i) =>
+            i === index ? { ...item, [field]: value } : item
+        ));
+    };
+
+    const addItem = () => {
+        setItems([...items, { name: '', spec: '', notes: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }]);
+    };
+
+    const removeItem = (index) => {
+        if (items.length === 1) return;
+        setItems(items.filter((_, i) => i !== index));
+    };
+
+    // Handle File Import for Items
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws);
+
+            // Map Excel columns to Item format (Flexible support)
+            const errors = [];
+            const importedItems = data.map((row, index) => {
+                const rowNum = index + 2; // Header is row 1
+                const name = row['Mq'] || row['Nama Barang'] || row['Nama'] || '';
+                const qty = parseInt(row['Jumlah'] || row['Qty'] || 0);
+                const unit = row['Satuan'] || row['Unit'] || '';
+
+                if (!name) errors.push(`Baris ${rowNum}: Nama Barang wajib diisi.`);
+                if (!qty || qty <= 0) errors.push(`Baris ${rowNum}: Jumlah harus lebih dari 0.`);
+                if (!unit) errors.push(`Baris ${rowNum}: Satuan wajib diisi (Pcs/Unit/dll).`);
+
+                return {
+                    name,
+                    spec: row['Spesifikasi'] || row['Spec'] || '-',
+                    notes: row['Catatan'] || row['Keterangan'] || row['Notes'] || '',
+                    qty,
+                    unit,
+                    estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
+                    fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri',
+                    type: 'ASSET',
+                    categoryId: ''
+                };
+            });
+
+            if (errors.length > 0) {
+                alert(`Import Gagal! Mohon lengkapi data berikut di Excel:\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? '\n...dan ' + (errors.length - 10) + ' error lainnya' : ''}`);
+                e.target.value = null;
+                return;
+            }
+
+            if (importedItems.length > 0) {
+                // Confirm overwrite or append? Let's overwrite for simplicity or valid usecase
+                if (confirm(`Ditemukan ${importedItems.length} item. Timpa daftar barang saat ini?`)) {
+                    setItems(importedItems);
+                } else {
+                    setItems([...items, ...importedItems]);
+                }
+            } else {
+                alert('Tidak ada data valid ditemukan di file Excel.');
+            }
+            e.target.value = null; // Reset input
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    const handleDownloadTemplate = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Template');
+
+        worksheet.columns = [
+            { header: 'Nama Barang', key: 'name', width: 25 },
+            { header: 'Spesifikasi', key: 'spec', width: 30 },
+            { header: 'Catatan / Keterangan', key: 'notes', width: 30 },
+            { header: 'Jumlah', key: 'qty', width: 10 },
+            { header: 'Satuan', key: 'unit', width: 10 },
+            { header: 'Estimasi Harga', key: 'estPrice', width: 15 },
+            { header: 'Sumber Dana', key: 'fundingSource', width: 15 },
+            { header: 'Kategori', key: 'category', width: 15 }
+        ];
+
+        // Style the header
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE0E0E0' }
+        };
+
+        // Add sample data
+        worksheet.addRow({ name: 'Laptop', spec: 'RAM 16GB', notes: 'Wajib warna hitam', qty: 1, unit: 'Unit', estPrice: 15000000, fundingSource: 'Mandiri' });
+        worksheet.addRow({ name: 'Printer', spec: 'Laserjet', notes: 'Prioritas Lab TIK', qty: 2, unit: 'Unit', estPrice: 3500000, fundingSource: 'Mandiri' });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Template_Request_${new Date().toISOString().split('T')[0]}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!header.title) return alert('Mohon isi Judul Pengajuan');
+
+        const isDirect = header.isDirectOrder && isAuthorizedForDirectOrder;
+
+        if (!isDirect) {
+            if (!requesterSignature) {
+                setShowSignaturePad(true);
+                return alert('Tanda tangan pemohon wajib dibubuhkan pada formulir surat permohonan.');
+            }
+            if (!headUnitName || !headUnitName.trim()) {
+                return alert('Nama Kepala Unit (Menyetujui) wajib diisi.');
+            }
+        }
+
+        const confirmMsg = isDirect
+            ? 'Kirim instruksi langsung pengadaan (Mandat Kabid)?'
+            : 'Kirim pengajuan dan buat Surat Permohonan Pengadaan?\n\nTautan tanda tangan persetujuan akan otomatis dikirimkan ke WhatsApp Kepala Unit terlebih dahulu.';
+
+        if (!confirm(confirmMsg)) return;
+
+        setLoading(true);
+        try {
+            await api.post('/procurements', {
+                ...header,
+                unitId: selectedUnitId || user.unitId,
+                letterNumber,
+                headUnitName: headUnitName.trim(),
+                headUnitPhone: headUnitPhone ? headUnitPhone.trim() : null,
+                requesterSignature,
+                items
+            });
+            alert('Alhamdulillah, pengajuan dan Surat Permohonan berhasil dibuat!\n\nTautan persetujuan telah diteruskan kepada Kepala Unit.');
+            navigate('/procurements');
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal mengirim pengajuan');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const activeUnit = units.find(u => u.id === parseInt(selectedUnitId || user.unitId)) || user.unit || { name: 'Unit Pemohon' };
+
+    return (
+        <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-20 px-2 sm:px-0 animate-in slide-in-from-bottom-4">
+            <button onClick={() => navigate('/procurements')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600">
+                <ArrowLeft size={16} /> Batal & Kembali
+            </button>
+
+            <div className="bg-white p-4 sm:p-8 rounded-xl shadow-sm border border-slate-100">
+                <div className="mb-4 sm:mb-6">
+                    <h1 className="text-lg sm:text-2xl font-bold text-slate-800">Buat Request Baru</h1>
+                    <p className="text-slate-500 text-xs sm:text-sm">Ajukan permintaan pengadaan barang aset atau kebutuhan operasional.</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    {/* Header Section */}
+                    <div className="bg-slate-50 p-3 sm:p-6 rounded-xl border border-slate-200 space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Judul Pengajuan (Wajib)</label>
+                            <input
+                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700 bg-white"
+                                placeholder="Contoh: Pengadaan Alat TIK untuk Unit IT"
+                                value={header.title}
+                                onChange={e => setHeader({ ...header, title: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-sm font-bold text-slate-700">
+                                    Catatan / Keterangan (Opsional)
+                                </label>
+                                <span className="text-[11px] font-semibold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full">
+                                    Untuk Admin Aset
+                                </span>
+                            </div>
+                            <textarea
+                                rows={3}
+                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700 placeholder:text-slate-400 bg-white resize-y"
+                                placeholder="Tuliskan catatan atau keterangan kepada Admin Aset (opsional, contoh: alasan mendesak, referensi link/toko, atau kebutuhan spesifikasi tertentu)..."
+                                value={header.notes}
+                                onChange={e => setHeader({ ...header, notes: e.target.value })}
+                            />
+                            <p className="text-[11px] text-slate-500 mt-1">
+                                Keterangan ini akan disampaikan kepada Admin Aset untuk mempermudah peninjauan dan tindak lanjut pengadaan.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Surat Permohonan Unit Section */}
+                    <div className="bg-white p-4 sm:p-6 rounded-xl border border-blue-200 shadow-sm space-y-5">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <FileText size={18} className="text-blue-600" />
+                                    Surat Permohonan Pengadaan Unit
+                                </h3>
+                                <p className="text-xs text-slate-500">
+                                    Surat resmi berkop unit pemohon untuk seluruh item dalam pengajuan ini. Tanda tangan pemohon akan diteruskan ke Kepala Unit.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowPreviewModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors shadow-xs"
+                            >
+                                <Printer size={14} /> Pratinjau Surat Permohonan
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Unit Selector */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                                    Unit Pemohon *
+                                </label>
+                                {user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET' ? (
+                                    <select
+                                        className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={selectedUnitId}
+                                        onChange={e => setSelectedUnitId(e.target.value)}
+                                    >
+                                        <option value="">-- Pilih Unit Pemohon --</option>
+                                        {units.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between">
+                                        <span className="flex items-center gap-2">
+                                            <Building2 size={16} className="text-blue-600" />
+                                            {activeUnit.name}
+                                        </span>
+                                        <span className="text-[11px] font-normal text-slate-400 bg-white px-2 py-0.5 rounded border">Unit Anda</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Nomor Surat */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                                        Nomor Surat (Otomatis per Unit)
+                                    </label>
+                                    <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                        Per Unit / Tahun
+                                    </span>
+                                </div>
+                                <input
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-mono font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={letterNumber}
+                                    onChange={e => setLetterNumber(e.target.value)}
+                                    placeholder="Contoh: 001/PP/UNIT/IX/2026"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-slate-100">
+                            {/* Menyetujui: Kepala Unit */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                                        Menyetujui: Kepala Unit *
+                                    </label>
+                                    {isAutoDetectedHead && (
+                                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                            Otomatis Terdeteksi
+                                        </span>
+                                    )}
+                                </div>
+                                <input
+                                    type="text"
+                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Nama Lengkap Kepala Unit"
+                                    value={headUnitName}
+                                    onChange={e => {
+                                        setHeadUnitName(e.target.value);
+                                        setIsAutoDetectedHead(false);
+                                    }}
+                                    required={!header.isDirectOrder}
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    {headUnitPhone ? `Kontak WA: ${headUnitPhone} • ` : ''}Tautan tanda tangan persetujuan akan dikirimkan otomatis ke WhatsApp Kepala Unit.
+                                </p>
+                            </div>
+
+                            {/* Tanda Tangan Pemohon */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                                        Tanda Tangan Pemohon (Yang Memohon) *
+                                    </label>
+                                    {requesterSignature && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSignaturePad(true)}
+                                            className="text-[11px] text-blue-600 font-bold hover:underline"
+                                        >
+                                            Ganti TTD
+                                        </button>
+                                    )}
+                                </div>
+
+                                {requesterSignature ? (
+                                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-16 h-12 bg-white rounded-lg border border-slate-300 p-1 flex items-center justify-center">
+                                                <img src={requesterSignature} alt="TTD Pemohon" className="max-h-full max-w-full object-contain" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-800">{user.name || user.username}</p>
+                                                <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                                                    <CheckCircle2 size={12} /> Tanda tangan siap digunakan
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRequesterSignature(null)}
+                                            className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                            title="Hapus tanda tangan"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSignaturePad(true)}
+                                            className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border-2 border-dashed border-blue-300 hover:border-blue-400 rounded-xl text-xs font-bold text-blue-700 flex items-center justify-center gap-2 transition-all shadow-xs"
+                                        >
+                                            <PenTool size={15} /> Bubuhkan Tanda Tangan Pemohon
+                                        </button>
+                                        <p className="text-[11px] text-slate-500 mt-1">
+                                            Goreskan tanda tangan di sini. Dapat disimpan agar tidak perlu digambar ulang nanti.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Direct Order Panel (Super Admin / Kabid Only) */}
+                    {isAuthorizedForDirectOrder && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm animate-in fade-in duration-300">
+                            <label className="flex items-center justify-between cursor-pointer mb-3">
+                                <div>
+                                    <span className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                                        👑 Instruksi Langsung Kepala Bidang
+                                    </span>
+                                    <p className="text-[10px] text-amber-700 font-medium">Bypass persetujuan. Langsung status APPROVED & Tugaskan Staf.</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                    checked={header.isDirectOrder}
+                                    onChange={e => setHeader({ ...header, isDirectOrder: e.target.checked })}
+                                />
+                            </label>
+
+                            {header.isDirectOrder && (
+                                <div className="mt-4 pt-4 border-t border-amber-200/60">
+                                    {/* Pilih Staff */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-amber-900 uppercase mb-2">Tugaskan Kepada (Opsional)</label>
+                                        <select
+                                            className="w-full border border-amber-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white text-slate-700"
+                                            value={header.assignedStaffId}
+                                            onChange={e => setHeader({ ...header, assignedStaffId: e.target.value })}
+                                        >
+                                            <option value="">-- Pilih Staf Pelaksana --</option>
+                                            {staffList.map(staff => (
+                                                <option key={staff.id} value={staff.id}>
+                                                    {staff.name || staff.username} - {staff.position}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Items Section */}
+                    <div>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-100">
+                            <div>
+                                <h3 className="text-base sm:text-lg font-bold text-blue-900">Daftar Barang</h3>
+                                <p className="text-xs text-blue-600">List barang yang akan diajukan.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    accept=".xlsx, .xls"
+                                    className="hidden"
+                                />
+                                <button type="button" onClick={handleDownloadTemplate} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold px-3 py-2 border rounded-lg bg-white flex-1 sm:flex-none justify-center">
+                                    <Download size={14} /> Template
+                                </button>
+                                <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1 text-green-600 hover:text-green-700 text-xs font-bold px-3 py-2 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 flex-1 sm:flex-none justify-center">
+                                    <FileSpreadsheet size={14} /> Import
+                                </button>
+                                <button type="button" onClick={addItem} className="flex items-center gap-1 text-white bg-blue-600 hover:bg-blue-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex-1 sm:flex-none justify-center">
+                                    <Plus size={14} /> Tambah
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {items.map((item, index) => (
+                                <div key={index} className="flex gap-2 sm:gap-4 items-start p-3 sm:p-4 border border-slate-200 rounded-xl bg-white hover:border-blue-300 transition-colors group">
+                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold text-xs mt-1">
+                                        {index + 1}
+                                    </div>
+                                    <div className="flex-1 space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Nama Barang</label>
+                                                <input
+                                                    placeholder="Contoh: Laptop Dell XPS"
+                                                    className="border border-slate-300 p-2 rounded text-sm font-semibold w-full focus:border-blue-500 outline-none"
+                                                    value={item.name}
+                                                    onChange={e => handleItemChange(index, 'name', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Spesifikasi</label>
+                                                <input
+                                                    placeholder="Contoh: RAM 16GB, SSD 512GB"
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
+                                                    value={item.spec}
+                                                    onChange={e => handleItemChange(index, 'spec', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Kategori Aset (Wajib)</label>
+                                                <select
+                                                    className="border border-slate-300 p-2 rounded text-sm font-semibold w-full focus:border-blue-500 outline-none bg-white"
+                                                    value={item.categoryId}
+                                                    onChange={e => handleItemChange(index, 'categoryId', e.target.value)}
+                                                    required
+                                                >
+                                                    <option value="">-- Pilih Kategori --</option>
+                                                    {categories.map(cat => (
+                                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                                            <div className="col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Jumlah</label>
+                                                <input
+                                                    type="number" placeholder="1"
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
+                                                    value={item.qty}
+                                                    onChange={e => handleItemChange(index, 'qty', e.target.value)}
+                                                    required
+                                                    min="1"
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Satuan</label>
+                                                <input
+                                                    placeholder="Pcs/Unit"
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
+                                                    value={item.unit}
+                                                    onChange={e => handleItemChange(index, 'unit', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Est. Harga (Rp)</label>
+                                                <input
+                                                    type="number" placeholder="0"
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
+                                                    value={item.estPrice}
+                                                    onChange={e => handleItemChange(index, 'estPrice', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Sumber Dana</label>
+                                                <select
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none bg-white"
+                                                    value={item.fundingSource}
+                                                    onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
+                                                >
+                                                    {fundingSources.map((fs, idx) => (
+                                                        <option key={idx} value={fs}>{fs}</option>
+                                                    ))}
+                                                </select>
+                                                {/* Datalist moved outside loop */}
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-slate-100">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                    Catatan / Keterangan Item (Opsional)
+                                                </label>
+                                                <span className="text-[10px] text-slate-400 font-medium">Keterangan untuk Admin Aset</span>
+                                            </div>
+                                            <input
+                                                placeholder="Contoh: Warna hitam, prioritas awal semester, referensi link/toko, dll..."
+                                                className="border border-slate-300 p-2 rounded text-xs text-slate-700 w-full focus:border-blue-500 outline-none bg-slate-50/50 focus:bg-white transition-colors"
+                                                value={item.notes || ''}
+                                                onChange={e => handleItemChange(index, 'notes', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    {items.length > 1 && (
+                                        <button type="button" onClick={() => removeItem(index)} className="text-slate-300 hover:text-red-500 p-2 transition-colors">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="pt-4 sm:pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/procurements')}
+                            className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowPreviewModal(true)}
+                            className="px-5 py-2.5 rounded-xl font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Printer size={16} /> Pratinjau Surat Permohonan
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
+                        >
+                            {loading ? 'Mengirim...' : 'Kirim Request'} <Upload size={18} />
+                        </button>
+                    </div>
+                    {/* Shared Datalist for Funding Sources */}
+                    <datalist id="funding-options">
+                        {Array.isArray(fundingSources) && fundingSources.map((src, i) => (
+                            <option key={i} value={src} />
+                        ))}
+                    </datalist>
+                </form>
+            </div>
+
+            {/* SignaturePad Modal for Pemohon */}
+            {showSignaturePad && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md animate-in zoom-in-95">
+                        <SignaturePad
+                            title="Tanda Tangan Pemohon"
+                            storageKey="saved_user_signature"
+                            onSave={(dataUrl) => {
+                                setRequesterSignature(dataUrl);
+                                setShowSignaturePad(false);
+                            }}
+                            onCancel={() => setShowSignaturePad(false)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Procurement Letter Print & Preview Modal */}
+            <ProcurementLetterModal
+                isOpen={showPreviewModal}
+                onClose={() => setShowPreviewModal(false)}
+                letterData={{
+                    letterNumber: letterNumber || '001/PP/UNIT/IX/2026',
+                    createdAt: new Date(),
+                    title: header.title || 'Permohonan Pengadaan Barang / Jasa',
+                    unitName: activeUnit.name || 'Unit Pemohon',
+                    unitAddress: activeUnit.address ? activeUnit.address.replace(/Kota\s+Padang,?\s*/gi, '').replace(/Padang,?\s*/gi, '').trim() || 'Sumatera Barat' : 'Sumatera Barat',
+                    unitPhone: activeUnit.phone || '',
+                    requesterName: user.name || user.username || 'Pemohon',
+                    requesterPosition: user.position || 'Staff Unit',
+                    requesterSignature: requesterSignature,
+                    headUnitName: headUnitName || '',
+                    headUnitSignature: null,
+                    kabidName: (usersList.find(u => u.position && u.position.toLowerCase().includes('kepala bidang sarana'))?.name || usersList.find(u => u.position && u.position.toLowerCase().includes('kepala bidang sarana'))?.username || ''),
+                    kabidTte: header.isDirectOrder,
+                    items: items.map(it => ({
+                        name: it.name || 'Nama Barang',
+                        spec: it.spec || '-',
+                        qty: it.qty || 1,
+                        unit: it.unit || 'Unit',
+                        estimatedPrice: it.estPrice || 0
+                    })),
+                    notes: header.notes
+                }}
+            />
+        </div>
+    );
+};
+
+export default ProcurementForm;

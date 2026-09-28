@@ -37,7 +37,7 @@ exports.getAllMaintenanceLogs = async (req, res) => {
 
         const logs = await prisma.vehicleService.findMany({
             where,
-            include: { 
+            include: {
                 vehicle: true,
                 requester: { select: { id: true, name: true, username: true, position: true, phone: true } },
                 approvedBy: { select: { id: true, name: true, username: true, position: true } }
@@ -409,35 +409,65 @@ exports.createMaintenanceRequest = async (req, res) => {
             }
         });
 
-        // Kirim notifikasi WhatsApp ke Kepala Bidang Sarana
+        // Kirim notifikasi WhatsApp ke Kepala Bidang Sarana & Staff Keuangan dan Administrasi
         (async () => {
             try {
+                // 1. Notifikasi ke Position Kepala Bidang Sarana
                 const kabidUsers = await prisma.user.findMany({
                     where: {
-                        OR: [
-                            { position: { contains: 'Kepala Bidang Sarana' } },
-                            { position: { contains: 'Kabid Sarpras' } },
-                            { role: 'SUPER_ADMIN' }
-                        ],
+                        position: { contains: 'Kepala Bidang Sarana' },
                         phone: { not: null }
                     },
-                    select: { phone: true, name: true }
+                    select: { id: true, phone: true, name: true }
                 });
 
                 const requesterName = serviceRequest.requester?.name || serviceRequest.requester?.username || 'Staff Kendaraan';
-                const msg = `🚗 *PENGAJUAN PEMELIHARAAN KENDARAAN BARU*\n\n` +
+                const estCostFormatted = estimatedCost ? 'Rp ' + parseFloat(estimatedCost).toLocaleString('id-ID') : '-';
+
+                const msgKabid = `🚗 *PENGAJUAN PEMELIHARAAN KENDARAAN BARU*\n\n` +
                     `Kode: *${code}*\n` +
                     `Kendaraan: *${vehicle.name} (${vehicle.plateNumber})*\n` +
                     `Pengaju: *${requesterName}*\n` +
                     `Tipe: *${type}* (${category === 'ROUTINE' ? 'Rutin' : 'Insidentil/Perbaikan'})\n` +
                     `Urgensi: *${urgency}*\n` +
-                    `Estimasi Biaya: *${estimatedCost ? 'Rp ' + parseFloat(estimatedCost).toLocaleString('id-ID') : '-'}*\n` +
+                    `Estimasi Biaya: *${estCostFormatted}*\n` +
                     `Keluhan: _${description}_\n\n` +
                     `Mohon untuk ditinjau dan disetujui melalui Aplikasi Manajemen Aset. Terima kasih.`;
 
                 for (const kabid of kabidUsers) {
                     if (kabid.phone) {
-                        await sendMessage(kabid.phone, msg);
+                        await sendMessage(kabid.phone, msgKabid);
+                    }
+                }
+
+                // 2. Notifikasi Estimasi Biaya ke Position Staff Keuangan dan Administrasi
+                const financeUsers = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { position: { contains: 'Staff Keuangan dan Administrasi' } },
+                            { position: { contains: 'Staff Keuangan & Administrasi' } },
+                            { position: { contains: 'Keuangan dan Administrasi' } }
+                        ],
+                        phone: { not: null }
+                    },
+                    select: { id: true, phone: true, name: true }
+                });
+
+                const msgFinance = `💰 *PENGAJUAN BIAYA PEMELIHARAAN KENDARAAN*\n\n` +
+                    `Terdapat pengajuan pemeliharaan kendaraan baru dari staf operasional dengan rincian biaya:\n` +
+                    `• Kode: *${code}*\n` +
+                    `• Kendaraan: *${vehicle.name} (${vehicle.plateNumber})*\n` +
+                    `• Pengaju: *${requesterName}*\n` +
+                    `• Tipe: *${type}* (${category === 'ROUTINE' ? 'Rutin' : 'Insidentil/Perbaikan'})\n` +
+                    `• Urgensi: *${urgency}*\n` +
+                    `• *Estimasi Biaya*: *${estCostFormatted}*\n` +
+                    `• Keluhan / Rincian: _${description}_\n\n` +
+                    `Pemberitahuan ini diteruskan kepada Bagian Keuangan dan Administrasi untuk pencatatan dan monitoring rencana biaya pemeliharaan. Terima kasih.`;
+
+                for (const fin of financeUsers) {
+                    if (fin.phone) {
+                        await sendMessage(fin.phone, msgFinance);
+                        console.log(`[Vehicle Request Notify Finance] Sent to ${fin.name} (${fin.phone})`);
                     }
                 }
             } catch (notifyErr) {
@@ -470,7 +500,7 @@ exports.approveMaintenanceRequest = async (req, res) => {
             select: { id: true, name: true, username: true, role: true, position: true, phone: true }
         });
         const userPosition = (currentUser?.position || '').toLowerCase();
-        const isKabidSarana = userPosition.includes('kepala bidang sarana') || currentUser?.role === 'SUPER_ADMIN';
+        const isKabidSarana = userPosition.includes('kepala bidang sarana');
 
         if (!isKabidSarana) {
             return res.status(403).json({
@@ -481,8 +511,10 @@ exports.approveMaintenanceRequest = async (req, res) => {
         const service = await prisma.vehicleService.findUnique({
             where: { id },
             include: {
-                vehicle: true,
-                requester: { select: { id: true, name: true, username: true, phone: true } }
+                vehicle: {
+                    include: { pics: true }
+                },
+                requester: { select: { id: true, name: true, username: true, phone: true, position: true } }
             }
         });
 
@@ -553,27 +585,67 @@ exports.approveMaintenanceRequest = async (req, res) => {
                 spkQrCode,
             },
             include: {
-                vehicle: true,
+                vehicle: {
+                    include: { pics: true }
+                },
                 requester: { select: { id: true, name: true, username: true, phone: true } },
                 approvedBy: { select: { id: true, name: true, username: true, position: true } }
             }
         });
 
-        // 5. WhatsApp notification to requester
+        // 5. WhatsApp notification saat SPK Diterbitkan
         (async () => {
-            if (service.requester?.phone) {
-                try {
-                    const msg = `✅ *PENGAJUAN SERVIS KENDARAAN DISETUJUI*\n\n` +
-                        `No. SPK: *${spkNumber}*\n` +
-                        `Kendaraan: *${service.vehicle?.name} (${service.vehicle?.plateNumber})*\n` +
-                        `Disetujui Oleh: *${currentUser.name || currentUser.username}*\n` +
-                        `Bengkel: *${approvedWorkshop || service.workshop || '-'}*\n` +
-                        (approvalNote ? `Catatan: _${approvalNote}_\n` : '') +
-                        `\nSilakan cetak SPK Kendaraan dan bawa kendaraan ke bengkel untuk pengerjaan servis. Terima kasih.`;
-                    await sendMessage(service.requester.phone, msg);
-                } catch (e) {
-                    console.error('Failed to send WA approval notification:', e.message);
+            try {
+                // A. Kumpulkan penerima: Position "Staff Kendaraan", user yang ditugaskan (PIC Kendaraan), dan Pemohon
+                const staffVehicleRecipients = new Map();
+
+                // 1. User dengan Position "Staff Kendaraan" (strictly filter by position)
+                const staffKendaraanList = await prisma.user.findMany({
+                    where: {
+                        position: { contains: 'Staff Kendaraan' },
+                        phone: { not: null }
+                    },
+                    select: { id: true, name: true, phone: true, position: true }
+                });
+                for (const u of staffKendaraanList) {
+                    if (u.phone) staffVehicleRecipients.set(u.id, u);
                 }
+
+                // 2. PIC Kendaraan (User yang ditugaskan untuk unit kendaraan ini)
+                if (service.vehicle?.pics && Array.isArray(service.vehicle.pics)) {
+                    for (const pic of service.vehicle.pics) {
+                        if (pic.phone) staffVehicleRecipients.set(pic.id, pic);
+                    }
+                }
+
+                // 3. Pemohon Servis (Requester)
+                if (service.requester?.phone) {
+                    staffVehicleRecipients.set(service.requester.id, service.requester);
+                }
+
+                const targetDateStr = targetDate
+                    ? new Date(targetDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : '-';
+
+                const msgStaff = `✅ *SURAT PERINTAH KERJA (SPK) SERVIS KENDARAAN TERBIT*\n\n` +
+                    `No. SPK: *${spkNumber}*\n` +
+                    `Kendaraan: *${service.vehicle?.name} (${service.vehicle?.plateNumber})*\n` +
+                    `Bengkel Tujuan: *${approvedWorkshop || service.workshop || '-'}*\n` +
+                    `Target Selesai: *${targetDateStr}*\n` +
+                    `Disetujui Oleh: *${currentUser.name || currentUser.username}* (${currentUser.position || 'Kepala Bidang Sarana'})\n` +
+                    (approvalNote ? `Catatan: _${approvalNote}_\n` : '') +
+                    `\nSilakan cetak SPK Kendaraan dan bawa kendaraan ke bengkel untuk pengerjaan servis. Terima kasih.`;
+
+                for (const recipient of staffVehicleRecipients.values()) {
+                    try {
+                        await sendMessage(recipient.phone, msgStaff);
+                        console.log(`[SPK Notify Staff/PIC] Sent to ${recipient.name} (${recipient.phone})`);
+                    } catch (err) {
+                        console.error(`[SPK Notify Staff/PIC Error] Failed sending to ${recipient.name}:`, err.message);
+                    }
+                }
+            } catch (notifyErr) {
+                console.error('[Vehicle SPK Approval Notify Error]:', notifyErr.message);
             }
         })();
 
@@ -605,7 +677,7 @@ exports.rejectMaintenanceRequest = async (req, res) => {
             select: { id: true, name: true, username: true, role: true, position: true }
         });
         const userPosition = (currentUser?.position || '').toLowerCase();
-        const isKabidSarana = userPosition.includes('kepala bidang sarana') || currentUser?.role === 'SUPER_ADMIN';
+        const isKabidSarana = userPosition.includes('kepala bidang sarana');
 
         if (!isKabidSarana) {
             return res.status(403).json({

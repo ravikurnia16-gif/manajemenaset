@@ -537,16 +537,26 @@ exports.markVehicleAsPaid = async (req, res) => {
 
 exports.getVehicleDashboard = async (req, res) => {
     try {
-        const { month, year } = req.query;
+        const { month, year, startDate, endDate } = req.query;
         const now = new Date();
         const thirtyDaysFromNow = new Date(new Date().setDate(now.getDate() + 30));
 
         // 1. Determine Date Filter Range
         let filterStart, filterEnd, isSummary = true;
-        if (month && year) {
+        let periodStr = 'SUMMARY';
+
+        if (startDate && endDate) {
+            filterStart = new Date(startDate);
+            filterStart.setHours(0, 0, 0, 0);
+            filterEnd = new Date(endDate);
+            filterEnd.setHours(23, 59, 59, 999);
+            isSummary = false;
+            periodStr = `${startDate} s/d ${endDate}`;
+        } else if (month && year) {
             filterStart = new Date(parseInt(year), parseInt(month) - 1, 1);
             filterEnd = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
             isSummary = false;
+            periodStr = `${month}/${year}`;
         } else {
             // Default to all-time summary or last 30 days depending on metric
             filterStart = new Date(0); // All time
@@ -866,7 +876,9 @@ exports.getVehicleDashboard = async (req, res) => {
 
         res.json({
             isSummary,
-            period: month && year ? `${month}/${year}` : 'SUMMARY',
+            period: periodStr,
+            startDate: startDate || null,
+            endDate: endDate || null,
             stats: {
                 totalVehicles: allVehicles.length,
                 activeBookings: activeBookingsCount,
@@ -1012,10 +1024,16 @@ exports.getVehicleSanctionsReport = async (req, res) => {
 // --- LAPORAN PENGISIAN MINYAK & BBM ARMADA ---
 exports.getVehicleFuelReport = async (req, res) => {
     try {
-        const { month, year, vehicleId } = req.query;
+        const { month, year, vehicleId, startDate, endDate } = req.query;
         let dateFilter = {};
 
-        if (month && year) {
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter = { gte: start, lte: end };
+        } else if (month && year) {
             const start = new Date(parseInt(year), parseInt(month) - 1, 1);
             const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
             dateFilter = { gte: start, lte: end };

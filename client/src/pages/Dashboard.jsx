@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Box, DollarSign, AlertTriangle, AlertCircle, CheckCircle2,
     TrendingDown, TrendingUp, Loader2, Download, CalendarRange,
     Sparkles, RefreshCw, Layers, Wrench, ArrowLeftRight,
-    Handshake, Trash2, Building2, Activity, ShieldCheck, Check, Lightbulb, X
+    Handshake, Trash2, Building2, Activity, ShieldCheck, Check, Lightbulb, X, HardHat
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -56,6 +57,7 @@ const Dashboard = () => {
     const [filterUnit, setFilterUnit] = useState('all');
     const [chartMode, setChartMode] = useState('count');
     const [exporting, setExporting] = useState(false);
+    const [maintenanceChartDept, setMaintenanceChartDept] = useState('all'); // 'all' | 'sarpras' | 'pembangunan'
 
     // AI Summary State
     const [aiSummary, setAiSummary] = useState(null);
@@ -207,15 +209,49 @@ const Dashboard = () => {
         cancelled: procurementCancelled
     };
 
-    const maintenanceData = Array.isArray(data?.maintenanceData) ? data.maintenanceData : [];
-    const maintenanceTotal = maintenanceData.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
-    const maintenancePending = maintenanceData.find(d => d.name === 'SUBMITTED')?.value || 0;
-    const maintenanceActive = (maintenanceData.find(d => d.name === 'APPROVED')?.value || 0) + 
-                              (maintenanceData.find(d => d.name === 'IN_PROGRESS')?.value || 0) + 
-                              (maintenanceData.find(d => d.name === 'ASSIGNED')?.value || 0);
-    const maintenanceCompleted = maintenanceData.find(d => d.name === 'COMPLETED')?.value || 0;
-    const maintenanceRejected = maintenanceData.find(d => d.name === 'REJECTED')?.value || 0;
-    const maintenancePercent = maintenanceTotal > 0 ? Math.round((maintenanceCompleted / maintenanceTotal) * 100) : 0;
+    // HELPER TO PARSE MAINTENANCE DATA (ALL, SARPRAS, PEMBANGUNAN)
+    const parseMaintenanceMetrics = (arr) => {
+        const raw = Array.isArray(arr) ? arr : [];
+        const total = raw.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+        const pending = raw.find(d => d.name === 'SUBMITTED')?.value || 0;
+        const active = (raw.find(d => d.name === 'APPROVED')?.value || 0) + 
+                       (raw.find(d => d.name === 'IN_PROGRESS')?.value || 0) + 
+                       (raw.find(d => d.name === 'ASSIGNED')?.value || 0) +
+                       (raw.find(d => d.name === 'VALIDATED')?.value || 0);
+        const completed = raw.find(d => d.name === 'COMPLETED')?.value || 0;
+        const rejected = raw.find(d => d.name === 'REJECTED')?.value || 0;
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+        return { total, pending, active, completed, rejected, percent };
+    };
+
+    const maintenanceAll = parseMaintenanceMetrics(data?.maintenanceData);
+    const maintenanceSarpras = parseMaintenanceMetrics(data?.maintenanceDataSarpras);
+    const maintenancePembangunan = parseMaintenanceMetrics(data?.maintenanceDataPembangunan);
+
+    // Fallback if targetDept breakdown is not yet available in legacy cache
+    const effectiveSarpras = (maintenanceSarpras.total > 0 || maintenancePembangunan.total > 0)
+        ? maintenanceSarpras
+        : maintenanceAll;
+    const effectivePembangunan = maintenancePembangunan;
+
+    const maintenanceTotal = maintenanceAll.total;
+    const maintenancePending = maintenanceAll.pending;
+    const maintenanceActive = maintenanceAll.active;
+    const maintenanceCompleted = maintenanceAll.completed;
+    const maintenanceRejected = maintenanceAll.rejected;
+    const maintenancePercent = maintenanceAll.percent;
+
+    const activeMaintenanceData = maintenanceChartDept === 'sarpras'
+        ? (data?.maintenanceDataSarpras || [])
+        : maintenanceChartDept === 'pembangunan'
+            ? (data?.maintenanceDataPembangunan || [])
+            : (data?.maintenanceData || []);
+
+    const activeMaintenanceMetrics = maintenanceChartDept === 'sarpras'
+        ? effectiveSarpras
+        : maintenanceChartDept === 'pembangunan'
+            ? effectivePembangunan
+            : maintenanceAll;
 
     const rawMove = Array.isArray(data?.movementData) ? data.movementData : [];
     const movementTotal = rawMove.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
@@ -321,7 +357,7 @@ const Dashboard = () => {
             doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(30, 41, 59);
-            doc.text('II. Monitoring Status Alur Kerja 5 Modul Operasional Sarpras', 14, doc.lastAutoTable.finalY + 9);
+            doc.text('II. Monitoring Status Alur Kerja Modul Operasional (Sarpras & Pembangunan)', 14, doc.lastAutoTable.finalY + 9);
             doc.autoTable({
                 startY: doc.lastAutoTable.finalY + 12,
                 head: [['Modul Operasional', 'Total Sesi / Tiket', 'Status Menunggu / Antri', 'Status Pengerjaan / Aktif', 'Status Selesai / Kembali', 'Status Ditolak']],
@@ -335,12 +371,20 @@ const Dashboard = () => {
                         `${procurementStatus.cancelled} Dibatalkan`
                     ],
                     [
-                        'Pemeliharaan (Maintenance)',
-                        `${maintenanceTotal} Tiket`,
-                        `${maintenancePending} Diajukan`,
-                        `${maintenanceActive} Proses`,
-                        `${maintenanceCompleted} Selesai (${maintenancePercent}%)`,
-                        `${maintenanceRejected} Ditolak`
+                        'Pemeliharaan Sarpras (MT)',
+                        `${effectiveSarpras.total} Tiket`,
+                        `${effectiveSarpras.pending} Diajukan`,
+                        `${effectiveSarpras.active} Proses`,
+                        `${effectiveSarpras.completed} Selesai (${effectiveSarpras.percent}%)`,
+                        `${effectiveSarpras.rejected} Ditolak`
+                    ],
+                    [
+                        'Pemeliharaan Pembangunan (PBG)',
+                        `${effectivePembangunan.total} Tiket`,
+                        `${effectivePembangunan.pending} Diajukan`,
+                        `${effectivePembangunan.active} Proses`,
+                        `${effectivePembangunan.completed} Selesai (${effectivePembangunan.percent}%)`,
+                        `${effectivePembangunan.rejected} Ditolak`
                     ],
                     [
                         'Mutasi / Perpindahan Aset',
@@ -711,24 +755,27 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    {/* 3. MONITORING STATUS ALUR KERJA (5 MODUL OPERASIONAL) */}
+                    {/* 3. MONITORING STATUS ALUR KERJA MODUL OPERASIONAL */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
                                 <Layers size={16} className="text-indigo-600" />
-                                Monitoring Status Alur Kerja 5 Modul Sarpras
+                                Monitoring Status Alur Kerja Modul Operasional
                             </h3>
-                            <span className="text-xs text-slate-400 font-medium">Real-time workflow tracker</span>
+                            <span className="text-xs text-slate-400 font-medium">Real-time workflow tracker (Sarpras & Pembangunan terpisah)</span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                             {/* MODUL 1: PROCUREMENT */}
-                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                            <Link 
+                                to="/procurements"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 hover:shadow-md hover:border-indigo-200 transition-all block group"
+                            >
                                 <div className="flex items-center justify-between">
-                                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                                         <Layers size={16} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Pengadaan</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pengadaan</span>
                                 </div>
                                 <div>
                                     <div className="text-xl font-black text-slate-800">{procurementStatus.total} <span className="text-xs font-semibold text-slate-400">Pengajuan</span></div>
@@ -748,43 +795,84 @@ const Dashboard = () => {
                                         <span className="font-bold text-emerald-600">{procurementStatus.received}</span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
 
-                            {/* MODUL 2: MAINTENANCE */}
-                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                            {/* MODUL 2: MAINTENANCE SARPRAS */}
+                            <Link 
+                                to="/pemeliharaan?targetDept=SARPRAS"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 hover:shadow-md hover:border-amber-200 transition-all block group"
+                            >
                                 <div className="flex items-center justify-between">
-                                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                                         <Wrench size={16} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Servis</span>
+                                    <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                        Sarpras
+                                    </span>
                                 </div>
                                 <div>
-                                    <div className="text-xl font-black text-slate-800">{maintenanceTotal} <span className="text-xs font-semibold text-slate-400">Tiket</span></div>
-                                    <div className="text-[11px] font-bold text-amber-700 mt-0.5">Status Maintenance ({maintenancePercent}%)</div>
+                                    <div className="text-xl font-black text-slate-800">{effectiveSarpras.total} <span className="text-xs font-semibold text-slate-400">Tiket</span></div>
+                                    <div className="text-[11px] font-bold text-amber-700 mt-0.5">Maintenance Sarpras ({effectiveSarpras.percent}%)</div>
                                 </div>
                                 <div className="space-y-1.5 pt-2 border-t border-slate-50 text-[11px]">
                                     <div className="flex justify-between text-slate-600">
                                         <span>Antrian Diajukan:</span>
-                                        <span className="font-bold text-slate-600">{maintenancePending}</span>
+                                        <span className="font-bold text-slate-600">{effectiveSarpras.pending}</span>
                                     </div>
                                     <div className="flex justify-between text-slate-600">
                                         <span>Pengerjaan Aktif:</span>
-                                        <span className="font-bold text-amber-600">{maintenanceActive}</span>
+                                        <span className="font-bold text-amber-600">{effectiveSarpras.active}</span>
                                     </div>
                                     <div className="flex justify-between text-slate-600">
                                         <span>Tuntas Selesai:</span>
-                                        <span className="font-bold text-emerald-600">{maintenanceCompleted}</span>
+                                        <span className="font-bold text-emerald-600">{effectiveSarpras.completed}</span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
 
-                            {/* MODUL 3: MUTASI */}
-                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                            {/* MODUL 3: MAINTENANCE PEMBANGUNAN */}
+                            <Link 
+                                to="/pemeliharaan?targetDept=PEMBANGUNAN"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 hover:shadow-md hover:border-orange-200 transition-all block group"
+                            >
                                 <div className="flex items-center justify-between">
-                                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                        <HardHat size={16} />
+                                    </div>
+                                    <span className="text-[10px] font-black text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                                        Pembangunan
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-xl font-black text-slate-800">{effectivePembangunan.total} <span className="text-xs font-semibold text-slate-400">Tiket</span></div>
+                                    <div className="text-[11px] font-bold text-orange-700 mt-0.5">Maintenance Pembangunan ({effectivePembangunan.percent}%)</div>
+                                </div>
+                                <div className="space-y-1.5 pt-2 border-t border-slate-50 text-[11px]">
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Antrian Diajukan:</span>
+                                        <span className="font-bold text-slate-600">{effectivePembangunan.pending}</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Pengerjaan Aktif:</span>
+                                        <span className="font-bold text-orange-600">{effectivePembangunan.active}</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Tuntas Selesai:</span>
+                                        <span className="font-bold text-emerald-600">{effectivePembangunan.completed}</span>
+                                    </div>
+                                </div>
+                            </Link>
+
+                            {/* MODUL 4: MUTASI */}
+                            <Link 
+                                to="/mutasi"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 hover:shadow-md hover:border-blue-200 transition-all block group"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                                         <ArrowLeftRight size={16} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Relokasi</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Relokasi</span>
                                 </div>
                                 <div>
                                     <div className="text-xl font-black text-slate-800">{movementStatus.total} <span className="text-xs font-semibold text-slate-400">Transaksi</span></div>
@@ -804,15 +892,18 @@ const Dashboard = () => {
                                         <span className="font-bold text-rose-600">{movementStatus.rejected}</span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
 
-                            {/* MODUL 4: PEMINJAMAN */}
-                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                            {/* MODUL 5: PEMINJAMAN */}
+                            <Link 
+                                to="/peminjaman"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 hover:shadow-md hover:border-violet-200 transition-all block group"
+                            >
                                 <div className="flex items-center justify-between">
-                                    <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                                         <Handshake size={16} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Logistik</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Logistik</span>
                                 </div>
                                 <div>
                                     <div className="text-xl font-black text-slate-800">{loanStatus.total} <span className="text-xs font-semibold text-slate-400">Sesi</span></div>
@@ -834,15 +925,18 @@ const Dashboard = () => {
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
 
-                            {/* MODUL 5: PENGHAPUSAN */}
-                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                            {/* MODUL 6: PENGHAPUSAN */}
+                            <Link 
+                                to="/penghapusan"
+                                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 hover:shadow-md hover:border-rose-200 transition-all block group"
+                            >
                                 <div className="flex items-center justify-between">
-                                    <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                                         <Trash2 size={16} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Disposal</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Disposal</span>
                                 </div>
                                 <div>
                                     <div className="text-xl font-black text-slate-800">{disposalStatus.total} <span className="text-xs font-semibold text-slate-400">Usulan</span></div>
@@ -862,7 +956,7 @@ const Dashboard = () => {
                                         <span className="font-bold text-slate-500">{disposalStatus.rejected}</span>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         </div>
                     </div>
 
@@ -986,16 +1080,52 @@ const Dashboard = () => {
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                                 <div>
-                                    <h3 className="text-base font-black text-slate-800">Statistik Status Pemeliharaan Sarana</h3>
+                                    <h3 className="text-base font-black text-slate-800">
+                                        Statistik Status Pemeliharaan {maintenanceChartDept === 'sarpras' ? 'Sarana (Sarpras)' : maintenanceChartDept === 'pembangunan' ? 'Pembangunan & Fisik' : 'Semua Bidang'}
+                                    </h3>
                                     <p className="text-xs text-slate-400 font-medium">Monitoring tiket perbaikan, teknisi, dan rasio penyelesaian</p>
                                 </div>
-                                <div className="flex items-center gap-3 bg-emerald-50 px-4 py-2 rounded-2xl border border-emerald-100">
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Ketercapaian Servis</p>
-                                        <p className="text-xl font-black text-emerald-700">{maintenancePercent}%</p>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {/* DEPT TABS */}
+                                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                                        <button
+                                            onClick={() => setMaintenanceChartDept('all')}
+                                            className={cn(
+                                                "px-3 py-1 text-[10px] font-bold rounded-lg transition-all",
+                                                maintenanceChartDept === 'all' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                            )}
+                                        >
+                                            SEMUA ({maintenanceAll.total})
+                                        </button>
+                                        <button
+                                            onClick={() => setMaintenanceChartDept('sarpras')}
+                                            className={cn(
+                                                "px-3 py-1 text-[10px] font-bold rounded-lg transition-all",
+                                                maintenanceChartDept === 'sarpras' ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                            )}
+                                        >
+                                            SARPRAS ({effectiveSarpras.total})
+                                        </button>
+                                        <button
+                                            onClick={() => setMaintenanceChartDept('pembangunan')}
+                                            className={cn(
+                                                "px-3 py-1 text-[10px] font-bold rounded-lg transition-all",
+                                                maintenanceChartDept === 'pembangunan' ? "bg-orange-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                            )}
+                                        >
+                                            PEMBANGUNAN ({effectivePembangunan.total})
+                                        </button>
                                     </div>
-                                    <div className="w-10 h-10 rounded-full border-4 border-emerald-100 border-t-emerald-500 flex items-center justify-center">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+
+                                    {/* KETERCAPAIAN SERVIS */}
+                                    <div className="flex items-center gap-3 bg-emerald-50 px-4 py-2 rounded-2xl border border-emerald-100">
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Ketercapaian Servis</p>
+                                            <p className="text-xl font-black text-emerald-700">{activeMaintenanceMetrics.percent}%</p>
+                                        </div>
+                                        <div className="w-10 h-10 rounded-full border-4 border-emerald-100 border-t-emerald-500 flex items-center justify-center">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1004,7 +1134,7 @@ const Dashboard = () => {
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <PieChart>
                                             <Pie
-                                                data={data?.maintenanceData || []}
+                                                data={activeMaintenanceData.length > 0 ? activeMaintenanceData : [{ name: 'KOSONG', value: 1 }]}
                                                 cx="50%"
                                                 cy="50%"
                                                 innerRadius={60}
@@ -1012,41 +1142,51 @@ const Dashboard = () => {
                                                 paddingAngle={5}
                                                 dataKey="value"
                                             >
-                                                {(data?.maintenanceData || []).map((entry, index) => {
-                                                    const colorMap = {
-                                                        'SUBMITTED': '#94a3b8',
-                                                        'APPROVED': '#38bdf8',
-                                                        'VALIDATED': '#818cf8',
-                                                        'ASSIGNED': '#fbbf24',
-                                                        'IN_PROGRESS': '#f59e0b',
-                                                        'COMPLETED': '#10b981',
-                                                        'REJECTED': '#ef4444'
-                                                    };
-                                                    return <Cell key={`cell-${index}`} fill={colorMap[entry.name] || COLORS[index % COLORS.length]} />;
-                                                })}
+                                                {activeMaintenanceData.length === 0 ? (
+                                                    <Cell fill="#e2e8f0" />
+                                                ) : (
+                                                    activeMaintenanceData.map((entry, index) => {
+                                                        const colorMap = {
+                                                            'SUBMITTED': '#94a3b8',
+                                                            'APPROVED': '#38bdf8',
+                                                            'VALIDATED': '#818cf8',
+                                                            'ASSIGNED': '#fbbf24',
+                                                            'IN_PROGRESS': '#f59e0b',
+                                                            'COMPLETED': '#10b981',
+                                                            'REJECTED': '#ef4444'
+                                                        };
+                                                        return <Cell key={`cell-${index}`} fill={colorMap[entry.name] || COLORS[index % COLORS.length]} />;
+                                                    })
+                                                )}
                                             </Pie>
                                             <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
                                 <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    {(data?.maintenanceData || []).map((item, idx) => {
-                                        const colorMap = {
-                                            'SUBMITTED': 'bg-slate-50 text-slate-700 border-slate-200',
-                                            'APPROVED': 'bg-sky-50 text-sky-700 border-sky-200',
-                                            'VALIDATED': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-                                            'ASSIGNED': 'bg-amber-50 text-amber-700 border-amber-200',
-                                            'IN_PROGRESS': 'bg-orange-50 text-orange-700 border-orange-200',
-                                            'COMPLETED': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                                            'REJECTED': 'bg-rose-50 text-rose-700 border-rose-200'
-                                        };
-                                        return (
-                                            <div key={idx} className={cn("p-4 rounded-xl border transition-all", colorMap[item.name] || 'bg-slate-50')}>
-                                                <div className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">{item.name}</div>
-                                                <div className="text-xl font-black">{item.value.toLocaleString('id-ID')}</div>
-                                            </div>
-                                        );
-                                    })}
+                                    {activeMaintenanceData.length === 0 ? (
+                                        <div className="col-span-2 md:col-span-3 text-center py-10 text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                            Tidak ada tiket pemeliharaan pada filter bidang ini.
+                                        </div>
+                                    ) : (
+                                        activeMaintenanceData.map((item, idx) => {
+                                            const colorMap = {
+                                                'SUBMITTED': 'bg-slate-50 text-slate-700 border-slate-200',
+                                                'APPROVED': 'bg-sky-50 text-sky-700 border-sky-200',
+                                                'VALIDATED': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                                                'ASSIGNED': 'bg-amber-50 text-amber-700 border-amber-200',
+                                                'IN_PROGRESS': 'bg-orange-50 text-orange-700 border-orange-200',
+                                                'COMPLETED': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                                'REJECTED': 'bg-rose-50 text-rose-700 border-rose-200'
+                                            };
+                                            return (
+                                                <div key={idx} className={cn("p-4 rounded-xl border transition-all", colorMap[item.name] || 'bg-slate-50')}>
+                                                    <div className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">{item.name}</div>
+                                                    <div className="text-xl font-black">{item.value.toLocaleString('id-ID')}</div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -476,7 +476,11 @@ exports.getTransactions = async (req, res) => {
         if (startDate || endDate) {
             where.date = {};
             if (startDate) where.date.gte = new Date(startDate);
-            if (endDate) where.date.lte = new Date(endDate);
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                where.date.lte = eDate;
+            }
         }
         
         const txs = await prisma.invStockTransaction.findMany({
@@ -2485,7 +2489,31 @@ exports.syncAllVendorRatings = async (req, res) => {
 // ==========================================
 exports.getDashboardSummary = async (req, res) => {
     try {
-        const [items, warehouses, transactions, orders, categories] = await Promise.all([
+        const { warehouseId, startDate, endDate } = req.query;
+        const whId = warehouseId ? parseInt(warehouseId) : null;
+
+        const txWhere = {};
+        const orderWhere = {};
+        if (whId) {
+            txWhere.warehouseId = whId;
+        }
+        if (startDate || endDate) {
+            txWhere.date = {};
+            orderWhere.date = {};
+            if (startDate) {
+                const sDate = new Date(startDate);
+                txWhere.date.gte = sDate;
+                orderWhere.date.gte = sDate;
+            }
+            if (endDate) {
+                const eDate = new Date(endDate);
+                eDate.setHours(23, 59, 59, 999);
+                txWhere.date.lte = eDate;
+                orderWhere.date.lte = eDate;
+            }
+        }
+
+        const [items, warehouses, allPeriodTransactions, orders, categories] = await Promise.all([
             prisma.invItem.findMany({
                 include: {
                     category: true,
@@ -2494,11 +2522,12 @@ exports.getDashboardSummary = async (req, res) => {
             }),
             prisma.uniformWarehouse.findMany({ orderBy: { name: 'asc' } }),
             prisma.invStockTransaction.findMany({
-                take: 10,
+                where: txWhere,
                 orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-                include: { item: true, warehouse: true, toWarehouse: true, createdBy: { select: { id: true, name: true, username: true } } }
+                include: { item: { include: { category: true } }, warehouse: true, toWarehouse: true, createdBy: { select: { id: true, name: true, username: true } } }
             }),
             prisma.invOrder.findMany({
+                where: orderWhere,
                 orderBy: { date: 'desc' },
                 include: { items: { include: { item: true } } }
             }),
@@ -2519,7 +2548,8 @@ exports.getDashboardSummary = async (req, res) => {
         const alertItems = [];
 
         items.forEach(item => {
-            const currentStock = item.stocks.reduce((acc, s) => acc + s.quantity, 0);
+            const applicableStocks = whId ? item.stocks.filter(s => s.warehouseId === whId) : item.stocks;
+            const currentStock = applicableStocks.reduce((acc, s) => acc + s.quantity, 0);
             totalStockVolume += currentStock;
             const price = item.sellingPrice || item.price || 0;
             totalAssetValue += (currentStock * price);
@@ -2546,6 +2576,48 @@ exports.getDashboardSummary = async (req, res) => {
             }
         });
 
+        // Period Metrics Calculation
+        let periodInCount = 0;
+        let periodInQty = 0;
+        let periodOutCount = 0;
+        let periodOutQty = 0;
+        let periodMutationCount = 0;
+        let periodMutationQty = 0;
+
+        const outItemMap = new Map();
+
+        allPeriodTransactions.forEach(tx => {
+            const qty = Math.abs(tx.quantity || 0);
+            if (tx.type === 'IN') {
+                periodInCount++;
+                periodInQty += qty;
+            } else if (tx.type === 'OUT') {
+                periodOutCount++;
+                periodOutQty += qty;
+                if (tx.item) {
+                    const key = tx.item.id;
+                    if (!outItemMap.has(key)) {
+                        outItemMap.set(key, {
+                            id: tx.item.id,
+                            name: tx.item.name,
+                            code: tx.item.code,
+                            unit: tx.item.unit,
+                            category: tx.item.category?.name || '-',
+                            qty: 0
+                        });
+                    }
+                    outItemMap.get(key).qty += qty;
+                }
+            } else if (tx.type === 'MUTATION') {
+                periodMutationCount++;
+                periodMutationQty += qty;
+            }
+        });
+
+        const topOutItems = Array.from(outItemMap.values())
+            .sort((a, b) => b.qty - a.qty)
+            .slice(0, 8);
+
         const pendingOrdersCount = orders.filter(o => o.status === 'PENDING').length;
         const approvedOrdersCount = orders.filter(o => o.status === 'APPROVED').length;
         const processOrdersCount = orders.filter(o => o.status === 'PROCESS').length;
@@ -2568,6 +2640,23 @@ exports.getDashboardSummary = async (req, res) => {
         ].filter(d => d.value > 0);
 
         res.json({
+            period: {
+                startDate: startDate || null,
+                endDate: endDate || null
+            },
+            periodMetrics: {
+                totalTransactions: allPeriodTransactions.length,
+                inCount: periodInCount,
+                inQty: periodInQty,
+                outCount: periodOutCount,
+                outQty: periodOutQty,
+                mutationCount: periodMutationCount,
+                mutationQty: periodMutationQty,
+                totalOrders: orders.length,
+                completedOrders: completedOrdersCount,
+                pendingOrders: pendingOrdersCount,
+                topOutItems
+            },
             metrics: {
                 totalItems,
                 totalCategories,
@@ -2580,7 +2669,8 @@ exports.getDashboardSummary = async (req, res) => {
                 completedOrders: completedOrdersCount,
                 totalOrders: orders.length
             },
-            recentTransactions: transactions,
+            recentTransactions: allPeriodTransactions.slice(0, 20),
+            allPeriodTransactions: allPeriodTransactions.slice(0, 100),
             recentPendingOrders,
             alertItems: alertItems.slice(0, 10),
             categoryChartData,

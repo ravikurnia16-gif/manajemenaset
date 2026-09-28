@@ -3,11 +3,49 @@ import { BarChart3, RefreshCw, Layers } from 'lucide-react';
 import api from '../../../lib/axios';
 import { DashboardTab } from '../DashboardTab';
 
+export const computeUniformDateRange = (preset) => {
+    const now = new Date();
+    const toYMD = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const todayStr = toYMD(now);
+
+    if (preset === 'TODAY') {
+        return { startDate: todayStr, endDate: todayStr };
+    }
+    if (preset === 'THIS_WEEK') {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(new Date().setDate(diff));
+        return { startDate: toYMD(monday), endDate: todayStr };
+    }
+    if (preset === 'LAST_7_DAYS') {
+        const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
+        return { startDate: toYMD(sevenDaysAgo), endDate: todayStr };
+    }
+    if (preset === 'THIS_MONTH') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        return { startDate: toYMD(firstDay), endDate: todayStr };
+    }
+    if (preset === 'LAST_30_DAYS') {
+        const thirtyDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+        return { startDate: toYMD(thirtyDaysAgo), endDate: todayStr };
+    }
+    return { startDate: '', endDate: '' };
+};
+
 export default function DashboardPage() {
     const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+    const [datePreset, setDatePreset] = useState('ALL');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     const fetchStats = useCallback(async (isSilent = false) => {
         if (!isSilent) setLoading(true);
@@ -16,6 +54,8 @@ export default function DashboardPage() {
         try {
             const params = {};
             if (selectedWarehouseId) params.warehouseId = selectedWarehouseId;
+            if (startDate) params.startDate = startDate;
+            if (endDate) params.endDate = endDate;
 
             const res = await api.get('/uniforms/dashboard', { params });
             setStats(res.data || {});
@@ -25,11 +65,29 @@ export default function DashboardPage() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [selectedWarehouseId]);
+    }, [selectedWarehouseId, startDate, endDate]);
 
     useEffect(() => {
         fetchStats();
     }, [fetchStats]);
+
+    const handlePresetChange = (preset) => {
+        setDatePreset(preset);
+        if (preset === 'ALL') {
+            setStartDate('');
+            setEndDate('');
+        } else if (preset !== 'CUSTOM') {
+            const range = computeUniformDateRange(preset);
+            setStartDate(range.startDate);
+            setEndDate(range.endDate);
+        }
+    };
+
+    const handleCustomDateChange = (start, end) => {
+        setDatePreset('CUSTOM');
+        setStartDate(start);
+        setEndDate(end);
+    };
 
     return (
         <div className="space-y-6">
@@ -42,7 +100,7 @@ export default function DashboardPage() {
                     <div>
                         <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Dashboard Seragam</h1>
                         <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                            Monitoring eksekutif stok fisik, pergerakan pesanan, dan kebutuhan pengadaan konveksi
+                            Monitoring eksekutif stok fisik, pergerakan pesanan, dan laporan periodik mingguan / per tanggal
                         </p>
                     </div>
                 </div>
@@ -71,9 +129,15 @@ export default function DashboardPage() {
                     stats={stats} 
                     selectedWarehouseId={selectedWarehouseId}
                     onSelectWarehouse={setSelectedWarehouseId}
+                    datePreset={datePreset}
+                    startDate={startDate}
+                    endDate={endDate}
+                    onPresetChange={handlePresetChange}
+                    onCustomDateChange={handleCustomDateChange}
                     onRefresh={() => fetchStats(true)}
                 />
             )}
         </div>
     );
 }
+

@@ -3,11 +3,60 @@ import { useLocation } from 'react-router-dom';
 import { 
   Box, ArrowLeftRight, Search, Plus, Upload, Download, FileSpreadsheet,
   Warehouse, Calendar, AlertTriangle, Layers, Trash2, PlusCircle, RefreshCw,
-  Info, CheckCircle2, AlertCircle, Sparkles, ChevronDown, ChevronUp, X, Filter, Tag
+  Info, CheckCircle2, AlertCircle, Sparkles, ChevronDown, ChevronUp, X, Filter, Tag,
+  Printer, Loader2, FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 import api from '../../lib/axios';
+
+/* ── jsPDF + autoTable CDN loader ── */
+function loadJsPDF() {
+  return new Promise((resolve) => {
+    if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = () => {
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+      s2.onload = () => resolve(window.jspdf.jsPDF);
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  });
+}
+
+const computeStockDateRange = (preset) => {
+  const now = new Date();
+  const toYMD = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = toYMD(now);
+
+  if (preset === 'TODAY') return { startDate: todayStr, endDate: todayStr };
+  if (preset === 'THIS_WEEK') {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(new Date().setDate(diff));
+    return { startDate: toYMD(monday), endDate: todayStr };
+  }
+  if (preset === 'LAST_7_DAYS') {
+    const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
+    return { startDate: toYMD(sevenDaysAgo), endDate: todayStr };
+  }
+  if (preset === 'THIS_MONTH') {
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { startDate: toYMD(firstDay), endDate: todayStr };
+  }
+  if (preset === 'LAST_30_DAYS') {
+    const thirtyDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+    return { startDate: toYMD(thirtyDaysAgo), endDate: todayStr };
+  }
+  return { startDate: '', endDate: '' };
+};
 
 export default function InventoryStock({ defaultTab = 'stock' }) {
   const location = useLocation();
@@ -31,11 +80,17 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
   const [stockWarehouseFilter, setStockWarehouseFilter] = useState('');
   const [expandedItemId, setExpandedItemId] = useState(null);
 
-  // Tab 2: Transaction States
+  // Tab 2: Transaction States & Date Filtering
   const [trxTypeFilter, setTrxTypeFilter] = useState('');
   const [trxWarehouseFilter, setTrxWarehouseFilter] = useState('');
   const [trxSearch, setTrxSearch] = useState('');
-  const [trxDateFilter, setTrxDateFilter] = useState('');
+  const [trxDatePreset, setTrxDatePreset] = useState('ALL');
+  const [trxStartDate, setTrxStartDate] = useState('');
+  const [trxEndDate, setTrxEndDate] = useState('');
+  const [trxCustomStart, setTrxCustomStart] = useState('');
+  const [trxCustomEnd, setTrxCustomEnd] = useState('');
+  const [showTrxCustom, setShowTrxCustom] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   // Multi-Item Manual Transaction Modal State
   const [isTrxModalOpen, setIsTrxModalOpen] = useState(false);
@@ -58,9 +113,34 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
   const [importResult, setImportResult] = useState(null);
   const [showImportRef, setShowImportRef] = useState(false);
 
+  const handleTrxPresetChange = (preset) => {
+    setTrxDatePreset(preset);
+    if (preset === 'ALL') {
+      setShowTrxCustom(false);
+      setTrxStartDate('');
+      setTrxEndDate('');
+      setTrxCustomStart('');
+      setTrxCustomEnd('');
+    } else if (preset === 'CUSTOM') {
+      setShowTrxCustom(true);
+    } else {
+      setShowTrxCustom(false);
+      const r = computeStockDateRange(preset);
+      setTrxStartDate(r.startDate);
+      setTrxEndDate(r.endDate);
+      setTrxCustomStart(r.startDate);
+      setTrxCustomEnd(r.endDate);
+    }
+  };
+
+  const handleApplyTrxCustomDate = () => {
+    setTrxStartDate(trxCustomStart);
+    setTrxEndDate(trxCustomEnd);
+  };
+
   useEffect(() => {
     fetchAllData();
-  }, [trxTypeFilter, trxWarehouseFilter]);
+  }, [trxTypeFilter, trxWarehouseFilter, trxStartDate, trxEndDate]);
 
   const fetchAllData = async () => {
     try {
@@ -68,6 +148,8 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
       const params = {};
       if (trxTypeFilter) params.type = trxTypeFilter;
       if (trxWarehouseFilter) params.warehouseId = trxWarehouseFilter;
+      if (trxStartDate) params.startDate = trxStartDate;
+      if (trxEndDate) params.endDate = trxEndDate;
 
       const [resItems, resWh, resTrx] = await Promise.all([
         api.get('/inventory/items'),
@@ -237,8 +319,8 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
 
   // Handler Export Excel Transaksi
   const handleExportTransactions = () => {
-    if (transactions.length === 0) {
-      return Swal.fire({ icon: 'info', title: 'Data Kosong', text: 'Tidak ada data transaksi yang dapat diekspor.' });
+    if (filteredTransactions.length === 0) {
+      return Swal.fire({ icon: 'info', title: 'Data Kosong', text: 'Tidak ada data transaksi yang dapat diekspor pada filter ini.' });
     }
 
     const rows = filteredTransactions.map((tx, idx) => ({
@@ -265,7 +347,223 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Riwayat Transaksi');
-    XLSX.writeFile(wb, `Laporan_Transaksi_Logistik_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const fileName = `Laporan_Transaksi_Logistik_${trxStartDate || 'all'}_sd_${trxEndDate || 'all'}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
+  // Handler Export PDF Transaksi Resmi
+  const handleExportPDF = async () => {
+    if (filteredTransactions.length === 0) {
+      return Swal.fire({ icon: 'info', title: 'Data Kosong', text: 'Tidak ada riwayat transaksi untuk dicetak pada periode ini.' });
+    }
+
+    setIsExportingPdf(true);
+    try {
+      const jsPDF = await loadJsPDF();
+      const doc = new jsPDF('landscape', 'mm', 'a4');
+      const pageW = doc.internal.pageSize.getWidth();
+      const now = new Date();
+
+      let periodLabel = 'Semua Riwayat Data';
+      if (trxStartDate && trxEndDate) {
+        if (trxStartDate === trxEndDate) {
+          periodLabel = `Tanggal: ${new Date(trxStartDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+        } else {
+          periodLabel = `Periode: ${new Date(trxStartDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} s/d ${new Date(trxEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        }
+      } else if (trxDatePreset === 'THIS_WEEK') {
+        periodLabel = 'Minggu Ini';
+      } else if (trxDatePreset === 'LAST_7_DAYS') {
+        periodLabel = '7 Hari Terakhir (Mingguan)';
+      } else if (trxDatePreset === 'THIS_MONTH') {
+        periodLabel = 'Bulan Ini';
+      } else if (trxDatePreset === 'LAST_30_DAYS') {
+        periodLabel = '30 Hari Terakhir';
+      }
+
+      const whName = trxWarehouseFilter
+        ? (warehouses.find(w => w.id === parseInt(trxWarehouseFilter))?.name || 'Gudang Terpilih')
+        : 'Semua Gudang Logistik';
+
+      const typeName = trxTypeFilter
+        ? (trxTypeFilter === 'IN' ? 'Barang Masuk (IN)' : trxTypeFilter === 'OUT' ? 'Barang Keluar (OUT)' : trxTypeFilter === 'MUTATION' ? 'Mutasi Antar Gudang' : 'Penyesuaian (ADJUSTMENT)')
+        : 'Semua Tipe Transaksi';
+
+      // 1. Institutional Header
+      doc.setFillColor(30, 58, 138); // Blue 900
+      doc.rect(0, 0, pageW, 24, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(255, 255, 255);
+      doc.text('YAYASAN PONDOK PESANTREN ISLAM AL-MUKMIN NGKRUKI', 14, 10);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(224, 231, 255);
+      doc.text('SISTEM MANAJEMEN ASET & LOGISTIK — DIVISI INVENTARIS & SARPRAS', 14, 17);
+
+      doc.setFontSize(8);
+      doc.setTextColor(199, 210, 254);
+      const printStr = `Dicetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+      doc.text(printStr, pageW - 14, 17, { align: 'right' });
+
+      // Title & Period Sub-bar
+      let y = 32;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(30, 41, 59);
+      doc.text('LAPORAN TRANSAKSI & MUTASI STOK GUDANG', 14, y);
+
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Lokasi: ${whName}   |   Tipe: ${typeName}   |   ${periodLabel}`, 14, y);
+
+      // 2. Summary KPI Box
+      y += 5;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(14, y, pageW - 28, 14, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text('RINGKASAN PERIODE:', 18, y + 5);
+
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      const colW = (pageW - 28 - 8) / 4;
+      doc.text(`Total Transaksi: ${trxMetrics.total}`, 18, y + 10);
+      doc.setTextColor(22, 101, 52); // green
+      doc.text(`Barang Masuk (IN): ${trxMetrics.inCount} trx (${trxMetrics.inQty} unit)`, 18 + colW, y + 10);
+      doc.setTextColor(159, 18, 57); // rose
+      doc.text(`Barang Keluar (OUT): ${trxMetrics.outCount} trx (${trxMetrics.outQty} unit)`, 18 + colW * 2, y + 10);
+      doc.setTextColor(107, 33, 168); // purple
+      doc.text(`Mutasi Antar Gudang: ${trxMetrics.mutCount} trx (${trxMetrics.mutQty} unit)`, 18 + colW * 3, y + 10);
+
+      y += 18;
+
+      // 3. Transactions Table
+      const headers = [
+        ['No', 'Tanggal', 'Kode TRX', 'Tipe', 'Nama Barang', 'Kategori', 'Qty', 'Satuan', 'Gudang Sumber', 'Gudang Tujuan', 'Catatan / Keterangan', 'Petugas']
+      ];
+
+      const body = filteredTransactions.map((tx, idx) => [
+        idx + 1,
+        new Date(tx.date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        tx.code || '-',
+        tx.type === 'IN' ? 'MASUK (IN)' : tx.type === 'OUT' ? 'KELUAR (OUT)' : tx.type === 'MUTATION' ? 'MUTASI' : tx.type,
+        tx.item?.name || '-',
+        tx.item?.category?.name || '-',
+        tx.quantity || 0,
+        tx.item?.unit || 'Pcs',
+        tx.warehouse?.name || '-',
+        tx.type === 'MUTATION' ? (tx.toWarehouse?.name || '-') : '-',
+        tx.note || '-',
+        tx.createdBy?.name || tx.createdBy?.username || '-'
+      ]);
+
+      doc.autoTable({
+        startY: y,
+        head: headers,
+        body: body,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [30, 58, 138],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 7.5,
+          halign: 'center'
+        },
+        bodyStyles: {
+          fontSize: 7,
+          textColor: [30, 41, 59]
+        },
+        columnStyles: {
+          0: { cellWidth: 8, halign: 'center' },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 22, fontStyle: 'bold' },
+          3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+          4: { cellWidth: 38 },
+          5: { cellWidth: 22 },
+          6: { cellWidth: 14, halign: 'right', fontStyle: 'bold' },
+          7: { cellWidth: 12, halign: 'center' },
+          8: { cellWidth: 25 },
+          9: { cellWidth: 25 },
+          10: { cellWidth: 'auto' },
+          11: { cellWidth: 22 }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body' && data.column.index === 3) {
+            const val = data.cell.raw;
+            if (val === 'MASUK (IN)') {
+              data.cell.styles.textColor = [22, 101, 52];
+            } else if (val === 'KELUAR (OUT)') {
+              data.cell.styles.textColor = [159, 18, 57];
+            } else if (val === 'MUTASI') {
+              data.cell.styles.textColor = [107, 33, 168];
+            }
+          }
+        },
+        margin: { left: 14, right: 14 },
+        styles: { overflow: 'linebreak' }
+      });
+
+      // 4. Signatures Block
+      let finalY = doc.lastAutoTable?.finalY || y + 50;
+      if (finalY + 40 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        finalY = 25;
+      } else {
+        finalY += 12;
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+
+      const sigDate = `Sukoharjo, ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      doc.text(sigDate, pageW - 70, finalY);
+
+      doc.text('Dibuat Oleh,', 25, finalY + 5);
+      doc.text('Petugas Logistik / Gudang', 25, finalY + 9);
+
+      doc.text('Mengetahui,', pageW - 70, finalY + 5);
+      doc.text('Kepala Bagian Sarana & Prasarana', pageW - 70, finalY + 9);
+
+      doc.setDrawColor(148, 163, 184);
+      doc.line(25, finalY + 28, 75, finalY + 28);
+      doc.line(pageW - 70, finalY + 28, pageW - 20, finalY + 28);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('( .................................................. )', 25, finalY + 32);
+      doc.text('( .................................................. )', pageW - 70, finalY + 32);
+
+      // Page numbers
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text(
+          `Halaman ${i} dari ${totalPages} — Dokumen Resmi Laporan Mutasi Stok Logistik Al-Mukmin`,
+          pageW / 2,
+          doc.internal.pageSize.getHeight() - 6,
+          { align: 'center' }
+        );
+      }
+
+      const fileName = `Laporan_Mutasi_Gudang_${trxStartDate || 'all'}_sd_${trxEndDate || 'all'}.pdf`;
+      doc.save(fileName);
+    } catch (err) {
+      console.error('Failed to export PDF:', err);
+      Swal.fire({ icon: 'error', title: 'Gagal Cetak PDF', text: 'Terjadi kesalahan saat memproses laporan PDF.' });
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   // Handler Template Import & Download
@@ -369,9 +667,10 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
   // Filtered Transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      if (trxDateFilter) {
+      if (trxStartDate || trxEndDate) {
         const txDate = new Date(tx.date).toISOString().split('T')[0];
-        if (txDate !== trxDateFilter) return false;
+        if (trxStartDate && txDate < trxStartDate) return false;
+        if (trxEndDate && txDate > trxEndDate) return false;
       }
       if (trxSearch) {
         const q = trxSearch.toLowerCase();
@@ -383,7 +682,33 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
       }
       return true;
     });
-  }, [transactions, trxDateFilter, trxSearch]);
+  }, [transactions, trxStartDate, trxEndDate, trxSearch]);
+
+  // Ringkasan Metrik Transaksi Terfilter
+  const trxMetrics = useMemo(() => {
+    const list = filteredTransactions;
+    const inList = list.filter(t => t.type === 'IN');
+    const outList = list.filter(t => t.type === 'OUT');
+    const mutList = list.filter(t => t.type === 'MUTATION');
+    const adjList = list.filter(t => t.type === 'ADJUSTMENT');
+
+    const inQty = inList.reduce((acc, t) => acc + (t.quantity || 0), 0);
+    const outQty = outList.reduce((acc, t) => acc + (t.quantity || 0), 0);
+    const mutQty = mutList.reduce((acc, t) => acc + (t.quantity || 0), 0);
+    const adjQty = adjList.reduce((acc, t) => acc + (t.quantity || 0), 0);
+
+    return {
+      total: list.length,
+      inCount: inList.length,
+      inQty,
+      outCount: outList.length,
+      outQty,
+      mutCount: mutList.length,
+      mutQty,
+      adjCount: adjList.length,
+      adjQty
+    };
+  }, [filteredTransactions]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -685,62 +1010,179 @@ export default function InventoryStock({ defaultTab = 'stock' }) {
         {/* ========================================================= */}
         {activeTab === 'transactions' && (
           <div className="p-4 sm:p-5 space-y-4">
-            {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={15} />
-                <input
-                  type="text"
-                  placeholder="Cari kode TRX, barang, catatan..."
-                  className="pl-8 pr-3 py-2 w-full border border-slate-200 rounded-lg text-xs bg-white focus:border-blue-500 outline-none"
-                  value={trxSearch}
-                  onChange={(e) => setTrxSearch(e.target.value)}
-                />
-              </div>
+            {/* Filter & Reporting Toolbar */}
+            <div className="bg-slate-50/90 p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                {/* Search & Selectors */}
+                <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={15} />
+                    <input
+                      type="text"
+                      placeholder="Cari kode TRX, barang, catatan..."
+                      className="pl-8 pr-3 py-2 w-full border border-slate-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 outline-none shadow-2xs"
+                      value={trxSearch}
+                      onChange={(e) => setTrxSearch(e.target.value)}
+                    />
+                  </div>
 
-              <div>
-                <select
-                  value={trxTypeFilter}
-                  onChange={(e) => setTrxTypeFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none"
-                >
-                  <option value="">-- Semua Tipe Mutasi --</option>
-                  <option value="IN">Barang Masuk (IN)</option>
-                  <option value="OUT">Barang Keluar (OUT)</option>
-                  <option value="MUTATION">Mutasi Antar Gudang</option>
-                  <option value="ADJUSTMENT">Penyesuaian (ADJUSTMENT)</option>
-                </select>
-              </div>
-
-              <div>
-                <select
-                  value={trxWarehouseFilter}
-                  onChange={(e) => setTrxWarehouseFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none"
-                >
-                  <option value="">-- Semua Gudang --</option>
-                  {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={trxDateFilter}
-                  onChange={(e) => setTrxDateFilter(e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 outline-none"
-                />
-                {trxDateFilter && (
-                  <button
-                    onClick={() => setTrxDateFilter('')}
-                    className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold"
-                    title="Hapus filter tanggal"
+                  <select
+                    value={trxTypeFilter}
+                    onChange={(e) => setTrxTypeFilter(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   >
-                    Reset
+                    <option value="">-- Semua Tipe Mutasi --</option>
+                    <option value="IN">Barang Masuk (IN)</option>
+                    <option value="OUT">Barang Keluar (OUT)</option>
+                    <option value="MUTATION">Mutasi Antar Gudang</option>
+                    <option value="ADJUSTMENT">Penyesuaian (ADJUSTMENT)</option>
+                  </select>
+
+                  <select
+                    value={trxWarehouseFilter}
+                    onChange={(e) => setTrxWarehouseFilter(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                  >
+                    <option value="">-- Semua Gudang ({warehouses.length}) --</option>
+                    {warehouses.map(w => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Report Buttons */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleExportPDF}
+                    disabled={isExportingPdf || filteredTransactions.length === 0}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm shadow-rose-500/20 cursor-pointer disabled:cursor-not-allowed"
+                    title="Cetak Laporan Resmi Transaksi & Mutasi ke PDF"
+                  >
+                    {isExportingPdf ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+                    <span>Cetak PDF</span>
                   </button>
+
+                  <button
+                    onClick={handleExportTransactions}
+                    disabled={filteredTransactions.length === 0}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/20 cursor-pointer disabled:cursor-not-allowed"
+                    title="Ekspor Data Terfilter ke Excel"
+                  >
+                    <Download size={14} />
+                    <span>Ekspor Excel</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Date Presets and Custom Range */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/70 text-xs">
+                <span className="font-bold text-slate-500 flex items-center gap-1.5 shrink-0">
+                  <Calendar size={13} className="text-blue-600" />
+                  Periode Laporan:
+                </span>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'ALL', label: 'Semua Riwayat' },
+                    { id: 'TODAY', label: 'Hari Ini' },
+                    { id: 'LAST_7_DAYS', label: '7 Hari Terakhir (Mingguan)' },
+                    { id: 'THIS_WEEK', label: 'Minggu Ini' },
+                    { id: 'THIS_MONTH', label: 'Bulan Ini' },
+                    { id: 'LAST_30_DAYS', label: '30 Hari Terakhir' },
+                    { id: 'CUSTOM', label: 'Kustom Tanggal' },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleTrxPresetChange(p.id)}
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                        trxDatePreset === p.id
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {showTrxCustom && (
+                  <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-xl border border-blue-200 shadow-2xs ml-auto">
+                    <span className="text-[11px] text-slate-400 font-medium">Dari:</span>
+                    <input
+                      type="date"
+                      value={trxCustomStart}
+                      onChange={(e) => setTrxCustomStart(e.target.value)}
+                      className="px-2 py-1 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-500"
+                    />
+                    <span className="text-[11px] text-slate-400 font-medium">S/D:</span>
+                    <input
+                      type="date"
+                      value={trxCustomEnd}
+                      onChange={(e) => setTrxCustomEnd(e.target.value)}
+                      className="px-2 py-1 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyTrxCustomDate}
+                      className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition"
+                    >
+                      Terapkan
+                    </button>
+                  </div>
                 )}
+              </div>
+
+              {/* Active Filter Info & Status */}
+              {(trxStartDate || trxEndDate || trxWarehouseFilter || trxTypeFilter) && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/50 text-[11px] text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                      Filter Aktif: {trxStartDate ? new Date(trxStartDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Awal'} s/d {trxEndDate ? new Date(trxEndDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Sekarang'}
+                    </span>
+                    {trxWarehouseFilter && (
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium border border-slate-200">
+                        Gudang: {warehouses.find(w => w.id === parseInt(trxWarehouseFilter))?.name || trxWarehouseFilter}
+                      </span>
+                    )}
+                    {trxTypeFilter && (
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium border border-slate-200">
+                        Tipe: {trxTypeFilter}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleTrxPresetChange('ALL');
+                      setTrxWarehouseFilter('');
+                      setTrxTypeFilter('');
+                      setTrxSearch('');
+                    }}
+                    className="text-rose-600 hover:text-rose-800 font-bold hover:underline cursor-pointer"
+                  >
+                    Reset Semua Filter
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Summary Highlights for filtered transactions */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Mutasi</span>
+                <div className="text-base font-black text-slate-800 mt-0.5">{trxMetrics.total} <span className="text-[11px] font-semibold text-slate-400">Transaksi</span></div>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-2xs">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Barang Masuk (IN)</span>
+                <div className="text-base font-black text-emerald-700 mt-0.5">{trxMetrics.inQty} <span className="text-[11px] font-semibold text-emerald-600/70">unit ({trxMetrics.inCount} trx)</span></div>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-rose-100 bg-rose-50/20 shadow-2xs">
+                <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Barang Keluar (OUT)</span>
+                <div className="text-base font-black text-rose-700 mt-0.5">{trxMetrics.outQty} <span className="text-[11px] font-semibold text-rose-600/70">unit ({trxMetrics.outCount} trx)</span></div>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-purple-100 bg-purple-50/20 shadow-2xs">
+                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Mutasi Antar Gudang</span>
+                <div className="text-base font-black text-purple-700 mt-0.5">{trxMetrics.mutQty} <span className="text-[11px] font-semibold text-purple-600/70">unit ({trxMetrics.mutCount} trx)</span></div>
               </div>
             </div>
 

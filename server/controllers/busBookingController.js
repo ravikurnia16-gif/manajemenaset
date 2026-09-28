@@ -791,15 +791,42 @@ const checkUnpaidBusInvoices = async () => {
     }
 };
 
-// 7. Complete Trip & Generate Bill
+// Helper: Check permission for Bus Finance & Administration (Admin Aset, Super Admin, Kabid Sarpras, and Staff Keuangan dan Administrasi)
+const canManageBusFinance = async (user) => {
+    if (!user) return false;
+    if (['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(user.role)) return true;
+
+    const pos = (user.position || '').toLowerCase();
+    if (pos.includes('keuangan dan administrasi') || pos.includes('keuangan & administrasi') || pos.includes('staff keuangan')) {
+        return true;
+    }
+
+    if (user.id) {
+        const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { role: true, position: true }
+        });
+        if (dbUser) {
+            if (['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(dbUser.role)) return true;
+            const dbPos = (dbUser.position || '').toLowerCase();
+            if (dbPos.includes('keuangan dan administrasi') || dbPos.includes('keuangan & administrasi') || dbPos.includes('staff keuangan')) {
+                return true;
+            }
+        }
+    }
+    return false;
+};
+
+// 7. Complete Trip & Generate Bill (Support Initial Input & Revision of KM)
 const completeBusBooking = async (req, res) => {
     try {
         const { id } = req.params;
         const { totalKm } = req.body;
 
-        // Role Check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
-            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Super Admin yang diizinkan.' });
+        // Role & Position Check (Admin Aset, Super Admin, Kabid Sarpras, or Staff Keuangan dan Administrasi)
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Staff Keuangan dan Administrasi yang diizinkan.' });
         }
 
         const booking = await prisma.busBooking.findUnique({
@@ -810,7 +837,11 @@ const completeBusBooking = async (req, res) => {
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
 
         const kmVal = parseInt(totalKm);
+        if (isNaN(kmVal) || kmVal <= 0) {
+            return res.status(400).json({ error: 'Nilai total KM harus lebih dari 0' });
+        }
         const billAmount = kmVal * 2000;
+        const isRevision = booking.status === 'COMPLETED';
 
         const updated = await prisma.busBooking.update({
             where: { id: parseInt(id) },
@@ -818,21 +849,27 @@ const completeBusBooking = async (req, res) => {
                 totalKm: kmVal,
                 totalBill: billAmount,
                 status: 'COMPLETED',
-                completedAt: new Date()
-            }
+                completedAt: booking.completedAt || new Date()
+            },
+            include: { vehicle: true }
         });
 
         // Send WA Notification to Requester
         if (booking.requesterPhone) {
-            const msg = `Bismillah.\n*INVOICE BUS: ${booking.vehicle.name}*\n\n` +
+            const titleMsg = isRevision ? `*REVISI INVOICE BUS: ${booking.vehicle.name}*` : `*INVOICE BUS: ${booking.vehicle.name}*`;
+            const headerDesc = isRevision ? `Berikut adalah pembaruan rincian tagihan perjalanan bus Anda:` : `Berikut adalah rincian tagihan perjalanan bus Anda:`;
+            const kmDesc = isRevision ? `${kmVal} KM (Revisi)` : `${kmVal} KM`;
+            const tagihanTitle = isRevision ? `💰 *TOTAL TAGIHAN (REVISI): Rp ${billAmount.toLocaleString('id-ID')}*` : `💰 *TOTAL TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*`;
+
+            const msg = `Bismillah.\n${titleMsg}\n\n` +
                 `Bismillah Ustadz/Ustadzah *${(booking.requesterName || '').toUpperCase()}*,\n` +
-                `Berikut adalah rincian tagihan perjalanan bus Anda:\n\n` +
+                `${headerDesc}\n\n` +
                 `🏢 *Unit*: ${booking.unit || '-'}\n` +
                 `📍 *Tujuan*: ${booking.destination}\n` +
                 `📅 *Tanggal*: ${new Date(booking.startDate).toLocaleDateString('id-ID')}\n` +
-                `🛣️ *Jarak Tempuh*: ${kmVal} KM\n` +
+                `🛣️ *Jarak Tempuh*: ${kmDesc}\n` +
                 `---------------------------\n` +
-                `💰 *TOTAL TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*\n\n` +
+                `${tagihanTitle}\n\n` +
                 `Mohon untuk segera melakukan penyelesaian administrasi ke Bagian Keuangan Sarpras. Syukron.\n\n` +
                 `_Sistem Manajemen Aset_`;
 
@@ -842,37 +879,40 @@ const completeBusBooking = async (req, res) => {
                 console.error('[Bus Billing] WA Failed:', e.message);
             }
 
-            // --- Notify Finance Staff ---
-            try {
-                const finStaffs = await prisma.user.findMany({
-                    where: {
-                        position: 'Staff Keuangan dan Administrasi',
-                        phone: { not: null, not: '' }
-                    }
-                });
+            // --- Notify Finance Staff on initial billing ---
+            if (!isRevision) {
+                try {
+                    const finStaffs = await prisma.user.findMany({
+                        where: {
+                            position: 'Staff Keuangan dan Administrasi',
+                            phone: { not: null, not: '' }
+                        }
+                    });
 
-                if (finStaffs.length > 0) {
-                    const finMsg = `Bismillah.\n💰 *PENDAPATAN BUS MASUK*\n\n` +
-                        `Bismillah, pemberitahuan tagihan baru untuk penggunaan bus:\n\n` +
-                        `👤 *Pemesan*: ${booking.requesterName}\n` +
-                        `🏢 *Unit*: ${booking.unit || '-'}\n` +
-                        `📍 *Tujuan*: ${booking.destination}\n` +
-                        `📅 *Tanggal*: ${new Date(booking.startDate).toLocaleDateString('id-ID')}\n` +
-                        `🛣️ *Jarak*: ${kmVal} KM\n` +
-                        `---------------------------\n` +
-                        `💰 *TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*\n\n` +
-                        `_Mohon dipantau pengadministrasiannya. Syukron._`;
+                    if (finStaffs.length > 0) {
+                        const finMsg = `Bismillah.\n💰 *PENDAPATAN BUS MASUK*\n\n` +
+                            `Bismillah, pemberitahuan tagihan baru untuk penggunaan bus:\n\n` +
+                            `👤 *Pemesan*: ${booking.requesterName}\n` +
+                            `🏢 *Unit*: ${booking.unit || '-'}\n` +
+                            `📍 *Tujuan*: ${booking.destination}\n` +
+                            `📅 *Tanggal*: ${new Date(booking.startDate).toLocaleDateString('id-ID')}\n` +
+                            `🛣️ *Jarak*: ${kmVal} KM\n` +
+                            `---------------------------\n` +
+                            `💰 *TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*
+\n` +
+                            `_Mohon dipantau pengadministrasiannya. Syukron._`;
 
-                    for (const staff of finStaffs) {
-                        try {
-                            await whatsappService.sendMessage(staff.phone, finMsg);
-                        } catch (err) {
-                            console.error(`[Bus Finance] WA Failed for ${staff.name}:`, err.message);
+                        for (const staff of finStaffs) {
+                            try {
+                                await whatsappService.sendMessage(staff.phone, finMsg);
+                            } catch (err) {
+                                console.error(`[Bus Finance] WA Failed for ${staff.name}:`, err.message);
+                            }
                         }
                     }
+                } catch (e) {
+                    console.error('[Bus Finance Notif] Failed:', e.message);
                 }
-            } catch (e) {
-                console.error('[Bus Finance Notif] Failed:', e.message);
             }
         }
 
@@ -887,9 +927,10 @@ const markBusAsPaid = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Role Check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
-            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Super Admin yang diizinkan.' });
+        // Role & Position Check
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Staff Keuangan dan Administrasi yang diizinkan.' });
         }
 
         const updated = await prisma.busBooking.update({
@@ -944,7 +985,8 @@ const setBusInitialFund = async (req, res) => {
         const { amount } = req.body;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -976,7 +1018,8 @@ const createBusUnexpectedExpense = async (req, res) => {
         const { date, description, amount } = req.body;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -998,7 +1041,8 @@ const deleteBusUnexpectedExpense = async (req, res) => {
         const { id } = req.params;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -1017,7 +1061,8 @@ const createBusOtherIncome = async (req, res) => {
         const { date, description, amount } = req.body;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -1039,7 +1084,8 @@ const deleteBusOtherIncome = async (req, res) => {
         const { id } = req.params;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+        const isAuthorized = await canManageBusFinance(req.user);
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 

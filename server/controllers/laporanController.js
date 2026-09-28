@@ -89,14 +89,26 @@ const isReportSubmitted = (rep) => {
  */
 exports.getReports = async (req, res) => {
     try {
-        const { date, category, search, status } = req.query;
+        const { date, startDate, endDate, category, search, status, staffId } = req.query;
         
-        let targetDate = dayjs().tz('Asia/Jakarta');
-        if (date) {
-            targetDate = dayjs.tz(date, 'Asia/Jakarta');
+        let gteDate, lteDate;
+        const isMultiDay = Boolean(startDate || endDate);
+
+        if (isMultiDay) {
+            gteDate = startDate 
+                ? dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate() 
+                : dayjs().tz('Asia/Jakarta').subtract(6, 'day').startOf('day').toDate();
+            lteDate = endDate 
+                ? dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate() 
+                : dayjs().tz('Asia/Jakarta').endOf('day').toDate();
+        } else {
+            let targetDate = dayjs().tz('Asia/Jakarta');
+            if (date) {
+                targetDate = dayjs.tz(date, 'Asia/Jakarta');
+            }
+            gteDate = targetDate.startOf('day').toDate();
+            lteDate = targetDate.endOf('day').toDate();
         }
-        const startOfDay = targetDate.startOf('day').toDate();
-        const endOfDay = targetDate.endOf('day').toDate();
 
         const isUserKabid = isKabid(req.user);
         const reqUserId = parseInt(req.user.id, 10);
@@ -105,15 +117,19 @@ exports.getReports = async (req, res) => {
             type: 'DAILY',
             NOT: { content: 'SETORAN_HAFALAN' },
             date: {
-                gte: startOfDay,
-                lte: endOfDay
+                gte: gteDate,
+                lte: lteDate
             }
         };
+
+        if (staffId && staffId !== 'ALL') {
+            whereClause.userId = parseInt(staffId, 10);
+        }
 
         // Strict RBAC: Non-Kabid can ONLY see their own report (any role)
         if (!isUserKabid) {
             whereClause.userId = reqUserId;
-        } else {
+        } else if (!whereClause.userId) {
             whereClause.OR = [
                 { user: STAFF_USER_WHERE },
                 { userId: reqUserId }
@@ -127,17 +143,22 @@ exports.getReports = async (req, res) => {
                     select: { id: true, name: true, username: true, position: true, role: true, phone: true }
                 }
             },
-            orderBy: {
-                updatedAt: 'desc'
-            }
+            orderBy: [
+                { date: 'desc' },
+                { updatedAt: 'desc' }
+            ]
         });
 
-        // Consolidate reports by userId
+        // Consolidate reports by userId (or userId + date in multi-day range mode)
         const userReportsMap = {};
         for (const r of rawReports) {
-            if (!userReportsMap[r.userId]) {
-                userReportsMap[r.userId] = { 
+            const dateStr = dayjs(r.date).format('YYYY-MM-DD');
+            const mapKey = isMultiDay ? `${r.userId}_${dateStr}` : `${r.userId}`;
+
+            if (!userReportsMap[mapKey]) {
+                userReportsMap[mapKey] = { 
                     ...r, 
+                    reportDateFormatted: dateStr,
                     metadata: { 
                         ...r.metadata, 
                         manualPoints: { morning: [], afternoon: [] } 
@@ -145,7 +166,7 @@ exports.getReports = async (req, res) => {
                 };
             }
             
-            const targetPts = userReportsMap[r.userId].metadata.manualPoints;
+            const targetPts = userReportsMap[mapKey].metadata.manualPoints;
             const pts = r.metadata?.manualPoints || {};
             const m = pts.morningPoints || pts.morning || [];
             const a = pts.afternoonPoints || pts.afternoon || [];
@@ -158,7 +179,7 @@ exports.getReports = async (req, res) => {
             }
 
             if (r.metadata?.verification) {
-                userReportsMap[r.userId].metadata.verification = r.metadata.verification;
+                userReportsMap[mapKey].metadata.verification = r.metadata.verification;
             }
         }
 
