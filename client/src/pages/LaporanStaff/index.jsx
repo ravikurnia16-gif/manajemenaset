@@ -843,9 +843,9 @@ const LaporanStaff = () => {
     };
 
     return (
-        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-44 sm:pb-16">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-44 sm:pb-16 print:p-0 print:m-0 print:space-y-0 print:animate-none">
             {/* TOP HEADER */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm print:hidden no-print">
                 <div className="flex items-center gap-3 sm:gap-4">
                     <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
                         <FileText className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -935,7 +935,7 @@ const LaporanStaff = () => {
             </div>
 
             {/* TAB NAVIGATION - Sticky & Scrollable */}
-            <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-1 sm:py-2 flex items-center gap-1.5 sm:gap-2 overflow-x-auto custom-scrollbar border-b border-slate-200">
+            <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-1 sm:py-2 flex items-center gap-1.5 sm:gap-2 overflow-x-auto custom-scrollbar border-b border-slate-200 print:hidden no-print">
                 {isKabid ? (
                     <>
                         <button
@@ -1187,6 +1187,8 @@ const LaporanStaff = () => {
                             customKabidNiy={customKabidNiy}
                             setCustomKabidNiy={setCustomKabidNiy}
                             setLightboxPhoto={setLightboxPhoto}
+                            loading={loading}
+                            user={user}
                         />
                     )}
 
