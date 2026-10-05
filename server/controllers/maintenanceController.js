@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
+const { sendPushToUser } = require('../services/pushService');
 const predictiveService = require('../services/predictiveService');
 const aiService = require('../services/aiService');
 const crypto = require('crypto');
@@ -10,6 +11,22 @@ const { generateDocumentNumber } = require('../services/documentNumberingService
 const { generateVerificationQR } = require('../services/officePdfService');
 
 // --- Business Day & Working Hours Helpers for SLA Respon Awal (07:15 - 16:15 WIB, Senin - Jumat) ---
+
+/**
+ * Adjust date to business day (skips weekend to next Monday morning)
+ */
+const adjustToBusinessDay = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 = Sun, 6 = Sat
+    if (day === 6) { // Saturday -> advance to Monday 07:15
+        d.setDate(d.getDate() + 2);
+        d.setHours(7, 15, 0, 0);
+    } else if (day === 0) { // Sunday -> advance to Monday 07:15
+        d.setDate(d.getDate() + 1);
+        d.setHours(7, 15, 0, 0);
+    }
+    return d;
+};
 
 /**
  * Calculate working hours difference strictly within:
@@ -343,6 +360,17 @@ exports.getAllReports = async (req, res) => {
         if (category) whereClause.category = category;
         if (targetDept) whereClause.targetDept = targetDept;
         if (unitId) whereClause.unitId = parseInt(unitId);
+
+        // Filter Penugasan Teknisi (Assigned to Me / Specific Technician)
+        if (req.query.assignedToMe === 'true' && user) {
+            const userIdentifiers = [user.name, user.username].filter(Boolean);
+            whereClause.OR = [
+                { technician: { in: userIdentifiers } },
+                ...userIdentifiers.map(ident => ({ technician: { contains: ident } }))
+            ];
+        } else if (req.query.technician) {
+            whereClause.technician = { contains: req.query.technician };
+        }
 
         // Date Range Filter
         if (startDate || endDate) {
@@ -1396,6 +1424,382 @@ exports.checkUnrespondedReports = async () => {
         console.error('[Scheduler] checkUnrespondedReports Error:', error);
     }
 };
+
+/**
+ * Helper untuk menyusun pesan WhatsApp tugas harian teknisi.
+ * Mengirimkan SEMUA tugas yang ditugaskan kepada teknisi per unit.
+ * Jika seluruh isi pesan tidak cukup dalam 1 pesan WhatsApp (melebihi ~2500 karakter),
+ * pesan akan dipecah secara rapi menjadi lebih dari 1 pesan (Bagian 1/N, Bagian 2/N, dst)
+ * tanpa ada satupun tugas yang terpotong.
+ */
+const buildTechnicianWhatsAppMessages = ({
+    techDisplayName,
+    position,
+    todayStr,
+    baseUrl,
+    assignedMaintenances,
+    groupedByUnit,
+    maxChars = 2500
+}) => {
+    const unitNames = Object.keys(groupedByUnit);
+
+    // 1. Siapkan daftar item tugas per unit
+    const unitBlocks = [];
+    let globalTaskNumber = 1;
+
+    for (const [unitName, tasks] of Object.entries(groupedByUnit)) {
+        const items = [];
+        for (const m of tasks) {
+            const urgBadge = m.urgency === 'EMERGENCY' ? '🔴 *EMERGENCY*' : (m.urgency === 'URGENT' ? '🟠 *URGENT*' : '🟢 *NORMAL*');
+            const statusBadge = m.status === 'ASSIGNED' ? 'Ditugaskan (Belum Dikerjakan)' : (m.status === 'IN_PROGRESS' ? 'Sedang Dikerjakan' : m.status);
+            const assetList = m.assets && m.assets.length > 0 ? m.assets.map(a => `${a.name} (${a.code})`).join(', ') : null;
+
+            let itemText = `${globalTaskNumber}. *[${m.code}] ${m.title}*\n` +
+                `   • Urgensi: ${urgBadge}\n` +
+                `   • Status: ${statusBadge}\n`;
+            if (m.location) itemText += `   • Lokasi: ${m.location}\n`;
+            if (assetList) itemText += `   • Aset: ${assetList}\n`;
+            itemText += `   • Tautan: ${baseUrl}/pemeliharaan/${m.id}\n\n`;
+
+            items.push(itemText);
+            globalTaskNumber++;
+        }
+
+        unitBlocks.push({
+            unitName,
+            taskCount: tasks.length,
+            items
+        });
+    }
+
+    // 2. Cek apakah seluruh tugas muat dalam 1 pesan tunggal
+    let fullSingleBody = '';
+    for (const u of unitBlocks) {
+        fullSingleBody += `🏢 *UNIT: ${u.unitName.toUpperCase()}* (${u.taskCount} tiket)\n`;
+        fullSingleBody += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        for (const item of u.items) {
+            fullSingleBody += item;
+        }
+    }
+
+    const singleFullMessage = `Bismillah.\n` +
+        `🔧 *PENGINGAT TUGAS PERAWATAN HARIAN*\n` +
+        `📅 ${todayStr}\n\n` +
+        `Halo *${techDisplayName}* (${position}),\n` +
+        `Berikut adalah daftar semua ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada Anda, *dikelompokkan per unit*:\n\n` +
+        fullSingleBody +
+        `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit*.\n` +
+        `Mohon segera dicek dan perbarui progres perbaikannya pada aplikasi.\n\n` +
+        `_Pesan otomatis Sistem Manajemen Aset_`;
+
+    if (singleFullMessage.length <= maxChars) {
+        return [singleFullMessage];
+    }
+
+    // 3. Jika tidak cukup dalam 1 pesan, pecah menjadi beberapa pesan secara aman
+    const rawChunks = [];
+    let currentChunkBody = '';
+    let currentUnitHeader = null;
+
+    for (const u of unitBlocks) {
+        const unitHeader = `🏢 *UNIT: ${u.unitName.toUpperCase()}* (${u.taskCount} tiket)\n━━━━━━━━━━━━━━━━━━━━━\n`;
+
+        for (let i = 0; i < u.items.length; i++) {
+            const item = u.items[i];
+            const headerForTask = (currentUnitHeader !== u.unitName)
+                ? (i === 0 ? unitHeader : `🏢 *UNIT: ${u.unitName.toUpperCase()} (Lanjutan)*\n━━━━━━━━━━━━━━━━━━━━━\n`)
+                : '';
+            const addition = headerForTask + item;
+
+            if (currentChunkBody.length + addition.length > maxChars && currentChunkBody.length > 0) {
+                rawChunks.push(currentChunkBody);
+                currentChunkBody = '';
+                currentUnitHeader = null;
+            }
+
+            if (currentUnitHeader !== u.unitName) {
+                const effectiveHeader = (currentChunkBody.length === 0 && i > 0)
+                    ? `🏢 *UNIT: ${u.unitName.toUpperCase()} (Lanjutan)*\n━━━━━━━━━━━━━━━━━━━━━\n`
+                    : unitHeader;
+                currentChunkBody += effectiveHeader;
+                currentUnitHeader = u.unitName;
+            }
+
+            currentChunkBody += item;
+        }
+    }
+
+    if (currentChunkBody.trim().length > 0) {
+        rawChunks.push(currentChunkBody);
+    }
+
+    // 4. Beri header bagian (Part X dari Y) dan footer ringkasan
+    const totalParts = rawChunks.length;
+    return rawChunks.map((chunkBody, idx) => {
+        const partNumber = idx + 1;
+        const isFirst = (partNumber === 1);
+        const isLast = (partNumber === totalParts);
+
+        let msg = `Bismillah.\n` +
+            `🔧 *PENGINGAT TUGAS PERAWATAN HARIAN* *(Bagian ${partNumber} dari ${totalParts})*\n` +
+            `📅 ${todayStr}\n\n` +
+            `Halo *${techDisplayName}* (${position}),\n` +
+            (isFirst
+                ? `Berikut adalah daftar semua ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada Anda, *dikelompokkan per unit*:\n\n`
+                : `Lanjutan daftar tugas perawatan (Bagian ${partNumber} dari ${totalParts}):\n\n`) +
+            chunkBody;
+
+        if (isLast) {
+            msg += `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit*.\n` +
+                `Mohon segera dicek dan perbarui progres perbaikannya pada aplikasi.\n\n` +
+                `_Pesan otomatis Sistem Manajemen Aset_`;
+        } else {
+            msg += `_Bersambung ke Bagian ${partNumber + 1}..._\n`;
+        }
+
+        return msg;
+    });
+};
+
+/**
+ * Scheduled Task / API Controller:
+ * 1. Mengidentifikasi user ID yang memiliki posisi 'Staff Teknisi Aset'.
+ * 2. Mengambil semua perawatan/pemeliharaan yang ditugaskan kepada masing-masing teknisi.
+ * 3. Mengirimkan notifikasi harian melalui In-App Bell, Web Push, dan WhatsApp.
+ */
+exports.checkTechnicianDailyMaintenanceNotifications = async (req = null, res = null) => {
+    try {
+        console.log('[Scheduler] Memulai pengecekan notifikasi harian untuk posisi Staff Teknisi Aset...');
+
+        // 1. Identifikasi user ID yang berposisi sebagai 'Staff Teknisi Aset'
+        const teknisiStaff = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: 'Staff Teknisi Aset' },
+                    { position: { contains: 'Staff Teknisi Aset' } },
+                    { position: { contains: 'Teknisi Aset' } }
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                phone: true,
+                position: true,
+                role: true
+            }
+        });
+
+        // Identifikasi dan log user IDs
+        const teknisiUserIds = teknisiStaff.map(u => u.id);
+        console.log(`[Scheduler] Berhasil mengidentifikasi ${teknisiStaff.length} user ID Staff Teknisi Aset:`, teknisiUserIds);
+        teknisiStaff.forEach(u => {
+            console.log(`  -> User ID: ${u.id} | Nama: ${u.name || u.username} | Posisi: '${u.position}' | WA: ${u.phone || '-'}`);
+        });
+
+        if (teknisiStaff.length === 0) {
+            console.warn('[Scheduler] Skip: Tidak ditemukan pengguna dengan posisi Staff Teknisi Aset di database.');
+            if (res) {
+                return res.json({
+                    success: false,
+                    message: 'Tidak ditemukan pengguna dengan posisi Staff Teknisi Aset.',
+                    identifiedUserIds: []
+                });
+            }
+            return;
+        }
+
+        const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+        const todayStr = new Date().toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+
+        const notificationResults = [];
+
+        // 2. Iterasi setiap user ID teknisi dan cari perawatan yang ditugaskan kepadanya
+        for (const tech of teknisiStaff) {
+            const techIdentifiers = [tech.name, tech.username].filter(Boolean);
+
+            // Cari tiket perawatan aktif yang ditugaskan kepada teknisi ini
+            const assignedMaintenances = await prisma.maintenance.findMany({
+                where: {
+                    status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+                    OR: [
+                        { technician: { in: techIdentifiers } },
+                        ...techIdentifiers.map(ident => ({
+                            technician: { contains: ident }
+                        }))
+                    ]
+                },
+                include: {
+                    unit: { select: { name: true } },
+                    assets: { select: { code: true, name: true } }
+                },
+                orderBy: [
+                    { urgency: 'desc' },
+                    { createdAt: 'desc' }
+                ]
+            });
+
+            const techDisplayName = tech.name || tech.username || `User #${tech.id}`;
+            console.log(`[Scheduler] User ID ${tech.id} (${techDisplayName}) memiliki ${assignedMaintenances.length} tugas perawatan aktif.`);
+
+            if (assignedMaintenances.length === 0) {
+                notificationResults.push({
+                    userId: tech.id,
+                    name: techDisplayName,
+                    position: tech.position,
+                    activeTasksCount: 0,
+                    tasks: [],
+                    status: 'NO_ACTIVE_TASKS'
+                });
+                continue;
+            }
+
+            const hasUrgent = assignedMaintenances.some(m => ['EMERGENCY', 'URGENT'].includes(m.urgency));
+            const notifType = hasUrgent ? 'URGENT' : 'INFO';
+
+            // Kelompokkan tugas pemeliharaan berdasarkan Unit
+            const groupedByUnit = {};
+            for (const m of assignedMaintenances) {
+                const unitName = m.unit?.name || 'Umum / Yayasan';
+                if (!groupedByUnit[unitName]) {
+                    groupedByUnit[unitName] = [];
+                }
+                groupedByUnit[unitName].push(m);
+            }
+            const unitNames = Object.keys(groupedByUnit);
+
+            // 3. Buat Notifikasi Lonceng (In-App Bell Notification)
+            let inAppTitle = `🔧 Tugas Perawatan Hari Ini (${assignedMaintenances.length})`;
+            let inAppMessage = '';
+            let inAppLink = '/pemeliharaan';
+
+            if (assignedMaintenances.length === 1) {
+                const single = assignedMaintenances[0];
+                inAppMessage = `Anda memiliki 1 tugas perawatan di ${single.unit?.name || single.location || 'Umum'}: "${single.title}" (${single.code}) [Status: ${single.status}].`;
+                inAppLink = `/pemeliharaan/${single.id}`;
+            } else {
+                const unitSummary = unitNames
+                    .map(uName => `${uName} (${groupedByUnit[uName].length})`)
+                    .join(', ');
+                inAppMessage = `Anda memiliki ${assignedMaintenances.length} tugas perawatan aktif di ${unitNames.length} unit: ${unitSummary}. Mohon segera ditindaklanjuti.`;
+            }
+
+            let inAppSuccess = false;
+            try {
+                await createNotification(
+                    tech.id,
+                    inAppTitle,
+                    inAppMessage,
+                    notifType,
+                    inAppLink
+                );
+                inAppSuccess = true;
+                console.log(`[Scheduler] In-app notification berhasil dibuat untuk User ID ${tech.id} (${techDisplayName}).`);
+            } catch (err) {
+                console.error(`[Scheduler] Gagal membuat in-app notification untuk User ID ${tech.id}:`, err.message);
+            }
+
+            // 4. Web Push Notification
+            let pushSuccess = false;
+            try {
+                await sendPushToUser(
+                    tech.id,
+                    inAppTitle,
+                    inAppMessage,
+                    inAppLink
+                );
+                pushSuccess = true;
+            } catch (err) {
+                console.error(`[Scheduler] Gagal kirim push notification ke User ID ${tech.id}:`, err.message);
+            }
+
+            // 5. WhatsApp Notification (dikelompokkan per unit, multi-message jika melebihi batas)
+            let waSuccess = false;
+            let waMessagesSentCount = 0;
+            if (tech.phone) {
+                try {
+                    const waMessages = buildTechnicianWhatsAppMessages({
+                        techDisplayName,
+                        position: tech.position,
+                        todayStr,
+                        baseUrl,
+                        assignedMaintenances,
+                        groupedByUnit,
+                        maxChars: 2500
+                    });
+
+                    console.log(`[Scheduler] Mengirim ${waMessages.length} pesan WA ke User ID ${tech.id} (${techDisplayName})...`);
+
+                    for (let i = 0; i < waMessages.length; i++) {
+                        await whatsappService.sendMessage(tech.phone, waMessages[i]);
+                        waMessagesSentCount++;
+                        // Jeda singkat antar pesan agar urutan pesan tetap teratur di WhatsApp penerima
+                        if (waMessages.length > 1 && i < waMessages.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                        }
+                    }
+
+                    waSuccess = (waMessagesSentCount > 0);
+                    console.log(`[Scheduler] Berhasil mengirim ${waMessagesSentCount} pesan WA ke User ID ${tech.id} (${techDisplayName}) di ${tech.phone}`);
+                } catch (waErr) {
+                    console.error(`[Scheduler] Gagal kirim WA ke User ID ${tech.id} (${tech.phone}):`, waErr.message);
+                }
+            } else {
+                console.log(`[Scheduler] User ID ${tech.id} (${techDisplayName}) tidak memiliki nomor telepon untuk WA.`);
+            }
+
+            notificationResults.push({
+                userId: tech.id,
+                name: techDisplayName,
+                position: tech.position,
+                phone: tech.phone,
+                activeTasksCount: assignedMaintenances.length,
+                totalUnits: unitNames.length,
+                groupedByUnit: Object.entries(groupedByUnit).map(([unitName, tasks]) => ({
+                    unit: unitName,
+                    count: tasks.length,
+                    tasks: tasks.map(m => ({
+                        id: m.id,
+                        code: m.code,
+                        title: m.title,
+                        status: m.status,
+                        urgency: m.urgency,
+                        location: m.location,
+                        assets: m.assets?.map(a => `${a.name} (${a.code})`) || []
+                    }))
+                })),
+                notified: {
+                    inApp: inAppSuccess,
+                    push: pushSuccess,
+                    whatsapp: waSuccess,
+                    whatsappMessagesCount: waMessagesSentCount
+                }
+            });
+        }
+
+        if (res) {
+            return res.json({
+                success: true,
+                message: `Notifikasi harian Staff Teknisi Aset berhasil diproses.`,
+                identifiedUserIds: teknisiUserIds,
+                results: notificationResults
+            });
+        }
+
+    } catch (error) {
+        console.error('[Scheduler] checkTechnicianDailyMaintenanceNotifications Error:', error);
+        if (res) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+};
+
+exports.sendDailyTechnicianMaintenanceNotification = exports.checkTechnicianDailyMaintenanceNotifications;
 // Complete a single asset in a maintenance report
 exports.completeAssetMaintenance = async (req, res) => {
     const { id, assetId } = req.params;

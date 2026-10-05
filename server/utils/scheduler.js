@@ -15,7 +15,11 @@ const { sendWeeklyAssetSummary } = require('./summaryNotification');
 const { sendWeeklyBusTripSummary } = require('./tripSummaryNotification');
 const { sendMaintenanceConditionSummary } = require('./maintenanceSummaryNotification');
 const { sendUniformOrderSummary } = require('./uniformSummaryNotification');
-const { checkAssetMaintenanceReminders, checkUnrespondedReports } = require('../controllers/maintenanceController');
+const { 
+    checkAssetMaintenanceReminders, 
+    checkUnrespondedReports,
+    sendDailyTechnicianMaintenanceNotification
+} = require('../controllers/maintenanceController');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
 const { sendReportReminders, notifyKabidInactiveStaff } = require('../controllers/laporanController');
@@ -171,6 +175,11 @@ const initScheduler = () => {
                 await checkUnrespondedReports();
             } catch (err) {
                 console.error('[Scheduler] Error in Unresponded Reports Check:', err);
+            }
+            try {
+                await sendDailyTechnicianMaintenanceNotification();
+            } catch (err) {
+                console.error('[Scheduler] Error in Technician Daily Maintenance Notification:', err);
             }
         }
 

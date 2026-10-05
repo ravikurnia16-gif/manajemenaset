@@ -7,6 +7,8 @@ const { handleUpload, handleBulkUpload } = require('../middleware/uploadMiddlewa
 router.get('/', verifyToken, maintenanceController.getAllReports);
 router.get('/stats/dashboard', verifyToken, maintenanceController.getDashboardStats);
 router.get('/schedule', verifyToken, maintenanceController.getMaintenanceSchedule);
+router.get('/reminders/technicians', verifyToken, maintenanceController.sendDailyTechnicianMaintenanceNotification);
+router.post('/reminders/technicians', verifyToken, maintenanceController.sendDailyTechnicianMaintenanceNotification);
 router.get('/:id', verifyToken, maintenanceController.getReportById);
 router.post('/', verifyToken, handleBulkUpload('media', 10, 'maintenance'), maintenanceController.createReport);
 router.post('/:id/media', verifyToken, handleBulkUpload('media', 5, 'maintenance'), maintenanceController.addMedia);
