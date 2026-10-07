@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, ShoppingCart, Info, CheckCircle2, Copy, Check, ArrowRight, RefreshCw, PhoneCall } from 'lucide-react';
+import { Plus, X, ShoppingCart, Info, CheckCircle2, Copy, Check, ArrowRight, RefreshCw, PhoneCall, AlertCircle } from 'lucide-react';
 import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -95,47 +95,155 @@ export default function UniformOrderPublic() {
         availableSizes = [...new Set(availableVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType).map(v => v.size?.name || v.sizeName))].filter(Boolean);
     }
 
+    // Helper: Hitung total stok suatu varian di seluruh gudang
+    const getVariantTotalStock = (variant) => {
+        if (!variant || !variant.stocks) return 0;
+        return variant.stocks.reduce((acc, s) => acc + (s.quantity || 0), 0);
+    };
+
+    // Helper: Ambil target varian berdasarkan kategori, jenis pakaian, dan ukuran
+    const getSelectedTargetVariants = (cat, type, sizeName) => {
+        if (!cat || !type || !sizeName) return [];
+        if (type === 'SEMUA_SETELAN') {
+            return availableVariants.filter(v => v.item?.category?.name === cat && (v.size?.name || v.sizeName) === sizeName);
+        }
+        return availableVariants.filter(v => v.item?.category?.name === cat && v.item?.clothingType?.name === type && (v.size?.name || v.sizeName) === sizeName);
+    };
+
+    // Helper: Hitung sisa stok tersedia untuk ukuran terpilih (jika setelan, ambil nilai terkecil komponennya)
+    const getAvailableStockForSize = (cat, type, sizeName) => {
+        const targets = getSelectedTargetVariants(cat, type, sizeName);
+        if (targets.length === 0) return 0;
+        const stockList = targets.map(v => getVariantTotalStock(v));
+        return Math.min(...stockList);
+    };
+
+    // Helper: Periksa rincian komponen setelan (apakah ada yang tersedia dan ada yang habis)
+    const getSetelanBreakdown = (cat, type, sizeName) => {
+        if (type !== 'SEMUA_SETELAN' || !cat || !sizeName) return null;
+        const targets = getSelectedTargetVariants(cat, type, sizeName);
+        if (targets.length <= 1) return null;
+        const available = targets.filter(v => getVariantTotalStock(v) > 0);
+        const outOfStock = targets.filter(v => getVariantTotalStock(v) <= 0);
+        return {
+            total: targets.length,
+            available,
+            outOfStock,
+            isPartial: available.length > 0 && outOfStock.length > 0,
+            allOutOfStock: available.length === 0,
+            allAvailable: outOfStock.length === 0
+        };
+    };
+
+    const setelanBreakdown = retailInput.size
+        ? getSetelanBreakdown(retailInput.category, retailInput.clothingType, retailInput.size)
+        : null;
+    const isPartialSet = !!setelanBreakdown?.isPartial;
+
+    const availableComponentsPrice = isPartialSet
+        ? setelanBreakdown.available.reduce((sum, v) => sum + ((v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)), 0)
+        : 0;
+
+    const availableComponentsMaxStock = isPartialSet
+        ? Math.min(...setelanBreakdown.available.map(v => getVariantTotalStock(v)))
+        : 0;
+
+    const addAvailableOnly = () => {
+        if (!isPartialSet || !setelanBreakdown?.available) return;
+        const requestedQty = parseInt(retailInput.qty) || 1;
+        if (requestedQty > availableComponentsMaxStock) {
+            alert(`Jumlah pesanan (${requestedQty} pcs) melebihi stok yang tersedia (${availableComponentsMaxStock} pcs).`);
+            return;
+        }
+
+        const newItems = [...form.items];
+        for (const v of setelanBreakdown.available) {
+            const vStock = getVariantTotalStock(v);
+            const existingIdx = newItems.findIndex(it => it.variantId === v.id);
+            const currentCartQty = existingIdx >= 0 ? newItems[existingIdx].qty : 0;
+
+            if (currentCartQty + requestedQty > vStock) {
+                alert(`Jumlah dalam keranjang untuk "${v.item?.name}" (${currentCartQty + requestedQty} pcs) melebihi stok gudang (${vStock} pcs).`);
+                return;
+            }
+
+            if (existingIdx >= 0) {
+                newItems[existingIdx].qty += requestedQty;
+            } else {
+                newItems.push({
+                    variantId: v.id,
+                    itemName: `${v.item?.name} (${v.size?.name || v.sizeName})`,
+                    size: v.size?.name || v.sizeName,
+                    qty: requestedQty,
+                    unitPrice: (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)
+                });
+            }
+        }
+
+        setForm({ ...form, items: newItems });
+        setRetailInput({ ...retailInput, size: '', qty: 1 });
+    };
+
+    const currentSelectedStock = retailInput.size
+        ? getAvailableStockForSize(retailInput.category, retailInput.clothingType, retailInput.size)
+        : null;
+    const isOutOfStock = currentSelectedStock !== null && currentSelectedStock <= 0;
+
     const addItem = () => {
         if (!retailInput.category || !retailInput.clothingType || !retailInput.size || retailInput.qty < 1) {
             alert('Mohon lengkapi pilihan kategori, jenis, ukuran, dan jumlah.');
             return;
         }
 
-        const newItems = [...form.items];
-        let targetVariants = [];
-
-        if (retailInput.clothingType === 'SEMUA_SETELAN') {
-            targetVariants = availableVariants.filter(v => v.item?.category?.name === retailInput.category && (v.size?.name || v.sizeName) === retailInput.size);
-        } else {
-            targetVariants = availableVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType && (v.size?.name || v.sizeName) === retailInput.size);
+        const stock = getAvailableStockForSize(retailInput.category, retailInput.clothingType, retailInput.size);
+        if (stock <= 0) {
+            alert(`Mohon maaf, seragam ukuran ${retailInput.size} saat ini tidak tersedia di gudang kami karena masih dalam proses penjahitan ke Vendor dan belum dapat dipesan.`);
+            return;
         }
+
+        const requestedQty = parseInt(retailInput.qty);
+        if (requestedQty > stock) {
+            alert(`Jumlah pesanan (${requestedQty} pcs) melebihi stok yang tersedia di gudang (${stock} pcs).`);
+            return;
+        }
+
+        const newItems = [...form.items];
+        let targetVariants = getSelectedTargetVariants(retailInput.category, retailInput.clothingType, retailInput.size);
 
         if (targetVariants.length === 0) {
             alert('Barang tidak ditemukan di database dengan ukuran tersebut.');
             return;
         }
 
-        targetVariants.forEach(v => {
-            newItems.push({
-                variantId: v.id,
-                itemName: `${v.item?.name} (${v.size?.name || v.sizeName})`,
-                size: v.size?.name || v.sizeName,
-                qty: parseInt(retailInput.qty),
-                unitPrice: (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)
-            });
-        });
+        for (const v of targetVariants) {
+            const vStock = getVariantTotalStock(v);
+            const existingIdx = newItems.findIndex(it => it.variantId === v.id);
+            const currentCartQty = existingIdx >= 0 ? newItems[existingIdx].qty : 0;
+
+            if (currentCartQty + requestedQty > vStock) {
+                alert(`Jumlah dalam keranjang untuk "${v.item?.name}" (${currentCartQty + requestedQty} pcs) melebihi stok gudang (${vStock} pcs).`);
+                return;
+            }
+
+            if (existingIdx >= 0) {
+                newItems[existingIdx].qty += requestedQty;
+            } else {
+                newItems.push({
+                    variantId: v.id,
+                    itemName: `${v.item?.name} (${v.size?.name || v.sizeName})`,
+                    size: v.size?.name || v.sizeName,
+                    qty: requestedQty,
+                    unitPrice: (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)
+                });
+            }
+        }
 
         setForm({ ...form, items: newItems });
         setRetailInput({ ...retailInput, size: '', qty: 1 });
     };
 
     const getSizePriceStr = (sizeName) => {
-        let targets = [];
-        if (retailInput.clothingType === 'SEMUA_SETELAN') {
-            targets = availableVariants.filter(v => v.item?.category?.name === retailInput.category && (v.size?.name || v.sizeName) === sizeName);
-        } else {
-            targets = availableVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType && (v.size?.name || v.sizeName) === sizeName);
-        }
+        let targets = getSelectedTargetVariants(retailInput.category, retailInput.clothingType, sizeName);
         if (targets.length === 0) return '';
         const totalPrice = targets.reduce((sum, v) => {
             const price = (v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0);
@@ -144,9 +252,37 @@ export default function UniformOrderPublic() {
         return ` - Rp ${totalPrice.toLocaleString('id-ID')}`;
     };
 
+    const getSizeLabelInfo = (sizeName) => {
+        const priceStr = getSizePriceStr(sizeName);
+        if (retailInput.clothingType === 'SEMUA_SETELAN') {
+            const sb = getSetelanBreakdown(retailInput.category, retailInput.clothingType, sizeName);
+            if (sb) {
+                if (sb.allOutOfStock) return `${sizeName}${priceStr} [STOK HABIS - JAHIT VENDOR]`;
+                if (sb.isPartial) return `${sizeName}${priceStr} [SETELAN TIDAK LENGKAP - Sebagian Tersedia]`;
+                const minStock = Math.min(...sb.available.map(v => getVariantTotalStock(v)));
+                return `${sizeName}${priceStr} (Setelan Lengkap: ${minStock})`;
+            }
+        }
+        const stock = getAvailableStockForSize(retailInput.category, retailInput.clothingType, sizeName);
+        if (stock <= 0) {
+            return `${sizeName}${priceStr} [STOK HABIS - JAHIT VENDOR]`;
+        }
+        return `${sizeName}${priceStr} (Tersedia: ${stock})`;
+    };
+
     const updateItemQty = (idx, qty) => {
         const newItems = [...form.items];
-        newItems[idx].qty = parseInt(qty) || 1;
+        const item = newItems[idx];
+        const v = variants.find(variant => variant.id === item.variantId);
+        const vStock = getVariantTotalStock(v);
+        const parsedQty = parseInt(qty) || 1;
+
+        if (vStock > 0 && parsedQty > vStock) {
+            alert(`Jumlah melebihi stok yang tersedia di gudang (${vStock} pcs).`);
+            item.qty = vStock;
+        } else {
+            item.qty = parsedQty;
+        }
         setForm({ ...form, items: newItems });
     };
 
@@ -162,8 +298,22 @@ export default function UniformOrderPublic() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (form.items.length === 0) {
+        if (form.items.length === 0 && namaDadaPutihQty === 0 && namaDadaCoklatQty === 0) {
             return alert('Keranjang pesanan masih kosong.');
+        }
+
+        // Validasi stok seluruh item seragam (tidak berlaku untuk nama dada)
+        for (const it of form.items) {
+            const v = variants.find(variant => variant.id === it.variantId);
+            const vStock = getVariantTotalStock(v);
+            if (vStock <= 0) {
+                alert(`Mohon maaf, stok untuk "${it.itemName}" sedang tidak tersedia karena masih dalam proses penjahitan ke Vendor dan belum dapat dipesan. Silakan hapus item tersebut dari keranjang.`);
+                return;
+            }
+            if (it.qty > vStock) {
+                alert(`Jumlah pesanan untuk "${it.itemName}" (${it.qty} pcs) melebihi stok yang tersedia (${vStock} pcs). Silakan sesuaikan jumlah pesanan.`);
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -370,27 +520,181 @@ export default function UniformOrderPublic() {
                                 )}
                             </SelectField>
 
-                            <SelectField label="Ukuran" value={retailInput.size} onChange={e => setRetailInput({ ...retailInput, size: e.target.value })} disabled={!retailInput.clothingType}>
+                            <SelectField label="Ukuran" value={retailInput.size} onChange={e => setRetailInput({ ...retailInput, size: e.target.value, qty: 1 })} disabled={!retailInput.clothingType}>
                                 <option value="">-- Ukuran --</option>
-                                {availableSizes.map(s => (
-                                    <option key={s} value={s}>
-                                        {s}{getSizePriceStr(s)}
-                                    </option>
-                                ))}
+                                {availableSizes.map(s => {
+                                    const stock = getAvailableStockForSize(retailInput.category, retailInput.clothingType, s);
+                                    const isSetelan = retailInput.clothingType === 'SEMUA_SETELAN';
+                                    const sb = isSetelan ? getSetelanBreakdown(retailInput.category, retailInput.clothingType, s) : null;
+                                    const isPartial = sb?.isPartial;
+                                    return (
+                                        <option 
+                                            key={s} 
+                                            value={s} 
+                                            className={stock <= 0 ? (isPartial ? 'text-blue-700 bg-blue-50/50' : 'text-amber-700 bg-amber-50/50') : ''}
+                                        >
+                                            {getSizeLabelInfo(s)}
+                                        </option>
+                                    );
+                                })}
                             </SelectField>
 
-                            <InputField type="number" min="1" label="Jumlah" value={retailInput.qty} onChange={e => setRetailInput({ ...retailInput, qty: e.target.value })} disabled={!retailInput.size} />
+                            <InputField 
+                                type="number" 
+                                min="1" 
+                                max={Math.max(1, (isPartialSet ? availableComponentsMaxStock : currentSelectedStock) || 1)}
+                                label="Jumlah" 
+                                value={retailInput.qty} 
+                                onChange={e => {
+                                    const maxAllowed = isPartialSet ? availableComponentsMaxStock : currentSelectedStock;
+                                    const val = parseInt(e.target.value) || 1;
+                                    if (maxAllowed && val > maxAllowed) {
+                                        alert(`Jumlah melebihi stok yang tersedia (${maxAllowed} pcs).`);
+                                        setRetailInput({ ...retailInput, qty: maxAllowed });
+                                    } else {
+                                        setRetailInput({ ...retailInput, qty: val });
+                                    }
+                                }} 
+                                disabled={!retailInput.size || (isOutOfStock && !isPartialSet)} 
+                            />
 
                             <div className="flex items-end pt-1">
-                                <button type="button" onClick={addItem} className="w-full h-[46px] flex items-center justify-center gap-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50" disabled={!retailInput.size}>
-                                    <Plus size={18} /> Tambah
+                                <button 
+                                    type="button" 
+                                    onClick={addItem} 
+                                    className={`w-full h-[46px] flex items-center justify-center gap-2 font-bold rounded-xl transition shadow-xs text-xs sm:text-sm ${
+                                        isOutOfStock 
+                                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300' 
+                                            : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+                                    }`} 
+                                    disabled={!retailInput.size || isOutOfStock}
+                                >
+                                    {isOutOfStock ? (
+                                        isPartialSet ? (
+                                            <>
+                                                <AlertCircle size={16} className="text-amber-600" /> 
+                                                <span className="text-slate-600">Setelan Tidak Lengkap</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <X size={16} /> Stok Habis
+                                            </>
+                                        )
+                                    ) : (
+                                        <>
+                                            <Plus size={18} /> Tambah
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
 
-                        {retailInput.size && (
-                            <div className="text-sm font-bold text-slate-700 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 inline-block">
-                                Estimasi Harga Satuan: <span className="text-blue-600 text-lg font-black">{getSizePriceStr(retailInput.size).replace(' - ', '')}</span>
+                        {/* Banner Peringatan Stok Kosong / Jahit Vendor & Tawaran Pesan yang Tersedia Saja */}
+                        {isOutOfStock && isPartialSet && setelanBreakdown && (
+                            <div className="p-5 bg-gradient-to-br from-amber-50/70 via-blue-50/40 to-emerald-50/50 border-2 border-amber-300/80 rounded-2xl space-y-4 animate-in fade-in duration-300 shadow-xs">
+                                <div className="flex items-start gap-3.5 text-amber-950">
+                                    <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5 shadow-xs">
+                                        <AlertCircle size={22} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-black flex flex-wrap items-center gap-2">
+                                            <span>Setelan Seragam Tidak Lengkap</span>
+                                            <span className="text-[10px] uppercase font-extrabold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300 tracking-wider">
+                                                Sebagian Jahit Vendor
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-amber-800 leading-relaxed">
+                                            Untuk ukuran <strong>{retailInput.size}</strong>, paket setelan lengkap tidak dapat dipesan utuh karena terdapat komponen seragam yang sedang habis di seluruh gudang dan dalam <strong>proses penjahitan ke Vendor</strong>.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Rincian Komponen */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                                        <div className="font-bold text-emerald-800 flex items-center gap-1.5">
+                                            <CheckCircle2 size={15} className="text-emerald-600" />
+                                            <span>Komponen yang Tersedia:</span>
+                                        </div>
+                                        <ul className="space-y-1.5 text-emerald-800 pl-4 list-disc">
+                                            {setelanBreakdown.available.map((v, i) => (
+                                                <li key={i} className="font-medium">
+                                                    <span className="font-bold">{v.item?.clothingType?.name || v.item?.name}</span> (Stok: <strong className="text-emerald-700">{getVariantTotalStock(v)} pcs</strong>)
+                                                    <span className="text-emerald-600 font-bold ml-1.5">Rp {((v.sellPrice !== null && v.sellPrice !== undefined) ? v.sellPrice : (v.item?.sellPrice || 0)).toLocaleString('id-ID')}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+                                    <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+                                        <div className="font-bold text-amber-800 flex items-center gap-1.5">
+                                            <AlertCircle size={15} className="text-amber-600" />
+                                            <span>Komponen Kosong (Jahit Vendor):</span>
+                                        </div>
+                                        <ul className="space-y-1.5 text-amber-800 pl-4 list-disc">
+                                            {setelanBreakdown.outOfStock.map((v, i) => (
+                                                <li key={i} className="font-medium">
+                                                    <span className="font-bold">{v.item?.clothingType?.name || v.item?.name}</span> — <em className="text-amber-700">Dalam proses penjahitan ke Vendor</em>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                {/* Tanya User: Mau pesan yang tersedia saja? */}
+                                <div className="p-4 bg-white/95 rounded-xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                                    <div className="space-y-0.5">
+                                        <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                            <span>Apakah Anda ingin memesan bagian yang tersedia saja?</span>
+                                        </p>
+                                        <p className="text-[11px] text-slate-500">
+                                            Hanya komponen yang tersedia di gudang yang akan ditambahkan ke keranjang pesanan.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={addAvailableOnly}
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs shrink-0 cursor-pointer"
+                                    >
+                                        <ShoppingCart size={15} />
+                                        <span>Pesan yang Tersedia Saja ({retailInput.qty} pcs - Rp {(availableComponentsPrice * (parseInt(retailInput.qty) || 1)).toLocaleString('id-ID')})</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Banner Peringatan Stok Kosong / Jahit Vendor (Jika bukan partial setelan atau stok semua item 0) */}
+                        {isOutOfStock && !isPartialSet && (
+                            <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-start gap-3.5 text-amber-900 animate-in fade-in duration-300">
+                                <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl shrink-0 mt-0.5 shadow-xs">
+                                    <AlertCircle size={22} />
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="text-sm font-black flex flex-wrap items-center gap-2">
+                                        <span>Stok Saat Ini Tidak Tersedia di Gudang</span>
+                                        <span className="text-[10px] uppercase font-extrabold bg-amber-200 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-300/60 tracking-wider">
+                                            Proses Jahit ke Vendor
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-amber-700 leading-relaxed">
+                                        Mohon maaf, seragam ukuran <strong>{retailInput.size}</strong> untuk pilihan ini saat ini tidak tersedia di seluruh gudang kami karena masih dalam <strong>proses penjahitan ke Vendor</strong>.
+                                    </p>
+                                    <p className="text-[11px] text-amber-600 font-semibold">
+                                        Pemesanan untuk barang ini belum dapat dilakukan terlebih dahulu. Silakan cek kembali secara berkala atau pilih ukuran lain yang tersedia.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {retailInput.size && !isOutOfStock && (
+                            <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-slate-700 bg-blue-50/50 p-3.5 rounded-xl border border-blue-100/50">
+                                <div>
+                                    Estimasi Harga: <span className="text-blue-600 text-lg font-black">{getSizePriceStr(retailInput.size).replace(' - ', '')}</span>
+                                </div>
+                                <div className="h-4 w-px bg-slate-300 hidden sm:block" />
+                                <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
+                                    Stok Tersedia: <strong>{currentSelectedStock} pcs</strong>
+                                </div>
                             </div>
                         )}
 

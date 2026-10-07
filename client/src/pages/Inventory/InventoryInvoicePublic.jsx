@@ -505,45 +505,138 @@ export default function InventoryInvoicePublic() {
   const handleQuickTogglePayment = async () => {
     if (!invoice) return;
     const isCurrentlyPaid = invoice.paymentStatus === 'PAID';
-    const newStatus = isCurrentlyPaid ? 'UNPAID' : 'PAID';
 
-    const confirm = await Swal.fire({
-      title: isCurrentlyPaid ? 'Tandai BELUM LUNAS?' : 'Tandai LUNAS?',
+    if (isCurrentlyPaid) {
+      const confirm = await Swal.fire({
+        title: 'Tandai BELUM LUNAS?',
+        html: `
+          <div class="text-left text-xs space-y-2 text-slate-600">
+            <p>Ubah status pembayaran faktur <b>${invoice.code}</b> (${invoice.requesterName}) menjadi:</p>
+            <div class="p-2.5 rounded-xl font-bold text-center text-sm bg-rose-50 border border-rose-300 text-rose-800">
+              ⏳ BELUM LUNAS (UNPAID)
+            </div>
+            <p class="text-[11px] text-slate-400">Total Tagihan: <b>${formatRupiah(grandTotal)}</b></p>
+          </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Tandai Belum Lunas',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#e11d48'
+      });
+
+      if (!confirm.isConfirmed) return;
+
+      try {
+        const res = await api.put(`/inventory/orders/public/${invoice.id}/payment`, {
+          paymentStatus: 'UNPAID',
+          paidAmount: 0,
+          paidAt: null,
+          paymentMethod: null
+        });
+        setInvoice(res.data);
+        Swal.fire({
+          icon: 'success',
+          title: 'Status: BELUM LUNAS',
+          timer: 1200,
+          showConfirmButton: false
+        });
+      } catch (err) {
+        Swal.fire('Gagal', err.response?.data?.error || 'Gagal mengubah status pembayaran', 'error');
+      }
+      return;
+    }
+
+    // If currently UNPAID or PARTIAL, offer Lunas or Pelunasan Sebagian
+    const choice = await Swal.fire({
+      title: 'Pilih Status Pembayaran',
       html: `
         <div class="text-left text-xs space-y-2 text-slate-600">
-          <p>Ubah status pembayaran faktur <b>${invoice.code}</b> (${invoice.requesterName}) menjadi:</p>
-          <div class="p-2.5 rounded-xl font-bold text-center text-sm ${
-            newStatus === 'PAID' ? 'bg-emerald-50 border border-emerald-300 text-emerald-800' : 'bg-rose-50 border border-rose-300 text-rose-800'
-          }">
-            ${newStatus === 'PAID' ? '✓ LUNAS (PAID)' : '⏳ BELUM LUNAS (UNPAID)'}
+          <p>Pilih status pembayaran untuk faktur <b>${invoice.code}</b>:</p>
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center">
+            <span class="text-slate-500 text-[11px] block">Total Tagihan:</span>
+            <b class="text-sm text-blue-900 font-mono">${formatRupiah(grandTotal)}</b>
           </div>
-          <p class="text-[11px] text-slate-400">Total Tagihan: <b>${formatRupiah(grandTotal)}</b></p>
+          ${invoice.paymentStatus === 'PARTIAL' ? `<p class="text-blue-700 text-center font-bold text-xs">Saat ini sudah dibayar: ${formatRupiah(invoice.paidAmount || 0)}</p>` : ''}
         </div>
       `,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: newStatus === 'PAID' ? 'Ya, Tandai Lunas' : 'Ya, Belum Lunas',
+      showDenyButton: true,
+      confirmButtonText: '✓ Tandai LUNAS',
+      denyButtonText: '⚡ Pelunasan Sebagian...',
       cancelButtonText: 'Batal',
-      confirmButtonColor: newStatus === 'PAID' ? '#059669' : '#e11d48'
+      confirmButtonColor: '#059669',
+      denyButtonColor: '#2563eb'
     });
 
-    if (!confirm.isConfirmed) return;
+    if (choice.isConfirmed) {
+      try {
+        const res = await api.put(`/inventory/orders/public/${invoice.id}/payment`, {
+          paymentStatus: 'PAID',
+          paidAmount: grandTotal,
+          paidAt: new Date().toISOString(),
+          paymentMethod: invoice.paymentMethod || 'Tunai / Kasir'
+        });
+        setInvoice(res.data);
+        Swal.fire({
+          icon: 'success',
+          title: 'Faktur Ditandai LUNAS!',
+          timer: 1200,
+          showConfirmButton: false
+        });
+      } catch (err) {
+        Swal.fire('Gagal', err.response?.data?.error || 'Gagal menandai lunas', 'error');
+      }
+    } else if (choice.isDenied) {
+      const { value: partialVal } = await Swal.fire({
+        title: 'Input Nominal Pelunasan Sebagian',
+        html: `
+          <div class="text-left text-xs space-y-2 text-slate-600">
+            <p>Masukkan nominal uang yang telah diterima:</p>
+            <p class="text-[11px] text-slate-500">Total Faktur: <b>${formatRupiah(grandTotal)}</b></p>
+          </div>
+        `,
+        input: 'number',
+        inputValue: invoice.paidAmount || Math.round(grandTotal / 2),
+        inputAttributes: {
+          min: 1,
+          max: grandTotal,
+          step: 1000
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Simpan Pembayaran Sebagian',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#2563eb',
+        inputValidator: (val) => {
+          const num = Number(val);
+          if (!num || num <= 0) return 'Nominal pembayaran harus lebih besar dari 0!';
+          if (num > grandTotal) return `Nominal tidak boleh melebihi total faktur (${formatRupiah(grandTotal)})!`;
+        }
+      });
 
-    try {
-      const res = await api.put(`/inventory/orders/public/${invoice.id}/payment`, {
-        paymentStatus: newStatus,
-        paidAt: newStatus === 'PAID' ? new Date().toISOString() : null,
-        paymentMethod: newStatus === 'PAID' ? (invoice.paymentMethod || 'Tunai / Kasir') : null
-      });
-      setInvoice(res.data);
-      Swal.fire({
-        icon: 'success',
-        title: newStatus === 'PAID' ? 'Status: LUNAS' : 'Status: BELUM LUNAS',
-        timer: 1200,
-        showConfirmButton: false
-      });
-    } catch (err) {
-      Swal.fire('Gagal', err.response?.data?.error || 'Gagal mengubah status pembayaran', 'error');
+      if (partialVal) {
+        const num = Number(partialVal);
+        const status = num >= grandTotal ? 'PAID' : 'PARTIAL';
+        try {
+          const res = await api.put(`/inventory/orders/public/${invoice.id}/payment`, {
+            paymentStatus: status,
+            paidAmount: num,
+            paidAt: new Date().toISOString(),
+            paymentMethod: invoice.paymentMethod || 'Tunai / Kasir'
+          });
+          setInvoice(res.data);
+          Swal.fire({
+            icon: 'success',
+            title: status === 'PAID' ? 'Faktur LUNAS!' : 'Pelunasan Sebagian Disimpan!',
+            text: `Tercatat pembayaran sebesar ${formatRupiah(num)}`,
+            timer: 1500,
+            showConfirmButton: false
+          });
+        } catch (err) {
+          Swal.fire('Gagal', err.response?.data?.error || 'Gagal menyimpan pembayaran sebagian', 'error');
+        }
+      }
     }
   };
 
@@ -719,6 +812,10 @@ export default function InventoryInvoicePublic() {
                     <span className="inline-block border-2 border-emerald-600 text-emerald-700 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-50 rotate-[-2deg] shadow-xs print:border-emerald-700">
                       ✓ LUNAS
                     </span>
+                  ) : invoice.paymentStatus === 'PARTIAL' ? (
+                    <span className="inline-block border-2 border-blue-600 text-blue-700 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider bg-blue-50 rotate-[-1deg] shadow-xs print:border-blue-700">
+                      ⚡ SEBAGIAN
+                    </span>
                   ) : (
                     <span className={`inline-block border-2 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider rotate-[2deg] shadow-xs ${
                       isOrderOverdue(invoice)
@@ -791,6 +888,10 @@ export default function InventoryInvoicePublic() {
                         <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded text-[11px]">
                           ✓ LUNAS {invoice.paidAt ? `(${new Date(invoice.paidAt).toLocaleDateString('id-ID')})` : ''} {invoice.paymentMethod ? `- ${invoice.paymentMethod}` : ''}
                         </span>
+                      ) : invoice.paymentStatus === 'PARTIAL' ? (
+                        <span className="text-blue-800 font-black bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded text-[11px]">
+                          ⚡ SEBAGIAN (Dibayar: {formatRupiah(invoice.paidAmount || 0)} | Sisa: {formatRupiah(Math.max(0, grandTotal - (invoice.paidAmount || 0)))})
+                        </span>
                       ) : (
                         <span className="text-amber-800 font-black bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded text-[11px]">
                           ⏳ BELUM LUNAS
@@ -801,7 +902,7 @@ export default function InventoryInvoicePublic() {
                         onClick={handleQuickTogglePayment}
                         className="text-[10px] text-blue-600 hover:underline print:hidden font-bold cursor-pointer ml-1"
                       >
-                        [Tandai {invoice.paymentStatus === 'PAID' ? 'Belum Lunas' : 'Lunas'}]
+                        [Ubah Status]
                       </button>
                     </div>
                   </div>
@@ -898,13 +999,25 @@ export default function InventoryInvoicePublic() {
                   </div>
                 </div>
 
-                <div className="bg-white border-2 border-blue-600 rounded-2xl p-4 sm:px-6 sm:py-3.5 text-right shadow-sm w-full sm:w-auto shrink-0">
+                <div className="bg-white border-2 border-blue-600 rounded-2xl p-4 sm:px-6 sm:py-3.5 text-right shadow-sm w-full sm:w-auto shrink-0 space-y-1">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">
                     TOTAL TAGIHAN (HARGA JUAL)
                   </span>
                   <div className="text-xl sm:text-2xl font-mono font-black text-blue-700 tracking-tight">
                     {formatRupiah(grandTotal)}
                   </div>
+                  {invoice.paymentStatus === 'PARTIAL' && (
+                    <div className="pt-2 mt-1 border-t border-slate-200 text-xs font-bold space-y-0.5">
+                      <div className="flex justify-between gap-4 text-emerald-700">
+                        <span>Sudah Dibayar:</span>
+                        <span className="font-mono">{formatRupiah(invoice.paidAmount || 0)}</span>
+                      </div>
+                      <div className="flex justify-between gap-4 text-rose-600 font-black">
+                        <span>Sisa Tagihan:</span>
+                        <span className="font-mono">{formatRupiah(Math.max(0, grandTotal - (invoice.paidAmount || 0)))}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

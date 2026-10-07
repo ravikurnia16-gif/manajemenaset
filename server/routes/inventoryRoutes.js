@@ -4,17 +4,17 @@ const invCtrl = require('../controllers/inventoryController');
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const uploadMemory = multer({ storage: multer.memoryStorage() });
-const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
+const { verifyToken, optionalVerifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
 const isAdmin = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG', 'ADMIN_UNIT', 'ADMIN_PBG']);
 const isSuperAdminOrIT = authorizeRole(['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS']);
 
 // Public Invoice & Bukti Transaksi Endpoints
 router.get('/orders/public/staff-gudang', invCtrl.getStaffGudang);
-router.get('/orders/public/:id', invCtrl.getOrderById);
-router.put('/orders/public/:id/signatures', invCtrl.updateOrderSignaturesPublic);
-router.put('/orders/public/:id/receiver', invCtrl.updateOrderReceiver);
-router.put('/orders/public/:id/payment', invCtrl.updateOrderPayment);
+router.get('/orders/public/:id', optionalVerifyToken, invCtrl.getOrderById);
+router.put('/orders/public/:id/signatures', optionalVerifyToken, invCtrl.updateOrderSignaturesPublic);
+router.put('/orders/public/:id/receiver', optionalVerifyToken, invCtrl.updateOrderReceiver);
+router.put('/orders/public/:id/payment', optionalVerifyToken, invCtrl.updateOrderPayment);
 router.get('/transactions/public/:id', invCtrl.getTransactionById);
 
 router.use(verifyToken);

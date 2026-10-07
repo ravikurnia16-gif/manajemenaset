@@ -478,6 +478,18 @@ const assignDriver = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak. Hanya bagian Sarana dan Prasarana yang dapat menugaskan supir.' });
         }
 
+        if (driverId) {
+            const driverUser = await prisma.user.findUnique({
+                where: { id: parseInt(driverId) }
+            });
+            if (!driverUser) {
+                return res.status(404).json({ error: 'Driver tidak ditemukan.' });
+            }
+            if (!driverUser.canDriveBus) {
+                return res.status(400).json({ error: 'Driver ini hanya berwenang membawa Mobil dan belum memiliki wewenang mengemudikan Bus.' });
+            }
+        }
+
         const booking = await prisma.busBooking.update({
             where: { id: parseInt(id) },
             data: { driverId: driverId ? parseInt(driverId) : null },

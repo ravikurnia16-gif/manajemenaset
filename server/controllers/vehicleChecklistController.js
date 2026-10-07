@@ -46,6 +46,31 @@ exports.createChecklist = async (req, res) => {
                 status: status || 'SIAP JALAN'
             }
         });
+
+        // Auto-create maintenance damage ticket if vehicle needs repair
+        if (status === 'PERLU PERBAIKAN') {
+            try {
+                const driverUser = await prisma.user.findUnique({
+                    where: { id: driverId ? parseInt(driverId) : req.user.id }
+                });
+                await prisma.vehicleService.create({
+                    data: {
+                        vehicleId: parseInt(vehicleId),
+                        date: new Date(),
+                        category: 'INSIDENTAL',
+                        type: 'PERBAIKAN_KERUSAKAN',
+                        description: `[LAPORAN KERUSAKAN CEKLIS #${checklist.id} oleh ${driverUser?.name || 'Driver'}]: ${notes || `Temuan inspeksi ceklis ${type} armada perlu perbaikan`}`,
+                        cost: 0,
+                        workshop: 'Perlu Penanganan Sarpras',
+                        status: 'PENDING',
+                        requesterId: driverUser?.id || null
+                    }
+                });
+            } catch (ticketErr) {
+                console.error('Failed to auto-create vehicle service for checklist damage:', ticketErr.message);
+            }
+        }
+
         res.status(201).json({ message: 'Ceklis berhasil disimpan', data: checklist });
     } catch (err) {
         res.status(500).json({ error: err.message });

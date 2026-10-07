@@ -180,6 +180,53 @@ exports.requestBooking = async (req, res) => {
             }
         }
 
+        // Driver Validation according to vehicle type
+        const vType = (vehicle.type || '').toLowerCase();
+        const isRental = isRented === true || isRented === 'true';
+        let assignedDriverId = driverId ? parseInt(driverId) : null;
+
+        if (vType.includes('motor')) {
+            // Untuk jenis motor, otomatis bawa sendiri (userId)
+            assignedDriverId = userId;
+        } else if (!isRental && (vType.includes('mobil') || (!vType.includes('bus') && !vType.includes('motor')))) {
+            // Untuk jenis mobil peminjaman operasional (bukan sewa)
+            if (!assignedDriverId) {
+                return res.status(400).json({ error: 'Peminjaman kendaraan jenis Mobil wajib memilih driver resmi yang terdaftar.' });
+            }
+            const validDriver = await prisma.user.findFirst({
+                where: {
+                    id: assignedDriverId,
+                    OR: [
+                        { position: { contains: 'Sopir' } },
+                        { position: { contains: 'Driver' } }
+                    ]
+                }
+            });
+            if (!validDriver) {
+                return res.status(400).json({ error: 'Driver yang dipilih bukan merupakan driver resmi yang terdaftar dalam sistem.' });
+            }
+        } else if (vType.includes('bus')) {
+            // Untuk jenis bus, wajib memilih driver yang memiliki kualifikasi/wewenang bus
+            if (!assignedDriverId) {
+                return res.status(400).json({ error: 'Peminjaman kendaraan jenis Bus wajib memilih driver resmi.' });
+            }
+            const validDriver = await prisma.user.findFirst({
+                where: {
+                    id: assignedDriverId,
+                    OR: [
+                        { position: { contains: 'Sopir' } },
+                        { position: { contains: 'Driver' } }
+                    ]
+                }
+            });
+            if (!validDriver) {
+                return res.status(400).json({ error: 'Driver yang dipilih bukan merupakan driver resmi yang terdaftar dalam sistem.' });
+            }
+            if (!validDriver.canDriveBus) {
+                return res.status(400).json({ error: 'Driver yang dipilih hanya berwenang membawa Mobil dan belum memiliki wewenang mengemudikan Bus.' });
+            }
+        }
+
         const booking = await prisma.vehicleBooking.create({
             data: {
                 vehicleId: parseInt(vehicleId),
@@ -189,11 +236,11 @@ exports.requestBooking = async (req, res) => {
                 startDate: new Date(startDate),
                 endDate: new Date(endDate),
                 passengerCount: parseInt(passengerCount) || 0,
-                driverId: driverId ? parseInt(driverId) : null,
+                driverId: assignedDriverId,
                 status: initialStatus,
                 startKm: finalStartKm,
                 tripStartTime,
-                isRented: isRented === true || isRented === 'true',
+                isRented: isRental,
                 rentalPrice: rentalPrice ? parseFloat(rentalPrice) : null
             },
             include: {
@@ -630,7 +677,10 @@ exports.endTrip = async (req, res) => {
                     cost: 0,
                     odometer: parseInt(endKm),
                     proofFile: photoUrl,
-                    workshop: 'Perlu Penanganan Sarpras'
+                    complaintPhoto: photoUrl,
+                    workshop: 'Perlu Penanganan Sarpras',
+                    status: 'PENDING',
+                    requesterId: booking.userId
                 }
             });
             maintenanceId = serviceLog.id;

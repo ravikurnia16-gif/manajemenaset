@@ -87,3 +87,19 @@ exports.authorizePembangunanAccess = () => {
         next();
     };
 };
+
+exports.optionalVerifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    let token = authHeader && authHeader.split(' ')[1];
+    if (!token && req.query.token) {
+        token = req.query.token;
+    }
+    if (!token) return next();
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (!err && user) {
+            req.user = user;
+        }
+        next();
+    });
+};

@@ -3122,6 +3122,19 @@ exports.createSale = async (req, res) => {
                 let unitPrice = unitPriceOverride !== undefined ? unitPriceOverride : (variant.sellPrice || variant.item.sellPrice || 0);
 
                 const qty = parseInt(item.qty);
+
+                // Validasi stok untuk pesanan publik (RETAIL): jika stok kosong di seluruh gudang, tolak pemesanan
+                if (type === 'RETAIL') {
+                    const allStockAgg = await tx.uniformStock.aggregate({
+                        where: { variantId: parseInt(item.variantId) },
+                        _sum: { quantity: true }
+                    });
+                    const totalAllWarehouses = allStockAgg._sum.quantity || 0;
+                    if (totalAllWarehouses <= 0) {
+                        const szName = variant.sizeName || variant.size?.name || '';
+                        throw new Error(`Stok untuk "${variant.item.name}${szName ? ' (' + szName + ')' : ''}" sedang tidak tersedia di seluruh gudang kami karena masih dalam proses penjahitan ke Vendor dan belum dapat dipesan.`);
+                    }
+                }
                 const totalPrice = unitPrice * qty;
                 if (unitPriceOverride === undefined) { // Not SPMB/Unit Packages
                     subtotal += totalPrice;

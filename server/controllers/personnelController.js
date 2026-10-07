@@ -787,7 +787,7 @@ exports.getDrivers = async (req, res) => {
 
 exports.updateDriverInfo = async (req, res) => {
     const { id } = req.params;
-    const { licenseNumber, licenseType, licenseExpiry, driverStatus } = req.body;
+    const { licenseNumber, licenseType, licenseExpiry, driverStatus, canDriveBus } = req.body;
     const userRole = req.user.role;
 
     try {
@@ -800,6 +800,7 @@ exports.updateDriverInfo = async (req, res) => {
         if (licenseType !== undefined) data.licenseType = licenseType;
         if (licenseExpiry !== undefined) data.licenseExpiry = licenseExpiry ? new Date(licenseExpiry) : null;
         if (driverStatus !== undefined) data.driverStatus = driverStatus;
+        if (canDriveBus !== undefined) data.canDriveBus = (canDriveBus === true || canDriveBus === 'true' || canDriveBus === 1 || canDriveBus === '1');
 
         const updated = await prisma.user.update({
             where: { id: parseInt(id) },

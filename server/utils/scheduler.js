@@ -143,6 +143,18 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
+        // 2e. TECHNICIAN DAILY MAINTENANCE REMINDER (Daily at 07:45 AM / 07:45 WIB)
+        // ----------------------------------------------------
+        if (hour === 7 && minute === 45) {
+            console.log('[Scheduler] Executing Technician Daily Maintenance Notification at 07:45...');
+            try {
+                await sendDailyTechnicianMaintenanceNotification();
+            } catch (err) {
+                console.error('[Scheduler] Error in Technician Daily Maintenance Notification:', err);
+            }
+        }
+
+        // ----------------------------------------------------
         // 3. VEHICLE CHECKS (Daily at 09:00 AM)
         // ----------------------------------------------------
         if (hour === 9 && minute === 0) {
@@ -175,11 +187,6 @@ const initScheduler = () => {
                 await checkUnrespondedReports();
             } catch (err) {
                 console.error('[Scheduler] Error in Unresponded Reports Check:', err);
-            }
-            try {
-                await sendDailyTechnicianMaintenanceNotification();
-            } catch (err) {
-                console.error('[Scheduler] Error in Technician Daily Maintenance Notification:', err);
             }
         }
 

@@ -1084,16 +1084,21 @@ const notifyOrderUpdate = async (orderId, updateType, details = {}) => {
             waText = `📢 *UPDATE STATUS PESANAN GUDANG*\n\nHalo *${order.requesterName}*,\n\nPesanan barang Anda *${orderCode}* telah diperbarui:\nStatus: *${label}*\n${details.note ? `Catatan: ${details.note}\n` : ''}\nSilakan periksa detail pesanan di sistem Manajemen Aset:\n${process.env.CLIENT_URL || 'https://sarpras.dareliman.or.id'}/inventory/pesanan`;
         } else if (updateType === 'PAYMENT') {
             const isPaid = details.paymentStatus === 'PAID';
+            const isPartial = details.paymentStatus === 'PARTIAL';
             notifType = isPaid ? 'SUCCESS' : 'INFO';
-            title = isPaid ? `Pembayaran Lunas: ${orderCode}` : `Update Pembayaran: ${orderCode}`;
+            title = isPaid 
+                ? `Pembayaran Lunas: ${orderCode}` 
+                : (isPartial ? `Pembayaran Sebagian: ${orderCode}` : `Update Pembayaran: ${orderCode}`);
             message = isPaid 
                 ? `Faktur pesanan ${orderCode} telah ditandai LUNAS via ${details.paymentMethod || 'Tunai/Kasir'}. Terima kasih!`
-                : `Faktur pesanan ${orderCode} berstatus BELUM LUNAS.${details.dueDate ? ` Jatuh tempo: ${new Date(details.dueDate).toLocaleDateString('id-ID')}.` : ''}`;
+                : (isPartial 
+                    ? `Faktur pesanan ${orderCode} telah dibayar sebagian sebesar Rp ${Number(details.paidAmount || 0).toLocaleString('id-ID')}.${details.dueDate ? ` Batas pelunasan (jatuh tempo): ${new Date(details.dueDate).toLocaleDateString('id-ID')}.` : ''}`
+                    : `Faktur pesanan ${orderCode} berstatus BELUM LUNAS.${details.dueDate ? ` Jatuh tempo: ${new Date(details.dueDate).toLocaleDateString('id-ID')}.` : ''}`);
             if (details.paymentNote) {
                 message += ` Catatan: ${details.paymentNote}`;
             }
 
-            waText = `💳 *UPDATE PEMBAYARAN PESANAN GUDANG*\n\nHalo *${order.requesterName}*,\n\nKode Pesanan: *${orderCode}*\nStatus Pembayaran: *${isPaid ? '✓ LUNAS' : '⏳ BELUM LUNAS'}*\n${isPaid ? `Metode: ${details.paymentMethod || 'Tunai/Kasir'}\n` : (details.dueDate ? `Jatuh Tempo: ${new Date(details.dueDate).toLocaleDateString('id-ID')}\n` : '')}${details.paymentNote ? `Catatan: ${details.paymentNote}\n` : ''}\nTerima kasih atas kerja samanya.`;
+            waText = `💳 *UPDATE PEMBAYARAN PESANAN GUDANG*\n\nHalo *${order.requesterName}*,\n\nKode Pesanan: *${orderCode}*\nStatus Pembayaran: *${isPaid ? '✓ LUNAS' : (isPartial ? '⚡ SEBAGIAN (PARSIAL)' : '⏳ BELUM LUNAS')}*\n${isPartial && details.paidAmount ? `Jumlah Dibayar: Rp ${Number(details.paidAmount).toLocaleString('id-ID')}\n` : ''}${isPaid || isPartial ? `Metode: ${details.paymentMethod || 'Tunai/Kasir'}\n` : ''}${details.dueDate ? `Jatuh Tempo: ${new Date(details.dueDate).toLocaleDateString('id-ID')}\n` : ''}${details.paymentNote ? `Catatan: ${details.paymentNote}\n` : ''}\nTerima kasih atas kerja samanya.`;
         } else if (updateType === 'SIGNATURE') {
             const sigType = details.type;
             const action = details.action;
@@ -1158,10 +1163,12 @@ const parseOrderSignatures = (order) => {
     let displayNote = order.note || '';
     let dueDate = null;
     let paymentStatus = 'UNPAID';
+    let paidAmount = 0;
     let paidAt = null;
     let paymentMethod = null;
     let paymentNote = null;
     let paymentUpdatedBy = null;
+    let paymentHistory = [];
     let receiverName = null;
     let receiverPosition = null;
     let itemPrices = null;
@@ -1185,14 +1192,18 @@ const parseOrderSignatures = (order) => {
                 displayNote = parsed.note !== undefined ? parsed.note : (parsed.text || '');
                 dueDate = parsed.dueDate || null;
                 paymentStatus = parsed.paymentStatus || 'UNPAID';
+                totalAmount = parsed.totalAmount !== undefined && parsed.totalAmount !== null ? Number(parsed.totalAmount) : null;
+                paidAmount = parsed.paidAmount !== undefined 
+                    ? Number(parsed.paidAmount) 
+                    : (paymentStatus === 'PAID' ? (totalAmount || 0) : 0);
                 paidAt = parsed.paidAt || null;
                 paymentMethod = parsed.paymentMethod || null;
                 paymentNote = parsed.paymentNote || null;
                 paymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                paymentHistory = Array.isArray(parsed.paymentHistory) ? parsed.paymentHistory : [];
                 receiverName = parsed.receiverName || null;
                 receiverPosition = parsed.receiverPosition || null;
                 itemPrices = parsed.itemPrices || null;
-                totalAmount = parsed.totalAmount || null;
                 signatures = {
                     requester: parsed.signatures?.requester || null,
                     deliverer: parsed.signatures?.deliverer || null,
@@ -1228,10 +1239,12 @@ const parseOrderSignatures = (order) => {
         displayNote,
         dueDate,
         paymentStatus,
+        paidAmount,
         paidAt,
         paymentMethod,
         paymentNote,
         paymentUpdatedBy,
+        paymentHistory,
         receiverName,
         receiverPosition,
         signatures,
@@ -1306,6 +1319,10 @@ exports.getOrders = async (req, res) => {
             if (paymentStatus === 'OVERDUE') {
                 const now = new Date();
                 parsedOrders = parsedOrders.filter(o => o.paymentStatus !== 'PAID' && o.dueDate && new Date(o.dueDate) < now);
+            } else if (paymentStatus === 'PARTIAL') {
+                parsedOrders = parsedOrders.filter(o => o.paymentStatus === 'PARTIAL');
+            } else if (paymentStatus === 'UNPAID') {
+                parsedOrders = parsedOrders.filter(o => o.paymentStatus === 'UNPAID');
             } else {
                 parsedOrders = parsedOrders.filter(o => o.paymentStatus === paymentStatus);
             }
@@ -2275,8 +2292,8 @@ exports.updateOrderSignaturesPublic = async (req, res) => {
 // ==========================================
 exports.updateOrderPayment = async (req, res) => {
     const { id } = req.params;
-    const { paymentStatus, dueDate, paidAt, paymentMethod, paymentNote } = req.body;
-    // paymentStatus: 'PAID' | 'UNPAID'
+    const { paymentStatus, dueDate, paidAt, paymentMethod, paymentNote, paidAmount, newPayment } = req.body;
+    // paymentStatus: 'PAID' | 'PARTIAL' | 'UNPAID'
 
     // 2. User selain admin aset dan super admin tidak diizinkan mengubah status pembayaran (Hanya lihat)
     const isAdmin = req.user && ['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role);
@@ -2302,10 +2319,12 @@ exports.updateOrderPayment = async (req, res) => {
         let currentSignatures = { requester: null, deliverer: null, kabid: null };
         let currentDueDate = null;
         let currentPaymentStatus = 'UNPAID';
+        let currentPaidAmount = 0;
         let currentPaidAt = null;
         let currentPaymentMethod = null;
         let currentPaymentNote = null;
         let currentPaymentUpdatedBy = null;
+        let currentPaymentHistory = [];
         let parsedMeta = {};
 
         if (order.note) {
@@ -2317,10 +2336,14 @@ exports.updateOrderPayment = async (req, res) => {
                     currentSignatures = { ...currentSignatures, ...(parsed.signatures || {}) };
                     currentDueDate = parsed.dueDate || null;
                     currentPaymentStatus = parsed.paymentStatus || 'UNPAID';
+                    currentPaidAmount = parsed.paidAmount !== undefined 
+                        ? Number(parsed.paidAmount) 
+                        : (currentPaymentStatus === 'PAID' ? (Number(parsed.totalAmount) || 0) : 0);
                     currentPaidAt = parsed.paidAt || null;
                     currentPaymentMethod = parsed.paymentMethod || null;
                     currentPaymentNote = parsed.paymentNote || null;
                     currentPaymentUpdatedBy = parsed.paymentUpdatedBy || null;
+                    currentPaymentHistory = Array.isArray(parsed.paymentHistory) ? parsed.paymentHistory : [];
                 } else {
                     currentNoteText = order.note;
                 }
@@ -2331,20 +2354,48 @@ exports.updateOrderPayment = async (req, res) => {
 
         const newPaymentStatus = paymentStatus !== undefined ? paymentStatus : currentPaymentStatus;
         const newDueDate = dueDate !== undefined ? (dueDate || null) : currentDueDate;
-        const newPaidAt = newPaymentStatus === 'PAID' ? (paidAt || currentPaidAt || new Date().toISOString()) : null;
-        const newPaymentMethod = newPaymentStatus === 'PAID' ? (paymentMethod !== undefined ? paymentMethod : (currentPaymentMethod || 'Tunai / Kasir')) : null;
-        const newPaymentNote = paymentNote !== undefined ? paymentNote : currentPaymentNote;
         const newPaymentUpdatedBy = req.user ? (req.user.name || req.user.username) : (currentPaymentUpdatedBy || 'Petugas');
+
+        let newPaidAmount = currentPaidAmount;
+        if (paidAmount !== undefined) {
+            newPaidAmount = Number(paidAmount);
+        } else if (newPaymentStatus === 'PAID') {
+            newPaidAmount = currentPaidAmount > 0 ? currentPaidAmount : (Number(parsedMeta.totalAmount) || 0);
+        } else if (newPaymentStatus === 'UNPAID') {
+            newPaidAmount = 0;
+        }
+
+        // Simpan riwayat cicilan baru bila ada
+        if (newPayment && typeof newPayment === 'object' && Number(newPayment.amount) > 0) {
+            currentPaymentHistory.push({
+                amount: Number(newPayment.amount),
+                paidAt: newPayment.paidAt || new Date().toISOString(),
+                paymentMethod: newPayment.paymentMethod || 'Tunai / Kasir',
+                paymentNote: newPayment.paymentNote || '',
+                updatedBy: newPaymentUpdatedBy,
+                createdAt: new Date().toISOString()
+            });
+            if (paidAmount === undefined) {
+                newPaidAmount = currentPaymentHistory.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+            }
+        }
+
+        const isPaidOrPartial = newPaymentStatus === 'PAID' || newPaymentStatus === 'PARTIAL';
+        const newPaidAt = isPaidOrPartial ? (paidAt || currentPaidAt || new Date().toISOString()) : null;
+        const newPaymentMethod = isPaidOrPartial ? (paymentMethod !== undefined ? paymentMethod : (currentPaymentMethod || 'Tunai / Kasir')) : null;
+        const newPaymentNote = paymentNote !== undefined ? paymentNote : currentPaymentNote;
 
         const updatedNote = JSON.stringify({
             ...parsedMeta,
             note: currentNoteText,
             dueDate: newDueDate,
             paymentStatus: newPaymentStatus,
+            paidAmount: newPaidAmount,
             paidAt: newPaidAt,
             paymentMethod: newPaymentMethod,
             paymentNote: newPaymentNote,
             paymentUpdatedBy: newPaymentUpdatedBy,
+            paymentHistory: currentPaymentHistory,
             signatures: currentSignatures
         });
 
@@ -2360,6 +2411,7 @@ exports.updateOrderPayment = async (req, res) => {
         // 3. Notifikasi update pembayaran & jatuh tempo kepada user pemohon
         notifyOrderUpdate(order.id, 'PAYMENT', { 
             paymentStatus: newPaymentStatus, 
+            paidAmount: newPaidAmount,
             dueDate: newDueDate, 
             paymentMethod: newPaymentMethod, 
             paymentNote: newPaymentNote 

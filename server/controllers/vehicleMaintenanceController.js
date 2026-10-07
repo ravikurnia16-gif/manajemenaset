@@ -35,6 +35,93 @@ exports.getAllMaintenanceLogs = async (req, res) => {
             }
         }
 
+        // 1. Auto-sync any incident reports from VehicleBooking where maintenance ticket is missing
+        try {
+            const orphanIncidentBookings = await prisma.vehicleBooking.findMany({
+                where: {
+                    hasIncident: true,
+                    OR: [
+                        { maintenanceId: null },
+                        { maintenanceId: 0 }
+                    ]
+                },
+                include: {
+                    vehicle: true,
+                    user: true
+                }
+            });
+
+            for (const b of orphanIncidentBookings) {
+                try {
+                    const newLog = await prisma.vehicleService.create({
+                        data: {
+                            vehicleId: b.vehicleId,
+                            date: b.tripEndTime || b.updatedAt || new Date(),
+                            category: 'INSIDENTAL',
+                            type: 'PERBAIKAN_KERUSAKAN',
+                            description: `[LAPORAN INSIDEN JALAN oleh ${b.user?.name || 'Driver'}]: ${b.incidentNotes || 'Insiden / kerusakan dilaporkan saat perjalanan'}`,
+                            cost: 0,
+                            odometer: b.endKm || null,
+                            proofFile: b.incidentPhoto || null,
+                            complaintPhoto: b.incidentPhoto || null,
+                            workshop: 'Perlu Penanganan Sarpras',
+                            status: 'PENDING',
+                            requesterId: b.userId || null
+                        }
+                    });
+                    await prisma.vehicleBooking.update({
+                        where: { id: b.id },
+                        data: { maintenanceId: newLog.id }
+                    });
+                } catch (bErr) {
+                    console.error('Failed to sync incident booking:', bErr.message);
+                }
+            }
+        } catch (syncErr) {
+            console.error('Orphan incident sync check failed:', syncErr.message);
+        }
+
+        // 2. Auto-sync vehicle checklists with status 'PERLU PERBAIKAN'
+        try {
+            const damageChecklists = await prisma.vehicleChecklist.findMany({
+                where: {
+                    status: 'PERLU PERBAIKAN'
+                },
+                include: {
+                    vehicle: true,
+                    driver: true
+                }
+            });
+
+            for (const c of damageChecklists) {
+                const checklistMarker = `[LAPORAN KERUSAKAN CEKLIS #${c.id}`;
+                const exists = await prisma.vehicleService.findFirst({
+                    where: {
+                        vehicleId: c.vehicleId,
+                        description: { contains: checklistMarker }
+                    }
+                });
+
+                if (!exists) {
+                    await prisma.vehicleService.create({
+                        data: {
+                            vehicleId: c.vehicleId,
+                            date: c.date || c.createdAt || new Date(),
+                            category: 'INSIDENTAL',
+                            type: 'PERBAIKAN_KERUSAKAN',
+                            description: `[LAPORAN KERUSAKAN CEKLIS #${c.id} oleh ${c.driver?.name || 'Driver'}]: ${c.notes || `Temuan inspeksi ceklis ${c.type} armada perlu perbaikan`}`,
+                            cost: 0,
+                            workshop: 'Perlu Penanganan Sarpras',
+                            status: 'PENDING',
+                            requesterId: c.driverId || null
+                        }
+                    });
+                }
+            }
+        } catch (cSyncErr) {
+            console.error('Checklist damage sync failed:', cSyncErr.message);
+        }
+
         const logs = await prisma.vehicleService.findMany({
             where,
             include: {

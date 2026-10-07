@@ -6,6 +6,7 @@ import {
     Clock, ShieldCheck, Printer, ArrowRight, AlertCircle, FileText, ChevronRight
 } from 'lucide-react';
 import api from '../../lib/axios';
+import { getMediaUrl } from '../../lib/media';
 import * as XLSX from 'xlsx';
 
 // Modal Alur Pemeliharaan Kendaraan
@@ -88,24 +89,107 @@ const VehicleMaintenanceList = () => {
         if (!log) return false;
         const type = (log.type || '').toUpperCase();
         const category = (log.category || '').toUpperCase();
-        const desc = (log.description || '');
-        return type === 'PERBAIKAN_KERUSAKAN' || 
-               category === 'INSIDENTAL' || 
-               desc.includes('[LAPORAN INSIDEN JALAN') ||
-               desc.toLowerCase().includes('insiden');
+        const desc = (log.description || '').toLowerCase();
+        const workshop = (log.workshop || '').toLowerCase();
+
+        // 1. Direct flags
+        if (log.hasIncident || log.isIncident || log.incidentNotes || log.incidentPhoto) return true;
+
+        // 2. Incident description markers
+        if (
+            desc.includes('[laporan insiden') || 
+            desc.includes('[laporan kerusakan') || 
+            desc.includes('insiden')
+        ) {
+            return true;
+        }
+
+        // 3. Category match (NON_ROUTINE in UI is labeled "Insidentil / Kerusakan", INSIDENTAL, INCIDENTAL, KERUSAKAN)
+        if (category === 'INSIDENTAL' || category === 'INCIDENTAL' || category === 'KERUSAKAN') {
+            return true;
+        }
+        if (category === 'NON_ROUTINE') {
+            // Exclude routine tax or pure oil changes if mistakenly marked non-routine
+            if (type !== 'PAJAK' && type !== 'GANTI_OLI' && type !== 'SERVICE_RUTIN') {
+                return true;
+            }
+        }
+
+        // 4. Type match (PERBAIKAN, PERBAIKAN_KERUSAKAN, KERUSAKAN, BODY, REPAIR, etc.)
+        if (
+            type === 'PERBAIKAN_KERUSAKAN' || 
+            type === 'PERBAIKAN' || 
+            type === 'KERUSAKAN' || 
+            type.includes('KERUSAKAN') || 
+            type.includes('PERBAIKAN') || 
+            type.includes('INSIDEN') || 
+            type.includes('REPAIR') || 
+            type.includes('BODY') || 
+            type.includes('DARURAT')
+        ) {
+            return true;
+        }
+
+        // 5. Description keywords indicating vehicle damage or defects
+        const damageKeywords = [
+            'kerusakan',
+            'rusak',
+            'tabrak',
+            'nabrak',
+            'penyok',
+            'lecet',
+            'bocor',
+            'patah',
+            'pecah',
+            'mogok',
+            'darurat',
+            'emergency',
+            'perlu penanganan',
+            'perlu perbaikan'
+        ];
+        if (damageKeywords.some(kw => desc.includes(kw))) {
+            return true;
+        }
+
+        // 6. Workshop or urgency markers
+        if (workshop.includes('perlu penanganan sarpras') || (log.urgency === 'EMERGENCY' && (log.complaintPhoto || log.proofFile))) {
+            return true;
+        }
+
+        return false;
     };
 
-    // Helper ekstrak info pelapor dari deskripsi insiden
-    const parseIncidentInfo = (desc = '') => {
-        const match = desc.match(/\[LAPORAN INSIDEN JALAN oleh (.*?)\]:\s*(.*)/i);
+    // Helper ekstrak foto bukti / keluhan
+    const getLogPhoto = (log) => {
+        if (!log) return null;
+        return log.proofFile || log.complaintPhoto || log.incidentPhoto || log.photo || null;
+    };
+
+    // Helper ekstrak info pelapor dari deskripsi insiden / log pemeliharaan
+    const parseIncidentInfo = (logOrDesc) => {
+        if (!logOrDesc) return { reporter: null, notes: '-' };
+        
+        let desc = '';
+        let reporterFallback = null;
+        
+        if (typeof logOrDesc === 'string') {
+            desc = logOrDesc;
+        } else {
+            desc = logOrDesc.description || '';
+            reporterFallback = logOrDesc.requester?.name || logOrDesc.reporterName || logOrDesc.driver?.name || logOrDesc.user?.name || null;
+        }
+
+        // Regex match: [LAPORAN INSIDEN JALAN oleh ...], [LAPORAN KERUSAKAN CEKLIS oleh ...], etc.
+        const match = desc.match(/\[(?:LAPORAN\s+)?(?:INSIDEN(?:\s+JALAN)?|KERUSAKAN(?:\s+CEKLIS)?)\s*(?:#\d+)?\s*oleh\s+(.*?)\]:\s*(.*)/i);
         if (match) {
             return {
                 reporter: match[1],
                 notes: match[2] || 'Tidak ada catatan tambahan'
             };
         }
+
         return {
-            reporter: null,
+            reporter: reporterFallback,
             notes: desc || 'Tidak ada deskripsi'
         };
     };
@@ -115,16 +199,16 @@ const VehicleMaintenanceList = () => {
     const nonIncidentLogs = logs.filter(l => !isIncidentLog(l));
 
     // Pengajuan Pemeliharaan (Alur Servis: PENDING, APPROVED, IN_PROGRESS, REJECTED, atau yang memiliki nomor SPK/kode PK)
-    const requestLogs = nonIncidentLogs.filter(l => 
+    const requestLogs = logs.filter(l => 
         l.status === 'PENDING' || 
         l.status === 'APPROVED' || 
         l.status === 'IN_PROGRESS' || 
         l.status === 'REJECTED' ||
         (l.code && l.code.startsWith('PK/')) ||
-        l.requesterId
+        (l.requesterId && l.status !== 'COMPLETED')
     );
 
-    // Riwayat Servis Selesai (COMPLETED)
+    // Riwayat Servis Selesai (COMPLETED routine / scheduled services)
     const maintenanceLogs = nonIncidentLogs.filter(l => 
         !l.status || l.status === 'COMPLETED'
     );
@@ -151,16 +235,22 @@ const VehicleMaintenanceList = () => {
         ? vehicles 
         : [...new Map(logs.map(log => [log.vehicle?.id, log.vehicle])).values()].filter(Boolean);
 
-    const filteredLogs = currentTabLogs.filter(log =>
-        (selectedVehicleId ? log.vehicle?.id === parseInt(selectedVehicleId) : true) &&
-        (log.vehicle?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.vehicle?.plateNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.spkNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.requester?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (log.description && log.description.toLowerCase().includes(searchTerm.toLowerCase())))
-    );
+    const filteredLogs = currentTabLogs.filter(log => {
+        if (selectedVehicleId && log.vehicle?.id !== parseInt(selectedVehicleId)) return false;
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        const incInfo = parseIncidentInfo(log);
+        return (
+            (log.vehicle?.name && log.vehicle.name.toLowerCase().includes(term)) ||
+            (log.vehicle?.plateNumber && log.vehicle.plateNumber.toLowerCase().includes(term)) ||
+            (log.type && log.type.toLowerCase().includes(term)) ||
+            (log.code && log.code.toLowerCase().includes(term)) ||
+            (log.spkNumber && log.spkNumber.toLowerCase().includes(term)) ||
+            (log.requester?.name && log.requester.name.toLowerCase().includes(term)) ||
+            (incInfo.reporter && incInfo.reporter.toLowerCase().includes(term)) ||
+            (log.description && log.description.toLowerCase().includes(term))
+        );
+    });
 
     const handleExport = () => {
         let exportData = [];
@@ -203,14 +293,15 @@ const VehicleMaintenanceList = () => {
         } else {
             sheetTitle = 'Laporan_Kerusakan_Insiden';
             exportData = filteredLogs.map((log, index) => {
-                const incInfo = parseIncidentInfo(log.description);
+                const incInfo = parseIncidentInfo(log);
                 return {
                     'No': index + 1,
                     'Tanggal': new Date(log.date).toLocaleDateString('id-ID'),
                     'Kendaraan': log.vehicle?.name || 'Tanpa Nama',
                     'Plat Nomor': log.vehicle?.plateNumber || '-',
-                    'Pelapor': incInfo.reporter || '-',
+                    'Pelapor': incInfo.reporter || log.requester?.name || '-',
                     'Deskripsi Kerusakan': incInfo.notes || '-',
+                    'Status Penanganan': (log.status === 'COMPLETED' || log.cost > 0) ? 'Sudah Ditangani' : 'Perlu Penanganan',
                     'Odometer (km)': log.odometer || 0,
                     'Bengkel': log.workshop || '-',
                     'Biaya (Rp)': log.cost || 0
@@ -821,8 +912,12 @@ const VehicleMaintenanceList = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {filteredLogs.map(log => {
-                                        const incInfo = parseIncidentInfo(log.description);
-                                        const isHandled = log.cost > 0 || (log.workshop && log.workshop !== 'Perlu Penanganan Sarpras');
+                                        const incInfo = parseIncidentInfo(log);
+                                        const photoUrl = getLogPhoto(log);
+                                        const isHandled = log.status === 'COMPLETED' || (log.cost > 0 && log.workshop && log.workshop !== 'Perlu Penanganan Sarpras');
+                                        const isPending = log.status === 'PENDING';
+                                        const isApproved = log.status === 'APPROVED';
+                                        const isInProgress = log.status === 'IN_PROGRESS';
 
                                         return (
                                             <tr key={log.id} className="hover:bg-rose-50/20 transition-colors group text-sm font-medium text-slate-600">
@@ -831,6 +926,11 @@ const VehicleMaintenanceList = () => {
                                                         <Calendar size={14} className="text-slate-400" />
                                                         <span>{new Date(log.date).toLocaleDateString('id-ID')}</span>
                                                     </div>
+                                                    {log.urgency && (
+                                                        <div className="mt-1">
+                                                            {renderUrgencyBadge(log.urgency)}
+                                                        </div>
+                                                    )}
                                                 </td>
 
                                                 <td className="px-6 py-4">
@@ -844,7 +944,7 @@ const VehicleMaintenanceList = () => {
                                                     <div className="space-y-1">
                                                         {incInfo.reporter && (
                                                             <div className="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
-                                                                👤 Pengemudi: {incInfo.reporter}
+                                                                👤 Pelapor: {incInfo.reporter}
                                                             </div>
                                                         )}
                                                         <p className="text-xs text-slate-800 font-semibold leading-relaxed break-words">
@@ -855,17 +955,21 @@ const VehicleMaintenanceList = () => {
 
                                                 {/* Bukti Foto */}
                                                 <td className="px-6 py-4 text-center">
-                                                    {log.proofFile ? (
+                                                    {photoUrl ? (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setPreviewPhoto(log.proofFile)}
+                                                            onClick={() => setPreviewPhoto(getMediaUrl(photoUrl))}
                                                             className="relative group/photo inline-block cursor-pointer overflow-hidden rounded-xl border border-slate-200 shadow-xs hover:border-blue-400 transition"
                                                             title="Klik untuk memperbesar foto bukti kerusakan"
                                                         >
                                                             <img 
-                                                                src={log.proofFile} 
+                                                                src={getMediaUrl(photoUrl)} 
                                                                 alt="Bukti Kerusakan" 
                                                                 className="w-14 h-14 object-cover group-hover/photo:scale-110 transition duration-300"
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = photoUrl;
+                                                                }}
                                                             />
                                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/photo:opacity-100 flex items-center justify-center text-white transition">
                                                                 <Eye size={16} />
@@ -878,7 +982,7 @@ const VehicleMaintenanceList = () => {
 
                                                 {/* KM */}
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="font-mono text-slate-700 font-bold">{log.odometer?.toLocaleString()} km</span>
+                                                    <span className="font-mono text-slate-700 font-bold">{log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}</span>
                                                 </td>
 
                                                 {/* Status & Biaya */}
@@ -889,9 +993,11 @@ const VehicleMaintenanceList = () => {
                                                                 <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full w-fit">
                                                                     <CheckCircle size={11} /> Sudah Ditangani
                                                                 </span>
-                                                                <span className="text-xs font-bold text-slate-800">
-                                                                    Rp {(log.cost || 0).toLocaleString('id-ID')}
-                                                                </span>
+                                                                {log.cost > 0 && (
+                                                                    <span className="text-xs font-bold text-slate-800">
+                                                                        Rp {log.cost.toLocaleString('id-ID')}
+                                                                    </span>
+                                                                )}
                                                                 {log.workshop && <span className="text-[10px] text-slate-400 truncate max-w-[140px]">{log.workshop}</span>}
                                                             </>
                                                         ) : (
@@ -900,7 +1006,7 @@ const VehicleMaintenanceList = () => {
                                                                     🔴 Perlu Penanganan
                                                                 </span>
                                                                 <span className="text-[11px] text-slate-400 italic">
-                                                                    Belum ada biaya perbaikan
+                                                                    {log.status === 'PENDING' ? 'Menunggu review / SPK' : 'Belum ada biaya perbaikan'}
                                                                 </span>
                                                             </>
                                                         )}
@@ -909,14 +1015,51 @@ const VehicleMaintenanceList = () => {
 
                                                 {/* Aksi */}
                                                 <td className="px-6 py-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1.5">
+                                                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                                        {isPending && isKabidSarana && (
+                                                            <button
+                                                                onClick={() => setReviewModalRequest(log)}
+                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                                                                title="Review dan TTE SPK Bengkel"
+                                                            >
+                                                                <ShieldCheck size={12} />
+                                                                <span>Review & TTE</span>
+                                                            </button>
+                                                        )}
+                                                        {isApproved && (
+                                                            <button
+                                                                onClick={() => setSpkModalService(log)}
+                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                                                                title="Cetak SPK Bengkel"
+                                                            >
+                                                                <Printer size={12} />
+                                                                <span>SPK</span>
+                                                            </button>
+                                                        )}
+                                                        {isInProgress && (
+                                                            <button
+                                                                onClick={() => setCompleteModalRequest(log)}
+                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                                                                title="Selesaikan Servis & Input Nota"
+                                                            >
+                                                                <CheckCircle2 size={12} />
+                                                                <span>Selesai</span>
+                                                            </button>
+                                                        )}
                                                         <button 
                                                             onClick={() => navigate(`/kendaraan/pemeliharaan/edit/${log.id}`)} 
-                                                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs" 
+                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs" 
                                                             title="Tindak lanjut dan input biaya perbaikan bengkel"
                                                         >
                                                             <Wrench size={12} />
                                                             <span>Tindak Lanjut</span>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => navigate(`/kendaraan/pemeliharaan/view/${log.id}`)}
+                                                            className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                                                            title="Lihat Rincian Lengkap"
+                                                        >
+                                                            <Eye size={15} />
                                                         </button>
                                                         <button 
                                                             onClick={() => handleDelete(log.id)} 
@@ -941,8 +1084,9 @@ const VehicleMaintenanceList = () => {
                     <div className="grid grid-cols-1 gap-4 lg:hidden">
                         {filteredLogs.map(log => {
                             const isInc = isIncidentLog(log);
-                            const incInfo = isInc ? parseIncidentInfo(log.description) : null;
-                            const isHandled = log.cost > 0 || (log.workshop && log.workshop !== 'Perlu Penanganan Sarpras');
+                            const incInfo = isInc ? parseIncidentInfo(log) : null;
+                            const photoUrl = getLogPhoto(log);
+                            const isHandled = log.status === 'COMPLETED' || (log.cost > 0 && log.workshop && log.workshop !== 'Perlu Penanganan Sarpras');
                             const isReq = activeTab === 'requests';
 
                             return (
@@ -982,7 +1126,7 @@ const VehicleMaintenanceList = () => {
                                             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Odometer</span>
                                             <div className="flex items-center gap-2 text-xs text-slate-700 font-medium">
                                                 <Car size={13} className="text-blue-500" />
-                                                {log.odometer?.toLocaleString()} km
+                                                {log.odometer ? `${log.odometer.toLocaleString()} km` : '-'}
                                             </div>
                                         </div>
                                     </div>
@@ -1007,26 +1151,17 @@ const VehicleMaintenanceList = () => {
                                         </div>
 
                                         {/* Foto */}
-                                        <div className="flex gap-2 pt-1">
-                                            {log.complaintPhoto && (
+                                        {photoUrl && (
+                                            <div className="flex gap-2 pt-1">
                                                 <button
                                                     type="button"
-                                                    onClick={() => setPreviewPhoto(log.complaintPhoto)}
+                                                    onClick={() => setPreviewPhoto(getMediaUrl(photoUrl))}
                                                     className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 cursor-pointer"
                                                 >
-                                                    <Image size={13} /> Foto Keluhan
+                                                    <Image size={13} /> {log.complaintPhoto ? 'Foto Keluhan / Kerusakan' : log.incidentPhoto ? 'Foto Insiden' : 'Foto Bukti'}
                                                 </button>
-                                            )}
-                                            {log.proofFile && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setPreviewPhoto(log.proofFile)}
-                                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 cursor-pointer"
-                                                >
-                                                    <Image size={13} /> Foto Nota
-                                                </button>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Aksi Mobile */}

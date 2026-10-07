@@ -119,6 +119,7 @@ model User {
   licenseType      String? // e.g., SIM A, SIM B1, SIM B2
   licenseExpiry    DateTime?
   driverStatus     String            @default("AVAILABLE") // AVAILABLE, ON_TRIP, OFF
+  canDriveBus      Boolean           @default(false) // Wewenang Mengemudi (false: Mobil Saja, true: Mobil & Bus)
   driverViolations   DriverViolation[]
   vehicleChecklists  VehicleChecklist[] @relation("ChecklistDriver")
 

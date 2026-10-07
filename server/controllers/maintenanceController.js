@@ -1562,7 +1562,7 @@ const buildTechnicianWhatsAppMessages = ({
 };
 
 /**
- * Scheduled Task / API Controller:
+ * Scheduled Task (Setiap hari pukul 07:38 WIB via scheduler.js) / API Controller:
  * 1. Mengidentifikasi user ID yang memiliki posisi 'Staff Teknisi Aset'.
  * 2. Mengambil semua perawatan/pemeliharaan yang ditugaskan kepada masing-masing teknisi.
  * 3. Mengirimkan notifikasi harian melalui In-App Bell, Web Push, dan WhatsApp.

@@ -54,7 +54,9 @@ export default function InventoryOrders() {
   const [paymentModal, setPaymentModal] = useState({
     isOpen: false,
     order: null,
-    paymentStatus: 'UNPAID', // 'PAID' | 'UNPAID'
+    paymentStatus: 'UNPAID', // 'PAID' | 'PARTIAL' | 'UNPAID'
+    paidAmount: 0,
+    totalAmount: 0,
     dueDate: '',
     paidAt: '',
     paymentMethod: 'Tunai / Kasir',
@@ -726,6 +728,25 @@ export default function InventoryOrders() {
         </span>
       );
     }
+    if (order.paymentStatus === 'PARTIAL') {
+      const orderTotal = calculateOrderTotal(order);
+      const paid = order.paidAmount || 0;
+      const pct = orderTotal > 0 ? Math.min(100, Math.round((paid / orderTotal) * 100)) : 0;
+      const isOverdue = isOrderOverdue(order);
+      return (
+        <span 
+          className={`inline-flex items-center gap-1 border px-2.5 py-0.5 rounded-full text-[11px] font-extrabold shadow-2xs ${
+            isOverdue 
+              ? 'bg-amber-100 text-rose-900 border-rose-300 animate-pulse' 
+              : 'bg-blue-50 text-blue-900 border-blue-300'
+          }`} 
+          title={`Sudah dibayar ${formatRupiah(paid)} dari ${formatRupiah(orderTotal)} (${pct}%)${isOverdue ? ' - Lewat Jatuh Tempo' : ''}`}
+        >
+          <CreditCard size={11} className={isOverdue ? 'text-rose-600 shrink-0' : 'text-blue-600 shrink-0'} />
+          <span>⚡ SEBAGIAN ({pct}%)</span>
+        </span>
+      );
+    }
     if (isOrderOverdue(order)) {
       return (
         <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 border border-rose-300 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold shadow-2xs animate-pulse" title="Melewati batas waktu jatuh tempo">
@@ -744,10 +765,17 @@ export default function InventoryOrders() {
 
   // Open Payment Modal
   const openPaymentModal = (order) => {
+    const total = calculateOrderTotal(order);
+    const initialPaid = order.paidAmount !== undefined 
+      ? Number(order.paidAmount) 
+      : (order.paymentStatus === 'PAID' ? total : 0);
+
     setPaymentModal({
       isOpen: true,
       order,
       paymentStatus: order.paymentStatus || 'UNPAID',
+      paidAmount: initialPaid,
+      totalAmount: total,
       dueDate: order.dueDate ? new Date(order.dueDate).toISOString().split('T')[0] : '',
       paidAt: order.paidAt ? new Date(order.paidAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       paymentMethod: order.paymentMethod || 'Tunai / Kasir',
@@ -763,13 +791,36 @@ export default function InventoryOrders() {
     if (e && e.preventDefault) e.preventDefault();
     if (!paymentModal.order) return;
 
+    const total = paymentModal.totalAmount || calculateOrderTotal(paymentModal.order);
+    let finalStatus = paymentModal.paymentStatus;
+    let finalPaidAmount = Number(paymentModal.paidAmount || 0);
+
+    if (finalStatus === 'PAID') {
+      finalPaidAmount = total > 0 ? total : finalPaidAmount;
+    } else if (finalStatus === 'UNPAID') {
+      finalPaidAmount = 0;
+    } else if (finalStatus === 'PARTIAL') {
+      if (finalPaidAmount <= 0) {
+        return Swal.fire('Perhatian', 'Untuk status Pelunasan Sebagian, masukkan jumlah nominal yang telah dibayarkan.', 'warning');
+      }
+      if (total > 0 && finalPaidAmount >= total) {
+        finalStatus = 'PAID';
+        finalPaidAmount = total;
+      }
+    }
+
     setSavingPayment(true);
     try {
       const res = await api.put(`/inventory/orders/${paymentModal.order.id}/payment`, {
-        paymentStatus: paymentModal.paymentStatus,
+        paymentStatus: finalStatus,
+        paidAmount: finalPaidAmount,
         dueDate: paymentModal.dueDate || null,
-        paidAt: paymentModal.paymentStatus === 'PAID' ? (paymentModal.paidAt ? new Date(paymentModal.paidAt).toISOString() : new Date().toISOString()) : null,
-        paymentMethod: paymentModal.paymentStatus === 'PAID' ? paymentModal.paymentMethod : null,
+        paidAt: (finalStatus === 'PAID' || finalStatus === 'PARTIAL') 
+          ? (paymentModal.paidAt ? new Date(paymentModal.paidAt).toISOString() : new Date().toISOString()) 
+          : null,
+        paymentMethod: (finalStatus === 'PAID' || finalStatus === 'PARTIAL') 
+          ? paymentModal.paymentMethod 
+          : null,
         paymentNote: paymentModal.paymentNote
       });
 
@@ -781,7 +832,9 @@ export default function InventoryOrders() {
 
       Swal.fire({
         icon: 'success',
-        title: updated.paymentStatus === 'PAID' ? 'Faktur Ditandai LUNAS!' : 'Ditandai BELUM LUNAS',
+        title: updated.paymentStatus === 'PAID' 
+          ? 'Faktur Ditandai LUNAS!' 
+          : (updated.paymentStatus === 'PARTIAL' ? 'Pelunasan Sebagian Disimpan!' : 'Ditandai BELUM LUNAS'),
         text: `Status pembayaran faktur ${updated.code} berhasil diperbarui.`,
         timer: 1500,
         showConfirmButton: false
@@ -797,49 +850,98 @@ export default function InventoryOrders() {
   const handleQuickTogglePayment = async (order) => {
     if (!order) return;
     const isCurrentlyPaid = order.paymentStatus === 'PAID';
-    const newStatus = isCurrentlyPaid ? 'UNPAID' : 'PAID';
 
-    const confirm = await Swal.fire({
-      title: isCurrentlyPaid ? 'Tandai BELUM LUNAS?' : 'Tandai LUNAS?',
-      html: `
-        <div class="text-left text-xs space-y-2 text-slate-600">
-          <p>Ubah status pembayaran faktur <b>${order.code}</b> (${order.requesterName}) menjadi:</p>
-          <div class="p-2.5 rounded-xl font-bold text-center text-sm ${
-            newStatus === 'PAID' ? 'bg-emerald-50 border border-emerald-300 text-emerald-800' : 'bg-rose-50 border border-rose-300 text-rose-800'
-          }">
-            ${newStatus === 'PAID' ? '✓ LUNAS (PAID)' : '⏳ BELUM LUNAS (UNPAID)'}
+    if (isCurrentlyPaid) {
+      const confirm = await Swal.fire({
+        title: 'Tandai BELUM LUNAS?',
+        html: `
+          <div class="text-left text-xs space-y-2 text-slate-600">
+            <p>Ubah status pembayaran faktur <b>${order.code}</b> (${order.requesterName}) menjadi:</p>
+            <div class="p-2.5 rounded-xl font-bold text-center text-sm bg-rose-50 border border-rose-300 text-rose-800">
+              ⏳ BELUM LUNAS (UNPAID)
+            </div>
+            <p class="text-[11px] text-slate-400">Total Tagihan: <b>${formatRupiah(calculateOrderTotal(order))}</b></p>
           </div>
-          <p class="text-[11px] text-slate-400">Total Tagihan: <b>${formatRupiah(calculateOrderTotal(order))}</b></p>
-        </div>
-      `,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: newStatus === 'PAID' ? 'Ya, Tandai Lunas' : 'Ya, Belum Lunas',
-      cancelButtonText: 'Batal',
-      confirmButtonColor: newStatus === 'PAID' ? '#059669' : '#e11d48'
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-      const res = await api.put(`/inventory/orders/${order.id}/payment`, {
-        paymentStatus: newStatus,
-        paidAt: newStatus === 'PAID' ? new Date().toISOString() : null,
-        paymentMethod: newStatus === 'PAID' ? (order.paymentMethod || 'Tunai / Kasir') : null
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Tandai Belum Lunas',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#e11d48'
       });
-      const updated = res.data;
-      setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
-      if (invoiceModalOrder && invoiceModalOrder.id === updated.id) setInvoiceModalOrder(updated);
-      if (selectedOrder && selectedOrder.id === updated.id) setSelectedOrder(updated);
 
-      Swal.fire({
-        icon: 'success',
-        title: newStatus === 'PAID' ? 'Status: LUNAS' : 'Status: BELUM LUNAS',
-        timer: 1200,
-        showConfirmButton: false
+      if (!confirm.isConfirmed) return;
+
+      try {
+        const res = await api.put(`/inventory/orders/${order.id}/payment`, {
+          paymentStatus: 'UNPAID',
+          paidAmount: 0,
+          paidAt: null,
+          paymentMethod: null
+        });
+        const updated = res.data;
+        setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+        if (invoiceModalOrder && invoiceModalOrder.id === updated.id) setInvoiceModalOrder(updated);
+        if (selectedOrder && selectedOrder.id === updated.id) setSelectedOrder(updated);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Status: BELUM LUNAS',
+          timer: 1200,
+          showConfirmButton: false
+        });
+      } catch (err) {
+        Swal.fire('Gagal', err.response?.data?.error || 'Gagal mengubah status pembayaran', 'error');
+      }
+    } else {
+      const result = await Swal.fire({
+        title: 'Atur Pembayaran Faktur',
+        html: `
+          <div class="text-left text-xs space-y-2 text-slate-600">
+            <p>Pilih tindakan pembayaran untuk faktur <b>${order.code}</b> (${order.requesterName}):</p>
+            <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <div>Total Tagihan: <b>${formatRupiah(calculateOrderTotal(order))}</b></div>
+              ${order.paymentStatus === 'PARTIAL' ? `<div>Sudah Dibayar: <b class="text-emerald-700">${formatRupiah(order.paidAmount || 0)}</b></div>` : ''}
+              ${order.paymentStatus === 'PARTIAL' ? `<div>Sisa Kurang: <b class="text-rose-700">${formatRupiah(Math.max(0, calculateOrderTotal(order) - (order.paidAmount || 0)))}</b></div>` : ''}
+            </div>
+          </div>
+        `,
+        icon: 'question',
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: '✓ Tandai LUNAS',
+        denyButtonText: '⚡ Pelunasan Sebagian...',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#059669',
+        denyButtonColor: '#2563eb'
       });
-    } catch (err) {
-      Swal.fire('Gagal', err.response?.data?.error || 'Gagal mengubah status pembayaran', 'error');
+
+      if (result.isConfirmed) {
+        const total = calculateOrderTotal(order);
+        try {
+          const res = await api.put(`/inventory/orders/${order.id}/payment`, {
+            paymentStatus: 'PAID',
+            paidAmount: total,
+            paidAt: new Date().toISOString(),
+            paymentMethod: order.paymentMethod || 'Tunai / Kasir'
+          });
+          const updated = res.data;
+          setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+          if (invoiceModalOrder && invoiceModalOrder.id === updated.id) setInvoiceModalOrder(updated);
+          if (selectedOrder && selectedOrder.id === updated.id) setSelectedOrder(updated);
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Status: LUNAS',
+            timer: 1200,
+            showConfirmButton: false
+          });
+        } catch (err) {
+          Swal.fire('Gagal', err.response?.data?.error || 'Gagal mengubah status pembayaran', 'error');
+        }
+      } else if (result.isDenied) {
+        openPaymentModal(order);
+      }
     }
   };
 
@@ -1357,8 +1459,11 @@ export default function InventoryOrders() {
     if (paymentFilter === 'PAID') {
       return o.paymentStatus === 'PAID';
     }
+    if (paymentFilter === 'PARTIAL') {
+      return o.paymentStatus === 'PARTIAL';
+    }
     if (paymentFilter === 'UNPAID') {
-      return o.paymentStatus !== 'PAID';
+      return o.paymentStatus === 'UNPAID';
     }
     if (paymentFilter === 'OVERDUE') {
       return isOrderOverdue(o);
@@ -1462,6 +1567,7 @@ export default function InventoryOrders() {
             <select 
               className={`border px-3 py-2 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs transition-all ${
                 paymentFilter === 'PAID' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                paymentFilter === 'PARTIAL' ? 'bg-blue-50 text-blue-800 border-blue-300' :
                 paymentFilter === 'OVERDUE' ? 'bg-rose-50 text-rose-800 border-rose-300' :
                 paymentFilter === 'UNPAID' ? 'bg-amber-50 text-amber-800 border-amber-300' :
                 'border-slate-200 bg-white text-slate-700'
@@ -1471,6 +1577,7 @@ export default function InventoryOrders() {
             >
               <option value="">-- Semua Pembayaran --</option>
               <option value="PAID">✓ Lunas (Paid)</option>
+              <option value="PARTIAL">⚡ Sebagian (Partial)</option>
               <option value="UNPAID">⏳ Belum Lunas (Unpaid)</option>
               <option value="OVERDUE">⚠️ Lewat Jatuh Tempo</option>
             </select>
@@ -1558,6 +1665,23 @@ export default function InventoryOrders() {
                                   • {new Date(order.paidAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                                 </span>
                               )}
+                            </div>
+                          ) : order.paymentStatus === 'PARTIAL' ? (
+                            <div className="text-[10.5px] space-y-0.5">
+                              <div className="font-semibold text-slate-600">
+                                Dibayar: <strong className="text-emerald-700 font-mono">{formatRupiah(order.paidAmount || 0)}</strong>
+                              </div>
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1 flex-wrap">
+                                <span>Sisa:</span>
+                                <strong className="text-rose-700 font-mono">
+                                  {formatRupiah(Math.max(0, calculateOrderTotal(order) - (order.paidAmount || 0)))}
+                                </strong>
+                                {order.dueDate && (
+                                  <span className={`ml-0.5 ${isOrderOverdue(order) ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
+                                    • Tempo: {new Date(order.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div className={`text-[10.5px] font-medium flex items-center gap-1 ${isOrderOverdue(order) ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
@@ -2251,8 +2375,12 @@ export default function InventoryOrders() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white p-3 rounded-xl border border-slate-200">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Status Pembayaran</span>
-                    <div className={`font-black text-xs flex items-center gap-1 ${selectedOrder.paymentStatus === 'PAID' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {selectedOrder.paymentStatus === 'PAID' ? '✓ SUDAH LUNAS' : '⏳ BELUM LUNAS'}
+                    <div className={`font-black text-xs flex items-center gap-1 ${
+                      selectedOrder.paymentStatus === 'PAID' ? 'text-emerald-700' :
+                      selectedOrder.paymentStatus === 'PARTIAL' ? 'text-blue-700' : 'text-amber-700'
+                    }`}>
+                      {selectedOrder.paymentStatus === 'PAID' ? '✓ SUDAH LUNAS' :
+                       selectedOrder.paymentStatus === 'PARTIAL' ? '⚡ PELUNASAN SEBAGIAN' : '⏳ BELUM LUNAS'}
                     </div>
                     {selectedOrder.paymentStatus === 'PAID' && (
                       <div className="text-[11px] text-slate-500 mt-0.5">
@@ -2260,6 +2388,13 @@ export default function InventoryOrders() {
                         {selectedOrder.paidAt && (
                           <span> • Tgl: {new Date(selectedOrder.paidAt).toLocaleDateString('id-ID')}</span>
                         )}
+                      </div>
+                    )}
+                    {selectedOrder.paymentStatus === 'PARTIAL' && (
+                      <div className="text-[11px] text-slate-600 mt-1 space-y-0.5">
+                        <div>Sudah Dibayar: <b className="text-emerald-700 font-mono">{formatRupiah(selectedOrder.paidAmount || 0)}</b></div>
+                        <div>Sisa Kurang: <b className="text-rose-700 font-mono">{formatRupiah(Math.max(0, calculateOrderTotal(selectedOrder) - (selectedOrder.paidAmount || 0)))}</b></div>
+                        <div className="text-[10px] text-slate-400">Metode: {selectedOrder.paymentMethod || 'Tunai / Kasir'}</div>
                       </div>
                     )}
                   </div>
@@ -3092,24 +3227,28 @@ export default function InventoryOrders() {
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
                         invoiceModalOrder.paymentStatus === 'PAID'
                           ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                          : invoiceModalOrder.paymentStatus === 'PARTIAL'
+                          ? 'bg-blue-50 text-blue-800 border border-blue-300 hover:bg-blue-100'
                           : 'bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100'
                       }`}
                       title="Ubah Status Pembayaran & Batas Jatuh Tempo"
                     >
                       <CreditCard size={14} />
-                      <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : 'Belum Lunas'}</span>
+                      <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : invoiceModalOrder.paymentStatus === 'PARTIAL' ? '⚡ Sebagian' : 'Belum Lunas'}</span>
                     </button>
                   ) : (
                     <div
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border shadow-2xs ${
                         invoiceModalOrder.paymentStatus === 'PAID'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : invoiceModalOrder.paymentStatus === 'PARTIAL'
+                          ? 'bg-blue-50 text-blue-800 border-blue-300'
                           : 'bg-amber-50 text-amber-800 border-amber-300'
                       }`}
                       title="Status Pembayaran (Hanya Lihat)"
                     >
                       <CreditCard size={14} />
-                      <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : 'Belum Lunas'}</span>
+                      <span>{invoiceModalOrder.paymentStatus === 'PAID' ? '✓ Lunas' : invoiceModalOrder.paymentStatus === 'PARTIAL' ? '⚡ Sebagian' : 'Belum Lunas'}</span>
                     </div>
                   )}
 
@@ -3203,6 +3342,10 @@ export default function InventoryOrders() {
                           <span className="inline-block border-2 border-emerald-600 text-emerald-700 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-50 rotate-[-2deg] shadow-xs">
                             ✓ LUNAS
                           </span>
+                        ) : invoiceModalOrder.paymentStatus === 'PARTIAL' ? (
+                          <span className="inline-block border-2 border-blue-600 text-blue-800 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-blue-50 rotate-[-1deg] shadow-xs">
+                            ⚡ SEBAGIAN
+                          </span>
                         ) : (
                           <span className={`inline-block border-2 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider rotate-[2deg] shadow-xs ${
                             isOrderOverdue(invoiceModalOrder)
@@ -3274,6 +3417,10 @@ export default function InventoryOrders() {
                             {invoiceModalOrder.paymentStatus === 'PAID' ? (
                               <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-[10.5px]">
                                 ✓ LUNAS {invoiceModalOrder.paidAt ? `(${new Date(invoiceModalOrder.paidAt).toLocaleDateString('id-ID')})` : ''} {invoiceModalOrder.paymentMethod ? `- ${invoiceModalOrder.paymentMethod}` : ''}
+                              </span>
+                            ) : invoiceModalOrder.paymentStatus === 'PARTIAL' ? (
+                              <span className="text-blue-800 font-black bg-blue-50 border border-blue-200 px-2 py-0.5 rounded text-[10.5px]">
+                                ⚡ SEBAGIAN (Dibayar: {formatRupiah(invoiceModalOrder.paidAmount || 0)} • Sisa: {formatRupiah(Math.max(0, calculateOrderTotal(invoiceModalOrder) - (invoiceModalOrder.paidAmount || 0)))})
                               </span>
                             ) : (
                               <span className="text-amber-800 font-black bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[10.5px]">
@@ -3384,13 +3531,23 @@ export default function InventoryOrders() {
                         </div>
                       </div>
 
-                      <div className="bg-white border-2 border-blue-600 rounded-2xl p-3 sm:px-5 sm:py-2.5 text-right shadow-sm w-full sm:w-auto shrink-0">
+                      <div className="bg-white border-2 border-blue-600 rounded-2xl p-3 sm:px-5 sm:py-2.5 text-right shadow-sm w-full sm:w-auto shrink-0 space-y-1">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">
                           TOTAL TAGIHAN (HARGA JUAL)
                         </span>
                         <div className="text-base sm:text-xl font-mono font-black text-blue-700 tracking-tight">
                           {formatRupiah(invoiceGrandTotal)}
                         </div>
+                        {invoiceModalOrder.paymentStatus === 'PARTIAL' && (
+                          <div className="pt-1.5 border-t border-slate-100 text-[11px] font-mono flex flex-col items-end gap-0.5">
+                            <span className="text-emerald-700 font-bold">
+                              Sudah Dibayar: {formatRupiah(invoiceModalOrder.paidAmount || 0)}
+                            </span>
+                            <span className="text-rose-700 font-black">
+                              Sisa Tagihan: {formatRupiah(Math.max(0, invoiceGrandTotal - (invoiceModalOrder.paidAmount || 0)))}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -4130,80 +4287,178 @@ export default function InventoryOrders() {
                 <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
                   Status Pelunasan Faktur:
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentModal(prev => ({ ...prev, paymentStatus: 'UNPAID' }))}
-                    className={`p-3 rounded-2xl border-2 flex items-center justify-center gap-2 font-black transition cursor-pointer ${
+                    onClick={() => setPaymentModal(prev => ({ ...prev, paymentStatus: 'UNPAID', paidAmount: 0 }))}
+                    className={`p-2.5 sm:p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 font-black transition cursor-pointer text-center ${
                       paymentModal.paymentStatus === 'UNPAID'
                         ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-sm ring-2 ring-amber-200'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-amber-200'
                     }`}
                   >
                     <Clock size={16} className={paymentModal.paymentStatus === 'UNPAID' ? 'text-amber-600' : 'text-slate-400'} />
-                    <span>BELUM LUNAS</span>
+                    <span className="text-[10px] sm:text-xs">BELUM LUNAS</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setPaymentModal(prev => ({ ...prev, paymentStatus: 'PAID' }))}
-                    className={`p-3 rounded-2xl border-2 flex items-center justify-center gap-2 font-black transition cursor-pointer ${
+                    onClick={() => {
+                      const total = paymentModal.totalAmount || calculateOrderTotal(paymentModal.order);
+                      const cur = paymentModal.paidAmount;
+                      const defaultPartial = (cur > 0 && cur < total) ? cur : Math.round(total / 2);
+                      setPaymentModal(prev => ({
+                        ...prev,
+                        paymentStatus: 'PARTIAL',
+                        paidAmount: defaultPartial
+                      }));
+                    }}
+                    className={`p-2.5 sm:p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 font-black transition cursor-pointer text-center ${
+                      paymentModal.paymentStatus === 'PARTIAL'
+                        ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-sm ring-2 ring-blue-200'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200'
+                    }`}
+                  >
+                    <CreditCard size={16} className={paymentModal.paymentStatus === 'PARTIAL' ? 'text-blue-600' : 'text-slate-400'} />
+                    <span className="text-[10px] sm:text-xs">SEBAGIAN</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const total = paymentModal.totalAmount || calculateOrderTotal(paymentModal.order);
+                      setPaymentModal(prev => ({
+                        ...prev,
+                        paymentStatus: 'PAID',
+                        paidAmount: total
+                      }));
+                    }}
+                    className={`p-2.5 sm:p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 font-black transition cursor-pointer text-center ${
                       paymentModal.paymentStatus === 'PAID'
                         ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm ring-2 ring-emerald-200'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200'
                     }`}
                   >
                     <CheckCircle size={16} className={paymentModal.paymentStatus === 'PAID' ? 'text-emerald-600' : 'text-slate-400'} />
-                    <span>✓ SUDAH LUNAS</span>
+                    <span className="text-[10px] sm:text-xs">SUDAH LUNAS</span>
                   </button>
                 </div>
               </div>
 
-              {/* Batas Waktu / Jatuh Tempo (Deadline) */}
-              <div>
-                <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Deadline Jatuh Tempo Pembayaran:</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Batas akhir pembayaran faktur</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
-                    value={paymentModal.dueDate}
-                    onChange={e => setPaymentModal(prev => ({ ...prev, dueDate: e.target.value }))}
-                  />
-                </div>
-                <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                  {[
-                    { label: 'Hari Ini', days: 0 },
-                    { label: '7 Hari', days: 7 },
-                    { label: '14 Hari', days: 14 },
-                    { label: '30 Hari', days: 30 }
-                  ].map(opt => (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => {
-                        const d = new Date();
-                        d.setDate(d.getDate() + opt.days);
-                        setPaymentModal(prev => ({ ...prev, dueDate: d.toISOString().split('T')[0] }));
-                      }}
-                      className="px-2 py-0.5 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-700 rounded-md text-[10px] font-bold border border-slate-200 transition cursor-pointer"
-                    >
-                      + {opt.label}
-                    </button>
-                  ))}
-                  {paymentModal.dueDate && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentModal(prev => ({ ...prev, dueDate: '' }))}
-                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-md text-[10px] font-bold border border-rose-200 transition cursor-pointer"
-                    >
-                      Kosongkan
-                    </button>
-                  )}
-                </div>
-              </div>
+              {/* Conditional Fields if SEBAGIAN (PARTIAL) */}
+              {paymentModal.paymentStatus === 'PARTIAL' && (() => {
+                const total = paymentModal.totalAmount || calculateOrderTotal(paymentModal.order) || 0;
+                const paid = Number(paymentModal.paidAmount) || 0;
+                const remaining = Math.max(0, total - paid);
+                const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
+
+                return (
+                  <div className="space-y-3 bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200 animate-in fade-in">
+                    <div className="font-extrabold text-blue-900 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <CreditCard size={14} className="text-blue-600" />
+                        <span>Rincian Pelunasan Sebagian:</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                        {pct}% Terbayar
+                      </span>
+                    </div>
+
+                    {/* Input Jumlah Bayar */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                        <span>Nominal Yang Dibayarkan (Rp):</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Total: Rp {formatRupiah(total)}</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={total}
+                          required
+                          placeholder="0"
+                          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                          value={paymentModal.paidAmount || ''}
+                          onChange={e => {
+                            const val = Math.max(0, Math.min(total, Number(e.target.value) || 0));
+                            setPaymentModal(prev => ({ ...prev, paidAmount: val }));
+                          }}
+                        />
+                      </div>
+
+                      {/* Preset Buttons */}
+                      <div className="flex gap-1.5 mt-2 flex-wrap items-center">
+                        <span className="text-[10px] text-slate-400 font-medium">Preset:</span>
+                        {[
+                          { label: '25%', factor: 0.25 },
+                          { label: '50% (Separuh)', factor: 0.5 },
+                          { label: '75%', factor: 0.75 }
+                        ].map(preset => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              const val = Math.round(total * preset.factor);
+                              setPaymentModal(prev => ({ ...prev, paidAmount: val }));
+                            }}
+                            className="px-2 py-0.5 bg-white hover:bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold border border-blue-200 transition cursor-pointer"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Ringkasan Perhitungan */}
+                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-white/90 rounded-xl border border-blue-100 text-[11px]">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-medium">Sudah Dibayar:</span>
+                        <span className="font-extrabold text-blue-700">Rp {formatRupiah(paid)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block font-medium">Sisa Kurang Bayar:</span>
+                        <span className="font-black text-rose-600">Rp {formatRupiah(remaining)}</span>
+                      </div>
+                    </div>
+
+                    {/* Tanggal & Metode */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Tanggal Bayar Sebagian:
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                          value={paymentModal.paidAt}
+                          onChange={e => setPaymentModal(prev => ({ ...prev, paidAt: e.target.value }))}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                          Metode Pembayaran:
+                        </label>
+                        <select
+                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                          value={paymentModal.paymentMethod}
+                          onChange={e => setPaymentModal(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                        >
+                          <option value="Tunai / Kasir">Tunai / Kasir Logistik</option>
+                          <option value="Transfer Bank BSI">Transfer Bank BSI</option>
+                          <option value="Transfer Bank Mandiri">Transfer Bank Mandiri</option>
+                          <option value="Transfer Bank Lainnya">Transfer Bank Lainnya</option>
+                          <option value="Potong Anggaran Unit">Potong Anggaran Unit</option>
+                          <option value="Potong Gaji Karyawan">Potong Gaji Karyawan</option>
+                          <option value="Lainnya">Lainnya</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Conditional Fields if LUNAS */}
               {paymentModal.paymentStatus === 'PAID' && (
@@ -4245,6 +4500,62 @@ export default function InventoryOrders() {
                         <option value="Lainnya">Lainnya</option>
                       </select>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Batas Waktu / Jatuh Tempo (Deadline) - only when UNPAID or PARTIAL */}
+              {paymentModal.paymentStatus !== 'PAID' && (
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                    <span>
+                      {paymentModal.paymentStatus === 'PARTIAL' 
+                        ? 'Deadline Jatuh Tempo Sisa Tagihan:' 
+                        : 'Deadline Jatuh Tempo Pembayaran:'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      {paymentModal.paymentStatus === 'PARTIAL' 
+                        ? 'Batas akhir pelunasan kekurangan' 
+                        : 'Batas akhir pembayaran faktur'}
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                      value={paymentModal.dueDate}
+                      onChange={e => setPaymentModal(prev => ({ ...prev, dueDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                    {[
+                      { label: 'Hari Ini', days: 0 },
+                      { label: '7 Hari', days: 7 },
+                      { label: '14 Hari', days: 14 },
+                      { label: '30 Hari', days: 30 }
+                    ].map(opt => (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + opt.days);
+                          setPaymentModal(prev => ({ ...prev, dueDate: d.toISOString().split('T')[0] }));
+                        }}
+                        className="px-2 py-0.5 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-700 rounded-md text-[10px] font-bold border border-slate-200 transition cursor-pointer"
+                      >
+                        + {opt.label}
+                      </button>
+                    ))}
+                    {paymentModal.dueDate && (
+                      <button
+                        type="button"
+                        onClick={() => setPaymentModal(prev => ({ ...prev, dueDate: '' }))}
+                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-md text-[10px] font-bold border border-rose-200 transition cursor-pointer"
+                      >
+                        Kosongkan
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

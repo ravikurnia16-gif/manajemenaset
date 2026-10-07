@@ -715,9 +715,12 @@ const BusBooking = () => {
                                                 onChange={(e) => handleAssignDriver(selectedBooking.id, e.target.value)}
                                                 disabled={assigning}
                                             >
-                                                <option value="">-- Pilih Supir --</option>
-                                                {drivers.map(d => (
-                                                    <option key={d.id} value={d.id}>{d.name} ({d.position})</option>
+                                                <option value="">-- Pilih Supir Bus --</option>
+                                                {drivers.filter(d => !!d.canDriveBus).map(d => (
+                                                    <option key={d.id} value={d.id}>{d.name} ({d.position}) - [Mobil & Bus]</option>
+                                                ))}
+                                                {drivers.filter(d => !d.canDriveBus).map(d => (
+                                                    <option key={d.id} value={d.id} disabled className="text-slate-400 bg-slate-100">{d.name} - (Hanya Mobil Saja)</option>
                                                 ))}
                                             </select>
                                         ) : (
