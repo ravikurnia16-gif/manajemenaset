@@ -600,6 +600,16 @@ const DailyReportFormTab = ({
                                                     <option key={d.key} value={d.key}>{d.label}</option>
                                                 ))}
                                             </select>
+                                            {point.sourceType === 'MAINTENANCE' && (
+                                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan modul Pemeliharaan">
+                                                    🔧 Pemeliharaan
+                                                </span>
+                                            )}
+                                            {point.sourceType === 'ASSIGNMENT' && (
+                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan Tab Penugasan">
+                                                    📋 Penugasan
+                                                </span>
+                                            )}
                                         </div>
                                         {morningPoints.length > 1 && (
                                             <button 
@@ -644,6 +654,7 @@ const DailyReportFormTab = ({
                                             onClick={() => {
                                                 const n = [...morningPoints];
                                                 n[index].status = 'COMPLETED';
+                                                n[index].progressPercentage = 100;
                                                 setMorningPoints(n);
                                             }}
                                             className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
@@ -659,6 +670,7 @@ const DailyReportFormTab = ({
                                             onClick={() => {
                                                 const n = [...morningPoints];
                                                 n[index].status = 'IN_PROGRESS';
+                                                if (!n[index].progressPercentage) n[index].progressPercentage = 50;
                                                 setMorningPoints(n);
                                             }}
                                             className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
@@ -667,7 +679,7 @@ const DailyReportFormTab = ({
                                                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                                             }`}
                                         >
-                                            <Clock size={12} /> Proses
+                                            <Clock size={12} /> Proses {point.progressPercentage ? `(${point.progressPercentage}%)` : '(50%)'}
                                         </button>
                                         <button
                                             type="button"
@@ -685,6 +697,60 @@ const DailyReportFormTab = ({
                                             <AlertTriangle size={12} /> Kendala ⚠️
                                         </button>
                                     </div>
+
+                                    {/* Quick Percentage Chips & Slider for In Progress */}
+                                    {point.status === 'IN_PROGRESS' && (
+                                        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-2.5 space-y-2 animate-in fade-in-50 duration-200">
+                                            <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                                                <span>Estimasi Capaian Progres:</span>
+                                                <span className="bg-amber-500 text-white px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs">
+                                                    {point.progressPercentage || 50}%
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                {[25, 50, 75, 90].map(pct => (
+                                                    <button
+                                                        key={pct}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const n = [...morningPoints];
+                                                            n[index].progressPercentage = pct;
+                                                            setMorningPoints(n);
+                                                        }}
+                                                        className={`py-1 px-1.5 rounded-lg text-[10px] sm:text-[11px] font-extrabold border transition-all cursor-pointer ${
+                                                            (point.progressPercentage || 50) === pct
+                                                                ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                                                                : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70'
+                                                        }`}
+                                                    >
+                                                        {pct}%
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <div className="space-y-0.5">
+                                                <input 
+                                                    type="range"
+                                                    min="10"
+                                                    max="90"
+                                                    step="5"
+                                                    value={point.progressPercentage || 50}
+                                                    onChange={(e) => {
+                                                        const n = [...morningPoints];
+                                                        n[index].progressPercentage = parseInt(e.target.value);
+                                                        setMorningPoints(n);
+                                                    }}
+                                                    className="w-full accent-amber-600 cursor-pointer h-1.5"
+                                                />
+                                                <div className="flex justify-between text-[9px] font-semibold text-slate-400">
+                                                    <span>10% (Mulai)</span>
+                                                    <span>50% (Separuh)</span>
+                                                    <span>90% (Hampir Selesai)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Activity Description */}
                                     <textarea
@@ -876,6 +942,16 @@ const DailyReportFormTab = ({
                                                     <option key={d.key} value={d.key}>{d.label}</option>
                                                 ))}
                                             </select>
+                                            {point.sourceType === 'MAINTENANCE' && (
+                                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan modul Pemeliharaan">
+                                                    🔧 Pemeliharaan
+                                                </span>
+                                            )}
+                                            {point.sourceType === 'ASSIGNMENT' && (
+                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan Tab Penugasan">
+                                                    📋 Penugasan
+                                                </span>
+                                            )}
                                         </div>
                                         {afternoonPoints.length > 1 && (
                                             <button 
@@ -920,6 +996,7 @@ const DailyReportFormTab = ({
                                             onClick={() => {
                                                 const n = [...afternoonPoints];
                                                 n[index].status = 'COMPLETED';
+                                                n[index].progressPercentage = 100;
                                                 setAfternoonPoints(n);
                                             }}
                                             className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
@@ -935,6 +1012,7 @@ const DailyReportFormTab = ({
                                             onClick={() => {
                                                 const n = [...afternoonPoints];
                                                 n[index].status = 'IN_PROGRESS';
+                                                if (!n[index].progressPercentage) n[index].progressPercentage = 50;
                                                 setAfternoonPoints(n);
                                             }}
                                             className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
@@ -943,7 +1021,7 @@ const DailyReportFormTab = ({
                                                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                                             }`}
                                         >
-                                            <Clock size={12} /> Proses
+                                            <Clock size={12} /> Proses {point.progressPercentage ? `(${point.progressPercentage}%)` : '(50%)'}
                                         </button>
                                         <button
                                             type="button"
@@ -961,6 +1039,60 @@ const DailyReportFormTab = ({
                                             <AlertTriangle size={12} /> Kendala ⚠️
                                         </button>
                                     </div>
+
+                                    {/* Quick Percentage Chips & Slider for In Progress */}
+                                    {point.status === 'IN_PROGRESS' && (
+                                        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-2.5 space-y-2 animate-in fade-in-50 duration-200">
+                                            <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                                                <span>Estimasi Capaian Progres:</span>
+                                                <span className="bg-amber-500 text-white px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs">
+                                                    {point.progressPercentage || 50}%
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                {[25, 50, 75, 90].map(pct => (
+                                                    <button
+                                                        key={pct}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const n = [...afternoonPoints];
+                                                            n[index].progressPercentage = pct;
+                                                            setAfternoonPoints(n);
+                                                        }}
+                                                        className={`py-1 px-1.5 rounded-lg text-[10px] sm:text-[11px] font-extrabold border transition-all cursor-pointer ${
+                                                            (point.progressPercentage || 50) === pct
+                                                                ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                                                                : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70'
+                                                        }`}
+                                                    >
+                                                        {pct}%
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <div className="space-y-0.5">
+                                                <input 
+                                                    type="range"
+                                                    min="10"
+                                                    max="90"
+                                                    step="5"
+                                                    value={point.progressPercentage || 50}
+                                                    onChange={(e) => {
+                                                        const n = [...afternoonPoints];
+                                                        n[index].progressPercentage = parseInt(e.target.value);
+                                                        setAfternoonPoints(n);
+                                                    }}
+                                                    className="w-full accent-amber-600 cursor-pointer h-1.5"
+                                                />
+                                                <div className="flex justify-between text-[9px] font-semibold text-slate-400">
+                                                    <span>10% (Mulai)</span>
+                                                    <span>50% (Separuh)</span>
+                                                    <span>90% (Hampir Selesai)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Activity Description */}
                                     <textarea

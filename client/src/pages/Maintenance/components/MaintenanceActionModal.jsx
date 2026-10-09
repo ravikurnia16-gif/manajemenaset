@@ -25,6 +25,10 @@ export default function MaintenanceActionModal({
     setTechnicianName,
     technicianPhone,
     setTechnicianPhone,
+    technicianId,
+    setTechnicianId,
+    progressPercentage = 50,
+    setProgressPercentage,
     userSearchQuery,
     setUserSearchQuery,
     assignUnitId,
@@ -108,6 +112,7 @@ export default function MaintenanceActionModal({
                                             setTechnicianType('internal');
                                             setTechnicianName('');
                                             setTechnicianPhone('');
+                                            if (setTechnicianId) setTechnicianId(null);
                                         }}
                                         className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
                                             technicianType === 'internal'
@@ -123,6 +128,7 @@ export default function MaintenanceActionModal({
                                             setTechnicianType('external');
                                             setTechnicianName('');
                                             setTechnicianPhone('');
+                                            if (setTechnicianId) setTechnicianId(null);
                                         }}
                                         className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
                                             technicianType === 'external'
@@ -176,6 +182,7 @@ export default function MaintenanceActionModal({
                                                         onClick={() => {
                                                             setTechnicianName(uName);
                                                             setTechnicianPhone(u.phone || '');
+                                                            if (setTechnicianId) setTechnicianId(u.id);
                                                         }}
                                                         className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 transition-all cursor-pointer ${
                                                             isSelected ? 'bg-blue-50 text-blue-900 border-l-4 border-blue-600' : 'hover:bg-slate-50'
@@ -218,6 +225,7 @@ export default function MaintenanceActionModal({
                                                 onClick={() => {
                                                     setTechnicianName('');
                                                     setTechnicianPhone('');
+                                                    if (setTechnicianId) setTechnicianId(null);
                                                 }}
                                                 className="p-1 text-slate-400 hover:text-red-600"
                                             >
@@ -291,6 +299,59 @@ export default function MaintenanceActionModal({
                     {/* COMPLETION / PROGRESS MODE */}
                     {(isCompletion || isProgress) && (
                         <div className="space-y-4">
+                            {/* Progress Percentage Selector (When updating progress) */}
+                            {isProgress && (
+                                <div className="bg-amber-50/90 border border-amber-200 p-3.5 rounded-2xl space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                                            <span>📊 Progres Pengerjaan Lapangan</span>
+                                        </label>
+                                        <span className="text-xs font-black px-2.5 py-0.5 rounded-lg bg-amber-500 text-white shadow-2xs">
+                                            {progressPercentage}%
+                                        </span>
+                                    </div>
+                                    
+                                    {/* Quick Chips Preset */}
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                        {[25, 50, 75, 90].map(pct => (
+                                            <button
+                                                key={pct}
+                                                type="button"
+                                                onClick={() => setProgressPercentage && setProgressPercentage(pct)}
+                                                className={`py-1.5 px-2 rounded-xl text-xs font-extrabold transition-all border cursor-pointer ${
+                                                    progressPercentage === pct
+                                                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs scale-102'
+                                                        : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70'
+                                                }`}
+                                            >
+                                                {pct}%
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Range Slider */}
+                                    <div className="space-y-1 pt-0.5">
+                                        <input 
+                                            type="range"
+                                            min="10"
+                                            max="90"
+                                            step="5"
+                                            value={progressPercentage || 50}
+                                            onChange={e => setProgressPercentage && setProgressPercentage(parseInt(e.target.value))}
+                                            className="w-full accent-amber-600 cursor-pointer h-2"
+                                        />
+                                        <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+                                            <span>10% (Mulai)</span>
+                                            <span>50% (Separuh)</span>
+                                            <span>90% (Hampir Selesai)</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10.5px] text-amber-800 font-medium italic">
+                                        * Progres ini otomatis terhubung ke Tab Penugasan dan Laporan Harian Anda hari ini.
+                                    </p>
+                                </div>
+                            )}
+
                             {report?.assets && report.assets.length > 1 ? (
                                 <div className="space-y-3">
                                     <div>

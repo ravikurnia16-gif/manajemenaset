@@ -402,12 +402,30 @@ const TeamMonitoringTab = ({
                                                                     <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[9px] font-black uppercase text-slate-600">
                                                                         {p.categoryTag || 'UMUM'}
                                                                     </span>
-                                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                                                    {p.sourceType === 'MAINTENANCE' && (
+                                                                        <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[9px] font-black uppercase text-indigo-700">
+                                                                            🔧 Pemeliharaan
+                                                                        </span>
+                                                                    )}
+                                                                    {p.sourceType === 'ASSIGNMENT' && (
+                                                                        <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[9px] font-black uppercase text-blue-700">
+                                                                            📋 Penugasan
+                                                                        </span>
+                                                                    )}
+                                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1 ${
                                                                         p.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
                                                                         p.status === 'OBSTACLE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
                                                                     }`}>
-                                                                        {p.status === 'COMPLETED' ? 'Selesai 100%' : p.status === 'OBSTACLE' ? 'Kendala' : 'Dalam Proses'}
+                                                                        {p.status === 'COMPLETED' ? 'Selesai 100%' : p.status === 'OBSTACLE' ? 'Kendala' : `Proses (${p.progressPercentage || 50}%)`}
                                                                     </span>
+                                                                    {p.status === 'IN_PROGRESS' && (
+                                                                        <div className="w-16 sm:w-20 h-1.5 bg-amber-100 rounded-full overflow-hidden" title={`Progres: ${p.progressPercentage || 50}%`}>
+                                                                            <div 
+                                                                                className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                                                                                style={{ width: `${p.progressPercentage || 50}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <p className="text-xs text-slate-700 font-medium leading-relaxed">{p.text}</p>
                                                                 {p.obstacleNote && (
@@ -589,12 +607,30 @@ const TeamMonitoringTab = ({
                                                                     <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[9px] font-black uppercase text-slate-600">
                                                                         {p.categoryTag || 'UMUM'}
                                                                     </span>
+                                                                    {p.sourceType === 'MAINTENANCE' && (
+                                                                        <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[9px] font-black uppercase text-indigo-700">
+                                                                            🔧 Pemeliharaan
+                                                                        </span>
+                                                                    )}
+                                                                    {p.sourceType === 'ASSIGNMENT' && (
+                                                                        <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[9px] font-black uppercase text-blue-700">
+                                                                            📋 Penugasan
+                                                                        </span>
+                                                                    )}
                                                                     <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                                                                         p.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
                                                                         p.status === 'OBSTACLE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
                                                                     }`}>
-                                                                        {p.status === 'COMPLETED' ? 'Selesai 100%' : p.status === 'OBSTACLE' ? 'Kendala' : 'Dalam Proses'}
+                                                                        {p.status === 'COMPLETED' ? 'Selesai 100%' : p.status === 'OBSTACLE' ? 'Kendala' : `Proses (${p.progressPercentage || 50}%)`}
                                                                     </span>
+                                                                    {p.status === 'IN_PROGRESS' && (
+                                                                        <div className="w-16 sm:w-20 h-1.5 bg-amber-100 rounded-full overflow-hidden" title={`Progres: ${p.progressPercentage || 50}%`}>
+                                                                            <div 
+                                                                                className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                                                                                style={{ width: `${p.progressPercentage || 50}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <p className="text-xs text-slate-700 font-medium leading-relaxed">{p.text}</p>
                                                                 {p.obstacleNote && (

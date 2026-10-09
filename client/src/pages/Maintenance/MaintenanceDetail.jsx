@@ -49,6 +49,8 @@ const MaintenanceDetail = () => {
     const [assignUnitId, setAssignUnitId] = useState('');
     const [technicianName, setTechnicianName] = useState('');
     const [technicianPhone, setTechnicianPhone] = useState('');
+    const [technicianId, setTechnicianId] = useState(null);
+    const [progressPercentage, setProgressPercentage] = useState(50);
     const [technicianType, setTechnicianType] = useState('internal');
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [createWorkshopOrder, setCreateWorkshopOrder] = useState(false);
@@ -264,10 +266,12 @@ const MaintenanceDetail = () => {
         if (type === 'assignment') {
             setTechnicianName(report?.technician || '');
             setTechnicianPhone(report?.technicianPhone || '');
+            setTechnicianId(report?.aiDiagnosis?.technicianId || null);
             setUserSearchQuery('');
             setAssignUnitId('');
         }
         if (type === 'completion' || type === 'progress') {
+            setProgressPercentage(type === 'completion' ? 100 : (report?.aiDiagnosis?.progressPercentage || 50));
             setActionMode('ALL');
             setBulkAllCondition(type === 'completion' ? 'BAIK' : '');
             setBulkSelectedAction('');
@@ -298,6 +302,8 @@ const MaintenanceDetail = () => {
         setAssignUnitId('');
         setTechnicianName('');
         setTechnicianPhone('');
+        setTechnicianId(null);
+        setProgressPercentage(50);
         setUserSearchQuery('');
         setProgressNote('');
         setCostItems([]);
@@ -323,11 +329,13 @@ const MaintenanceDetail = () => {
                     return;
                 }
                 payload.technician = technicianName.trim();
+                payload.technicianId = technicianId;
                 payload.technicianPhone = technicianPhone ? technicianPhone.trim() : undefined;
                 payload.approvalNote = actionNote;
             }
 
             if (actionModal.type === 'completion' || actionModal.type === 'progress') {
+                payload.progressPercentage = actionModal.type === 'completion' ? 100 : progressPercentage;
                 const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
                 if (report?.assets && report.assets.length > 0) {
@@ -639,6 +647,10 @@ const MaintenanceDetail = () => {
                 setTechnicianName={setTechnicianName}
                 technicianPhone={technicianPhone}
                 setTechnicianPhone={setTechnicianPhone}
+                technicianId={technicianId}
+                setTechnicianId={setTechnicianId}
+                progressPercentage={progressPercentage}
+                setProgressPercentage={setProgressPercentage}
                 userSearchQuery={userSearchQuery}
                 setUserSearchQuery={setUserSearchQuery}
                 assignUnitId={assignUnitId}

@@ -297,6 +297,9 @@ exports.updateMyReport = async (req, res) => {
             text: (p.text || '').trim(),
             categoryTag: p.categoryTag || category || 'UMUM',
             status: p.status || 'COMPLETED',
+            progressPercentage: p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : (p.status === 'COMPLETED' ? 100 : 50),
+            sourceType: p.sourceType || null,
+            sourceId: p.sourceId || null,
             obstacleNote: (p.obstacleNote || '').trim(),
             isRoutine: !!p.isRoutine,
             photos: Array.isArray(p.photos) ? p.photos : [],
@@ -370,6 +373,45 @@ exports.updateMyReport = async (req, res) => {
                 }
             });
         }
+
+        // Two-way synchronization for linked tasks (ASSIGNMENT or MAINTENANCE)
+        (async () => {
+            try {
+                const allPoints = [...finalMorning, ...finalAfternoon];
+                for (const p of allPoints) {
+                    if (p.sourceType === 'ASSIGNMENT' && p.sourceId) {
+                        try {
+                            const pct = p.status === 'COMPLETED' ? 100 : (p.progressPercentage || 50);
+                            await prisma.personnelAssignment.update({
+                                where: { id: parseInt(p.sourceId) },
+                                data: {
+                                    status: p.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS',
+                                    progressPercentage: pct,
+                                    actualCompletionDate: p.status === 'COMPLETED' ? new Date() : null
+                                }
+                            });
+                        } catch (e) {
+                            console.error('[Laporan] Error syncing assignment:', e.message);
+                        }
+                    } else if (p.sourceType === 'MAINTENANCE' && p.sourceId) {
+                        try {
+                            const pct = p.status === 'COMPLETED' ? 100 : (p.progressPercentage || 50);
+                            await prisma.maintenance.update({
+                                where: { id: parseInt(p.sourceId) },
+                                data: {
+                                    status: p.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS',
+                                    ...(p.status === 'COMPLETED' ? { completionDate: new Date() } : {})
+                                }
+                            });
+                        } catch (e) {
+                            console.error('[Laporan] Error syncing maintenance:', e.message);
+                        }
+                    }
+                }
+            } catch (syncErr) {
+                console.error('[Laporan] Sync linked items error:', syncErr.message);
+            }
+        })();
 
         res.json({ success: true, report });
     } catch (error) {

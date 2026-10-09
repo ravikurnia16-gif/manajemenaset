@@ -675,7 +675,77 @@ exports.updateAssignmentStatus = async (req, res) => {
             data
         });
 
-        res.json(updated);
+        // Sync to linked Maintenance if applicable
+        (async () => {
+            try {
+                let mId = null;
+                const sourceNotes = updated.notes || assignment.notes;
+                if (sourceNotes) {
+                    try {
+                        const parsed = JSON.parse(sourceNotes);
+                        if (parsed.maintenanceId) mId = parseInt(parsed.maintenanceId);
+                    } catch (e) {
+                        const match = sourceNotes.match(/"maintenanceId":\s*(\d+)/);
+                        if (match) mId = parseInt(match[1]);
+                    }
+                }
+                if (mId) {
+                    const newMaintStatus = updated.progressPercentage === 100 ? 'COMPLETED' : (updated.progressPercentage > 0 ? 'IN_PROGRESS' : 'PENDING');
+                    await prisma.maintenance.update({
+                        where: { id: mId },
+                        data: {
+                            status: newMaintStatus,
+                            ...(newMaintStatus === 'COMPLETED' ? { completionDate: new Date() } : {})
+                        }
+                    });
+                    console.log(`[Personnel Sync] Synced assignment ${updated.id} to Maintenance #${mId} (${newMaintStatus})`);
+                }
+
+                // Sync to today's manualPoints in PersonnelReport
+                const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+                const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
+                const todayReport = await prisma.personnelReport.findFirst({
+                    where: {
+                        userId: assignment.assigneeId,
+                        type: 'DAILY',
+                        date: { gte: todayStart, lte: todayEnd }
+                    }
+                });
+
+                if (todayReport && todayReport.metadata && todayReport.metadata.manualPoints) {
+                    const mp = todayReport.metadata.manualPoints;
+                    let changed = false;
+                    const updatePt = (p) => {
+                        const isMatch = (p.sourceType === 'ASSIGNMENT' && parseInt(p.sourceId) === assignment.id) ||
+                                        (mId && p.sourceType === 'MAINTENANCE' && parseInt(p.sourceId) === mId);
+                        if (isMatch) {
+                            p.progressPercentage = updated.progressPercentage;
+                            p.status = updated.progressPercentage === 100 ? 'COMPLETED' : (updated.progressPercentage > 0 ? 'IN_PROGRESS' : 'PENDING');
+                            p.updatedAt = new Date().toISOString();
+                            changed = true;
+                        }
+                    };
+                    (mp.morning || []).forEach(updatePt);
+                    (mp.afternoon || []).forEach(updatePt);
+
+                    if (changed) {
+                        await prisma.personnelReport.update({
+                            where: { id: todayReport.id },
+                            data: {
+                                metadata: {
+                                    ...todayReport.metadata,
+                                    manualPoints: mp,
+                                    lastSubmittedAt: new Date().toISOString()
+                                }
+                            }
+                        });
+                        console.log(`[Personnel Sync] Synced assignment ${updated.id} progress to today's daily report (${updated.progressPercentage}%)`);
+                    }
+                }
+            } catch (syncErr) {
+                console.error('[Personnel Sync] Sync error:', syncErr.message);
+            }
+        })();
 
         // Auto-log to daily report
         const logSource = assignment.routineId ? 'RUTINITAS' : 'TUGAS';

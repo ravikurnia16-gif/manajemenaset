@@ -437,9 +437,12 @@ const LaporanStaff = () => {
 
     const convertTaskToReport = (task, period = 'morning') => {
         const item = {
-            text: `[Tugas: ${task.title}] ${task.description}`,
+            text: `[Tugas: ${task.title}] ${task.description || ''}`,
             categoryTag: task.category || 'UMUM',
             status: task.progressPercentage === 100 ? 'COMPLETED' : 'IN_PROGRESS',
+            progressPercentage: task.progressPercentage || 50,
+            sourceType: 'ASSIGNMENT',
+            sourceId: task.id,
             obstacleNote: '',
             isRoutine: false,
             photos: []
@@ -449,6 +452,7 @@ const LaporanStaff = () => {
         } else {
             setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
         }
+        setActiveTab('laporan');
     };
 
     const saveStaffTemplates = (templates) => {
@@ -1209,6 +1213,7 @@ const LaporanStaff = () => {
                             handlePurgeRoutine={handlePurgeRoutine}
                             saving={saving}
                             convertTaskToReport={convertTaskToReport}
+                            onImportTaskToReport={convertTaskToReport}
                             setActiveTab={setActiveTab}
                         />
                     )}

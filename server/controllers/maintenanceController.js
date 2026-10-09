@@ -9,6 +9,204 @@ const aiService = require('../services/aiService');
 const crypto = require('crypto');
 const { generateDocumentNumber } = require('../services/documentNumberingService');
 const { generateVerificationQR } = require('../services/officePdfService');
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+/**
+ * Auto-sync Maintenance to PersonnelAssignment (Tab Penugasan)
+ */
+const syncMaintenanceToAssignment = async (report, techUser, assignerUser = null) => {
+    try {
+        if (!techUser) return;
+        const notesData = JSON.stringify({
+            source: 'MAINTENANCE',
+            maintenanceId: report.id,
+            maintenanceCode: report.code
+        });
+
+        const existingAssignment = await prisma.personnelAssignment.findFirst({
+            where: {
+                OR: [
+                    { notes: { contains: `"maintenanceId":${report.id}` } },
+                    { title: { contains: report.code } }
+                ]
+            }
+        });
+
+        const category = (techUser.position || '').toLowerCase().includes('teknisi') ? 'TEKNISI' : 'UMUM';
+
+        if (existingAssignment) {
+            await prisma.personnelAssignment.update({
+                where: { id: existingAssignment.id },
+                data: {
+                    assigneeId: techUser.id,
+                    title: `[MT] ${report.title} (${report.code})`,
+                    description: `${report.description || ''}\nLokasi: ${report.location || report.unit?.name || '-'}`,
+                    category,
+                    priority: ['EMERGENCY', 'URGENT'].includes(report.urgency) ? 'HIGH' : 'MEDIUM',
+                    status: 'PENDING',
+                    notes: notesData
+                }
+            });
+        } else {
+            await prisma.personnelAssignment.create({
+                data: {
+                    assignerId: assignerUser?.id || report.userId,
+                    assigneeId: techUser.id,
+                    title: `[MT] ${report.title} (${report.code})`,
+                    description: `${report.description || ''}\nLokasi: ${report.location || report.unit?.name || '-'}`,
+                    category,
+                    priority: ['EMERGENCY', 'URGENT'].includes(report.urgency) ? 'HIGH' : 'MEDIUM',
+                    status: 'PENDING',
+                    progressPercentage: 0,
+                    dueDate: report.completionDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                    notes: notesData
+                }
+            });
+        }
+        console.log(`[Maintenance Sync] Auto-synced assignment for technician ${techUser.name} (${report.code})`);
+    } catch (e) {
+        console.error('[Maintenance Sync] Auto-sync assignment error:', e);
+    }
+};
+
+/**
+ * Update Progress on Linked PersonnelAssignment
+ */
+const updateLinkedAssignmentProgress = async (report, status, progressPercentage) => {
+    try {
+        const finalPct = status === 'COMPLETED' ? 100 : (progressPercentage !== undefined ? parseInt(progressPercentage) : 50);
+        const linkedAssignment = await prisma.personnelAssignment.findFirst({
+            where: {
+                OR: [
+                    { notes: { contains: `"maintenanceId":${report.id}` } },
+                    { title: { contains: report.code } }
+                ]
+            }
+        });
+
+        if (linkedAssignment) {
+            await prisma.personnelAssignment.update({
+                where: { id: linkedAssignment.id },
+                data: {
+                    status: status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS',
+                    progressPercentage: finalPct,
+                    actualStartDate: linkedAssignment.actualStartDate || new Date(),
+                    actualCompletionDate: status === 'COMPLETED' ? new Date() : null
+                }
+            });
+            console.log(`[Maintenance Sync] Updated assignment ${linkedAssignment.id} progress: ${finalPct}%`);
+        }
+    } catch (e) {
+        console.error('[Maintenance Sync] Error updating assignment progress:', e);
+    }
+};
+
+/**
+ * Auto-sync Maintenance Activity to Daily Report (PersonnelReport) for Today
+ */
+const syncMaintenanceToDailyReport = async ({ userId, report, actionTaken, status, progressPercentage }) => {
+    try {
+        if (!userId) return;
+        const nowWib = dayjs().tz('Asia/Jakarta');
+        const dateStart = nowWib.startOf('day').toDate();
+        const dateEnd = nowWib.endOf('day').toDate();
+        const isMorning = nowWib.hour() < 12;
+
+        const existingReports = await prisma.personnelReport.findMany({
+            where: {
+                userId: parseInt(userId),
+                type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
+                date: {
+                    gte: dateStart,
+                    lte: dateEnd
+                }
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        let dailyRep = existingReports.find(r => r.metadata && r.metadata.manualPoints) || existingReports[0] || null;
+        let metadata = dailyRep?.metadata || {};
+        if (typeof metadata !== 'object' || metadata === null) metadata = {};
+        
+        let manualPoints = metadata.manualPoints || { morning: [], afternoon: [] };
+        let morning = Array.isArray(manualPoints.morning || manualPoints.morningPoints) ? (manualPoints.morning || manualPoints.morningPoints) : [];
+        let afternoon = Array.isArray(manualPoints.afternoon || manualPoints.afternoonPoints) ? (manualPoints.afternoon || manualPoints.afternoonPoints) : [];
+
+        const matchFn = p => (p.sourceType === 'MAINTENANCE' && parseInt(p.sourceId) === report.id) || (p.text && p.text.includes(report.code));
+        
+        const mIdx = morning.findIndex(matchFn);
+        const aIdx = afternoon.findIndex(matchFn);
+
+        const finalPct = status === 'COMPLETED' ? 100 : (progressPercentage !== undefined ? parseInt(progressPercentage) : 50);
+        const pointTitle = `[Pemeliharaan: ${report.code}] ${report.title}${actionTaken ? ' — ' + actionTaken.trim() : ''}`;
+        const newPoint = {
+            text: pointTitle,
+            categoryTag: 'TEKNISI',
+            status: status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS',
+            progressPercentage: finalPct,
+            sourceType: 'MAINTENANCE',
+            sourceId: report.id,
+            obstacleNote: '',
+            isRoutine: false,
+            photos: [],
+            review: null,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (mIdx !== -1) {
+            morning[mIdx] = { ...morning[mIdx], ...newPoint, photos: morning[mIdx].photos || [] };
+        } else if (aIdx !== -1) {
+            afternoon[aIdx] = { ...afternoon[aIdx], ...newPoint, photos: afternoon[aIdx].photos || [] };
+        } else {
+            if (isMorning) {
+                if (morning.length === 1 && (!morning[0].text || morning[0].text.trim() === '')) {
+                    morning = [newPoint];
+                } else {
+                    morning.push(newPoint);
+                }
+            } else {
+                if (afternoon.length === 1 && (!afternoon[0].text || afternoon[0].text.trim() === '')) {
+                    afternoon = [newPoint];
+                } else {
+                    afternoon.push(newPoint);
+                }
+            }
+        }
+
+        metadata.manualPoints = { morning, afternoon };
+        metadata.lastSubmittedAt = new Date().toISOString();
+
+        if (dailyRep) {
+            await prisma.personnelReport.update({
+                where: { id: dailyRep.id },
+                data: {
+                    metadata,
+                    updatedAt: new Date()
+                }
+            });
+            console.log(`[Maintenance Sync] Updated daily report ID ${dailyRep.id} for user ${userId}`);
+        } else {
+            await prisma.personnelReport.create({
+                data: {
+                    userId: parseInt(userId),
+                    type: 'DAILY',
+                    category: 'TEKNISI',
+                    content: `Laporan kegiatan harian otomatis (${report.code})`,
+                    date: nowWib.toDate(),
+                    metadata
+                }
+            });
+            console.log(`[Maintenance Sync] Created new daily report for user ${userId}`);
+        }
+    } catch (err) {
+        console.error('[Maintenance Sync] Error syncing to daily report:', err);
+    }
+};
 
 // --- Business Day & Working Hours Helpers for SLA Respon Awal (07:15 - 16:15 WIB, Senin - Jumat) ---
 
@@ -692,6 +890,10 @@ exports.createReport = async (req, res) => {
                         where: { OR: [{ name: report.technician }, { username: report.technician }] }
                     });
 
+                    if (techUser) {
+                        await syncMaintenanceToAssignment(report, techUser, user);
+                    }
+
                     if (techUser && techUser.phone) {
                         const msgTech = `Bismillah.\n🛠 *PENUGASAN INTERNAL BARU*\n\n` +
                             `Halo *${techUser.name || techUser.username}*,\n` +
@@ -767,7 +969,7 @@ exports.addMedia = async (req, res) => {
 // Update Status (Workflow Transitions)
 exports.updateStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost, costDetails, assetActions } = req.body;
+    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, technicianId, progressPercentage, actionTaken, completionNote, cost, costDetails, assetActions } = req.body;
 
     try {
         const oldReport = await prisma.maintenance.findUnique({ 
@@ -794,6 +996,15 @@ exports.updateStatus = async (req, res) => {
         let metadata = oldReport.aiDiagnosis || {};
         if (typeof metadata !== 'object' || Array.isArray(metadata) || !metadata) {
             metadata = {};
+        }
+
+        if (technicianId) {
+            metadata.technicianId = parseInt(technicianId);
+        }
+        if (progressPercentage !== undefined) {
+            metadata.progressPercentage = parseInt(progressPercentage);
+        } else if (status === 'COMPLETED') {
+            metadata.progressPercentage = 100;
         }
 
         const completedAssetIds = new Set(Array.isArray(metadata.completedAssets) ? metadata.completedAssets : []);
@@ -929,23 +1140,64 @@ exports.updateStatus = async (req, res) => {
             `/pemeliharaan/${id}`
         );
 
-        // Bell notification to assigned technician
-        if (status === 'ASSIGNED' && technician) {
+        // Bell notification & auto-sync to assigned technician (Tab Penugasan)
+        let techUser = null;
+        if (technicianId) {
+            techUser = await prisma.user.findUnique({ where: { id: parseInt(technicianId) } });
+        }
+        if (!techUser && (technician || report.technician)) {
+            const tName = technician || report.technician;
+            techUser = await prisma.user.findFirst({
+                where: { OR: [{ name: tName }, { username: tName }] }
+            });
+        }
+
+        if (status === 'ASSIGNED' && techUser) {
             try {
-                const techUser = await prisma.user.findFirst({
-                    where: { OR: [{ name: technician }, { username: technician }] }
-                });
-                if (techUser) {
-                    await createNotification(
-                        techUser.id,
-                        'Penugasan Baru',
-                        `Anda ditugaskan untuk menangani: "${report.title}" (${report.code}).`,
-                        'URGENT',
-                        `/pemeliharaan/${id}`
-                    );
+                await createNotification(
+                    techUser.id,
+                    'Penugasan Baru',
+                    `Anda ditugaskan untuk menangani: "${report.title}" (${report.code}).`,
+                    'URGENT',
+                    `/pemeliharaan/${id}`
+                );
+                // Auto-create/sync to PersonnelAssignment
+                await syncMaintenanceToAssignment(report, techUser, req.user);
+            } catch (e) {
+                console.error('Bell notif / assignment sync to technician error:', e);
+            }
+        }
+
+        // Auto-sync progress to Tab Penugasan & Laporan Harian
+        if (['IN_PROGRESS', 'COMPLETED'].includes(status) || actionTaken || progressPercentage !== undefined) {
+            try {
+                const finalPct = status === 'COMPLETED' ? 100 : (progressPercentage !== undefined ? parseInt(progressPercentage) : (metadata?.progressPercentage || 50));
+                
+                // 1. Update PersonnelAssignment
+                await updateLinkedAssignmentProgress(report, status, finalPct);
+
+                // 2. Update Daily Report (PersonnelReport)
+                let targetUser = techUser;
+                if (!targetUser && report.technician) {
+                    targetUser = await prisma.user.findFirst({
+                        where: { OR: [{ name: report.technician }, { username: report.technician }] }
+                    });
+                }
+                if (!targetUser && req.user) {
+                    targetUser = req.user;
+                }
+
+                if (targetUser) {
+                    await syncMaintenanceToDailyReport({
+                        userId: targetUser.id,
+                        report,
+                        actionTaken: actionTaken || req.body.progressNote,
+                        status,
+                        progressPercentage: finalPct
+                    });
                 }
             } catch (e) {
-                console.error('Bell notif to technician error:', e);
+                console.error('[Maintenance] Auto-sync to assignment/daily report error:', e);
             }
         }
 
