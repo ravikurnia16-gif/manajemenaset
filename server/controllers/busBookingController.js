@@ -647,6 +647,237 @@ const checkBusBookingNotifications = async () => {
     }
 };
 
+// In-memory cache to prevent duplicate sending within active process
+const sentUnassignedReminderCache = new Set();
+
+/**
+ * Pengingat otomatis untuk pengguna dengan posisi 'Staff Kendaraan'
+ * apabila ada booking bus yang belum ditugaskan supirnya.
+ * Dikirim pada:
+ * - H-2 (48 jam sebelum keberangkatan)
+ * - H-1 (24 jam sebelum keberangkatan)
+ * - H-12 Jam (12 jam sebelum keberangkatan)
+ */
+const checkUnassignedBusDriverReminders = async (req = null, res = null) => {
+    try {
+        const now = new Date();
+        const twoDaysLater = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+        console.log(`[Bus Booking] Memeriksa jadwal bus tanpa supir antara sekarang dan ${twoDaysLater.toLocaleString('id-ID')}...`);
+
+        // Cari semua booking bus yang aktif, belum lewat, dan belum ada supirnya
+        const unassignedBookings = await prisma.busBooking.findMany({
+            where: {
+                status: { in: ['APPROVED', 'CONFIRMED'] },
+                driverId: null,
+                startDate: {
+                    gt: now,
+                    lte: twoDaysLater
+                }
+            },
+            include: {
+                vehicle: true
+            },
+            orderBy: {
+                startDate: 'asc'
+            }
+        });
+
+        if (unassignedBookings.length === 0) {
+            console.log('[Bus Booking] Tidak ada permohonan bus tanpa supir dalam jendela waktu H-2 s/d sekarang.');
+            if (res) {
+                return res.json({
+                    success: true,
+                    message: 'Tidak ada booking bus tanpa supir yang memerlukan pengingat saat ini.',
+                    reminders: []
+                });
+            }
+            return;
+        }
+
+        // Ambil data staf dengan posisi 'Staff Kendaraan'
+        const staffKendaraan = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: 'Staff Kendaraan' },
+                    { position: { contains: 'Staff Kendaraan' } }
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                phone: true,
+                position: true
+            }
+        });
+
+        if (staffKendaraan.length === 0) {
+            console.warn('[Bus Booking] Tidak ditemukan pengguna dengan posisi Staff Kendaraan.');
+            if (res) {
+                return res.json({
+                    success: false,
+                    message: 'Tidak ditemukan pengguna dengan posisi Staff Kendaraan.',
+                    reminders: []
+                });
+            }
+            return;
+        }
+
+        const domainUrl = process.env.VITE_API_URL 
+            ? process.env.VITE_API_URL.replace('/api', '') 
+            : (process.env.BASE_URL || 'https://sarpras.dareliman.or.id');
+
+        const remindersSent = [];
+
+        for (const booking of unassignedBookings) {
+            const diffMs = new Date(booking.startDate).getTime() - now.getTime();
+            const diffHours = diffMs / (1000 * 60 * 60);
+
+            // Tentukan stage pengingat berdasarkan sisa waktu (jam)
+            let stage = null;
+            let stageLabel = '';
+            let stageBadge = '';
+
+            if (diffHours <= 12 && diffHours > 0) {
+                stage = 'H-12';
+                stageLabel = 'H-12 Jam Sebelum Keberangkatan';
+                stageBadge = '🔴 *PERINGATAN MENDESAK: SUPIR BUS BELUM DITUGASKAN (H-12 JAM)*';
+            } else if (diffHours <= 24 && diffHours > 12) {
+                stage = 'H-1';
+                stageLabel = 'H-1 (Besok Berangkat)';
+                stageBadge = '🟠 *PERINGATAN PENTING: SUPIR BUS BELUM DITUGASKAN (H-1)*';
+            } else if (diffHours <= 48 && diffHours > 24) {
+                stage = 'H-2';
+                stageLabel = 'H-2 (2 Hari Sebelum Keberangkatan)';
+                stageBadge = '⚠️ *PENGINGAT PENUGASAN SUPIR BUS (H-2)*';
+            }
+
+            if (!stage) continue;
+
+            const cacheKey = `${booking.id}_${stage}`;
+            if (sentUnassignedReminderCache.has(cacheKey)) {
+                continue;
+            }
+
+            // Cek persistensi di database via Notification table agar tidak terkirim ganda setelah server restart
+            const alreadySent = await prisma.notification.findFirst({
+                where: {
+                    link: { contains: `id=${booking.id}&stage=${stage}` }
+                }
+            });
+
+            if (alreadySent) {
+                sentUnassignedReminderCache.add(cacheKey);
+                continue;
+            }
+
+            // Hitung teks sisa waktu
+            const totalHoursLeft = Math.max(1, Math.round(diffHours));
+            let countdownStr = `${totalHoursLeft} jam`;
+            if (totalHoursLeft >= 24) {
+                const days = Math.floor(totalHoursLeft / 24);
+                const remHours = totalHoursLeft % 24;
+                countdownStr = `${days} hari${remHours > 0 ? ` ${remHours} jam` : ''}`;
+            }
+
+            const departureDateStr = new Date(booking.startDate).toLocaleString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) + ' WIB';
+
+            const cleanPhone = formatPhoneForWA(booking.requesterPhone);
+            const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
+
+            const waMsg = `Bismillah.\n` +
+                `${stageBadge}\n\n` +
+                `Halo Rekan *Staff Kendaraan*,\n` +
+                `Terdapat permohonan booking bus yang dijadwalkan berangkat dalam waktu dekat, namun *SUPIR BELUM DITUGASKAN*:\n\n` +
+                `🚌 *Armada*: ${booking.vehicle?.name || 'Bus'} (${booking.vehicle?.plateNumber || '-'})
+` +
+                `📍 *Tujuan*: ${booking.destination}\n` +
+                `📅 *Jadwal Keberangkatan*: ${departureDateStr}\n` +
+                `⏳ *Sisa Waktu*: ${countdownStr} lagi\n` +
+                `👤 *Pemesan*: ${booking.requesterName || '-'} (${booking.unit || 'Umum'})\n` +
+                `📞 *No. HP Pemesan*: ${booking.requesterPhone || '-'}\n` +
+                (waLink ? `💬 *Chat WA Pemesan*: ${waLink}\n` : '') +
+                `👥 *Jumlah Penumpang*: ${booking.passengerCount || 0} Orang\n` +
+                `🎯 *Keperluan*: ${booking.purpose || '-'}\n\n` +
+                `⚠️ *Status*: Driver / Supir Belum Ditugaskan!\n` +
+                `Mohon segera tentukan dan tugaskan supir yang akan mengemudikan armada ini pada aplikasi SARPRAS agar perjalanan dapat dipersiapkan dengan baik.\n\n` +
+                `🔗 *Buka Menu Penugasan Bus*:\n` +
+                `${domainUrl}/kendaraan/booking-bus\n\n` +
+                `_Pesan otomatis Sistem Manajemen Aset_`;
+
+            const notifTitle = `⚠️ [${stage}] Supir Bus Belum Ditugaskan: ${booking.vehicle?.name || 'Bus'}`;
+            const notifBody = `Perjalanan ke ${booking.destination} pada ${departureDateStr} (${countdownStr} lagi) belum memiliki supir. Segera tugaskan supir.`;
+            const notifLink = `/kendaraan/booking-bus?id=${booking.id}&stage=${stage}`;
+            const notifType = stage === 'H-12' ? 'URGENT' : (stage === 'H-1' ? 'WARNING' : 'INFO');
+
+            let waSentCount = 0;
+            for (const staff of staffKendaraan) {
+                // 1. In-App Bell Notification
+                try {
+                    await createNotification(
+                        staff.id,
+                        notifTitle,
+                        notifBody,
+                        notifType,
+                        notifLink
+                    );
+                } catch (notifErr) {
+                    console.error(`[Bus Booking] In-app notif failed for ${staff.name}:`, notifErr.message);
+                }
+
+                // 2. WhatsApp Notification
+                if (staff.phone) {
+                    try {
+                        await whatsappService.sendMessage(staff.phone, waMsg);
+                        waSentCount++;
+                        console.log(`[Bus Booking] ${stage} WA reminder sent to Staff Kendaraan ${staff.name} (${staff.phone}) for booking #${booking.id}`);
+                    } catch (waErr) {
+                        console.error(`[Bus Booking] WA reminder failed for ${staff.name} (${staff.phone}):`, waErr.message);
+                    }
+                }
+            }
+
+            sentUnassignedReminderCache.add(cacheKey);
+
+            remindersSent.push({
+                bookingId: booking.id,
+                vehicle: `${booking.vehicle?.name} (${booking.vehicle?.plateNumber})`,
+                destination: booking.destination,
+                startDate: booking.startDate,
+                stage,
+                stageLabel,
+                countdownStr,
+                staffNotifiedCount: staffKendaraan.length,
+                whatsappSentCount: waSentCount
+            });
+        }
+
+        console.log(`[Bus Booking] Selesai memproses pengingat bus tanpa supir. Total dikirim: ${remindersSent.length}`);
+
+        if (res) {
+            return res.json({
+                success: true,
+                message: `Berhasil memproses pengingat penugasan supir bus.`,
+                remindersSentCount: remindersSent.length,
+                reminders: remindersSent
+            });
+        }
+    } catch (error) {
+        console.error('[Bus Booking] checkUnassignedBusDriverReminders Error:', error);
+        if (res) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+};
+
 const publicConfirmBooking = async (req, res) => {
     try {
         const { id, token } = req.params;
@@ -1128,6 +1359,7 @@ module.exports = {
     cancelByToken,
     assignDriver,
     checkBusBookingNotifications,
+    checkUnassignedBusDriverReminders,
     checkUnpaidBusInvoices,
     completeBusBooking,
     markBusAsPaid,

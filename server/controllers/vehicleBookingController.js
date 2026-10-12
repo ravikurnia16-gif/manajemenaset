@@ -250,7 +250,7 @@ exports.requestBooking = async (req, res) => {
             }
         });
 
-        const isRental = booking.isRented;
+        // isRental sudah dideklarasikan di atas (validasi driver) dan nilainya sama dengan booking.isRented
         const termHeader = isRental ? 'SEWA' : 'PINJAM';
         const termAction = isRental ? 'penyewaan' : 'peminjaman';
         const termTitle = isRental ? 'Sewa' : 'Pinjam';

@@ -20,7 +20,7 @@ const {
     checkUnrespondedReports,
     sendDailyTechnicianMaintenanceNotification
 } = require('../controllers/maintenanceController');
-const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
+const { checkBusBookingNotifications, checkUnpaidBusInvoices, checkUnassignedBusDriverReminders } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
 const { sendReportReminders, notifyKabidInactiveStaff } = require('../controllers/laporanController');
 const checklistController = require('../controllers/vehicleChecklistController');
@@ -166,6 +166,7 @@ const initScheduler = () => {
                 await checkKirNotifications();
                 await checkOverdueLoans();
                 await checkBusBookingNotifications();
+                await checkUnassignedBusDriverReminders();
                 await checkUnpaidBusInvoices();
                 await checkInvoiceDueDates();
             } catch (err) {
@@ -197,6 +198,7 @@ const initScheduler = () => {
             console.log(`[Scheduler] Checking Vehicle Booking Reminders at ${hour}:00...`);
             try { await checkOverdueVehicleBookings(); } catch (e) { console.error('checkOverdueVehicleBookings failed:', e.message); }
             try { await checkUpcomingVehicleBookings(); } catch (e) { console.error('checkUpcomingVehicleBookings failed:', e.message); }
+            try { await checkUnassignedBusDriverReminders(); } catch (e) { console.error('checkUnassignedBusDriverReminders failed:', e.message); }
         }
 
         // ----------------------------------------------------

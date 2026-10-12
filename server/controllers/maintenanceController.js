@@ -1691,7 +1691,8 @@ const buildTechnicianWhatsAppMessages = ({
     baseUrl,
     assignedMaintenances,
     groupedByUnit,
-    maxChars = 2500
+    maxChars = 2500,
+    forKabid = false
 }) => {
     const unitNames = Object.keys(groupedByUnit);
 
@@ -1734,15 +1735,30 @@ const buildTechnicianWhatsAppMessages = ({
         }
     }
 
+    const headerTitle = forKabid
+        ? `📋 *MONITORING TUGAS TEKNISI (KEPALA BIDANG SARANA)*`
+        : `🔧 *PENGINGAT TUGAS PERAWATAN HARIAN*`;
+
+    const greeting = forKabid
+        ? `Yth. *Kepala Bidang Sarana*,\n` +
+          `Berikut adalah rincian ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada teknisi *${techDisplayName}* (${position}), *dikelompokkan per unit*:\n\n`
+        : `Halo *${techDisplayName}* (${position}),\n` +
+          `Berikut adalah daftar semua ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada Anda, *dikelompokkan per unit*:\n\n`;
+
+    const footerText = forKabid
+        ? `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit* untuk teknisi *${techDisplayName}*.\n` +
+          `Laporan ini dikirimkan otomatis untuk pengecekan dan pengawasan pekerjaan teknisi di lapangan.\n\n` +
+          `_Pesan otomatis Sistem Manajemen Aset_`
+        : `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit*.\n` +
+          `Mohon segera dicek dan perbarui progres perbaikannya pada aplikasi.\n\n` +
+          `_Pesan otomatis Sistem Manajemen Aset_`;
+
     const singleFullMessage = `Bismillah.\n` +
-        `🔧 *PENGINGAT TUGAS PERAWATAN HARIAN*\n` +
+        `${headerTitle}\n` +
         `📅 ${todayStr}\n\n` +
-        `Halo *${techDisplayName}* (${position}),\n` +
-        `Berikut adalah daftar semua ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada Anda, *dikelompokkan per unit*:\n\n` +
+        greeting +
         fullSingleBody +
-        `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit*.\n` +
-        `Mohon segera dicek dan perbarui progres perbaikannya pada aplikasi.\n\n` +
-        `_Pesan otomatis Sistem Manajemen Aset_`;
+        footerText;
 
     if (singleFullMessage.length <= maxChars) {
         return [singleFullMessage];
@@ -1792,19 +1808,34 @@ const buildTechnicianWhatsAppMessages = ({
         const isFirst = (partNumber === 1);
         const isLast = (partNumber === totalParts);
 
+        const partTitle = forKabid
+            ? `📋 *MONITORING TUGAS TEKNISI (KEPALA BIDANG SARANA)* *(Bagian ${partNumber} dari ${totalParts})*`
+            : `🔧 *PENGINGAT TUGAS PERAWATAN HARIAN* *(Bagian ${partNumber} dari ${totalParts})*`;
+
+        const partGreeting = forKabid
+            ? (isFirst
+                ? `Yth. *Kepala Bidang Sarana*,\n` +
+                  `Berikut adalah rincian ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada teknisi *${techDisplayName}* (${position}), *dikelompokkan per unit*:\n\n`
+                : `Lanjutan rincian tugas teknisi *${techDisplayName}* (Bagian ${partNumber} dari ${totalParts}):\n\n`)
+            : (isFirst
+                ? `Halo *${techDisplayName}* (${position}),\n` +
+                  `Berikut adalah daftar semua ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada Anda, *dikelompokkan per unit*:\n\n`
+                : `Lanjutan daftar tugas perawatan (Bagian ${partNumber} dari ${totalParts}):\n\n`);
+
         let msg = `Bismillah.\n` +
-            `🔧 *PENGINGAT TUGAS PERAWATAN HARIAN* *(Bagian ${partNumber} dari ${totalParts})*\n` +
+            `${partTitle}\n` +
             `📅 ${todayStr}\n\n` +
-            `Halo *${techDisplayName}* (${position}),\n` +
-            (isFirst
-                ? `Berikut adalah daftar semua ${assignedMaintenances.length} tugas perawatan yang ditugaskan kepada Anda, *dikelompokkan per unit*:\n\n`
-                : `Lanjutan daftar tugas perawatan (Bagian ${partNumber} dari ${totalParts}):\n\n`) +
+            partGreeting +
             chunkBody;
 
         if (isLast) {
-            msg += `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit*.\n` +
-                `Mohon segera dicek dan perbarui progres perbaikannya pada aplikasi.\n\n` +
-                `_Pesan otomatis Sistem Manajemen Aset_`;
+            msg += forKabid
+                ? `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit* untuk teknisi *${techDisplayName}*.\n` +
+                  `Laporan ini dikirimkan otomatis untuk pengecekan dan pengawasan pekerjaan teknisi di lapangan.\n\n` +
+                  `_Pesan otomatis Sistem Manajemen Aset_`
+                : `Total: *${assignedMaintenances.length} tugas* di *${unitNames.length} unit*.\n` +
+                  `Mohon segera dicek dan perbarui progres perbaikannya pada aplikasi.\n\n` +
+                  `_Pesan otomatis Sistem Manajemen Aset_`;
         } else {
             msg += `_Bersambung ke Bagian ${partNumber + 1}..._\n`;
         }
@@ -1848,6 +1879,25 @@ exports.checkTechnicianDailyMaintenanceNotifications = async (req = null, res = 
         teknisiStaff.forEach(u => {
             console.log(`  -> User ID: ${u.id} | Nama: ${u.name || u.username} | Posisi: '${u.position}' | WA: ${u.phone || '-'}`);
         });
+
+        // Ambil data penerima dengan posisi 'Kepala Bidang Sarana' untuk tembusan pengecekan tugas teknisi
+        const kabidStaff = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: 'Kepala Bidang Sarana' },
+                    { position: { contains: 'Kepala Bidang Sarana' } }
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                phone: true,
+                position: true
+            }
+        });
+        const validKabidUsers = kabidStaff.filter(k => k.phone && k.phone.trim().length > 0);
+        console.log(`[Scheduler] Berhasil mengidentifikasi ${validKabidUsers.length} penerima Kepala Bidang Sarana untuk tembusan WA:`, validKabidUsers.map(k => `${k.name || k.username} (${k.phone})`));
 
         if (teknisiStaff.length === 0) {
             console.warn('[Scheduler] Skip: Tidak ditemukan pengguna dengan posisi Staff Teknisi Aset di database.');
@@ -2005,6 +2055,43 @@ exports.checkTechnicianDailyMaintenanceNotifications = async (req = null, res = 
                 console.log(`[Scheduler] User ID ${tech.id} (${techDisplayName}) tidak memiliki nomor telepon untuk WA.`);
             }
 
+            // 6. Kirim juga salinan pesan tugas teknisi ini kepada Kepala Bidang Sarana untuk pengecekan/monitoring
+            let kabidWaSuccess = false;
+            let kabidWaMessagesSentCount = 0;
+            if (validKabidUsers.length > 0) {
+                try {
+                    const waMessagesKabid = buildTechnicianWhatsAppMessages({
+                        techDisplayName,
+                        position: tech.position,
+                        todayStr,
+                        baseUrl,
+                        assignedMaintenances,
+                        groupedByUnit,
+                        maxChars: 2500,
+                        forKabid: true
+                    });
+
+                    for (const kabid of validKabidUsers) {
+                        try {
+                            console.log(`[Scheduler] Mengirim ${waMessagesKabid.length} pesan WA tembusan ke Kepala Bidang Sarana ${kabid.name || kabid.username} (${kabid.phone}) untuk tugas teknisi ${techDisplayName}...`);
+                            for (let i = 0; i < waMessagesKabid.length; i++) {
+                                await whatsappService.sendMessage(kabid.phone, waMessagesKabid[i]);
+                                kabidWaMessagesSentCount++;
+                                if (waMessagesKabid.length > 1 && i < waMessagesKabid.length - 1) {
+                                    await new Promise(resolve => setTimeout(resolve, 800));
+                                }
+                            }
+                            kabidWaSuccess = true;
+                            console.log(`[Scheduler] Berhasil mengirim WA tembusan tugas teknisi ${techDisplayName} ke Kepala Bidang Sarana ${kabid.name || kabid.username} (${kabid.phone})`);
+                        } catch (kErr) {
+                            console.error(`[Scheduler] Gagal kirim WA tembusan ke Kepala Bidang Sarana ${kabid.name || kabid.username} (${kabid.phone}):`, kErr.message);
+                        }
+                    }
+                } catch (kBuildErr) {
+                    console.error(`[Scheduler] Gagal menyusun pesan WA tembusan Kabid untuk teknisi ${techDisplayName}:`, kBuildErr.message);
+                }
+            }
+
             notificationResults.push({
                 userId: tech.id,
                 name: techDisplayName,
@@ -2029,7 +2116,9 @@ exports.checkTechnicianDailyMaintenanceNotifications = async (req = null, res = 
                     inApp: inAppSuccess,
                     push: pushSuccess,
                     whatsapp: waSuccess,
-                    whatsappMessagesCount: waMessagesSentCount
+                    whatsappMessagesCount: waMessagesSentCount,
+                    whatsappKabidSent: kabidWaSuccess,
+                    whatsappKabidCount: kabidWaMessagesSentCount
                 }
             });
         }

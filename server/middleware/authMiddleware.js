@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 exports.verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     let token = authHeader && authHeader.split(' ')[1];
-    
+
     // Fallback to query parameter (useful for opening PDFs in new tabs)
     if (!token && req.query.token) {
         token = req.query.token;
@@ -44,7 +44,7 @@ exports.authorizeSarprasAdmin = () => {
 
         const role = req.user.role;
         const pos = req.user.position || '';
-        
+
         const isAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(role);
         const isRelevantStaff = pos.includes('Sarpras') || pos.includes('Keuangan') || pos.includes('Administrasi');
 
@@ -60,7 +60,7 @@ exports.authorizeEOfficeAccess = () => {
         if (req.user.role === 'AUDITOR' && req.method === 'GET') return next();
 
         const role = req.user.role;
-        
+
         // Super Admin, IT, Admin Aset, and Kabids can access E-Office
         const isAllowed = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(role);
 
@@ -77,7 +77,7 @@ exports.authorizePembangunanAccess = () => {
 
         const role = req.user.role;
         const pos = req.user.position || '';
-        
+
         const isAllowedRole = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(role);
         const isPembangunanTeam = ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(pos);
 

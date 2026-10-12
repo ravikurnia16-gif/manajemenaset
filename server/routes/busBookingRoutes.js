@@ -19,7 +19,8 @@ const {
     deleteBusUnexpectedExpense,
     createBusOtherIncome,
     deleteBusOtherIncome,
-    publicConfirmBooking
+    publicConfirmBooking,
+    checkUnassignedBusDriverReminders
 } = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -33,6 +34,9 @@ router.post('/cancel-by-token', cancelByToken);
 
 // Protected Routes
 router.get('/', verifyToken, getAllBusBookings);
+router.get('/reminders/unassigned-drivers', verifyToken, checkUnassignedBusDriverReminders);
+router.post('/reminders/unassigned-drivers', verifyToken, checkUnassignedBusDriverReminders);
+
 router.get('/expense-summary', verifyToken, getBusExpenseSummary);
 router.get('/initial-fund', verifyToken, getBusInitialFund);
 router.put('/initial-fund', verifyToken, setBusInitialFund);
