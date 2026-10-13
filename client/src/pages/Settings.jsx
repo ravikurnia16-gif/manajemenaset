@@ -1,5 +1,9 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, Eye, EyeOff, Wrench, Smartphone } from 'lucide-react';
+import { 
+    Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, 
+    Eye, EyeOff, Wrench, Smartphone, Send, RefreshCw, Trash2, CheckCircle2, 
+    Clock, AlertTriangle, Inbox, Check, X, MessageSquare, AlertCircle
+} from 'lucide-react';
 import api from '../lib/axios';
 
 const Settings = () => {
@@ -37,6 +41,14 @@ const Settings = () => {
     const [loadingWa, setLoadingWa] = useState(false);
     const [waGroups, setWaGroups] = useState([]);
     const [loadingWaGroups, setLoadingWaGroups] = useState(false);
+
+    // WhatsApp Outbox (Keranjang Pesan Tertunda) State
+    const [waOutbox, setWaOutbox] = useState({ stats: { total: 0, pending: 0, sent: 0, failed: 0 }, messages: [] });
+    const [loadingOutbox, setLoadingOutbox] = useState(false);
+    const [flushingOutbox, setFlushingOutbox] = useState(false);
+    const [selectedOutboxMsg, setSelectedOutboxMsg] = useState(null);
+    const [outboxFilter, setOutboxFilter] = useState('ALL'); // ALL, PENDING, SENT, FAILED
+
 
     // Filter states for Users Tab
     const [userSearch, setUserSearch] = useState('');
@@ -90,6 +102,9 @@ const Settings = () => {
         if (['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(currentUser.role)) {
             fetchUsers();
             fetchUnits();
+        }
+        if (currentUser?.position?.toLowerCase().includes('kepala bidang sarana')) {
+            fetchWaOutbox();
         }
     }, []);
 
@@ -146,6 +161,7 @@ const Settings = () => {
             if (res.data?.status === 'CONNECTED') {
                 fetchWaGroups();
             }
+            fetchWaOutbox();
         } catch (error) {
             console.error("Fetch WA status error:", error);
         } finally {
@@ -162,6 +178,61 @@ const Settings = () => {
             console.error("Fetch WA groups error:", error);
         } finally {
             setLoadingWaGroups(false);
+        }
+    };
+
+    const fetchWaOutbox = async () => {
+        try {
+            setLoadingOutbox(true);
+            const res = await api.get('/whatsapp/outbox');
+            if (res.data) {
+                setWaOutbox(res.data);
+            }
+        } catch (error) {
+            console.error("Fetch WA outbox error:", error);
+        } finally {
+            setLoadingOutbox(false);
+        }
+    };
+
+    const handleFlushOutbox = async () => {
+        if (waStatus.status !== 'CONNECTED') {
+            alert('WhatsApp belum terhubung! Harap hubungkan WhatsApp terlebih dahulu agar pesan di keranjang dapat dikirimkan.');
+            return;
+        }
+        if (!window.confirm('Kirim sekarang semua pesan tertunda yang ada di keranjang outbox?')) return;
+        try {
+            setFlushingOutbox(true);
+            const res = await api.post('/whatsapp/outbox/flush');
+            alert(`Pengiriman pesan keranjang selesai! Berhasil: ${res.data.processed || 0} dari total ${res.data.total || 0} antrean.`);
+            fetchWaOutbox();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal mengirim ulang pesan keranjang.');
+        } finally {
+            setFlushingOutbox(false);
+        }
+    };
+
+    const handleDeleteOutboxItem = async (id) => {
+        if (!window.confirm('Hapus pesan ini dari keranjang outbox?')) return;
+        try {
+            await api.delete(`/whatsapp/outbox/${id}`);
+            fetchWaOutbox();
+        } catch (error) {
+            alert('Gagal menghapus pesan dari keranjang.');
+        }
+    };
+
+    const handleClearOutbox = async (filter = 'ALL') => {
+        const confirmMsg = filter === 'SENT' 
+            ? 'Hapus semua riwayat pesan yang sudah berstatus terkirim?' 
+            : 'Kosongkan seluruh isi keranjang pesan outbox?';
+        if (!window.confirm(confirmMsg)) return;
+        try {
+            await api.delete(`/whatsapp/outbox?filter=${filter}`);
+            fetchWaOutbox();
+        } catch (error) {
+            alert('Gagal membersihkan keranjang outbox.');
         }
     };
 
@@ -378,11 +449,16 @@ const Settings = () => {
                     </button>
                     {isKabidSarpras && (
                         <button
-                            onClick={() => { setActiveTab('whatsapp'); fetchWaStatus(); }}
+                            onClick={() => { setActiveTab('whatsapp'); fetchWaStatus(); fetchWaOutbox(); }}
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'whatsapp' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <div className="flex items-center gap-2 uppercase tracking-tight">
                                 <Smartphone size={16} /> WhatsApp
+                                {(waOutbox.stats?.pending || 0) > 0 && (
+                                    <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+                                        {waOutbox.stats.pending}
+                                    </span>
+                                )}
                             </div>
                         </button>
                     )}
@@ -1179,15 +1255,34 @@ const Settings = () => {
             }
 
             {activeTab === 'whatsapp' && isKabidSarpras && (
-                <div className="max-w-2xl mx-auto">
+                <div className="max-w-4xl mx-auto space-y-6">
+                    {/* CARD 1: KONEKSI WHATSAPP LOKAL */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div className="p-6 border-b border-slate-50">
-                            <h2 className="font-bold text-slate-800">Koneksi WhatsApp Lokal</h2>
-                            <p className="text-slate-500 text-xs">Kelola perangkat WhatsApp yang terhubung langsung ke server (Jalur Utama).</p>
+                        <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                            <div>
+                                <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                    <Smartphone className="text-green-600" size={20} />
+                                    Koneksi WhatsApp Lokal
+                                </h2>
+                                <p className="text-slate-500 text-xs">Kelola perangkat WhatsApp yang terhubung langsung ke server.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={fetchWaStatus}
+                                    disabled={loadingWa}
+                                    className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors"
+                                    title="Segarkan Status"
+                                >
+                                    <RefreshCw size={16} className={loadingWa ? 'animate-spin' : ''} />
+                                </button>
+                            </div>
                         </div>
+
                         <div className="p-6 flex flex-col items-center justify-center space-y-6">
                             {loadingWa ? (
-                                <div className="text-slate-500 animate-pulse">Memuat status...</div>
+                                <div className="text-slate-500 animate-pulse flex items-center gap-2">
+                                    <RefreshCw size={16} className="animate-spin" /> Memuat status WhatsApp...
+                                </div>
                             ) : (
                                 <>
                                     <div className={`px-4 py-2 rounded-full text-sm font-bold border flex items-center gap-2
@@ -1197,7 +1292,7 @@ const Settings = () => {
                                                     'bg-red-50 text-red-600 border-red-200'}`}
                                     >
                                         <div className={`w-2.5 h-2.5 rounded-full ${waStatus.status === 'CONNECTED' ? 'bg-green-500' : waStatus.status === 'SCAN_QR' ? 'bg-amber-500 animate-pulse' : waStatus.status === 'INITIALIZING' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`}></div>
-                                        Status: {waStatus.status === 'CONNECTED' ? 'Terhubung' : waStatus.status === 'SCAN_QR' ? 'Menunggu Scan QR' : waStatus.status === 'INITIALIZING' ? 'Sedang Memulai...' : 'Terputus'}
+                                        Status: {waStatus.status === 'CONNECTED' ? 'Terhubung (Online)' : waStatus.status === 'SCAN_QR' ? 'Menunggu Scan QR' : waStatus.status === 'INITIALIZING' ? 'Sedang Memulai...' : 'Terputus (Offline)'}
                                     </div>
 
                                     {waStatus.status === 'SCAN_QR' && waStatus.qr && (
@@ -1207,11 +1302,11 @@ const Settings = () => {
                                         </div>
                                     )}
 
-                                    <div className="flex gap-4 w-full max-w-sm mt-4">
+                                    <div className="flex gap-4 w-full max-w-sm mt-2">
                                         <button
                                             onClick={handleWaInit}
                                             disabled={loadingWa || waStatus.status === 'CONNECTED'}
-                                            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                                            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors shadow-sm"
                                         >
                                             Muat Ulang QR
                                         </button>
@@ -1230,7 +1325,7 @@ const Settings = () => {
                         {waStatus.status === 'CONNECTED' && isKabidSarpras && (
                             <div className="border-t border-slate-100 p-6 bg-slate-50">
                                 <h3 className="font-bold text-slate-800 mb-1">Grup yang Diizinkan (AI Bot)</h3>
-                                <p className="text-slate-500 text-xs mb-4">Centang grup di bawah ini agar Bot AI merespons pesan secara otomatis di dalam grup tersebut. Jika daftar kosong, pastikan bot telah dimasukkan ke dalam grup.</p>
+                                <p className="text-slate-500 text-xs mb-4">Centang grup di bawah ini agar Bot AI merespons pesan secara otomatis di dalam grup tersebut.</p>
 
                                 {loadingWaGroups ? (
                                     <div className="text-slate-500 text-sm animate-pulse">Memuat daftar grup...</div>
@@ -1239,7 +1334,7 @@ const Settings = () => {
                                         Tidak ada grup yang ditemukan. Masukkan bot ke dalam grup lalu muat ulang halaman.
                                     </div>
                                 ) : (
-                                    <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                         {waGroups.map(group => {
                                             const isSelected = settings.aiAllowedGroups?.includes(group.id);
                                             return (
@@ -1263,7 +1358,7 @@ const Settings = () => {
                                 <div className="mt-4 pt-4 border-t border-slate-200">
                                     <label className="block text-xs font-bold text-slate-700 mb-1">Input Manual ID Grup (Opsional)</label>
                                     <p className="text-[10px] text-slate-500 mb-2">
-                                        Jika grup Anda tidak muncul di atas, Anda bisa menambahkan bot ke grup lalu ketik <strong>/idgrup</strong> di WA. Salin ID tersebut dan paste di sini (pisahkan dengan koma jika lebih dari satu).
+                                        Jika grup Anda tidak muncul di atas, ketik <strong>/idgrup</strong> di WA, salin ID lalu paste di sini (pisahkan dengan koma).
                                     </p>
                                     <input
                                         type="text"
@@ -1276,6 +1371,331 @@ const Settings = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* CARD 2: KERANJANG PESAN TERTUNDA (OUTBOX BASKET) */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="p-6 border-b border-slate-50">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-start gap-3">
+                                    <div className={`p-2.5 rounded-xl ${waOutbox.stats?.pending > 0 ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                                        <Inbox size={22} />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                            Keranjang Pesan Tertunda (Outbox)
+                                            {waOutbox.stats?.pending > 0 && (
+                                                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-500 text-white animate-pulse">
+                                                    {waOutbox.stats.pending} Tertunda
+                                                </span>
+                                            )}
+                                        </h2>
+                                        <p className="text-slate-500 text-xs mt-0.5">
+                                            Pesan yang dikirim saat WhatsApp terputus otomatis disimpan di sini. Saat WhatsApp terhubung kembali, pesan otomatis dikirim tanpa ada yang hilang.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 w-full md:w-auto">
+                                    <button
+                                        onClick={fetchWaOutbox}
+                                        disabled={loadingOutbox}
+                                        className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <RefreshCw size={13} className={loadingOutbox ? 'animate-spin' : ''} />
+                                        Segarkan
+                                    </button>
+
+                                    {waOutbox.stats?.sent > 0 && (
+                                        <button
+                                            onClick={() => handleClearOutbox('SENT')}
+                                            className="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-red-600 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-lg flex items-center gap-1.5 transition-colors"
+                                            title="Hapus riwayat pesan yang sudah terkirim"
+                                        >
+                                            <Trash2 size={13} />
+                                            Bersihkan Terkirim
+                                        </button>
+                                    )}
+
+                                    <button
+                                        onClick={handleFlushOutbox}
+                                        disabled={flushingOutbox || waStatus.status !== 'CONNECTED' || (waOutbox.stats?.pending || 0) === 0}
+                                        className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all shadow-sm ${
+                                            waStatus.status === 'CONNECTED' && (waOutbox.stats?.pending || 0) > 0
+                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200 animate-pulse'
+                                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {flushingOutbox ? (
+                                            <>
+                                                <RefreshCw size={14} className="animate-spin" />
+                                                Mengirim Antrean...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Send size={14} />
+                                                Kirim Sekarang ({waOutbox.stats?.pending || 0})
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* BANNER STATUS KERANJANG */}
+                            {waStatus.status !== 'CONNECTED' && (
+                                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3 text-amber-800 text-xs">
+                                    <Clock size={16} className="text-amber-600 flex-shrink-0" />
+                                    <div>
+                                        <strong>WhatsApp Offline:</strong> Setiap pesan otomatis tersimpan aman di keranjang outbox. Saat WhatsApp Anda tersambung kembali, sistem akan langsung mengirimkannya otomatis.
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* STATS METRIC PILLS */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                                <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-xl">
+                                    <div className="text-[11px] font-semibold text-amber-700 uppercase flex items-center gap-1.5">
+                                        <Clock size={13} /> Menunggu Terhubung
+                                    </div>
+                                    <div className="text-xl font-extrabold text-amber-900 mt-1 font-mono">
+                                        {waOutbox.stats?.pending || 0}
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl">
+                                    <div className="text-[11px] font-semibold text-emerald-700 uppercase flex items-center gap-1.5">
+                                        <CheckCircle2 size={13} /> Berhasil Terkirim
+                                    </div>
+                                    <div className="text-xl font-extrabold text-emerald-900 mt-1 font-mono">
+                                        {waOutbox.stats?.sent || 0}
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-rose-50/70 border border-rose-100 rounded-xl">
+                                    <div className="text-[11px] font-semibold text-rose-700 uppercase flex items-center gap-1.5">
+                                        <AlertTriangle size={13} /> Gagal Terkirim
+                                    </div>
+                                    <div className="text-xl font-extrabold text-rose-900 mt-1 font-mono">
+                                        {waOutbox.stats?.failed || 0}
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                    <div className="text-[11px] font-semibold text-slate-600 uppercase flex items-center gap-1.5">
+                                        <Inbox size={13} /> Total di Keranjang
+                                    </div>
+                                    <div className="text-xl font-extrabold text-slate-800 mt-1 font-mono">
+                                        {waOutbox.stats?.total || 0}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* FILTER TABS */}
+                            <div className="flex border-b border-slate-200 mt-6 gap-2 text-xs">
+                                <button
+                                    onClick={() => setOutboxFilter('ALL')}
+                                    className={`pb-2.5 px-3 font-semibold border-b-2 transition-all ${outboxFilter === 'ALL' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Semua ({waOutbox.messages?.length || 0})
+                                </button>
+                                <button
+                                    onClick={() => setOutboxFilter('PENDING')}
+                                    className={`pb-2.5 px-3 font-semibold border-b-2 transition-all ${outboxFilter === 'PENDING' ? 'border-amber-600 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Menunggu ({waOutbox.stats?.pending || 0})
+                                </button>
+                                <button
+                                    onClick={() => setOutboxFilter('SENT')}
+                                    className={`pb-2.5 px-3 font-semibold border-b-2 transition-all ${outboxFilter === 'SENT' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Terkirim ({waOutbox.stats?.sent || 0})
+                                </button>
+                                <button
+                                    onClick={() => setOutboxFilter('FAILED')}
+                                    className={`pb-2.5 px-3 font-semibold border-b-2 transition-all ${outboxFilter === 'FAILED' ? 'border-rose-600 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                >
+                                    Gagal ({waOutbox.stats?.failed || 0})
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* LIST / TABLE PESAN */}
+                        <div className="overflow-x-auto">
+                            {loadingOutbox ? (
+                                <div className="p-8 text-center text-slate-500 text-sm animate-pulse">
+                                    Memuat daftar keranjang pesan...
+                                </div>
+                            ) : (
+                                (() => {
+                                    const filtered = (waOutbox.messages || []).filter(item => {
+                                        if (outboxFilter === 'ALL') return true;
+                                        return item.status === outboxFilter;
+                                    });
+
+                                    if (filtered.length === 0) {
+                                        return (
+                                            <div className="p-10 text-center text-slate-400 flex flex-col items-center justify-center">
+                                                <Inbox size={36} className="text-slate-300 mb-2" />
+                                                <p className="text-sm font-semibold text-slate-600">Keranjang Bersih</p>
+                                                <p className="text-xs text-slate-400 mt-1">Tidak ada pesan dalam kategori {outboxFilter.toLowerCase()}.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <table className="w-full text-xs text-left border-collapse">
+                                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-100">
+                                                <tr>
+                                                    <th className="px-5 py-3">Penerima</th>
+                                                    <th className="px-5 py-3">Isi Pesan</th>
+                                                    <th className="px-5 py-3">Waktu Antre / Kirim</th>
+                                                    <th className="px-5 py-3">Status</th>
+                                                    <th className="px-5 py-3 text-right">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {filtered.map(item => (
+                                                    <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                                                        <td className="px-5 py-3.5 font-mono font-medium text-slate-700 whitespace-nowrap">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Phone size={12} className="text-slate-400" />
+                                                                <span>{item.phoneNumber}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3.5 max-w-xs">
+                                                            <div className="line-clamp-2 text-slate-700 font-sans">
+                                                                {item.message || '(Pesan kosong)'}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => setSelectedOutboxMsg(item)}
+                                                                className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold mt-1 inline-flex items-center gap-1"
+                                                            >
+                                                                <MessageSquare size={11} /> Lihat Lengkap
+                                                            </button>
+                                                        </td>
+                                                        <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
+                                                            <div>
+                                                                <span className="font-semibold text-slate-700">Masuk:</span>{' '}
+                                                                {item.queuedAt ? new Date(item.queuedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                                                            </div>
+                                                            {item.sentAt && (
+                                                                <div className="text-[10px] text-emerald-700 mt-0.5">
+                                                                    <span className="font-semibold">Terkirim:</span>{' '}
+                                                                    {new Date(item.sentAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) }
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-5 py-3.5 whitespace-nowrap">
+                                                            {item.status === 'PENDING' && (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                    <Clock size={11} /> Menunggu Terhubung
+                                                                </span>
+                                                            )}
+                                                            {item.status === 'SENDING' && (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                                    <RefreshCw size={11} className="animate-spin" /> Sedang Mengirim
+                                                                </span>
+                                                            )}
+                                                            {item.status === 'SENT' && (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                    <CheckCircle2 size={11} /> Terkirim ({item.channel || 'LOCAL'})
+                                                                </span>
+                                                            )}
+                                                            {item.status === 'FAILED' && (
+                                                                <div className="space-y-1">
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                                                        <AlertTriangle size={11} /> Gagal ({item.attempts || 0}x)
+                                                                    </span>
+                                                                    {item.lastError && (
+                                                                        <div className="text-[10px] text-rose-500 max-w-xs truncate" title={item.lastError}>
+                                                                            {item.lastError}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                                                            <button
+                                                                onClick={() => handleDeleteOutboxItem(item.id)}
+                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                title="Hapus dari keranjang"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    );
+                                })()
+                            )}
+                        </div>
+                    </div>
+
+                    {/* MODAL DETAIL PESAN KERANJANG */}
+                    {selectedOutboxMsg && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                    <div className="flex items-center gap-2">
+                                        <MessageSquare size={18} className="text-blue-600" />
+                                        <h3 className="font-bold text-slate-800 text-sm">Detail Pesan di Keranjang</h3>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedOutboxMsg(null)} 
+                                        className="text-slate-400 hover:text-slate-600"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                                <div className="p-5 space-y-4">
+                                    <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                        <div>
+                                            <span className="text-slate-400 block font-semibold">Tujuan:</span>
+                                            <span className="font-mono font-bold text-slate-800">{selectedOutboxMsg.phoneNumber}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-400 block font-semibold">Status:</span>
+                                            <span className="font-bold text-slate-800">{selectedOutboxMsg.status}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-400 block font-semibold">Waktu Antre:</span>
+                                            <span className="text-slate-700">
+                                                {selectedOutboxMsg.queuedAt ? new Date(selectedOutboxMsg.queuedAt).toLocaleString('id-ID') : '-'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-slate-400 block font-semibold">Waktu Terkirim:</span>
+                                            <span className="text-slate-700">
+                                                {selectedOutboxMsg.sentAt ? new Date(selectedOutboxMsg.sentAt).toLocaleString('id-ID') : '-'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Isi Pesan Lengkap</label>
+                                        <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-800 font-mono whitespace-pre-wrap max-h-72 overflow-y-auto custom-scrollbar">
+                                            {selectedOutboxMsg.message || '(Pesan kosong)'}
+                                        </div>
+                                    </div>
+
+                                    {selectedOutboxMsg.lastError && (
+                                        <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-700">
+                                            <strong>Catatan Error:</strong> {selectedOutboxMsg.lastError}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50/50">
+                                    <button
+                                        onClick={() => setSelectedOutboxMsg(null)}
+                                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                    >
+                                        Tutup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div >
@@ -1283,3 +1703,4 @@ const Settings = () => {
 };
 
 export default Settings;
+

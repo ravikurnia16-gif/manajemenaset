@@ -5,6 +5,7 @@ const qrcode = require('qrcode');
 const { PrismaClient } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
+const waOutboxService = require('./waOutboxService');
 const prisma = new PrismaClient();
 
 const WHATSAPP_API_URL = 'https://bidang-sarana-wawebjs.ltdh6w.easypanel.host/api/send-message';
@@ -114,6 +115,10 @@ const initializeWhatsApp = () => {
         console.log('[WhatsApp Local] Client is READY!');
         connectionStatus = 'CONNECTED';
         qrCodeData = null;
+        // Otomatis kirim pesan yang tersimpan di Keranjang saat terhubung kembali!
+        setTimeout(() => {
+            flushOutboxBasket();
+        }, 3000);
     });
 
     waClient.on('authenticated', () => {
@@ -628,6 +633,8 @@ const processQueue = async () => {
             const errorMsg = error.response?.data?.message || error.message;
             console.error(`[WhatsApp Error] Target: ${phoneNumber} | Msg: ${errorMsg}`);
             lastSentTime = Date.now(); // Also update on failure to avoid spamming the API
+            // Simpan ke Keranjang Outbox agar pesan tidak hilang dan otomatis terkirim kembali saat WA terhubung
+            waOutboxService.addToOutbox(phoneNumber, message, options, `Gagal pengiriman: ${errorMsg}`);
             resolve(null);
         }
 
@@ -642,15 +649,117 @@ const processQueue = async () => {
     console.log('[WhatsApp Queue] Worker finished. Queue empty.');
 };
 
+// --- OUTBOX BASKET FLUSH WORKER ---
+let isFlushingOutbox = false;
+
 /**
- * Public sendMessage function (now queues messages)
- * Resolved immediately after queuing to avoid blocking API responses
+ * Mengirimkan ulang seluruh pesan yang tertampung di Keranjang saat WhatsApp terhubung kembali
+ */
+const flushOutboxBasket = async () => {
+    if (isFlushingOutbox) {
+        console.log('[WhatsApp Outbox] flushOutboxBasket sedang berjalan, abaikan panggilan ganda.');
+        return { success: false, reason: 'ALREADY_RUNNING' };
+    }
+    if (connectionStatus !== 'CONNECTED' || !waClient) {
+        console.log(`[WhatsApp Outbox] flushOutboxBasket ditunda. Status koneksi WhatsApp: ${connectionStatus}`);
+        return { success: false, reason: 'NOT_CONNECTED' };
+    }
+
+    const pending = waOutboxService.getPendingMessages();
+    if (!pending || pending.length === 0) {
+        return { success: true, processed: 0 };
+    }
+
+    isFlushingOutbox = true;
+    console.log(`[WhatsApp Outbox] WhatsApp terhubung! Mulai mengirim ${pending.length} pesan tertunda dari Keranjang...`);
+
+    let successCount = 0;
+    try {
+        for (const item of pending) {
+            // Pastikan koneksi WA masih aktif di tengah proses loop
+            if (connectionStatus !== 'CONNECTED' || !waClient) {
+                console.warn('[WhatsApp Outbox] Koneksi WA terputus kembali di tengah pemrosesan keranjang. Menunda sisa pesan.');
+                break;
+            }
+
+            waOutboxService.markAsSending(item.id);
+
+            try {
+                let formattedPhone = item.phoneNumber;
+                if (!item.phoneNumber.includes('@')) {
+                    formattedPhone = formatPhoneForWA(item.phoneNumber);
+                }
+                let waWebJsPhone = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@c.us`;
+
+                if (!waWebJsPhone.includes('@g.us')) {
+                    try {
+                        const numberId = await waClient.getNumberId(formattedPhone);
+                        if (numberId && numberId._serialized) {
+                            waWebJsPhone = numberId._serialized;
+                        }
+                    } catch (nidErr) {
+                        console.warn(`[WhatsApp Outbox] getNumberId warning for ${formattedPhone}:`, nidErr.message);
+                    }
+                }
+
+                const finalMessage = (!item.message || item.message.trim() === '') 
+                    ? "Data kosong."
+                    : item.message;
+
+                await waClient.sendMessage(waWebJsPhone, finalMessage, item.options || {});
+                waOutboxService.markAsSent(item.id, 'LOCAL');
+                successCount++;
+                console.log(`[WhatsApp Outbox] [BERHASIL] Pesan keranjang ID: ${item.id} terkirim ke ${waWebJsPhone}`);
+            } catch (err) {
+                console.error(`[WhatsApp Outbox] [GAGAL] Pesan keranjang ID: ${item.id} ke ${item.phoneNumber}:`, err.message);
+                waOutboxService.markAsFailed(item.id, err.message);
+            }
+
+            // Jeda aman acak antar pesan keranjang (2.5 - 4.5 detik) agar tidak diblokir WhatsApp
+            const delayMs = Math.floor(Math.random() * 2000) + 2500;
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    } finally {
+        isFlushingOutbox = false;
+        console.log(`[WhatsApp Outbox] Selesai memproses keranjang. Berhasil: ${successCount} dari ${pending.length}`);
+    }
+
+    return { success: true, processed: successCount, total: pending.length };
+};
+
+// Auto-check outbox basket every 60 seconds if connected
+setInterval(() => {
+    if (connectionStatus === 'CONNECTED' && waClient && !isFlushingOutbox) {
+        const pending = waOutboxService.getPendingMessages();
+        if (pending.length > 0) {
+            console.log(`[WhatsApp Outbox] Auto-check: ${pending.length} pesan tertunda ditemukan di Keranjang. Menjalankan pengiriman...`);
+            flushOutboxBasket();
+        }
+    }
+}, 60000);
+
+/**
+ * Public sendMessage function:
+ * Jika WA Web sedang tidak terhubung, pesan otomatis disimpan ke Keranjang Outbox.
+ * Ketika WA Web terhubung kembali, pesan otomatis terkirim.
  */
 exports.sendMessage = (phoneNumber, message, options = {}) => {
     if (!phoneNumber) return Promise.resolve(null);
 
-    // Create a background promise for the queue item
-    // but the function itself returns a resolved promise to the caller
+    // JIKA WHATSAPP WEB SEDANG TIDAK TERHUBUNG:
+    // Simpan pesan ke Keranjang Outbox agar tidak hilang dan dikirim saat terhubung kembali
+    if (connectionStatus !== 'CONNECTED' || !waClient) {
+        console.log(`[WhatsApp Outbox] WhatsApp Web sedang tidak terhubung (${connectionStatus}). Pesan ke ${phoneNumber} disimpan ke Keranjang Outbox.`);
+        const outboxItem = waOutboxService.addToOutbox(
+            phoneNumber,
+            message,
+            options,
+            `WhatsApp Web tidak terhubung (Status: ${connectionStatus})`
+        );
+        return Promise.resolve({ status: 'queued_in_basket', outboxId: outboxItem.id });
+    }
+
+    // JIKA CONNECTED: Antrekan ke in-memory queue normal untuk pengiriman langsung
     messageQueue.push({ 
         phoneNumber, 
         message, 
@@ -662,9 +771,15 @@ exports.sendMessage = (phoneNumber, message, options = {}) => {
     // Fire and forget processing
     processQueue();
     
-    // Resolve immediately for the caller so they don't wait for MIN_INTERVAL
+    // Resolve immediately for caller
     return Promise.resolve({ status: 'queued' });
 };
+
+exports.flushOutboxBasket = flushOutboxBasket;
+exports.getOutboxMessages = (limit) => waOutboxService.getAllMessages(limit);
+exports.getOutboxStats = () => waOutboxService.getOutboxStats();
+exports.deleteOutboxMessage = (id) => waOutboxService.deleteFromOutbox(id);
+exports.clearOutbox = (filter) => waOutboxService.clearOutbox(filter);
 /**
  * Trigger a dynamic WA Notification based on rules
  */

@@ -2,7 +2,7 @@ import React from 'react';
 import { 
     Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, 
     Plus, X, RotateCcw, Edit2, Trash2, Layers, Clock, AlertTriangle, 
-    Camera, Loader2, Save 
+    Camera, Loader2, Save, Target 
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -54,9 +54,11 @@ const DailyReportFormTab = ({
     setShowMissedDates,
     mobileSessionTab,
     setMobileSessionTab,
-    // Routine & assignments
+    // Routine & assignments & plans
     assignments = [],
     convertTaskToReport,
+    plans = [],
+    convertPlanItemToReport,
     applyRoutine
 }) => {
     return (
@@ -508,6 +510,75 @@ const DailyReportFormTab = ({
                                 )}
                             </div>
                         </div>
+
+                        {/* Active Work Plans Converter */}
+                        {plans && plans.length > 0 && (
+                            <div className="space-y-2.5 pt-3 border-t border-slate-200/70">
+                                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Target size={14} className="text-violet-600" /> Butir Rencana Kerja Aktif
+                                </h4>
+                                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                                    {(() => {
+                                        const pendingPlanEntries = plans.flatMap(plan => {
+                                            const meta = plan.metadata || {};
+                                            const items = Array.isArray(meta.items) ? meta.items : [];
+                                            if (items.length > 0) {
+                                                return items
+                                                    .map((it, idx) => ({ plan, it, idx }))
+                                                    .filter(({ it }) => (it.percentage || 0) < 100 && it.status !== 'SELESAI');
+                                            } else {
+                                                const isDone = meta.status === 'SELESAI' || meta.percentage === 100;
+                                                return isDone ? [] : [{ plan, it: null, idx: null }];
+                                            }
+                                        });
+
+                                        if (pendingPlanEntries.length === 0) {
+                                            return (
+                                                <div className="p-4 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                                    Seluruh target rencana kerja Anda telah terselesaikan 100%.
+                                                </div>
+                                            );
+                                        }
+
+                                        return pendingPlanEntries.map(({ plan, it, idx }, entryIdx) => {
+                                            const planTitle = plan.metadata?.title || 'Rencana Kerja';
+                                            const activityText = it ? it.activity : planTitle;
+                                            const pct = it ? (it.percentage || 0) : (plan.metadata?.percentage || 0);
+
+                                            return (
+                                                <div key={`${plan.id}-${idx !== null ? idx : entryIdx}`} className="p-3 bg-violet-50/40 border border-violet-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
+                                                                {planTitle}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 font-bold">{pct}%</span>
+                                                        </div>
+                                                        <h5 className="text-xs font-bold text-slate-800 mt-1">{activityText}</h5>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'morning')}
+                                                            className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
+                                                        >
+                                                            + Pagi
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'afternoon')}
+                                                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
+                                                        >
+                                                            + Siang
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

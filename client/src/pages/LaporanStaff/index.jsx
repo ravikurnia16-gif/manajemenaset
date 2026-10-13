@@ -5,7 +5,7 @@ import {
     Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles, 
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
-    BookOpen
+    BookOpen, Target
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/axios';
@@ -22,6 +22,7 @@ import DailyReportFormTab from './tabs/DailyReportFormTab';
 import DisciplineMatrixTab from './tabs/DisciplineMatrixTab';
 import WeeklyPdfTab from './tabs/WeeklyPdfTab';
 import AssignmentsTab from './tabs/AssignmentsTab';
+import WorkPlanTab from './tabs/WorkPlanTab';
 
 // Modals
 import LiveCameraModal from './modals/LiveCameraModal';
@@ -157,6 +158,10 @@ const LaporanStaff = () => {
     const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', assigneeId: '', dueDate: '', category: 'UMUM' });
     const [routinePurged, setRoutinePurged] = useState(() => localStorage.getItem('routine_tasks_purged') === 'true');
 
+    // Plans / Perencanaan Kerja
+    const [plans, setPlans] = useState([]);
+    const [loadingPlans, setLoadingPlans] = useState(false);
+
     // Lightbox modal for photos
     const [lightboxPhoto, setLightboxPhoto] = useState(null);
 
@@ -171,12 +176,16 @@ const LaporanStaff = () => {
             fetchMyReport();
             fetchMyStats();
             fetchAssignments();
+            fetchPlans();
         } else if (activeTab === 'matrix' && isKabid) {
             fetchMatrixData();
         } else if (activeTab === 'weekly-pdf' && isKabid) {
             fetchWeeklySummary();
         } else if (activeTab === 'penugasan') {
             fetchAssignments();
+            if (isKabid) fetchStaffList();
+        } else if (activeTab === 'perencanaan') {
+            fetchPlans();
             if (isKabid) fetchStaffList();
         }
     }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate]);
@@ -364,7 +373,7 @@ const LaporanStaff = () => {
                     ? `Alhamdulillah, laporan ${periodText}susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!` 
                     : `Alhamdulillah, laporan ${periodText}harian berhasil disimpan!`
                 );
-                await Promise.all([fetchMyReport(), fetchMyStats()]);
+                await Promise.all([fetchMyReport(), fetchMyStats(), fetchPlans()]);
             }
         } catch (error) {
             console.error('Error saving report:', error);
@@ -451,6 +460,35 @@ const LaporanStaff = () => {
             setMorningPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
         } else {
             setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
+        }
+        setActiveTab('laporan');
+    };
+
+    const convertPlanItemToReport = (plan, item, itemIndex, period = 'morning') => {
+        const itemText = item ? (item.activity || item.text || '') : '';
+        const reportTitle = plan.metadata?.title || 'Rencana Kerja';
+        const isSingleGoal = !item;
+        
+        const isDone = isSingleGoal 
+            ? (plan.metadata?.status === 'SELESAI' || plan.metadata?.percentage === 100)
+            : (item?.percentage === 100 || item?.status === 'SELESAI');
+
+        const reportItem = {
+            text: isSingleGoal ? `[Rencana Kerja] ${reportTitle}` : `[Rencana: ${reportTitle}] ${itemText}`,
+            categoryTag: plan.metadata?.categoryTag || plan.category || 'UMUM',
+            status: isDone ? 'COMPLETED' : 'IN_PROGRESS',
+            progressPercentage: isSingleGoal ? (plan.metadata?.percentage || 50) : (item?.percentage !== undefined ? item.percentage : 50),
+            sourceType: 'PLAN',
+            sourceId: plan.id,
+            planItemIndex: isSingleGoal ? undefined : itemIndex,
+            obstacleNote: '',
+            isRoutine: false,
+            photos: []
+        };
+        if (period === 'morning') {
+            setMorningPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [reportItem] : [...prev, reportItem]);
+        } else {
+            setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [reportItem] : [...prev, reportItem]);
         }
         setActiveTab('laporan');
     };
@@ -646,6 +684,161 @@ const LaporanStaff = () => {
             alert('Gagal membersihkan tugas rutin.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const fetchPlans = async () => {
+        try {
+            setLoadingPlans(true);
+            const params = {};
+            if (isKabid) {
+                params.limit = 'all';
+            } else {
+                params.userId = user.id;
+            }
+            const res = await api.get('/personnel/reports', { params });
+            const data = res.data?.data || res.data || [];
+            const planList = Array.isArray(data) ? data.filter(r => r.metadata?.isPlan) : [];
+            setPlans(planList);
+        } catch (err) {
+            console.error('Error fetching plans:', err);
+        } finally {
+            setLoadingPlans(false);
+        }
+    };
+
+    const handleCreateOrUpdatePlan = async (formData) => {
+        try {
+            setSaving(true);
+            const userPos = user.position || '';
+            const validCategories = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
+            const resolvedCat = validCategories.includes(formData.category) ? formData.category : 'UMUM';
+
+            const payload = {
+                type: 'WEEKLY',
+                category: resolvedCat,
+                content: formData.notes || '',
+                date: formData.startDate || dayjs().format('YYYY-MM-DD'),
+                metadata: {
+                    isPlan: true,
+                    title: formData.title,
+                    position: formData.position || userPos,
+                    categoryTag: formData.category || userDivision || 'UMUM',
+                    priority: formData.priority || 'SEDANG',
+                    startDate: formData.startDate || dayjs().format('YYYY-MM-DD'),
+                    endDate: formData.endDate,
+                    status: formData.status || 'PENDING',
+                    percentage: formData.percentage !== undefined ? formData.percentage : 0,
+                    items: Array.isArray(formData.items) ? formData.items.map(it => ({
+                        activity: it.activity,
+                        targetDate: it.targetDate || '',
+                        status: it.status || 'PENDING',
+                        percentage: it.percentage !== undefined ? it.percentage : 0
+                    })) : []
+                }
+            };
+
+            if (formData.id) {
+                await api.put(`/personnel/reports/${formData.id}`, payload);
+            } else {
+                await api.post('/personnel/reports', payload);
+            }
+            await fetchPlans();
+            if (typeof fetchMyReport === 'function') {
+                fetchMyReport();
+            }
+            return true;
+        } catch (err) {
+            console.error('Error saving plan:', err);
+            alert(err.response?.data?.error || 'Gagal menyimpan rencana kerja.');
+            return false;
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleTogglePlanStatus = async (plan) => {
+        try {
+            const meta = plan.metadata || {};
+            const isCurrentlyDone = meta.status === 'SELESAI' || meta.percentage === 100;
+            const newStatus = isCurrentlyDone ? 'PENDING' : 'SELESAI';
+            const newPercentage = isCurrentlyDone ? 0 : 100;
+
+            const updatedItems = Array.isArray(meta.items)
+                ? meta.items.map(it => ({
+                    ...it,
+                    status: newStatus,
+                    percentage: newPercentage
+                }))
+                : [];
+
+            await api.put(`/personnel/reports/${plan.id}`, {
+                type: plan.type,
+                category: plan.category,
+                content: plan.content,
+                date: plan.date,
+                metadata: {
+                    ...meta,
+                    status: newStatus,
+                    percentage: newPercentage,
+                    ...(updatedItems.length > 0 ? { items: updatedItems } : {})
+                }
+            });
+            await fetchPlans();
+            if (typeof fetchMyReport === 'function') {
+                fetchMyReport();
+            }
+        } catch (err) {
+            console.error('Error toggling plan status:', err);
+            alert('Gagal memperbarui status rencana kerja.');
+        }
+    };
+
+    const handleUpdatePlanItem = async (plan, itemIdx, updates) => {
+        try {
+            const updatedItems = [...(plan.metadata?.items || [])];
+            updatedItems[itemIdx] = { ...updatedItems[itemIdx], ...updates };
+            if (updates.percentage === 100) updatedItems[itemIdx].status = 'SELESAI';
+            else if (updates.percentage === 0) updatedItems[itemIdx].status = 'PENDING';
+            else if (updates.percentage > 0 && updates.percentage < 100 && !updates.status) updatedItems[itemIdx].status = 'PROSES';
+
+            // Recalculate whole plan percentage & status
+            const allItemsDone = updatedItems.every(it => it.percentage === 100 || it.status === 'SELESAI');
+            const avg = Math.round(updatedItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / updatedItems.length);
+            const overallStatus = (allItemsDone || avg === 100) ? 'SELESAI' : (avg > 0 ? 'PROSES' : 'PENDING');
+
+            await api.put(`/personnel/reports/${plan.id}`, {
+                type: plan.type,
+                category: plan.category,
+                content: plan.content,
+                date: plan.date,
+                metadata: {
+                    ...plan.metadata,
+                    percentage: avg,
+                    status: overallStatus,
+                    items: updatedItems
+                }
+            });
+            await fetchPlans();
+            if (typeof fetchMyReport === 'function') {
+                fetchMyReport();
+            }
+        } catch (err) {
+            console.error('Error updating plan item:', err);
+            alert('Gagal memperbarui butir rencana kerja.');
+        }
+    };
+
+    const handleDeletePlan = async (planId) => {
+        try {
+            await api.delete(`/personnel/reports/${planId}`);
+            await fetchPlans();
+            if (typeof fetchMyReport === 'function') {
+                fetchMyReport();
+            }
+        } catch (err) {
+            console.error('Error deleting plan:', err);
+            alert(err.response?.data?.error || 'Gagal menghapus rencana kerja.');
         }
     };
 
@@ -908,9 +1101,10 @@ const LaporanStaff = () => {
                         onClick={() => {
                             if (activeTab === 'dashboard') fetchDashboardAnalytics();
                             else if (activeTab === 'monitoring') fetchReportsFeed();
-                            else if (activeTab === 'laporan') { fetchMyReport(); fetchMyStats(); }
+                            else if (activeTab === 'laporan') { fetchMyReport(); fetchMyStats(); fetchPlans(); }
                             else if (activeTab === 'matrix') fetchMatrixData();
                             else if (activeTab === 'weekly-pdf') fetchWeeklySummary();
+                            else if (activeTab === 'perencanaan') fetchPlans();
                             else fetchAssignments();
                         }}
                         className="p-2 sm:p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer shrink-0"
@@ -991,6 +1185,14 @@ const LaporanStaff = () => {
                             <CheckSquare size={16} /> Delegasi Penugasan
                         </button>
                         <button
+                            onClick={() => setActiveTab('perencanaan')}
+                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'perencanaan' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <Target size={16} /> Perencanaan Kerja
+                        </button>
+                        <button
                             onClick={() => setActiveTab('hafalan')}
                             className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                                 activeTab === 'hafalan' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -1016,6 +1218,14 @@ const LaporanStaff = () => {
                             }`}
                         >
                             <CheckSquare size={16} /> Penugasan Saya
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('perencanaan')}
+                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'perencanaan' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <Target size={16} /> Perencanaan Kerja
                         </button>
                         <button
                             onClick={() => setActiveTab('hafalan')}
@@ -1165,6 +1375,8 @@ const LaporanStaff = () => {
                             setMobileSessionTab={setMobileSessionTab}
                             assignments={assignments}
                             convertTaskToReport={convertTaskToReport}
+                            plans={plans}
+                            convertPlanItemToReport={convertPlanItemToReport}
                             applyRoutine={applyRoutine}
                         />
                     )}
@@ -1215,6 +1427,25 @@ const LaporanStaff = () => {
                             convertTaskToReport={convertTaskToReport}
                             onImportTaskToReport={convertTaskToReport}
                             setActiveTab={setActiveTab}
+                        />
+                    )}
+
+                    {/* TAB: PERENCANAAN KERJA */}
+                    {activeTab === 'perencanaan' && (
+                        <WorkPlanTab
+                            plans={plans}
+                            loadingPlans={loadingPlans}
+                            fetchPlans={fetchPlans}
+                            isKabid={isKabid}
+                            user={user}
+                            userDivision={userDivision}
+                            staffList={staffList}
+                            handleCreateOrUpdatePlan={handleCreateOrUpdatePlan}
+                            handleUpdatePlanItem={handleUpdatePlanItem}
+                            handleTogglePlanStatus={handleTogglePlanStatus}
+                            handleDeletePlan={handleDeletePlan}
+                            onImportPlanItemToReport={convertPlanItemToReport}
+                            saving={saving}
                         />
                     )}
 

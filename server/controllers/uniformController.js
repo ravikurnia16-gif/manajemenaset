@@ -1611,6 +1611,54 @@ exports.getItems = async (req, res) => {
     }
 };
 
+// Helper: Menghitung stok tersedia setelah dikurangi order yang belum keluar dari gudang
+const enrichVariantsWithAvailableStock = async (variants) => {
+    try {
+        const pendingSaleItems = await prisma.uniformSaleItem.findMany({
+            where: {
+                status: { in: ['PENDING', 'SEDIA'] },
+                sale: {
+                    status: { notIn: ['CANCELLED', 'BATAL'] }
+                }
+            },
+            select: {
+                variantId: true,
+                qty: true,
+                qtyDelivered: true
+            }
+        });
+
+        const reservedMap = {};
+        for (const it of pendingSaleItems) {
+            const unfulfilled = Math.max(0, it.qty - (it.qtyDelivered || 0));
+            reservedMap[it.variantId] = (reservedMap[it.variantId] || 0) + unfulfilled;
+        }
+
+        return variants.map(v => {
+            const totalPhysicalStock = (v.stocks || []).reduce((acc, s) => acc + (s.quantity || 0), 0);
+            const reservedQty = reservedMap[v.id] || 0;
+            const availableStock = Math.max(0, totalPhysicalStock - reservedQty);
+            return {
+                ...v,
+                totalPhysicalStock,
+                reservedQty,
+                availableStock
+            };
+        });
+    } catch (err) {
+        console.error('Error enriching variants with available stock:', err);
+        return variants.map(v => {
+            const totalPhysicalStock = (v.stocks || []).reduce((acc, s) => acc + (s.quantity || 0), 0);
+            return {
+                ...v,
+                totalPhysicalStock,
+                reservedQty: 0,
+                availableStock: totalPhysicalStock
+            };
+        });
+    }
+};
+
 exports.getVariants = async (req, res) => {
     try {
         const variants = await prisma.uniformVariant.findMany({
@@ -1622,7 +1670,8 @@ exports.getVariants = async (req, res) => {
             },
             orderBy: { sku: 'asc' }
         });
-        res.json(variants);
+        const enriched = await enrichVariantsWithAvailableStock(variants);
+        res.json(enriched);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -3123,16 +3172,34 @@ exports.createSale = async (req, res) => {
 
                 const qty = parseInt(item.qty);
 
-                // Validasi stok untuk pesanan publik (RETAIL): jika stok kosong di seluruh gudang, tolak pemesanan
+                // Validasi stok untuk pesanan publik (RETAIL): jika sisa stok kosong atau tidak mencukupi, tolak pemesanan
                 if (type === 'RETAIL') {
                     const allStockAgg = await tx.uniformStock.aggregate({
                         where: { variantId: parseInt(item.variantId) },
                         _sum: { quantity: true }
                     });
                     const totalAllWarehouses = allStockAgg._sum.quantity || 0;
-                    if (totalAllWarehouses <= 0) {
-                        const szName = variant.sizeName || variant.size?.name || '';
-                        throw new Error(`Stok untuk "${variant.item.name}${szName ? ' (' + szName + ')' : ''}" sedang tidak tersedia di seluruh gudang kami karena masih dalam proses penjahitan ke Vendor dan belum dapat dipesan.`);
+
+                    // Hitung pesanan aktif lain yang belum keluar dari gudang
+                    const pendingItemsAgg = await tx.uniformSaleItem.findMany({
+                        where: {
+                            variantId: parseInt(item.variantId),
+                            status: { in: ['PENDING', 'SEDIA'] },
+                            sale: { status: { notIn: ['CANCELLED', 'BATAL'] } }
+                        },
+                        select: { qty: true, qtyDelivered: true }
+                    });
+                    const totalReserved = pendingItemsAgg.reduce((acc, pi) => acc + Math.max(0, pi.qty - (pi.qtyDelivered || 0)), 0);
+                    const availableStock = Math.max(0, totalAllWarehouses - totalReserved);
+
+                    const szName = variant.sizeName || variant.size?.name || '';
+                    const fullItemName = `${variant.item.name}${szName ? ' (' + szName + ')' : ''}`;
+
+                    if (availableStock <= 0) {
+                        throw new Error(`Mohon maaf, stok untuk "${fullItemName}" saat ini tidak tersedia (stok habis atau sudah terpesan oleh antrean lain) dan belum dapat dipesan.`);
+                    }
+                    if (qty > availableStock) {
+                        throw new Error(`Jumlah pesanan untuk "${fullItemName}" (${qty} pcs) melebihi sisa stok yang tersedia (${availableStock} pcs).`);
                     }
                 }
                 const totalPrice = unitPrice * qty;

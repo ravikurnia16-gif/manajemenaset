@@ -300,6 +300,7 @@ exports.updateMyReport = async (req, res) => {
             progressPercentage: p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : (p.status === 'COMPLETED' ? 100 : 50),
             sourceType: p.sourceType || null,
             sourceId: p.sourceId || null,
+            planItemIndex: p.planItemIndex !== undefined && p.planItemIndex !== null ? parseInt(p.planItemIndex) : null,
             obstacleNote: (p.obstacleNote || '').trim(),
             isRoutine: !!p.isRoutine,
             photos: Array.isArray(p.photos) ? p.photos : [],
@@ -405,6 +406,41 @@ exports.updateMyReport = async (req, res) => {
                             });
                         } catch (e) {
                             console.error('[Laporan] Error syncing maintenance:', e.message);
+                        }
+                    } else if (p.sourceType === 'PLAN' && p.sourceId) {
+                        try {
+                            const plan = await prisma.personnelReport.findUnique({
+                                where: { id: parseInt(p.sourceId) }
+                            });
+                            if (plan && plan.metadata && plan.metadata.isPlan) {
+                                const updatedMeta = { ...plan.metadata };
+                                const pct = p.status === 'COMPLETED' ? 100 : (p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : 50);
+
+                                if (updatedMeta.items && Array.isArray(updatedMeta.items) && updatedMeta.items.length > 0 && p.planItemIndex !== null && p.planItemIndex !== undefined) {
+                                    const idx = parseInt(p.planItemIndex);
+                                    if (updatedMeta.items[idx]) {
+                                        updatedMeta.items[idx].percentage = pct;
+                                        updatedMeta.items[idx].status = pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING');
+                                    }
+                                    // Recalculate whole plan status
+                                    const allItemsDone = updatedMeta.items.every(it => it.percentage === 100 || it.status === 'SELESAI');
+                                    const avg = Math.round(updatedMeta.items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / updatedMeta.items.length);
+                                    updatedMeta.percentage = avg;
+                                    updatedMeta.status = (allItemsDone || avg === 100) ? 'SELESAI' : (avg > 0 ? 'PROSES' : 'PENDING');
+                                } else {
+                                    // Single-goal plan without sub-items
+                                    updatedMeta.percentage = pct;
+                                    updatedMeta.status = pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING');
+                                }
+
+                                await prisma.personnelReport.update({
+                                    where: { id: plan.id },
+                                    data: { metadata: updatedMeta }
+                                });
+                                console.log(`[Laporan] Auto-synced daily report update to plan ${plan.id} (Status: ${updatedMeta.status}, Progres: ${updatedMeta.percentage}%)`);
+                            }
+                        } catch (e) {
+                            console.error('[Laporan] Error syncing plan:', e.message);
                         }
                     }
                 }
@@ -2213,6 +2249,113 @@ exports.deleteSetoranHafalan = async (req, res) => {
     } catch (error) {
         console.error('Error deleting setoran hafalan:', error);
         res.status(500).json({ error: 'Gagal menghapus setoran hafalan' });
+    }
+};
+
+/**
+ * POST /api/laporan/ai/breakdown-plan
+ * AI Task Breakdown using Google Gemini
+ */
+exports.breakdownPlanWithAI = async (req, res) => {
+    const { title, position, category, startDate, endDate, priority } = req.body;
+
+    if (!title || !title.trim()) {
+        return res.status(400).json({ error: 'Judul rencana kerja wajib diisi.' });
+    }
+
+    try {
+        const startStr = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+        const endStr = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().add(7, 'day').format('YYYY-MM-DD');
+
+        const prompt = `
+Anda adalah Asisten Ahli Perencanaan Kerja & Manajemen Sarana Prasarana Yayasan Dar el-Iman Padang.
+Rencana kerja yang akan disusun oleh staf:
+- Judul Rencana: ${title}
+- Divisi/Posisi: ${position || category || 'Staff Sarpras'}
+- Tanggal Mulai: ${startStr}
+- Tanggal Estimasi Selesai (Batas Akhir): ${endStr}
+- Prioritas Awal: ${priority || 'SEDANG'}
+
+TUGAS ANDA:
+1. Analisis urgensi rencana ini dan tentukan "priority": pilih salah satu dari "TINGGI" (kritis/urgent/keamanan/kebocoran/darurat), "SEDANG" (penting/terjadwal standar), atau "RENDAH" (rutin/berkala/kebersihan).
+2. Rincikan pekerjaan ini menjadi 3 sampai 5 butir langkah kerja konkret yang runtut secara kronologis.
+3. Untuk setiap butir langkah dalam array "steps":
+   - "activity": Uraian tindakan kerja teknis yang jelas dan profesional (maksimal 15 kata per langkah).
+   - "targetDate": Tanggal estimasi langkah dalam format YYYY-MM-DD. Tanggal langkah HARUS dimulai dari ${startStr} dan MAKSIMAL ${endStr} (TIDAK BOLEH melebihi ${endStr}). Urutkan tanggal dari awal sampai deadline.
+4. "scopeNote": 1-2 kalimat ringkasan ruang lingkup pengerjaan atau saran keselamatan kerja (K3).
+
+KEMBALIKAN HANYA FORMAT JSON MURNI TANPA MARKDOWN (tanpa blok backtick json):
+{
+  "priority": "TINGGI",
+  "steps": [
+    { "activity": "Langkah pertama...", "targetDate": "${startStr}" }
+  ],
+  "scopeNote": "Ruang lingkup..."
+}
+`;
+
+        let rawResponse = '';
+        try {
+            const aiResult = await aiService.generateContentWithFallback(prompt);
+            rawResponse = aiResult?.response?.text() || '';
+        } catch (aiErr) {
+            console.warn('[AI Plan Breakdown] Gemini error, using fallback rule:', aiErr.message);
+        }
+
+        let parsedData = null;
+        if (rawResponse) {
+            try {
+                const cleanJson = rawResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
+                parsedData = JSON.parse(cleanJson);
+            } catch (jsonErr) {
+                console.warn('[AI Plan Breakdown] JSON parse failed, trying regex extraction:', jsonErr.message);
+                const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        parsedData = JSON.parse(jsonMatch[0]);
+                    } catch (e) { }
+                }
+            }
+        }
+
+        // Fallback rule-based if AI was unavailable or parsing failed
+        if (!parsedData || !Array.isArray(parsedData.steps) || parsedData.steps.length === 0) {
+            const startD = dayjs(startStr);
+            const endD = dayjs(endStr);
+            const diffDays = Math.max(1, endD.diff(startD, 'day'));
+            const midDate = startD.add(Math.floor(diffDays / 2), 'day').format('YYYY-MM-DD');
+
+            parsedData = {
+                priority: priority || 'SEDANG',
+                steps: [
+                    { activity: `Pemeriksaan awal & identifikasi kebutuhan: ${title}`, targetDate: startD.format('YYYY-MM-DD') },
+                    { activity: `Persiapan material, alat pelindung & suku cadang`, targetDate: midDate },
+                    { activity: `Pelaksanaan tindakan pengerjaan fisik utama`, targetDate: endStr },
+                    { activity: `Uji coba fungsi, pembersihan area kerja & serah terima`, targetDate: endStr }
+                ],
+                scopeNote: `Pengerjaan target ${title} sesuai SOP pemeliharaan sarana dan keselamatan kerja.`
+            };
+        }
+
+        // Ensure dates are strictly within [startStr, endStr]
+        parsedData.steps = parsedData.steps.map((st, idx) => {
+            let tDate = st.targetDate;
+            if (!tDate || dayjs(tDate).isAfter(dayjs(endStr), 'day') || dayjs(tDate).isBefore(dayjs(startStr), 'day')) {
+                tDate = endStr;
+            }
+            return {
+                activity: st.activity || `Langkah ke-${idx + 1}`,
+                targetDate: tDate
+            };
+        });
+
+        res.json({
+            success: true,
+            data: parsedData
+        });
+    } catch (err) {
+        console.error('[AI Breakdown Error]:', err);
+        res.status(500).json({ error: 'Gagal merinci langkah dengan AI.' });
     }
 };
 

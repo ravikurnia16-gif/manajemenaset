@@ -155,6 +155,171 @@ const autoLogActivity = async (userId, source, sourceId, sourceTitle, descriptio
     }
 };
 
+// Helper to upsert a plan point into today's daily report (Bidirectional sync: Plan -> Daily Report)
+const upsertPointToDailyReport = async (userId, dailyReport, newPoint, currentHour) => {
+    const today = dayjs().tz('Asia/Jakarta');
+    const normalizedDate = today.hour(12).minute(0).second(0).toDate();
+
+    if (dailyReport) {
+        const meta = typeof dailyReport.metadata === 'object' && dailyReport.metadata !== null ? dailyReport.metadata : {};
+        const manualPoints = meta.manualPoints || { morning: [], afternoon: [] };
+        const morning = Array.isArray(manualPoints.morning) ? [...manualPoints.morning] : [];
+        const afternoon = Array.isArray(manualPoints.afternoon) ? [...manualPoints.afternoon] : [];
+
+        const matchFn = (p) => p.sourceType === 'PLAN' && 
+            parseInt(p.sourceId) === parseInt(newPoint.sourceId) && 
+            (
+                (newPoint.planItemIndex !== null && newPoint.planItemIndex !== undefined && parseInt(p.planItemIndex) === parseInt(newPoint.planItemIndex)) ||
+                ((newPoint.planItemIndex === null || newPoint.planItemIndex === undefined) && (p.planItemIndex === null || p.planItemIndex === undefined))
+            );
+
+        let matched = false;
+        for (let i = 0; i < afternoon.length; i++) {
+            if (matchFn(afternoon[i])) {
+                afternoon[i] = { ...afternoon[i], ...newPoint, photos: afternoon[i].photos || [] };
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            for (let i = 0; i < morning.length; i++) {
+                if (matchFn(morning[i])) {
+                    morning[i] = { ...morning[i], ...newPoint, photos: morning[i].photos || [] };
+                    matched = true;
+                    break;
+                }
+            }
+        }
+
+        if (!matched) {
+            if (currentHour >= 12) {
+                afternoon.push(newPoint);
+            } else {
+                morning.push(newPoint);
+            }
+        }
+
+        const summaryLines = [];
+        if (morning.length > 0) {
+            summaryLines.push('[SESI PAGI]');
+            morning.forEach((p, idx) => summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text} [${p.status}]`));
+        }
+        if (afternoon.length > 0) {
+            summaryLines.push('[SESI SIANG]');
+            afternoon.forEach((p, idx) => summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text} [${p.status}]`));
+        }
+
+        await prisma.personnelReport.update({
+            where: { id: dailyReport.id },
+            data: {
+                content: summaryLines.join('\n'),
+                metadata: {
+                    ...meta,
+                    manualPoints: { morning, afternoon },
+                    lastSubmittedAt: new Date().toISOString()
+                }
+            }
+        });
+    } else {
+        const morning = currentHour < 12 ? [newPoint] : [];
+        const afternoon = currentHour >= 12 ? [newPoint] : [];
+        const autoContent = currentHour >= 12
+            ? `[SESI SIANG]\n1. [${newPoint.categoryTag}] ${newPoint.text} [${newPoint.status}]`
+            : `[SESI PAGI]\n1. [${newPoint.categoryTag}] ${newPoint.text} [${newPoint.status}]`;
+
+        await prisma.personnelReport.create({
+            data: {
+                userId: parseInt(userId),
+                type: 'DAILY',
+                category: newPoint.categoryTag || 'UMUM',
+                content: autoContent,
+                date: normalizedDate,
+                metadata: {
+                    manualPoints: { morning, afternoon },
+                    autoSyncedFromPlan: true,
+                    lastSubmittedAt: new Date().toISOString()
+                }
+            }
+        });
+    }
+};
+
+const syncPlanToDailyReport = async (userId, planId, planTitle, categoryTag, items, singlePercentage, singleStatus) => {
+    try {
+        const today = dayjs().tz('Asia/Jakarta');
+        const startOfDay = today.startOf('day').toDate();
+        const endOfDay = today.endOf('day').toDate();
+
+        let dailyReport = await prisma.personnelReport.findFirst({
+            where: {
+                userId: parseInt(userId),
+                type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
+                date: { gte: startOfDay, lte: endOfDay }
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        const currentHour = today.hour();
+
+        if (Array.isArray(items) && items.length > 0) {
+            for (let idx = 0; idx < items.length; idx++) {
+                const it = items[idx];
+                const pct = it.percentage !== undefined ? it.percentage : (it.status === 'SELESAI' ? 100 : 0);
+                const isCompleted = pct === 100 || it.status === 'SELESAI';
+                const pointStatus = isCompleted ? 'COMPLETED' : (pct > 0 ? 'IN_PROGRESS' : 'PENDING');
+                const activityText = `[Rencana: ${planTitle}] ${it.activity || it.text || ''}`;
+
+                await upsertPointToDailyReport(userId, dailyReport, {
+                    text: activityText,
+                    categoryTag: categoryTag || 'UMUM',
+                    status: pointStatus,
+                    progressPercentage: pct,
+                    sourceType: 'PLAN',
+                    sourceId: parseInt(planId),
+                    planItemIndex: idx,
+                    obstacleNote: '',
+                    isRoutine: false,
+                    photos: [],
+                    updatedAt: new Date().toISOString()
+                }, currentHour);
+
+                // Re-fetch daily report for next iteration
+                dailyReport = await prisma.personnelReport.findFirst({
+                    where: {
+                        userId: parseInt(userId),
+                        type: 'DAILY',
+                        NOT: { content: 'SETORAN_HAFALAN' },
+                        date: { gte: startOfDay, lte: endOfDay }
+                    },
+                    orderBy: { updatedAt: 'desc' }
+                });
+            }
+        } else {
+            const pct = singlePercentage !== undefined ? singlePercentage : (singleStatus === 'SELESAI' ? 100 : 0);
+            const isCompleted = pct === 100 || singleStatus === 'SELESAI';
+            const pointStatus = isCompleted ? 'COMPLETED' : (pct > 0 ? 'IN_PROGRESS' : 'PENDING');
+            const activityText = `[Rencana Kerja] ${planTitle}`;
+
+            await upsertPointToDailyReport(userId, dailyReport, {
+                text: activityText,
+                categoryTag: categoryTag || 'UMUM',
+                status: pointStatus,
+                progressPercentage: pct,
+                sourceType: 'PLAN',
+                sourceId: parseInt(planId),
+                planItemIndex: null,
+                obstacleNote: '',
+                isRoutine: false,
+                photos: [],
+                updatedAt: new Date().toISOString()
+            }, currentHour);
+        }
+    } catch (err) {
+        console.error('[Sync Plan to Daily Report Error]:', err.message);
+    }
+};
+
 // --- REPORTS ---
 
 exports.updateReport = async (req, res) => {
@@ -188,11 +353,24 @@ exports.updateReport = async (req, res) => {
         // Sync to calendar
         await syncPlanToCalendar(updated, user);
 
-        // Auto-log plan updates to daily report
-        if (metadata?.isPlan && metadata?.items) {
+        // Bidirectional Sync: Plan -> Daily Report
+        if (metadata?.isPlan) {
             const planTitle = metadata.title || 'Rencana Kerja';
+            const planCategory = updated.metadata?.categoryTag || updated.category || 'UMUM';
             const items = metadata.items || [];
-            const avgPct = items.length > 0 ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) : 0;
+            
+            await syncPlanToDailyReport(
+                user.id,
+                parseInt(id),
+                planTitle,
+                planCategory,
+                items,
+                metadata.percentage,
+                metadata.status
+            );
+
+            // Also keep autoLogActivity legacy call
+            const avgPct = items.length > 0 ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) : (metadata.percentage || 0);
             const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
 
             autoLogActivity(
@@ -208,6 +386,71 @@ exports.updateReport = async (req, res) => {
         res.json({ message: 'Laporan berhasil diperbarui', data: updated });
     } catch (error) {
         console.error("Update Report Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteReport = async (req, res) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    try {
+        const report = await prisma.personnelReport.findUnique({ where: { id: parseInt(id) } });
+
+        if (!report) {
+            return res.status(404).json({ error: 'Data tidak ditemukan' });
+        }
+
+        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak. Anda hanya dapat menghapus rencana/laporan Anda sendiri.' });
+        }
+
+        // Clean up linked calendar event if exists
+        if (report.metadata?.calendarEventId) {
+            try {
+                await prisma.sarprasCalendarEvent.delete({ where: { id: parseInt(report.metadata.calendarEventId) } });
+            } catch (calErr) {
+                console.error('[Delete Report] Failed to remove calendar event:', calErr.message);
+            }
+        }
+
+        // Clean up any points from today's daily report if it's a plan
+        if (report.metadata?.isPlan) {
+            try {
+                const today = dayjs().tz('Asia/Jakarta');
+                const daily = await prisma.personnelReport.findFirst({
+                    where: {
+                        userId: report.userId,
+                        type: 'DAILY',
+                        date: {
+                            gte: today.startOf('day').toDate(),
+                            lte: today.endOf('day').toDate()
+                        }
+                    }
+                });
+                if (daily && daily.metadata?.manualPoints) {
+                    const morning = (daily.metadata.manualPoints.morning || []).filter(p => !(p.sourceType === 'PLAN' && parseInt(p.sourceId) === parseInt(id)));
+                    const afternoon = (daily.metadata.manualPoints.afternoon || []).filter(p => !(p.sourceType === 'PLAN' && parseInt(p.sourceId) === parseInt(id)));
+                    await prisma.personnelReport.update({
+                        where: { id: daily.id },
+                        data: {
+                            metadata: {
+                                ...daily.metadata,
+                                manualPoints: { morning, afternoon }
+                            }
+                        }
+                    });
+                }
+            } catch (cleanupErr) {
+                console.error('[Delete Report] Failed to clean up daily report points:', cleanupErr.message);
+            }
+        }
+
+        await prisma.personnelReport.delete({ where: { id: parseInt(id) } });
+
+        res.json({ message: 'Rencana/Laporan berhasil dihapus' });
+    } catch (error) {
+        console.error("Delete Report Error:", error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -234,6 +477,23 @@ exports.createReport = async (req, res) => {
 
         // Sync to calendar
         await syncPlanToCalendar(report, user);
+
+        // Bidirectional Sync: Plan -> Daily Report (On Create)
+        if (metadata?.isPlan) {
+            const planTitle = metadata.title || 'Rencana Kerja';
+            const planCategory = report.metadata?.categoryTag || report.category || 'UMUM';
+            const items = metadata.items || [];
+            
+            await syncPlanToDailyReport(
+                user.id,
+                report.id,
+                planTitle,
+                planCategory,
+                items,
+                metadata.percentage,
+                metadata.status
+            );
+        }
 
         // --- AUTOMATIC SYNC TO PLAN (IF APPLICABLE) ---
         if (metadata?.items && Array.isArray(metadata.items)) {
@@ -1865,9 +2125,16 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
  * Triggered daily at 08:00
  */
 exports.checkPlanDeadlines = async () => {
-    console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel Plan] Checking plan deadlines...`);
+    console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel Plan] Checking plan deadlines and daily step targets at 07:50 WIB...`);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowTime = tomorrow.getTime();
+
+    const todayStr = dayjs(today).format('YYYY-MM-DD');
 
     try {
         const reports = await prisma.personnelReport.findMany({
@@ -1877,100 +2144,161 @@ exports.checkPlanDeadlines = async () => {
             include: { user: true }
         });
 
-        // Filter for work plans (metadata.isPlan === true)
+        // Filter for active work plans (metadata.isPlan === true)
         const plans = reports.filter(r => {
             const meta = r.metadata || {};
             return meta.isPlan === true;
         });
 
         const kabid = await prisma.user.findFirst({
-            where: { position: 'Kepala Bidang Sarana' }
+            where: {
+                OR: [
+                    { position: 'Kepala Bidang Sarana' },
+                    { role: 'KABID_SARPRAS' }
+                ]
+            }
         });
+
+        const overduePlansForKabid = [];
 
         for (const p of plans) {
             const meta = p.metadata || {};
-            if (!meta.startDate || !meta.endDate) continue;
+            if (!meta.endDate) continue;
 
-            const start = new Date(meta.startDate);
+            const items = Array.isArray(meta.items) ? meta.items : [];
+            const doneItemsCount = items.filter(it => it.percentage === 100 || it.status === 'SELESAI').length;
+            const avgPct = items.length > 0 
+                ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length)
+                : (meta.percentage || (meta.status === 'SELESAI' ? 100 : 0));
+            const isAllDone = avgPct === 100 || (items.length > 0 && doneItemsCount === items.length);
+
+            // Skip if plan is already 100% completed
+            if (isAllDone) continue;
+
             const end = new Date(meta.endDate);
-            start.setHours(0, 0, 0, 0);
             end.setHours(0, 0, 0, 0);
+            const endTime = end.getTime();
 
-            let msg = "";
-            let type = "";
+            const planTitle = meta.title || 'Rencana Kerja';
+            const userPosition = meta.position || p.user?.position || p.category || 'Staff Sarpras';
+            const staffName = p.user?.name || p.user?.username || 'Staf Sarpras';
 
-            // 1. Kick-off day
-            if (start.getTime() === today.getTime()) {
-                type = "KICKOFF";
-                msg = `🗓️ *PENGINGAT: MULAI RENCANA KERJA* 🗓️\n\n` +
-                    `Assalamu'alaikum Staf Sarpras,\n\n` +
-                    `Bismillah, hari ini adalah jadwal dimulainya Rencana Kerja berikut:\n\n` +
-                    `📌 *Judul* : ${meta.title || 'Rencana Kerja'}\n` +
-                    `📅 *Periode* : ${new Date(meta.startDate).toLocaleDateString('id-ID')} s/d ${new Date(meta.endDate).toLocaleDateString('id-ID')}\n\n` +
-                    `Selamat bertugas, semoga dimudahkan oleh Allah.`;
-            } else {
-                // 2. Overdue - weekly reminder if not 100%
-                const daysPastDeadline = Math.floor((today.getTime() - end.getTime()) / (1000 * 60 * 60 * 24));
-                if (daysPastDeadline > 0 && daysPastDeadline % 7 === 1) {
-                    const items = meta.items || [];
-                    const isAllDone = items.every(it => it.percentage === 100);
-                    if (!isAllDone) {
-                        type = "OVERDUE";
-                        msg = `⚠️ *PERINGATAN: RENCANA KERJA MELEWATI BATAS* ⚠️\n\n` +
-                            `Assalamu'alaikum Staf Sarpras,\n\n` +
-                            `Mohon izin mengingatkan bahwa batas waktu pelaksanaan Rencana Kerja berikut telah terlewati:\n\n` +
-                            `📌 *Judul* : ${meta.title || 'Rencana Kerja'}\n` +
-                            `📅 *Deadline* : ${new Date(meta.endDate).toLocaleDateString('id-ID')}\n\n` +
-                            `Mohon segera diselesaikan rincian kegiatannya di aplikasi ya. Syukron.`;
-                    }
+            // Check if there are specific steps due today
+            const stepsDueToday = items.filter(it => {
+                if (it.percentage === 100 || it.status === 'SELESAI') return false;
+                if (!it.targetDate) return false;
+                const itTarget = dayjs(it.targetDate).format('YYYY-MM-DD');
+                return itTarget === todayStr;
+            });
+
+            let msg = '';
+            let type = '';
+
+            // Scenario 1: Steps due today
+            if (stepsDueToday.length > 0) {
+                type = 'STEP_DUE_TODAY';
+                const stepLines = stepsDueToday.map((s, idx) => `   ${idx + 1}. ${s.activity}`).join('\n');
+                msg = `🎯 *TARGET LANGKAH HARI INI - RENCANA KERJA* 🎯\n\n` +
+                    `Assalamu'alaikum Sdr. *${staffName}*,\n\n` +
+                    `Pengingat agenda kerja hari ini untuk rencana:\n` +
+                    `📌 *Judul*: ${planTitle}\n` +
+                    `🏢 *Divisi/Posisi*: ${userPosition}\n\n` +
+                    `📝 *Target Langkah Hari Ini*:\n${stepLines}\n\n` +
+                    `⏳ *Target Estimasi Selesai*: ${dayjs(end).format('DD MMMM YYYY')}\n` +
+                    `📊 *Capaian Saat Ini*: ${avgPct}%\n\n` +
+                    `Semoga diberikan kemudahan dan kelancaran dalam bertugas. Semangat! 💪`;
+            }
+            // Scenario 2: Main plan is due TODAY (Hari-H)
+            else if (endTime === todayTime) {
+                type = 'PLAN_DUE_TODAY';
+                const remainingSteps = items.filter(it => (it.percentage || 0) < 100 && it.status !== 'SELESAI');
+                const stepText = remainingSteps.length > 0
+                    ? `\n\n📝 *Langkah Belum Selesai*:\n` + remainingSteps.map((s, idx) => `   ${idx + 1}. ${s.activity} (${s.percentage || 0}%)`).join('\n')
+                    : '';
+
+                msg = `🗓️ *PENGINGAT HARI-H: ESTIMASI SELESAI RENCANA KERJA* 🗓️\n\n` +
+                    `Assalamu'alaikum Sdr. *${staffName}*,\n\n` +
+                    `Hari ini adalah batas tanggal estimasi penyelesaian Rencana Kerja Anda:\n` +
+                    `📌 *Judul*: ${planTitle}\n` +
+                    `🏢 *Divisi/Posisi*: ${userPosition}\n` +
+                    `⏳ *Estimasi Selesai*: Hari ini (${dayjs(end).format('DD MMMM YYYY')})\n` +
+                    `📊 *Progres Saat Ini*: ${avgPct}%${stepText}\n\n` +
+                    `Mohon periksa dan perbarui progres penyelesaiannya di aplikasi Laporan Staff hari ini ya. Syukron. 🙏`;
+            }
+            // Scenario 3: Main plan is due TOMORROW (H-1)
+            else if (endTime === tomorrowTime) {
+                type = 'PLAN_DUE_TOMORROW';
+                msg = `⏳ *PENGINGAT H-1: ESTIMASI SELESAI RENCANA KERJA* ⏳\n\n` +
+                    `Assalamu'alaikum Sdr. *${staffName}*,\n\n` +
+                    `Rencana Kerja berikut memiliki target estimasi selesai *besok*:\n` +
+                    `📌 *Judul*: ${planTitle}\n` +
+                    `🏢 *Divisi/Posisi*: ${userPosition}\n` +
+                    `⏳ *Batas Target*: Besok (${dayjs(end).format('DD MMMM YYYY')})\n` +
+                    `📊 *Progres Saat Ini*: ${avgPct}%\n\n` +
+                    `Semoga seluruh rangkaian pekerjaan dapat terselesaikan tepat waktu.`;
+            }
+            // Scenario 4: Overdue (past deadline & not completed)
+            else if (endTime < todayTime) {
+                const daysLate = Math.floor((todayTime - endTime) / (1000 * 60 * 60 * 24));
+                // Remind every 3 days to avoid spam
+                if (daysLate === 1 || daysLate % 3 === 0) {
+                    type = 'OVERDUE';
+                    msg = `⚠️ *PERINGATAN: RENCANA KERJA MELEWATI BATAS ESTIMASI* ⚠️\n\n` +
+                        `Assalamu'alaikum Sdr. *${staffName}*,\n\n` +
+                        `Rencana Kerja berikut telah melewati batas estimasi tanggal selesai (${daysLate} hari yang lalu):\n` +
+                        `📌 *Judul*: ${planTitle}\n` +
+                        `🏢 *Divisi/Posisi*: ${userPosition}\n` +
+                        `📅 *Deadline*: ${dayjs(end).format('DD MMMM YYYY')}\n` +
+                        `📊 *Capaian*: ${avgPct}%\n\n` +
+                        `Mohon segera memperbarui progres pengerjaan atau laporkan kendala yang dihadapi di aplikasi Sarpras.`;
+
+                    overduePlansForKabid.push({
+                        staffName,
+                        title: planTitle,
+                        position: userPosition,
+                        daysLate,
+                        progress: avgPct
+                    });
                 }
             }
 
-            if (msg) {
-                // Send to Staff via WA
-                if (p.user?.phone) {
-                    try {
-                        await waTemplateService.send('PERSONNEL_RATING_NEW', p.user.phone, {
-                            nama_staf: p.user.name || p.user.username,
-                            judul_rencana: meta.title || 'Rencana Kerja',
-                            periode: `${new Date(meta.startDate).toLocaleDateString('id-ID')} s/d ${new Date(meta.endDate).toLocaleDateString('id-ID')}`,
-                            deadline: new Date(meta.endDate).toLocaleDateString('id-ID'),
-                            pesan_peringatan: msg
-                        }, msg);
-                    } catch (e) { }
-                }
-                // Send to Kabid via WA
-                if (kabid?.phone) {
-                    const kabidMsg = `*LAPORAN PENGINGAT RENCANA KERJA*\n\n` +
-                        `*Kepada*: ${p.user.name || p.user.username}\n` +
-                        msg;
-                    try {
-                        await waTemplateService.send('PERSONNEL_RATING_NEW_KABID', kabid.phone, {
-                            nama_staf: p.user.name || p.user.username,
-                            pesan_peringatan: msg
-                        }, kabidMsg);
-                    } catch (e) { }
+            if (msg && p.user?.phone) {
+                try {
+                    await whatsappService.sendMessage(p.user.phone, msg);
+                } catch (waErr) {
+                    console.error(`[WorkPlan WA] Gagal kirim ke ${p.user.phone}:`, waErr.message);
                 }
 
-                // Push Notification to Staff
-                const pushTitle = type === 'KICKOFF' ? '🗓️ Rencana Kerja Dimulai' : '⚠️ Rencana Kerja Terlambat';
-                const pushBody = type === 'KICKOFF'
-                    ? `Hari ini jadwal dimulainya: ${meta.title || 'Rencana Kerja'}`
-                    : `Batas waktu ${meta.title || 'Rencana Kerja'} telah lewat!`;
-                await sendPushToUser(p.userId, pushTitle, pushBody, '/personalia');
+                // In-App Notification & Push
+                const pushTitle = type === 'OVERDUE' ? '⚠️ Rencana Melewati Batas' : '🎯 Agenda Rencana Kerja';
+                const pushBody = `${planTitle} (${avgPct}%)`;
+                try {
+                    await sendPushToUser(p.userId, pushTitle, pushBody, '/laporan-staff/perencanaan');
+                    await createNotification(p.userId, pushTitle, `${msg.slice(0, 150)}...`, type === 'OVERDUE' ? 'WARNING' : 'INFO', '/laporan-staff/perencanaan');
+                } catch (notifErr) { }
+            }
+        }
 
-                // Push Notification to Kabid
-                await sendPushToKabid(pushTitle, `${p.user.name}: ${pushBody}`, '/personalia');
+        // Notify Kabid if there are overdue plans
+        if (overduePlansForKabid.length > 0 && kabid?.phone) {
+            const overdueListText = overduePlansForKabid
+                .map((o, idx) => `${idx + 1}. *${o.staffName}* (${o.position})\n   📌 ${o.title}\n   ⏳ Terlambat: ${o.daysLate} hari | Progres: ${o.progress}%`)
+                .join('\n\n');
 
-                // In-App Notifications
-                await createNotification(p.userId, pushTitle, pushBody, type === 'OVERDUE' ? 'WARNING' : 'INFO', '/personalia');
-                if (kabid?.id) {
-                    await createNotification(kabid.id, pushTitle, `${p.user.name}: ${pushBody}`, type === 'OVERDUE' ? 'WARNING' : 'INFO', '/personalia');
-                }
+            const kabidMsg = `📋 *REKAP RENCANA KERJA MELEWATI BATAS (OVERDUE)* 📋\n\n` +
+                `Assalamu'alaikum Kepala Bidang Sarana,\n` +
+                `Berikut daftar Rencana Kerja staf yang telah melewati tanggal estimasi per hari ini:\n\n` +
+                `${overdueListText}\n\n` +
+                `Detail lengkap dapat dipantau melalui Tab Perencanaan Kerja di Laporan Staff.`;
+
+            try {
+                await whatsappService.sendMessage(kabid.phone, kabidMsg);
+            } catch (kabidErr) {
+                console.error('[WorkPlan WA Kabid] Gagal kirim ke Kabid:', kabidErr.message);
             }
         }
     } catch (err) {
-        console.error('[Personnel] Weekly Report Check Error:', err.message);
+        console.error('[Personnel] Work Plan Deadlines Check Error:', err.message);
     }
 };
 

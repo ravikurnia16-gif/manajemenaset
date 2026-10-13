@@ -155,6 +155,19 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
+        // 2f. WORK PLAN SCHEDULE & STEP REMINDER (Daily at 07:50 AM / 07:50 WIB)
+        // Pengingat target rencana kerja staf & batas waktu langkah sebelum jam operasional
+        // ----------------------------------------------------
+        if (hour === 7 && minute === 50) {
+            console.log('[Scheduler] Executing Work Plan Schedule & Step Reminders at 07:50 WIB...');
+            try {
+                await checkPlanDeadlines();
+            } catch (err) {
+                console.error('[Scheduler] Error in Work Plan Reminders:', err);
+            }
+        }
+
+        // ----------------------------------------------------
         // 3. VEHICLE CHECKS (Daily at 09:00 AM)
         // ----------------------------------------------------
         if (hour === 9 && minute === 0) {

@@ -95,10 +95,31 @@ export default function UniformOrderPublic() {
         availableSizes = [...new Set(availableVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType).map(v => v.size?.name || v.sizeName))].filter(Boolean);
     }
 
-    // Helper: Hitung total stok suatu varian di seluruh gudang
+    // Helper: Hitung sisa stok tersedia suatu varian (stok fisik gudang dikurangi pesanan yang belum keluar)
     const getVariantTotalStock = (variant) => {
-        if (!variant || !variant.stocks) return 0;
-        return variant.stocks.reduce((acc, s) => acc + (s.quantity || 0), 0);
+        if (!variant) return 0;
+        // Prioritaskan availableStock dari backend (stok fisik dikurangi antrean pesanan aktif yang belum keluar gudang)
+        if (variant.availableStock !== undefined && variant.availableStock !== null) {
+            return Math.max(0, variant.availableStock);
+        }
+        if (!variant.stocks) return 0;
+        return Math.max(0, variant.stocks.reduce((acc, s) => acc + (s.quantity || 0), 0));
+    };
+
+    // Helper: Ambil info stok fisik murni di gudang
+    const getVariantPhysicalStock = (variant) => {
+        if (!variant) return 0;
+        if (variant.totalPhysicalStock !== undefined && variant.totalPhysicalStock !== null) {
+            return Math.max(0, variant.totalPhysicalStock);
+        }
+        if (!variant.stocks) return 0;
+        return Math.max(0, variant.stocks.reduce((acc, s) => acc + (s.quantity || 0), 0));
+    };
+
+    // Helper: Ambil info jumlah yang sedang terpesan/antre
+    const getVariantReservedStock = (variant) => {
+        if (!variant) return 0;
+        return variant.reservedQty || 0;
     };
 
     // Helper: Ambil target varian berdasarkan kategori, jenis pakaian, dan ukuran
@@ -197,13 +218,13 @@ export default function UniformOrderPublic() {
 
         const stock = getAvailableStockForSize(retailInput.category, retailInput.clothingType, retailInput.size);
         if (stock <= 0) {
-            alert(`Mohon maaf, seragam ukuran ${retailInput.size} saat ini tidak tersedia di gudang kami karena masih dalam proses penjahitan ke Vendor dan belum dapat dipesan.`);
+            alert(`Mohon maaf, seragam ukuran ${retailInput.size} saat ini tidak tersedia (stok habis atau sudah terpesan oleh antrean lain) dan belum dapat dipesan.`);
             return;
         }
 
         const requestedQty = parseInt(retailInput.qty);
         if (requestedQty > stock) {
-            alert(`Jumlah pesanan (${requestedQty} pcs) melebihi stok yang tersedia di gudang (${stock} pcs).`);
+            alert(`Jumlah pesanan (${requestedQty} pcs) melebihi sisa stok yang tersedia (${stock} pcs).`);
             return;
         }
 
@@ -307,11 +328,11 @@ export default function UniformOrderPublic() {
             const v = variants.find(variant => variant.id === it.variantId);
             const vStock = getVariantTotalStock(v);
             if (vStock <= 0) {
-                alert(`Mohon maaf, stok untuk "${it.itemName}" sedang tidak tersedia karena masih dalam proses penjahitan ke Vendor dan belum dapat dipesan. Silakan hapus item tersebut dari keranjang.`);
+                alert(`Mohon maaf, stok untuk "${it.itemName}" sedang tidak tersedia (habis atau sudah terpesan oleh antrean lain) dan belum dapat dipesan. Silakan hapus item tersebut dari keranjang.`);
                 return;
             }
             if (it.qty > vStock) {
-                alert(`Jumlah pesanan untuk "${it.itemName}" (${it.qty} pcs) melebihi stok yang tersedia (${vStock} pcs). Silakan sesuaikan jumlah pesanan.`);
+                alert(`Jumlah pesanan untuk "${it.itemName}" (${it.qty} pcs) melebihi sisa stok yang tersedia (${vStock} pcs). Silakan sesuaikan jumlah pesanan.`);
                 return;
             }
         }
@@ -588,6 +609,19 @@ export default function UniformOrderPublic() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Info Ketersediaan Sisa Stok */}
+                        {retailInput.size && !isOutOfStock && (
+                            <div className="flex flex-wrap items-center gap-2 p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs animate-in fade-in">
+                                <span className="inline-flex items-center gap-1.5 font-bold text-blue-800">
+                                    <CheckCircle2 size={14} className="text-blue-600" />
+                                    Sisa Tersedia untuk Dipesan: <strong className="text-blue-900 font-extrabold">{isPartialSet ? availableComponentsMaxStock : currentSelectedStock} pcs</strong>
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                    (Otomatis disesuaikan dengan stok gudang dikurangi pesanan yang belum keluar)
+                                </span>
+                            </div>
+                        )}
 
                         {/* Banner Peringatan Stok Kosong / Jahit Vendor & Tawaran Pesan yang Tersedia Saja */}
                         {isOutOfStock && isPartialSet && setelanBreakdown && (
