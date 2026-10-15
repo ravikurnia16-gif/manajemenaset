@@ -7,9 +7,9 @@ const { handleMultipleUploads } = require('../middleware/uploadMiddleware');
 // Protected Routes
 router.get('/vehicle/:id', verifyToken, inspectionCtrl.getVehicleInspections);
 router.get('/:id', verifyToken, inspectionCtrl.getInspectionById);
-router.post('/', 
-    verifyToken, 
-    handleMultipleUploads(['frontPhoto', 'rightPhoto', 'leftPhoto', 'backPhoto'], 'inspections'), 
+router.post('/',
+    verifyToken,
+    handleMultipleUploads(['frontPhoto', 'rightPhoto', 'leftPhoto', 'backPhoto'], 'inspections'),
     inspectionCtrl.createInspection
 );
 

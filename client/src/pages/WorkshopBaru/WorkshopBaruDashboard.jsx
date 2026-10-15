@@ -64,6 +64,20 @@ function WorkshopBaruDashboard() {
     const qcOrders = allOrders.filter(o => o.status === 'QUALITY_CHECK');
     const completedOrders = allOrders.filter(o => o.status === 'COMPLETED');
 
+    // Antrean pending mengendap > 2 hari kerja (Senin-Jumat, skip Sabtu & Ahad)
+    const overduePendingOrders = allOrders.filter(o => {
+        if (o.status !== 'PENDING' || !o.createdAt) return false;
+        let businessDays = 0;
+        let cur = new Date(o.createdAt);
+        const now = new Date();
+        while (cur < now) {
+            cur.setDate(cur.getDate() + 1);
+            const day = cur.getDay();
+            if (day !== 0 && day !== 6) businessDays++;
+        }
+        return businessDays >= 2;
+    });
+
     // Deadline warnings (due in <= 3 days and not completed/cancelled)
     const urgentOrNearDeadline = allOrders.filter(o => {
         if (['COMPLETED', 'CANCELLED'].includes(o.status)) return false;
@@ -168,7 +182,19 @@ function WorkshopBaruDashboard() {
                         </div>
                     </div>
                     <div className="mt-3">
-                        <div className="text-2xl sm:text-3xl font-black text-slate-800">{pendingOrders.length}</div>
+                        <div className="flex items-baseline gap-2">
+                            <div className="text-2xl sm:text-3xl font-black text-slate-800">{pendingOrders.length}</div>
+                            {overduePendingOrders.length > 0 && (
+                                <Link
+                                    to="/workshop-baru/board?status=PENDING"
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-200 transition-colors flex items-center gap-1"
+                                    title="Pesanan di antrean masuk yang belum direspon > 2 hari kerja"
+                                >
+                                    <AlertTriangle size={11} className="text-rose-600 animate-pulse" />
+                                    {overduePendingOrders.length} &gt;2 hari
+                                </Link>
+                            )}
+                        </div>
                         <p className="text-xs text-slate-500 mt-1">Perlu diverifikasi & dijadwalkan</p>
                     </div>
                 </div>

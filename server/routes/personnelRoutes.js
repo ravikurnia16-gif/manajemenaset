@@ -43,7 +43,7 @@ router.put('/drivers/:id', personnelController.updateDriverInfo);
 router.get('/drivers/:id/history', personnelController.getDriverHistory);
 
 // Driver Violations
-const { handleUpload } = require('../middleware/uploadMiddleware');
+const { handleUpload, handleMultipleUploads } = require('../middleware/uploadMiddleware');
 router.get('/violations', personnelController.getDriverViolations);
 router.post('/violations', handleUpload('photo', 'violations'), personnelController.createDriverViolation);
 router.delete('/violations/:id', personnelController.deleteDriverViolation);
@@ -57,6 +57,12 @@ router.get('/all-users', personnelController.getAllUsersForSelection);
 // Sanctions
 router.get('/sanctions', personnelController.getSanctionedUsers);
 router.post('/sanctions/propose', personnelController.proposeSanctionLift);
-router.post('/sanctions/review', personnelController.reviewSanctionLift);
+// Staff Trainings (Pelatihan Karyawan)
+const staffTrainingController = require('../controllers/staffTrainingController');
+router.get('/trainings', staffTrainingController.getTrainings);
+router.get('/trainings/stats', staffTrainingController.getTrainingStats);
+router.post('/trainings', handleMultipleUploads(['file', 'moduleFile'], 'trainings'), staffTrainingController.createTraining);
+router.put('/trainings/:id', handleMultipleUploads(['file', 'moduleFile'], 'trainings'), staffTrainingController.updateTraining);
+router.delete('/trainings/:id', staffTrainingController.deleteTraining);
 
 module.exports = router;

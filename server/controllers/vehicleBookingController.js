@@ -664,28 +664,8 @@ exports.endTrip = async (req, res) => {
             });
         }
 
-        let maintenanceId = null;
         if (isIncident) {
-            // Auto-create incidental maintenance ticket
-            const serviceLog = await prisma.vehicleService.create({
-                data: {
-                    vehicleId: booking.vehicleId,
-                    date: new Date(),
-                    category: 'INSIDENTAL',
-                    type: 'PERBAIKAN_KERUSAKAN',
-                    description: `[LAPORAN INSIDEN JALAN oleh ${booking.user.name}]: ${incidentNotes || 'Tidak ada deskripsi'}`,
-                    cost: 0,
-                    odometer: parseInt(endKm),
-                    proofFile: photoUrl,
-                    complaintPhoto: photoUrl,
-                    workshop: 'Perlu Penanganan Sarpras',
-                    status: 'PENDING',
-                    requesterId: booking.userId
-                }
-            });
-            maintenanceId = serviceLog.id;
-
-            // Ambil PIC Kendaraan dan Staff Sarpras terkait
+            // Ambil PIC Kendaraan dan Staff Sarpras terkait untuk pemberitahuan insiden operasional
             const vehicleWithPics = await prisma.vehicle.findUnique({
                 where: { id: booking.vehicleId },
                 include: { pics: true }
@@ -720,7 +700,7 @@ exports.endTrip = async (req, res) => {
             }
             const allRecipients = Array.from(allRecipientsMap.values());
 
-            const incidentMsg = `🚨 *LAPORAN KERUSAKAN / INSIDEN KENDARAAN*\n\n` +
+            const incidentMsg = `🚨 *LAPORAN KERUSAKAN / INSIDEN PERJALANAN*\n\n` +
                 `Pemberitahuan kepada PIC Armada & Tim Sarpras:\n` +
                 `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
                 `Pengemudi / Peminjam: *${booking.user.name}*\n` +
@@ -728,7 +708,7 @@ exports.endTrip = async (req, res) => {
                 `Waktu: *${formatWAWaktu(new Date())}*\n\n` +
                 `*Rincian Kerusakan/Insiden:*\n"${incidentNotes || '-'}"\n\n` +
                 (photoUrl ? `*Foto Bukti Kejadian:* ${formatMediaUrl(photoUrl)}\n\n` : '') +
-                `_Laporan ini telah tercatat di sistem pada Tab Laporan Kerusakan untuk segera ditindaklanjuti._`;
+                `_Laporan ini tersimpan pada riwayat peminjaman kendaraan sebagai catatan operasional perjalanan._`;
 
             for (const person of allRecipients) {
                 try {
@@ -738,9 +718,9 @@ exports.endTrip = async (req, res) => {
                     await createNotification(
                         person.id,
                         `Laporan Kerusakan Kendaraan ${booking.vehicle.plateNumber}`,
-                        `Dilaporkan kerusakan pada ${booking.vehicle.name} oleh ${booking.user.name}. Silakan cek tab Laporan Kerusakan.`,
+                        `Dilaporkan insiden/kerusakan pada ${booking.vehicle.name} oleh ${booking.user.name}. Cek detail di riwayat peminjaman.`,
                         'URGENT',
-                        '/kendaraan/pemeliharaan'
+                        '/kendaraan/peminjaman'
                     );
                 } catch (err) {
                     console.error('Failed to notify incident to PIC/staff:', err.message);
@@ -762,7 +742,7 @@ exports.endTrip = async (req, res) => {
                 hasIncident: isIncident,
                 incidentPhoto: isIncident ? photoUrl : null,
                 incidentNotes: isIncident ? incidentNotes : null,
-                maintenanceId,
+                maintenanceId: null,
                 status: 'COMPLETED'
             }
         });

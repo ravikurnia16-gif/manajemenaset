@@ -154,7 +154,7 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
                         </div>
                         <div>
                             <h3 className="font-bold text-sm">Formulir Pengajuan Pemeliharaan Kendaraan</h3>
-                            <p className="text-[11px] text-slate-400">Diajukan oleh Staff Kendaraan / Driver untuk persetujuan Kabid Sarana</p>
+                            <p className="text-[11px] text-slate-400">Pengajuan mandiri langsung oleh PIC atau Staff Kendaraan untuk persetujuan Kabid Sarana</p>
                         </div>
                     </div>
                     <button

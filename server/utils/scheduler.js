@@ -23,6 +23,7 @@ const {
 const { checkBusBookingNotifications, checkUnpaidBusInvoices, checkUnassignedBusDriverReminders } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
 const { sendReportReminders, notifyKabidInactiveStaff } = require('../controllers/laporanController');
+const { checkPendingWorkshopOrders } = require('../controllers/workshopController');
 const checklistController = require('../controllers/vehicleChecklistController');
 
 let schedulerInterval = null;
@@ -201,6 +202,15 @@ const initScheduler = () => {
                 await checkUnrespondedReports();
             } catch (err) {
                 console.error('[Scheduler] Error in Unresponded Reports Check:', err);
+            }
+
+            // 3c. WORKSHOP PENDING ORDERS REMINDER (Daily at 08:30 AM, Senin - Jumat, >2 Hari Kerja)
+            if (day >= 1 && day <= 5) {
+                try {
+                    await checkPendingWorkshopOrders();
+                } catch (err) {
+                    console.error('[Scheduler] Error in Workshop Pending Orders Reminder:', err);
+                }
             }
         }
 

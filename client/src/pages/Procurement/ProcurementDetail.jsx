@@ -191,6 +191,29 @@ const StatusBadge = ({ status }) => {
     );
 };
 
+/* ─── Helper Hitung Durasi Pengadaan (sejak dibuat s/d Finalisasi) ─── */
+const formatDuration = (start, end) => {
+    if (!start || !end) return null;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffMs = endDate.getTime() - startDate.getTime();
+    if (diffMs < 0) return '0 Hari';
+
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const remainingHours = diffHours % 24;
+
+    if (diffDays > 0) {
+        return remainingHours > 0 ? `${diffDays} Hari ${remainingHours} Jam` : `${diffDays} Hari`;
+    }
+    if (diffHours > 0) {
+        const remainingMinutes = diffMinutes % 60;
+        return remainingMinutes > 0 ? `${diffHours} Jam ${remainingMinutes} Menit` : `${diffHours} Jam`;
+    }
+    return `${Math.max(1, diffMinutes)} Menit`;
+};
+
 /* ─────────────────────────────────────────────
    STEPPER
 ───────────────────────────────────────────── */
@@ -1726,7 +1749,19 @@ const ProcurementDetail = () => {
                                 return alert(`Lengkapi Vendor & Harga untuk: ${incomplete.name}`);
                             }
                             setLoading(true);
-                            try { for (const item of req.items) await handleSaveItem(item, true); }
+                            try { 
+                                for (const item of req.items) await handleSaveItem(item, true); 
+                                if (!req.finalizedAt) {
+                                    try {
+                                        const finRes = await api.post(`/procurements/${id}/finalize`);
+                                        if (finRes.data?.finalizedAt) {
+                                            setReq(prev => ({ ...prev, finalizedAt: finRes.data.finalizedAt }));
+                                        }
+                                    } catch (e) {
+                                        console.error('Finalize recording error:', e);
+                                    }
+                                }
+                            }
                             catch { setLoading(false); return alert('Gagal simpan otomatis.'); }
                             setLoading(false);
                         }
@@ -3344,7 +3379,20 @@ const ProcurementDetail = () => {
                                             return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
                                         }
                                         setLoading(true);
-                                        try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(5); }
+                                        try { 
+                                            for (const item of req.items) await handleSaveItem(item, true); 
+                                            if (!req.finalizedAt) {
+                                                try {
+                                                    const finRes = await api.post(`/procurements/${id}/finalize`);
+                                                    if (finRes.data?.finalizedAt) {
+                                                        setReq(prev => ({ ...prev, finalizedAt: finRes.data.finalizedAt }));
+                                                    }
+                                                } catch (e) {
+                                                    console.error('Finalize recording error:', e);
+                                                }
+                                            }
+                                            setActiveTab(5); 
+                                        }
                                         catch { alert('Gagal menyimpan.'); }
                                         finally { setLoading(false); }
                                     }}>
@@ -4653,6 +4701,18 @@ const ProcurementDetail = () => {
                                                 Detail Serah Terima
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                                    <span style={{ color: T.slate }}>Tanggal Pengajuan</span>
+                                                    <span style={{ fontWeight: 700, color: T.navy }}>
+                                                        {req.createdAt ? new Date(req.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                                    <span style={{ color: T.slate }}>Selesai Finalisasi</span>
+                                                    <span style={{ fontWeight: 700, color: '#1b4d3e' }}>
+                                                        {req.finalizedAt ? new Date(req.finalizedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                                                    </span>
+                                                </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                                                     <span style={{ color: T.slate }}>Tanggal BAST</span>
                                                     <span style={{ fontWeight: 700, color: T.navy }}>

@@ -118,7 +118,7 @@ exports.getUnitLetterNumber = async (req, res) => {
 
 // Get all procurements
 exports.getAllProcurements = async (req, res) => {
-    const { status, type, unitId, categoryId, search } = req.query;
+    const { status, type, unitId, categoryId, search, startDate, endDate } = req.query;
     const user = req.user;
 
     try {
@@ -128,6 +128,19 @@ exports.getAllProcurements = async (req, res) => {
         if (unitId) whereClause.unitId = parseInt(unitId);
         if (categoryId) {
             whereClause.items = { some: { categoryId: parseInt(categoryId) } };
+        }
+        if (startDate || endDate) {
+            whereClause.createdAt = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                whereClause.createdAt.gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = end;
+            }
         }
 
         const andConditions = [];
@@ -142,7 +155,10 @@ exports.getAllProcurements = async (req, res) => {
             });
         }
 
-        if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
+        const userPosition = (user.position || '').trim();
+        const isKabidSarana = userPosition.toLowerCase() === 'kepala bidang sarana';
+
+        if (['ADMIN_UNIT', 'USER'].includes(user.role) && !isKabidSarana) {
             andConditions.push({
                 OR: [
                     { unitId: user.unitId },
@@ -187,11 +203,24 @@ exports.getAllProcurements = async (req, res) => {
             const totalEstimatedPrice = (p.items || []).reduce((sum, item) => sum + ((item.qty || 1) * (item.estPrice || 0)), 0);
             const assignees = Array.from(new Set((p.items || []).filter(it => it.assignedTo).map(it => it.assignedTo)));
 
+            // Extract finalizedAt from bastFile if JSON, or fallback to bastDate / updatedAt if completed
+            let finalizedAt = null;
+            if (p.bastFile && typeof p.bastFile === 'string' && p.bastFile.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(p.bastFile);
+                    if (parsed.finalizedAt) finalizedAt = parsed.finalizedAt;
+                } catch (e) {}
+            }
+            if (!finalizedAt && p.status === 'COMPLETED') {
+                finalizedAt = p.bastDate || p.updatedAt;
+            }
+
             return {
                 ...rest,
                 notes,
                 totalEstimatedPrice,
-                assignees
+                assignees,
+                finalizedAt
             };
         });
         res.json(formatted);
@@ -202,12 +231,16 @@ exports.getAllProcurements = async (req, res) => {
 
 // Get Dashboard Stats
 exports.getDashboardStats = async (req, res) => {
+    const { startDate, endDate } = req.query;
     const user = req.user;
 
     try {
         const whereClause = {};
 
-        if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
+        const userPosition = (user.position || '').trim();
+        const isKabidSarana = userPosition.toLowerCase() === 'kepala bidang sarana';
+
+        if (['ADMIN_UNIT', 'USER'].includes(user.role) && !isKabidSarana) {
             whereClause.OR = [
                 { unitId: user.unitId },
                 { userId: user.id },
@@ -215,9 +248,36 @@ exports.getDashboardStats = async (req, res) => {
             ];
         }
 
+        if (startDate || endDate) {
+            whereClause.createdAt = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                whereClause.createdAt.gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = end;
+            }
+        }
+
         const procurements = await prisma.procurement.findMany({
             where: whereClause,
-            select: { status: true }
+            include: {
+                user: { select: { username: true, name: true } },
+                unit: { select: { id: true, name: true } },
+                items: {
+                    select: {
+                        id: true,
+                        name: true,
+                        qty: true,
+                        estPrice: true,
+                        finalPrice: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
         });
 
         const stats = {
@@ -229,8 +289,113 @@ exports.getDashboardStats = async (req, res) => {
             rejected: procurements.filter(p => p.status === 'REJECTED').length,
         };
 
-        res.json(stats);
+        // Calculate detailed duration records for each procurement
+        let totalDurationMs = 0;
+        let finalizedCount = 0;
+        let totalFinalSpend = 0;
+
+        const durationRecords = procurements.map(p => {
+            let finalizedAt = null;
+            if (p.bastFile && typeof p.bastFile === 'string' && p.bastFile.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(p.bastFile);
+                    if (parsed.finalizedAt) finalizedAt = parsed.finalizedAt;
+                } catch (e) {}
+            }
+            if (!finalizedAt && p.status === 'COMPLETED') {
+                finalizedAt = p.bastDate || p.updatedAt;
+            }
+
+            const createdAt = p.createdAt;
+            const isFinalized = Boolean(finalizedAt);
+            const endDate = isFinalized ? new Date(finalizedAt) : new Date();
+            const durationMs = Math.max(0, endDate.getTime() - new Date(createdAt).getTime());
+            const durationHours = Math.round(durationMs / (1000 * 60 * 60));
+            const durationDays = parseFloat((durationMs / (1000 * 60 * 60 * 24)).toFixed(1));
+
+            if (isFinalized) {
+                totalDurationMs += durationMs;
+                finalizedCount++;
+            }
+
+            const totalFinal = (p.items || []).reduce((sum, it) => sum + ((it.qty || 1) * (parseFloat(it.finalPrice) || parseFloat(it.estPrice) || 0)), 0);
+            if (isFinalized) {
+                totalFinalSpend += totalFinal;
+            }
+
+            return {
+                id: p.id,
+                code: p.code,
+                title: p.title || 'Pengadaan Tanpa Judul',
+                type: p.type,
+                status: p.status,
+                unit: p.unit?.name || 'Unit Umum',
+                unitId: p.unit?.id,
+                user: p.user?.name || p.user?.username || '-',
+                createdAt: p.createdAt,
+                finalizedAt: finalizedAt,
+                isFinalized,
+                durationMs,
+                durationHours,
+                durationDays,
+                itemCount: (p.items || []).length,
+                totalPrice: totalFinal
+            };
+        });
+
+        const avgDurationDays = finalizedCount > 0 ? parseFloat((totalDurationMs / (finalizedCount * 1000 * 60 * 60 * 24)).toFixed(1)) : 0;
+        const avgDurationHours = finalizedCount > 0 ? Math.round(totalDurationMs / (finalizedCount * 1000 * 60 * 60)) : 0;
+
+        const finalizedRecords = durationRecords.filter(r => r.isFinalized);
+        const fastest = finalizedRecords.length > 0 
+            ? [...finalizedRecords].sort((a, b) => a.durationMs - b.durationMs)[0] 
+            : null;
+        const slowest = finalizedRecords.length > 0 
+            ? [...finalizedRecords].sort((a, b) => b.durationMs - a.durationMs)[0] 
+            : null;
+
+        const inProgressRecords = durationRecords.filter(r => !r.isFinalized && r.status !== 'REJECTED');
+        const longestRunning = inProgressRecords.length > 0
+            ? [...inProgressRecords].sort((a, b) => b.durationMs - a.durationMs)[0] 
+            : null;
+
+        // Breakdown per unit
+        const unitStatsMap = {};
+        durationRecords.forEach(r => {
+            if (!unitStatsMap[r.unit]) {
+                unitStatsMap[r.unit] = { unit: r.unit, total: 0, finalized: 0, totalDays: 0, totalSpend: 0 };
+            }
+            unitStatsMap[r.unit].total++;
+            unitStatsMap[r.unit].totalSpend += r.totalPrice;
+            if (r.isFinalized) {
+                unitStatsMap[r.unit].finalized++;
+                unitStatsMap[r.unit].totalDays += r.durationDays;
+            }
+        });
+
+        const unitPerformance = Object.values(unitStatsMap).map(u => ({
+            unit: u.unit,
+            totalPackages: u.total,
+            finalizedPackages: u.finalized,
+            avgDays: u.finalized > 0 ? parseFloat((u.totalDays / u.finalized).toFixed(1)) : 0,
+            totalSpend: u.totalSpend
+        })).sort((a, b) => b.totalPackages - a.totalPackages);
+
+        res.json({
+            ...stats,
+            finalizedCount,
+            inProgressCount: procurements.length - finalizedCount - stats.rejected,
+            totalFinalSpend,
+            avgDurationDays,
+            avgDurationHours,
+            fastest,
+            slowest,
+            longestRunning,
+            unitPerformance,
+            records: durationRecords
+        });
     } catch (error) {
+        console.error('getDashboardStats error:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -377,13 +542,36 @@ exports.getProcurementById = async (req, res) => {
             }
         }
 
+        // Extract or resolve finalizedAt
+        let finalizedAt = bastSignatures?.finalizedAt || null;
+        if (!finalizedAt && procurement.progress) {
+            const finalProgress = procurement.progress.find(p =>
+                (p.stage === 4 && (p.type === 'STAGE_PROGRESS' || (p.message && p.message.toLowerCase().includes('finalisasi')))) ||
+                (p.message && p.message.includes('[FINALISASI_SELESAI]'))
+            );
+            if (finalProgress) {
+                finalizedAt = finalProgress.createdAt;
+            }
+        }
+        if (!finalizedAt) {
+            const allItemsFinal = formattedItems.length > 0 && formattedItems.every(i => (i.vendorName || i.vendorId) && i.finalPrice);
+            if (allItemsFinal) {
+                if (procurement.status === 'COMPLETED' && procurement.bastDate) {
+                    finalizedAt = procurement.bastDate;
+                } else if (procurement.status === 'COMPLETED') {
+                    finalizedAt = procurement.updatedAt;
+                }
+            }
+        }
+
         res.json({
             ...procurement,
             items: formattedItems,
             notes: topNotes,
             bastSignatures,
             requestLetter,
-            bastDoc
+            bastDoc,
+            finalizedAt
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -3213,6 +3401,63 @@ exports.signPublicAssignmentOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('signPublicAssignmentOrder error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Finalize Procurement (Tahap 4 - Penetapan Harga & Rekanan Selesai)
+exports.finalizeProcurement = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: { items: true, progress: true }
+        });
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan' });
+
+        const finalizedDate = new Date();
+
+        // 1. Simpan finalizedAt ke dalam JSON bastFile agar persisten tanpa perlu migrasi schema
+        let bastSigs = {};
+        if (procurement.bastFile && typeof procurement.bastFile === 'string' && procurement.bastFile.startsWith('{')) {
+            try { bastSigs = JSON.parse(procurement.bastFile); } catch (e) { bastSigs = {}; }
+        }
+        if (!bastSigs.finalizedAt) {
+            bastSigs.finalizedAt = finalizedDate.toISOString();
+            bastSigs.finalizedBy = req.user?.name || req.user?.username || 'Staff Pengadaan';
+
+            await prisma.procurement.update({
+                where: { id: parseInt(id) },
+                data: {
+                    bastFile: JSON.stringify(bastSigs)
+                }
+            });
+        }
+
+        // 2. Buat log progress Tahap 4 jika belum ada
+        const existingLog = (procurement.progress || []).find(p =>
+            (p.stage === 4 && (p.type === 'STAGE_PROGRESS' || (p.message && p.message.toLowerCase().includes('finalisasi')))) ||
+            (p.message && p.message.includes('[FINALISASI_SELESAI]'))
+        );
+
+        if (!existingLog) {
+            await prisma.procurementProgress.create({
+                data: {
+                    procurementId: parseInt(id),
+                    userId: req.user?.id || null,
+                    message: '✅ [FINALISASI_SELESAI] Tahap 4 (Finalisasi Harga & Rekanan) telah selesai. Paket pengadaan siap dilanjutkan ke Serah Terima Fisik (BAST).',
+                    type: 'STAGE_PROGRESS',
+                    stage: 4
+                }
+            });
+        }
+
+        res.json({
+            message: 'Tahap Finalisasi berhasil diselesaikan',
+            finalizedAt: bastSigs.finalizedAt
+        });
+    } catch (error) {
+        console.error('finalizeProcurement error:', error);
         res.status(500).json({ error: error.message });
     }
 };

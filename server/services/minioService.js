@@ -49,6 +49,21 @@ exports.uploadFile = async (fileBuffer, fileName, mimeType, folder = '') => {
             }
         }
 
+        // Auto PDF Compression & Stream Optimization
+        if (mimeType === 'application/pdf' || (fileName && fileName.toLowerCase().endsWith('.pdf'))) {
+            try {
+                const { PDFDocument } = require('pdf-lib');
+                const pdfDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
+                const compressedPdfBytes = await pdfDoc.save({ useObjectStreams: true });
+                if (compressedPdfBytes && compressedPdfBytes.length < fileBuffer.length) {
+                    finalBuffer = Buffer.from(compressedPdfBytes);
+                    console.log(`[OPTIMIZER] PDF compressed: ${(fileBuffer.length / 1024).toFixed(1)}KB -> ${(finalBuffer.length / 1024).toFixed(1)}KB (saved ${(100 - (compressedPdfBytes.length / fileBuffer.length) * 100).toFixed(1)}%)`);
+                }
+            } catch (pdfError) {
+                console.warn('[OPTIMIZER] PDF compression failed or skipped, using original:', pdfError.message);
+            }
+        }
+
         const uniqueFileName = `${Date.now()}-${fileName.replace(/\s/g, '_')}`;
         const objectName = folder ? `${folder}/${uniqueFileName}` : uniqueFileName;
         

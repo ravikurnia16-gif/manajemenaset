@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Plus, Eye, Filter, Files, Trash2, Search, ClipboardList, Clock, 
     CheckCircle, PackageCheck, XCircle, ChevronDown, ChevronRight,
-    FileText, User, Tag, Layers, Printer, ExternalLink, ShieldCheck, CheckCheck
+    FileText, User, Tag, Layers, Printer, ExternalLink, ShieldCheck, CheckCheck,
+    BarChart3, LayoutDashboard, Calendar, X
 } from 'lucide-react';
 import api from '../../lib/axios';
 import * as XLSX from 'xlsx';
 import ProcurementLetterModal from './components/ProcurementLetterModal';
+import ProcurementAssetDashboard from './components/ProcurementAssetDashboard';
 
 const ProcurementList = () => {
     const navigate = useNavigate();
@@ -20,13 +22,23 @@ const ProcurementList = () => {
 
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState(savedFilters.filter || { categoryId: '', status: '', unitId: '', search: '' });
+    const [filter, setFilter] = useState(savedFilters.filter || { 
+        categoryId: '', 
+        status: '', 
+        unitId: '', 
+        search: '',
+        startDate: '',
+        endDate: ''
+    });
     const [units, setUnits] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
     const [pagination, setPagination] = useState(savedFilters.pagination || { limit: 10, page: 1 });
     const [dashboardStats, setDashboardStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(true);
+
+    // Main Tab State: 'list' | 'dashboard'
+    const [activeMainTab, setActiveMainTab] = useState('list');
 
     // Accordion State: Set of procurement IDs currently expanded
     const [expandedIds, setExpandedIds] = useState(new Set());
@@ -42,7 +54,10 @@ const ProcurementList = () => {
     } catch (e) {
         currentUser = {};
     }
-    const isKabid = currentUser.role === 'SUPER_ADMIN' || (currentUser.position && currentUser.position.toLowerCase().includes('kepala bidang sarana'));
+    // Hak akses khusus tab dashboard HANYA position 'Kepala Bidang Sarana', BUKAN role
+    const userPosition = (currentUser?.position || '').trim();
+    const isKabidSarana = userPosition.toLowerCase() === 'kepala bidang sarana';
+    const isKabid = currentUser.role === 'SUPER_ADMIN' || isKabidSarana;
 
     useEffect(() => {
         sessionStorage.setItem('procurementFilters', JSON.stringify({
@@ -60,6 +75,7 @@ const ProcurementList = () => {
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             fetchRequests();
+            fetchDashboardStats();
             setSelectedIds([]);
         }, 400);
         return () => clearTimeout(timeoutId);
@@ -86,7 +102,10 @@ const ProcurementList = () => {
     const fetchDashboardStats = async () => {
         try {
             setLoadingStats(true);
-            const res = await api.get('/procurements/dashboard');
+            const params = {};
+            if (filter.startDate) params.startDate = filter.startDate;
+            if (filter.endDate) params.endDate = filter.endDate;
+            const res = await api.get('/procurements/dashboard', { params });
             setDashboardStats(res.data);
         } catch (error) {
             console.error("Failed to fetch dashboard stats", error);
@@ -103,6 +122,8 @@ const ProcurementList = () => {
             if (filter.status) params.append('status', filter.status);
             if (filter.unitId) params.append('unitId', filter.unitId);
             if (filter.search) params.append('search', filter.search);
+            if (filter.startDate) params.append('startDate', filter.startDate);
+            if (filter.endDate) params.append('endDate', filter.endDate);
             params.append('limit', pagination.limit);
             params.append('page', pagination.page);
 
@@ -212,6 +233,28 @@ const ProcurementList = () => {
         return `Rp ${Number(val).toLocaleString('id-ID')}`;
     };
 
+    const formatDuration = (start, end) => {
+        if (!start || !end) return null;
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const diffMs = endDate.getTime() - startDate.getTime();
+        if (diffMs < 0) return '0 Hari';
+
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const remainingHours = diffHours % 24;
+
+        if (diffDays > 0) {
+            return remainingHours > 0 ? `${diffDays} Hari ${remainingHours} Jam` : `${diffDays} Hari`;
+        }
+        if (diffHours > 0) {
+            const remainingMinutes = diffMinutes % 60;
+            return remainingMinutes > 0 ? `${diffHours} Jam ${remainingMinutes} Menit` : `${diffHours} Jam`;
+        }
+        return `${Math.max(1, diffMinutes)} Menit`;
+    };
+
     const handleExport = () => {
         if (requests.length === 0) return alert('Tidak ada data untuk diekspor');
 
@@ -292,8 +335,43 @@ const ProcurementList = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-1">
+            {/* Main Tabs (Strictly visible ONLY if position === 'Kepala Bidang Sarana') */}
+            {isKabidSarana && (
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <button
+                        onClick={() => setActiveMainTab('list')}
+                        className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
+                            activeMainTab === 'list'
+                                ? 'bg-slate-900 text-white shadow-sm'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                    >
+                        <ClipboardList size={16} />
+                        Daftar Pengadaan
+                    </button>
+                    <button
+                        onClick={() => setActiveMainTab('dashboard')}
+                        className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all ${
+                            activeMainTab === 'dashboard'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                    >
+                        <BarChart3 size={16} />
+                        Dashboard Pengadaan Aset
+                        <span className="text-[10px] uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full font-black">
+                            Kepala Bidang Sarana
+                        </span>
+                    </button>
+                </div>
+            )}
+
+            {isKabidSarana && activeMainTab === 'dashboard' ? (
+                <ProcurementAssetDashboard units={units} />
+            ) : (
+                <>
+                    {/* Page Header */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-1">
                 <div>
                     <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2">
                         <Layers className="text-blue-600" size={26} />
@@ -427,6 +505,35 @@ const ProcurementList = () => {
                         <option key={u.id} value={u.id}>{u.name}</option>
                     ))}
                 </select>
+
+                {/* Rentang Tanggal Filter */}
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+                    <Calendar size={14} className="text-slate-400" />
+                    <span className="text-[11px] font-bold text-slate-500">Dari:</span>
+                    <input
+                        type="date"
+                        value={filter.startDate || ''}
+                        onChange={e => setFilter({ ...filter, startDate: e.target.value })}
+                        className="bg-transparent border-0 text-xs font-semibold text-slate-700 outline-none p-0 cursor-pointer"
+                    />
+                    <span className="text-[11px] font-bold text-slate-400">s/d</span>
+                    <input
+                        type="date"
+                        value={filter.endDate || ''}
+                        onChange={e => setFilter({ ...filter, endDate: e.target.value })}
+                        className="bg-transparent border-0 text-xs font-semibold text-slate-700 outline-none p-0 cursor-pointer"
+                    />
+                    {(filter.startDate || filter.endDate) && (
+                        <button
+                            type="button"
+                            onClick={() => setFilter({ ...filter, startDate: '', endDate: '' })}
+                            className="text-slate-400 hover:text-rose-500 ml-1 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                            title="Hapus filter rentang tanggal"
+                        >
+                            <X size={13} />
+                        </button>
+                    )}
+                </div>
 
                 {/* Expand All Toggle */}
                 {paginatedRequests.length > 0 && (
@@ -893,6 +1000,8 @@ const ProcurementList = () => {
                         </button>
                     </div>
                 </div>
+            )}
+            </>
             )}
 
             {/* Procurement Request Letter Modal */}

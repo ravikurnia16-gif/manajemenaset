@@ -28,6 +28,9 @@ router.put('/:id/status', verifyToken, procurementController.updateStatus);
 router.put('/items/:itemId', verifyToken, procurementController.updateItemDetail);
 router.post('/:id/bulk-assign-staff', verifyToken, procurementController.bulkAssignStaff);
 
+// Finalize Tahap 4
+router.post('/:id/finalize', verifyToken, procurementController.finalizeProcurement);
+
 // Vendor Offer (Legacy/Optional)
 router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);
 

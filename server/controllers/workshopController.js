@@ -412,7 +412,7 @@ exports.createOrder = async (req, res) => {
 // 5. Update Status
 exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, message, photoBase64, percentage } = req.body;
+    const { status, message, photoBase64, percentage, estimatedCompletionDate } = req.body;
     const user = req.user;
 
     try {
@@ -445,9 +445,32 @@ exports.updateOrderStatus = async (req, res) => {
             }
         }
 
-        if (status === 'IN_PROGRESS' && order.status === 'PENDING') {
-            updateData.startDate = new Date();
-            progressMsg = `Pekerjaan dimulai (Progres: ${parsedPercent ?? 25}%).`;
+        if (status === 'IN_PROGRESS') {
+            if (order.status === 'PENDING') {
+                if (!estimatedCompletionDate) {
+                    return res.status(400).json({ error: 'Estimasi selesai pekerjaan wajib diisi saat menerima pesanan.' });
+                }
+                const parsedEst = new Date(estimatedCompletionDate);
+                if (isNaN(parsedEst.getTime())) {
+                    return res.status(400).json({ error: 'Format tanggal estimasi selesai tidak valid.' });
+                }
+                updateData.startDate = new Date();
+                updateData.estimatedCompletionDate = parsedEst;
+                const estIndo = parsedEst.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                progressMsg = message || `Pesanan diterima workshop. Estimasi selesai pengerjaan: ${estIndo} (Progres: ${parsedPercent ?? 25}%).`;
+            } else if (estimatedCompletionDate) {
+                const parsedEst = new Date(estimatedCompletionDate);
+                if (!isNaN(parsedEst.getTime())) {
+                    updateData.estimatedCompletionDate = parsedEst;
+                }
+            }
+        } else if (status === 'CANCELLED') {
+            if (order.status === 'PENDING' && !message) {
+                return res.status(400).json({ error: 'Alasan penolakan pesanan wajib diisi.' });
+            }
+            if (message) {
+                progressMsg = `Pesanan Ditolak/Dibatalkan: ${message}`;
+            }
         } else if (status === 'COMPLETED') {
             updateData.completionDate = new Date();
             progressMsg = 'Pekerjaan selesai 100%.';
@@ -511,11 +534,27 @@ exports.updateOrderStatus = async (req, res) => {
         });
 
         if (order.requestedBy?.phone) {
+            let extraInfo = '';
+            const finalEst = updateData.estimatedCompletionDate || order.estimatedCompletionDate;
+            if (finalEst) {
+                const estD = new Date(finalEst);
+                extraInfo += `\nEstimasi Selesai: *${estD.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}*`;
+            }
             const percentWa = parsedPercent !== undefined ? `\nProgres Pengerjaan: *${parsedPercent}%*` : '';
-            const waMsg = `Bismillah.\n*Update Order Workshop*\n\n` +
-                `Order Anda: *${order.title}*\n` +
-                `Status saat ini: *${status}*${percentWa}\n\n` +
-                (message ? `Catatan: ${message}` : `Silakan cek di sistem.`);
+            
+            let waMsg = '';
+            if (status === 'CANCELLED') {
+                waMsg = `Bismillah.\n*Pesanan Workshop Ditolak/Dibatalkan*\n\n` +
+                    `Order Anda: *${order.title}*\n` +
+                    `Status: *Ditolak/Dibatalkan*\n` +
+                    `Alasan: *${message || 'Tidak dapat dikerjakan'}*\n\n` +
+                    `Silakan koordinasi dengan pihak Workshop Unit 21 jika diperlukan.`;
+            } else {
+                waMsg = `Bismillah.\n*Update Order Workshop*\n\n` +
+                    `Order Anda: *${order.title}*\n` +
+                    `Status saat ini: *${status}*${extraInfo}${percentWa}\n\n` +
+                    (message ? `Catatan: ${message}` : `Silakan cek di sistem.`);
+            }
                 
             setTimeout(() => {
                 whatsappService.sendMessage(order.requestedBy.phone, waMsg).catch(console.error);
@@ -1100,6 +1139,182 @@ exports.updateWorkshopSettingsAndUnit = async (req, res) => {
         res.json({ settings, unit21, message: 'Pengaturan dan Aturan Kepala Unit berhasil diperbarui' });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// --- BUSINESS DAYS HELPERS ---
+/**
+ * Menghitung batas waktu (deadline) N hari kerja sejak startDate.
+ * Hari Sabtu (6) dan Ahad (0) dilewati.
+ */
+const getDeadlineAfterBusinessDays = (startDate, businessDays = 2) => {
+    const d = new Date(startDate);
+    // Jika dibuat hari Sabtu, geser ke Senin pagi
+    if (d.getDay() === 6) {
+        d.setDate(d.getDate() + 2);
+    } else if (d.getDay() === 0) {
+        d.setDate(d.getDate() + 1);
+    }
+
+    let addedDays = 0;
+    while (addedDays < businessDays) {
+        d.setDate(d.getDate() + 1);
+        const day = d.getDay();
+        if (day !== 0 && day !== 6) { // Bukan Sabtu & Ahad
+            addedDays++;
+        }
+    }
+    return d;
+};
+
+/**
+ * Menghitung berapa hari kerja yang telah berlalu (Sabtu & Ahad tidak dihitung)
+ */
+const getElapsedBusinessDays = (fromDate, toDate = new Date()) => {
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    if (end <= start) return 0;
+    
+    let cur = new Date(start);
+    if (cur.getDay() === 6) cur.setDate(cur.getDate() + 2);
+    else if (cur.getDay() === 0) cur.setDate(cur.getDate() + 1);
+
+    let count = 0;
+    while (cur < end) {
+        cur.setDate(cur.getDate() + 1);
+        const day = cur.getDay();
+        if (day !== 0 && day !== 6) {
+            count++;
+        }
+    }
+    return Math.max(1, count);
+};
+
+// Export helpers for use in other modules if needed
+exports.getDeadlineAfterBusinessDays = getDeadlineAfterBusinessDays;
+exports.getElapsedBusinessDays = getElapsedBusinessDays;
+
+// 12. Cron Job / Scheduler: Pengingat Antrean Pesanan Workshop (>2 Hari Kerja)
+// Dijalankan 1 kali sehari di hari kerja (Senin - Jumat)
+exports.checkPendingWorkshopOrders = async () => {
+    try {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Ahad, 6 = Sabtu
+
+        // Jangan kirim pada hari Sabtu dan Ahad (Libur)
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            console.log('[Scheduler] Workshop Reminder skipped: weekend (Sabtu/Ahad).');
+            return { skipped: true, reason: 'weekend' };
+        }
+
+        console.log('[Scheduler] Memeriksa antrean masuk workshop (>2 hari kerja)...');
+
+        // Cari pesanan workshop yang masih PENDING
+        const pendingOrders = await prisma.workshopOrder.findMany({
+            where: {
+                status: 'PENDING'
+            },
+            include: {
+                requestedBy: { select: { id: true, name: true, username: true } },
+                unit: { select: { id: true, name: true } }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        // Filter: hanya pesanan yang createdAt sudah melewati 2 hari kerja
+        const overdueOrders = pendingOrders.filter(order => {
+            const deadline = getDeadlineAfterBusinessDays(order.createdAt, 2);
+            return now >= deadline;
+        });
+
+        if (overdueOrders.length === 0) {
+            console.log('[Scheduler] Tidak ada pesanan workshop PENDING yang mengendap >2 hari kerja.');
+            return { sent: false, count: 0 };
+        }
+
+        console.log(`[Scheduler] Ditemukan ${overdueOrders.length} pesanan workshop mengendap >2 hari kerja.`);
+
+        // Cari penerima: posisi 'Sarpras Unit' di unitId 21 (Workshop)
+        let recipients = await prisma.user.findMany({
+            where: {
+                unitId: 21,
+                position: { contains: 'Sarpras Unit' },
+                phone: { not: null, not: '' }
+            }
+        });
+
+        // Fallback: Jika belum ada yang berposisi spesifik, cari admin unit di unit 21
+        if (recipients.length === 0) {
+            recipients = await prisma.user.findMany({
+                where: {
+                    unitId: 21,
+                    role: 'ADMIN_UNIT',
+                    phone: { not: null, not: '' }
+                }
+            });
+        }
+
+        if (recipients.length === 0) {
+            console.warn('[Scheduler] Tidak ditemukan penerima Sarpras Unit (unitId: 21) dengan nomor telepon aktif.');
+            return { sent: false, reason: 'no_recipients' };
+        }
+
+        const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+
+        // Format pesan pengingat WhatsApp (TANPA "Yth." sesuai instruksi USER)
+        let msg = `Bismillah.\n` +
+            `⚠️ *PENGINGAT ANTREAN PESANAN WORKSHOP (>2 HARI KERJA)*\n\n` +
+            `Kepada Sarpras Unit (Workshop Unit 21),\n` +
+            `Terdapat *${overdueOrders.length} pesanan* di Antrean Masuk yang belum direspon lebih dari 2 hari kerja:\n\n`;
+
+        overdueOrders.slice(0, 10).forEach((o, idx) => {
+            const elapsedDays = getElapsedBusinessDays(o.createdAt, now);
+            const reqName = o.requestedBy?.name || o.requestedBy?.username || 'Pemohon';
+            const unitName = o.unit?.name || 'Umum';
+            const dateStr = new Date(o.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+
+            msg += `${idx + 1}. *${o.title}* (${o.code})\n`;
+            msg += `   📍 Unit: ${unitName} | 👤 Pemohon: ${reqName}\n`;
+            msg += `   📅 Masuk: ${dateStr} | ⏱️ Mengendap: *${elapsedDays} hari kerja*\n\n`;
+        });
+
+        if (overdueOrders.length > 10) {
+            msg += `...dan *${overdueOrders.length - 10} pesanan lainnya*.\n\n`;
+        }
+
+        msg += `Mohon untuk segera ditindaklanjuti pada sistem:\n` +
+            `👉 *TOLAK PESANAN* (bila tidak dapat dikerjakan beserta alasan), atau\n` +
+            `👉 *TERIMA PEKERJAAN* dengan menginputkan *Estimasi Selesai Pekerjaan*.\n\n` +
+            `🔗 *Papan Antrean Workshop*:\n` +
+            `${appUrl}/workshop-baru/board\n\n` +
+            `_Pesan otomatis Sistem Manajemen Aset_`;
+
+        // Kirim notifikasi WhatsApp & In-App Notification
+        for (const r of recipients) {
+            try {
+                await whatsappService.sendMessage(r.phone, msg);
+                console.log(`[Scheduler] Workshop queue reminder sent to ${r.name || r.username} (${r.phone})`);
+            } catch (err) {
+                console.error(`[Scheduler] Gagal kirim WA pengingat workshop ke ${r.phone}:`, err.message);
+            }
+
+            try {
+                await createNotification({
+                    userId: r.id,
+                    title: 'Peringatan Antrean Workshop (>2 Hari Kerja)',
+                    message: `Terdapat ${overdueOrders.length} pesanan workshop di Antrean Masuk yang belum direspon >2 hari kerja. Segera tolak atau terima dengan estimasi selesai.`,
+                    type: 'WARNING',
+                    link: '/workshop-baru/board'
+                });
+            } catch (err) {
+                console.error('[Scheduler] Gagal buat in-app notification:', err.message);
+            }
+        }
+
+        return { sent: true, count: overdueOrders.length, recipientsCount: recipients.length };
+    } catch (error) {
+        console.error('[Scheduler] checkPendingWorkshopOrders Error:', error);
+        return { error: error.message };
     }
 };
 

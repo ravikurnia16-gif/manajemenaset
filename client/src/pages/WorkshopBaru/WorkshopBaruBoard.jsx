@@ -75,6 +75,23 @@ function WorkshopBaruBoard() {
     const [targetOrder, setTargetOrder] = useState(null);
     const [percentVal, setPercentVal] = useState(25);
     const [percentNote, setPercentNote] = useState('');
+    const [estimatedCompletionDate, setEstimatedCompletionDate] = useState('');
+
+    // Helper hitung apakah pesanan PENDING sudah mengendap > 2 hari kerja (Senin-Jumat, skip Sabtu & Ahad)
+    const isPendingOverdue = (order) => {
+        if (!order || order.status !== 'PENDING' || !order.createdAt) return false;
+        let businessDays = 0;
+        let cur = new Date(order.createdAt);
+        const now = new Date();
+        while (cur < now) {
+            cur.setDate(cur.getDate() + 1);
+            const day = cur.getDay();
+            if (day !== 0 && day !== 6) {
+                businessDays++;
+            }
+        }
+        return businessDays >= 2;
+    };
 
     useEffect(() => {
         fetchOrders();
@@ -159,6 +176,11 @@ function WorkshopBaruBoard() {
         setTargetOrder(order);
         setPercentVal(order.currentPercentage ?? (order.status === 'PENDING' ? 15 : 25));
         setPercentNote('');
+        setEstimatedCompletionDate(
+            order.estimatedCompletionDate
+                ? String(order.estimatedCompletionDate).split('T')[0]
+                : (order.deadline ? String(order.deadline).split('T')[0] : '')
+        );
         setPercentModal(true);
     };
 
@@ -167,6 +189,11 @@ function WorkshopBaruBoard() {
         setTargetOrder(order);
         setPercentVal(15);
         setPercentNote('Mulai pengerjaan di bengkel Unit 21.');
+        setEstimatedCompletionDate(
+            order.estimatedCompletionDate
+                ? String(order.estimatedCompletionDate).split('T')[0]
+                : (order.deadline ? String(order.deadline).split('T')[0] : '')
+        );
         setPercentModal(true);
     };
 
@@ -175,10 +202,20 @@ function WorkshopBaruBoard() {
         if (!targetOrder) return;
         try {
             if (targetOrder.status === 'PENDING') {
+                if (!estimatedCompletionDate) {
+                    Swal.fire({
+                        title: 'Estimasi Selesai Wajib Diisi',
+                        text: 'Silakan tentukan perkiraan tanggal selesai pekerjaan sebelum memulai pengerjaan.',
+                        icon: 'warning',
+                        confirmButtonColor: '#059669'
+                    });
+                    return;
+                }
                 await api.put(`/workshop/orders/${targetOrder.id}/status`, {
                     status: 'IN_PROGRESS',
                     percentage: parseInt(percentVal, 10),
-                    message: percentNote || `Pekerjaan dimulai (Progres: ${percentVal}%).`
+                    estimatedCompletionDate,
+                    message: percentNote || `Pekerjaan dimulai (Progres: ${percentVal}%). Estimasi selesai: ${new Date(estimatedCompletionDate).toLocaleDateString('id-ID')}`
                 });
             } else {
                 await api.post(`/workshop/orders/${targetOrder.id}/progress`, {
@@ -496,6 +533,14 @@ function WorkshopBaruBoard() {
                                                     Dari: <strong className="text-slate-700">{order.unit?.name || order.requestedBy?.name || '-'}</strong>
                                                 </p>
 
+                                                {/* Overdue in Queue Warning (>2 Hari Kerja) */}
+                                                {order.status === 'PENDING' && isPendingOverdue(order) && (
+                                                    <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-[10px] font-bold">
+                                                        <AlertTriangle size={12} className="shrink-0 text-rose-600 animate-pulse" />
+                                                        <span>&gt;2 Hari Kerja di Antrean</span>
+                                                    </div>
+                                                )}
+
                                                 {/* Deadline Alert */}
                                                 <div className={`mt-2 flex items-center gap-1 text-[10px] ${
                                                     isOverdue ? 'text-rose-600 font-bold' : 'text-slate-400'
@@ -504,6 +549,13 @@ function WorkshopBaruBoard() {
                                                     Target: {order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'Tidak ada'}
                                                     {isOverdue && ' (Lewat Batas)'}
                                                 </div>
+
+                                                {order.estimatedCompletionDate && (
+                                                    <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-600 font-semibold">
+                                                        <Clock size={11} />
+                                                        Estimasi Selesai: {new Date(order.estimatedCompletionDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                    </div>
+                                                )}
 
                                                 {/* Items summary */}
                                                 {order.items && order.items.length > 0 && (
@@ -641,7 +693,12 @@ function WorkshopBaruBoard() {
                                             </span>
                                         </td>
                                         <td className="p-3.5 text-slate-600">
-                                            {order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                            <div>{order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</div>
+                                            {order.estimatedCompletionDate && (
+                                                <div className="text-[10px] text-blue-600 font-semibold mt-0.5 flex items-center gap-0.5">
+                                                    <Clock size={10} /> Est: {new Date(order.estimatedCompletionDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-3.5 text-slate-700 font-medium">
                                             {order.picName || '-'}
@@ -675,13 +732,20 @@ function WorkshopBaruBoard() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                                    order.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                                                    order.status === 'QUALITY_CHECK' ? 'bg-purple-100 text-purple-800 border-purple-200' :
-                                                    'bg-amber-100 text-amber-800 border-amber-200'
-                                                }`}>
-                                                    {order.status}
-                                                </span>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border w-fit ${
+                                                        order.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                                                        order.status === 'QUALITY_CHECK' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                                                        'bg-amber-100 text-amber-800 border-amber-200'
+                                                    }`}>
+                                                        {order.status === 'PENDING' ? 'Antrean Masuk' : order.status}
+                                                    </span>
+                                                    {order.status === 'PENDING' && isPendingOverdue(order) && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-0.5 w-fit">
+                                                            <AlertTriangle size={10} /> &gt;2 Hari Kerja
+                                                        </span>
+                                                    )}
+                                                </div>
                                             )}
                                         </td>
                                         <td className="p-3.5 text-right">
@@ -891,6 +955,24 @@ function WorkshopBaruBoard() {
                                     ))}
                                 </div>
                             </div>
+
+                            {targetOrder.status === 'PENDING' && (
+                                <div>
+                                    <label className="font-bold text-slate-700 block mb-1">
+                                        Estimasi Selesai Pekerjaan <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={estimatedCompletionDate}
+                                        onChange={e => setEstimatedCompletionDate(e.target.value)}
+                                        className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium"
+                                    />
+                                    <p className="text-[10px] text-slate-500 mt-1">
+                                        Wajib diisi sebagai komitmen waktu pengerjaan untuk pemohon.
+                                    </p>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="font-bold text-slate-700 block mb-1">Catatan Pengerjaan (Opsional)</label>

@@ -43,6 +43,7 @@ const MaintenanceDetail = () => {
     const [historyModal, setHistoryModal] = useState({ show: false, asset: null, timeline: [], loading: false });
     const [singleAssetModal, setSingleAssetModal] = useState({ show: false, asset: null, actionTaken: '', condition: 'BAIK', saving: false });
     const [showSPKModal, setShowSPKModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     // Form States for Workflow Actions
     const [actionNote, setActionNote] = useState('');
@@ -317,6 +318,8 @@ const MaintenanceDetail = () => {
     };
 
     const handleStatusUpdate = async () => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
             const payload = { status: actionModal.nextStatus };
 
@@ -431,6 +434,8 @@ const MaintenanceDetail = () => {
         } catch (error) {
             console.error(error);
             showToast(error.response?.data?.error || 'Gagal memperbarui status', 'error');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -635,6 +640,7 @@ const MaintenanceDetail = () => {
                 actionModal={actionModal}
                 onClose={handleCloseActionModal}
                 onSubmit={handleStatusUpdate}
+                submitting={submitting}
                 report={report}
                 units={units}
                 users={users}

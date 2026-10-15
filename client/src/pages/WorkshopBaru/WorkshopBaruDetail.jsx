@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -16,6 +16,7 @@ import {
     Plus,
     FileText,
     AlertTriangle,
+    AlertCircle,
     X,
     MessageSquare,
     Sparkles,
@@ -48,6 +49,7 @@ function WorkshopBaruDetail() {
     const [newStatus, setNewStatus] = useState('');
     const [statusMsg, setStatusMsg] = useState('');
     const [statusPercentage, setStatusPercentage] = useState(25);
+    const [estimatedCompletionDate, setEstimatedCompletionDate] = useState('');
 
     const [progressModal, setProgressModal] = useState(false);
     const [progressMsg, setProgressMsg] = useState('');
@@ -121,6 +123,25 @@ function WorkshopBaruDetail() {
         }
     };
 
+    const isOverduePending = useMemo(() => {
+        if (!order || order.status !== 'PENDING') return false;
+        const start = new Date(order.createdAt);
+        const now = new Date();
+        let cur = new Date(start);
+        if (cur.getDay() === 6) cur.setDate(cur.getDate() + 2);
+        else if (cur.getDay() === 0) cur.setDate(cur.getDate() + 1);
+
+        let count = 0;
+        while (cur < now) {
+            cur.setDate(cur.getDate() + 1);
+            const day = cur.getDay();
+            if (day !== 0 && day !== 6) {
+                count++;
+            }
+        }
+        return count >= 2;
+    }, [order]);
+
     const handleUpdateStatus = async (e) => {
         e.preventDefault();
 
@@ -129,17 +150,24 @@ function WorkshopBaruDetail() {
             return;
         }
 
+        if (newStatus === 'IN_PROGRESS' && order.status === 'PENDING' && !estimatedCompletionDate) {
+            Swal.fire('Peringatan', 'Estimasi selesai pekerjaan wajib diisi saat menerima pesanan dari antrean.', 'warning');
+            return;
+        }
+
         try {
             await api.put(`/workshop/orders/${id}/status`, {
                 status: newStatus,
                 message: statusMsg,
                 percentage: newStatus === 'IN_PROGRESS' ? parseInt(statusPercentage, 10) : undefined,
+                estimatedCompletionDate: newStatus === 'IN_PROGRESS' ? estimatedCompletionDate : undefined,
                 photoBase64: photoBase64
             });
             Swal.fire('Berhasil', 'Status pesanan berhasil diperbarui.', 'success');
             setStatusModal(false);
             setPhotoBase64(null);
             setStatusMsg('');
+            setEstimatedCompletionDate('');
             fetchOrder();
         } catch (error) {
             Swal.fire('Gagal', error.response?.data?.error || 'Gagal mengubah status', 'error');
@@ -316,6 +344,44 @@ function WorkshopBaruDetail() {
                 <p className="text-xs text-slate-600 mt-1">Unit 21 • Divisi Workshop & Fabrikasi (Kayu & Besi)</p>
             </div>
 
+            {/* Overdue Alert if PENDING > 2 working days */}
+            {isOverduePending && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-rose-900 shadow-sm print:hidden">
+                    <div className="flex items-start sm:items-center gap-3">
+                        <div className="p-2 rounded-xl bg-rose-100 text-rose-700 shrink-0">
+                            <AlertCircle size={20} />
+                        </div>
+                        <div>
+                            <h4 className="font-black text-xs sm:text-sm">Peringatan: Pesanan Mengendap Lebih dari 2 Hari Kerja di Antrean</h4>
+                            <p className="text-[11px] text-rose-700 mt-0.5">
+                                Pesanan ini berstatus <strong>PENDING</strong> dan belum diverifikasi. Mohon Sarpras Unit segera <strong>Menerima Pekerjaan</strong> dengan mengisi estimasi waktu pengerjaan atau <strong>Menolak Pesanan</strong> bila tidak dapat dikerjakan.
+                            </p>
+                        </div>
+                    </div>
+                    {isWorkshopAdmin && (
+                        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                            <button
+                                onClick={() => {
+                                    setNewStatus('IN_PROGRESS');
+                                    setStatusPercentage(25);
+                                    setEstimatedCompletionDate(order.deadline ? new Date(order.deadline).toISOString().split('T')[0] : '');
+                                    setStatusModal(true);
+                                }}
+                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex-1 sm:flex-none text-center"
+                            >
+                                Terima Pekerjaan
+                            </button>
+                            <button
+                                onClick={handleCancelOrder}
+                                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex-1 sm:flex-none text-center"
+                            >
+                                Tolak Pesanan
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Main Header Card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -473,6 +539,15 @@ function WorkshopBaruDetail() {
                                 <span className="text-slate-500">Mulai Pengerjaan</span>
                                 <strong className="text-slate-800">
                                     {order.startDate ? new Date(order.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Belum Dimulai'}
+                                </strong>
+                            </div>
+                            <div className="flex justify-between py-1.5 border-b border-slate-100">
+                                <span className="text-slate-500 flex items-center gap-1">
+                                    <Calendar size={13} className="text-emerald-600" />
+                                    Estimasi Selesai Workshop
+                                </span>
+                                <strong className={order.estimatedCompletionDate ? "text-emerald-700 font-extrabold" : "text-slate-400 font-normal"}>
+                                    {order.estimatedCompletionDate ? new Date(order.estimatedCompletionDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Belum Diinput'}
                                 </strong>
                             </div>
                             <div className="flex justify-between py-1.5 border-b border-slate-100">
@@ -689,6 +764,26 @@ function WorkshopBaruDetail() {
                                     <option value="COMPLETED">COMPLETED (Selesai)</option>
                                 </select>
                             </div>
+
+                            {/* Section: Estimasi Selesai Pekerjaan saat IN_PROGRESS */}
+                            {newStatus === 'IN_PROGRESS' && (
+                                <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl space-y-1.5">
+                                    <label className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
+                                        <Calendar size={14} className="text-amber-600" />
+                                        Estimasi Selesai Pekerjaan {order.status === 'PENDING' && <span className="text-rose-500">* (Wajib)</span>}
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required={order.status === 'PENDING'}
+                                        value={estimatedCompletionDate}
+                                        onChange={e => setEstimatedCompletionDate(e.target.value)}
+                                        className="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                    <p className="text-[10px] text-amber-700">
+                                        Wajib diisi saat menerima pekerjaan untuk memberikan kepastian jadwal selesai kepada pemohon.
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Section: Persentase saat IN_PROGRESS */}
                             {newStatus === 'IN_PROGRESS' && (

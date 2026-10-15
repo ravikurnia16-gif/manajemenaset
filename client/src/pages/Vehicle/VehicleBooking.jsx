@@ -4363,7 +4363,7 @@ const VehicleBooking = () => {
                                                     />
                                                 </div>
                                                 <p className="text-[10px] text-red-600 italic">
-                                                    * Laporan ini akan otomatis dikirim sebagai Tiket Pemeliharaan Insidental ke Sarpras.
+                                                    * Laporan insiden/kerusakan ini akan tersimpan pada catatan peminjaman dan dikirimkan kepada PIC Armada & Tim Sarpras.
                                                 </p>
                                             </div>
                                         )}

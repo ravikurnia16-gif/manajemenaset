@@ -5,7 +5,7 @@ import {
     Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles, 
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
-    BookOpen, Target
+    BookOpen, Target, GraduationCap
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/axios';
@@ -23,6 +23,7 @@ import DisciplineMatrixTab from './tabs/DisciplineMatrixTab';
 import WeeklyPdfTab from './tabs/WeeklyPdfTab';
 import AssignmentsTab from './tabs/AssignmentsTab';
 import WorkPlanTab from './tabs/WorkPlanTab';
+import TrainingTab from './tabs/TrainingTab';
 
 // Modals
 import LiveCameraModal from './modals/LiveCameraModal';
@@ -1200,6 +1201,14 @@ const LaporanStaff = () => {
                         >
                             <BookOpen size={16} /> Setoran Hafalan
                         </button>
+                        <button
+                            onClick={() => setActiveTab('pelatihan')}
+                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'pelatihan' ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <GraduationCap size={16} /> Pelatihan Karyawan
+                        </button>
                     </>
                 ) : (
                     <>
@@ -1234,6 +1243,14 @@ const LaporanStaff = () => {
                             }`}
                         >
                             <BookOpen size={16} /> Setoran Hafalan
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('pelatihan')}
+                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+                                activeTab === 'pelatihan' ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                        >
+                            <GraduationCap size={16} /> Pelatihan Karyawan
                         </button>
                     </>
                 )}
@@ -1452,6 +1469,15 @@ const LaporanStaff = () => {
                     {/* TAB: SETORAN HAFALAN */}
                     {activeTab === 'hafalan' && (
                         <SetoranHafalanTab isKabid={isKabid} user={user} />
+                    )}
+
+                    {/* TAB: PELATIHAN KARYAWAN */}
+                    {activeTab === 'pelatihan' && (
+                        <TrainingTab 
+                            isKabid={isKabid} 
+                            user={user} 
+                            staffList={staffList} 
+                        />
                     )}
                 </>
             )}

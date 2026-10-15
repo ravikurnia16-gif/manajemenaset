@@ -15,6 +15,9 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+// Anti-spam debounce cache to prevent duplicate assignment notifications within a 20s window
+const recentAssignmentNotifs = new Map();
+
 /**
  * Auto-sync Maintenance to PersonnelAssignment (Tab Penugasan)
  */
@@ -773,6 +776,7 @@ exports.createReport = async (req, res) => {
                     { position: { contains: 'Kepala Bidang Sarana' } },
                     { position: { contains: 'Staff Manajemen Aset' } },
                     { position: { contains: 'Staff Teknisi Aset' } },
+                    { position: { contains: 'Teknisi Aset' } },
                     { role: 'KABID_SARPRAS' }
                 ];
 
@@ -829,6 +833,8 @@ exports.createReport = async (req, res) => {
                 ] : [
                     { position: { contains: 'Kepala Bidang Sarana' } },
                     { position: { contains: 'Staff Manajemen Aset' } },
+                    { position: { contains: 'Staff Teknisi Aset' } },
+                    { position: { contains: 'Teknisi Aset' } },
                     { role: 'KABID_SARPRAS' }
                 ];
 
@@ -866,10 +872,18 @@ exports.createReport = async (req, res) => {
                         `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : (targetDept === 'PEMBANGUNAN' ? `*Kepada Kepala Bidang Sarana & Staff Manajemen Aset*, mohon bantu untuk segera ditindaklanjuti.` : `*Kepada Tim Sarpras & Staff Teknisi Aset*, mohon bantu untuk segera ditindaklanjuti.`)}\n\n` +
                         `Syukron jazakumullahu khairan.`;
 
-                    // Send to all found recipients with delay
+                    // Send to all found recipients with delay (exclude assigned tech to avoid duplicate WA)
                     setTimeout(async () => {
+                        const finalRecipients = waRecipients.filter(admin => {
+                            if (isDirect && report.technician) {
+                                const isAssignedTech = (admin.name && admin.name === report.technician) || (admin.username && admin.username === report.technician);
+                                if (isAssignedTech) return false;
+                            }
+                            return true;
+                        });
+
                         let cumulativeDelay = 0;
-                        for (const admin of waRecipients) {
+                        for (const admin of finalRecipients) {
                             const randomGap = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
                             cumulativeDelay += randomGap;
 
@@ -895,18 +909,25 @@ exports.createReport = async (req, res) => {
                     }
 
                     if (techUser && techUser.phone) {
-                        const msgTech = `Bismillah.\n🛠 *PENUGASAN INTERNAL BARU*\n\n` +
-                            `Halo *${techUser.name || techUser.username}*,\n` +
-                            `Anda mendapatkan instruksi penugasan untuk: *${title}*.\n\n` +
-                            `📜 *Kode* : ${code}\n` +
-                            `👤 *Pemberi Tugas* : Admin (Penugasan Internal)\n` +
-                            `📝 *Masalah* : ${description}\n\n` +
-                            `🔗 *Link Laporan* :\n${reportUrl}\n\n` +
-                            `Mohon segera ditindaklanjuti. Syukron.`;
+                        const notifKey = `assign_${report.id}_${techUser.phone}`;
+                        const lastSent = recentAssignmentNotifs.get(notifKey);
+                        if (!lastSent || (Date.now() - lastSent > 20000)) {
+                            recentAssignmentNotifs.set(notifKey, Date.now());
+                            const msgTech = `Bismillah.\n🛠 *PENUGASAN INTERNAL BARU*\n\n` +
+                                `Halo *${techUser.name || techUser.username}*,\n` +
+                                `Anda mendapatkan instruksi penugasan untuk: *${title}*.\n\n` +
+                                `📜 *Kode* : ${code}\n` +
+                                `👤 *Pemberi Tugas* : Admin (Penugasan Internal)\n` +
+                                `📝 *Masalah* : ${description}\n\n` +
+                                `🔗 *Link Laporan* :\n${reportUrl}\n\n` +
+                                `Mohon segera ditindaklanjuti. Syukron.`;
 
-                        setTimeout(async () => {
-                            await whatsappService.sendMessage(techUser.phone, msgTech);
-                        }, 5000);
+                            setTimeout(async () => {
+                                await whatsappService.sendMessage(techUser.phone, msgTech);
+                            }, 5000);
+                        } else {
+                            console.warn(`[WA Maintenance] Mencegah duplikasi notifikasi penugasan langsung ke ${techUser.phone}`);
+                        }
                     }
                 }
             } catch (err) {
@@ -1211,63 +1232,76 @@ exports.updateStatus = async (req, res) => {
 
                 // --- WhatsApp Notification to Technician (Async) ---
                 let techUser = null;
+                let actualTechPhone = null;
                 if (status === 'ASSIGNED' && technician) {
                     try {
                         techUser = await prisma.user.findFirst({
                             where: { OR: [{ name: technician }, { username: technician }] }
                         });
 
-                        const actualTechPhone = techUser?.phone || technicianPhone;
+                        actualTechPhone = techUser?.phone || technicianPhone;
 
                         if (actualTechPhone) {
-                            const isExternal = !techUser;
-                            const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
-                            const maintenanceUrl = `${baseUrl}/pemeliharaan/${report.id}`;
+                            // Check anti-spam debounce to prevent double sending if quick consecutive requests happen
+                            const notifKey = `assign_${report.id}_${actualTechPhone}`;
+                            const lastSent = recentAssignmentNotifs.get(notifKey);
+                            const isDuplicate = lastSent && (Date.now() - lastSent < 20000);
 
-                            // Build photo URLs for external technician
-                            let externalExtra = '';
-                            if (isExternal) {
-                                const formatMediaUrl = (url) => {
-                                    if (!url) return '';
-                                    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-                                    return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-                                };
+                            if (!isDuplicate) {
+                                recentAssignmentNotifs.set(notifKey, Date.now());
+                                if (recentAssignmentNotifs.size > 500) recentAssignmentNotifs.clear();
 
-                                const photoUrls = [];
-                                if (report.photo) photoUrls.push(formatMediaUrl(report.photo));
-                                if (Array.isArray(report.media)) {
-                                    report.media.forEach(m => {
-                                        if (m.type === 'IMAGE' && m.url) {
-                                            const fullUrl = formatMediaUrl(m.url);
-                                            if (!photoUrls.includes(fullUrl)) photoUrls.push(fullUrl);
-                                        }
-                                    });
+                                const isExternal = !techUser;
+                                const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+                                const maintenanceUrl = `${baseUrl}/pemeliharaan/${report.id}`;
+
+                                // Build photo URLs for external technician
+                                let externalExtra = '';
+                                if (isExternal) {
+                                    const formatMediaUrl = (url) => {
+                                        if (!url) return '';
+                                        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+                                        return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+                                    };
+
+                                    const photoUrls = [];
+                                    if (report.photo) photoUrls.push(formatMediaUrl(report.photo));
+                                    if (Array.isArray(report.media)) {
+                                        report.media.forEach(m => {
+                                            if (m.type === 'IMAGE' && m.url) {
+                                                const fullUrl = formatMediaUrl(m.url);
+                                                if (!photoUrls.includes(fullUrl)) photoUrls.push(fullUrl);
+                                            }
+                                        });
+                                    }
+
+                                    externalExtra += `📍 *Lokasi* : ${report.location || '-'}\n`;
+                                    externalExtra += `🏢 *Unit* : ${report.unit?.name || '-'}\n`;
+                                    if (photoUrls.length > 0) {
+                                        externalExtra += `\n🖼️ *Foto Laporan* :\n`;
+                                        photoUrls.forEach((url, i) => {
+                                            externalExtra += `${i + 1}. ${url}\n`;
+                                        });
+                                    }
+                                    externalExtra += '\n';
                                 }
 
-                                externalExtra += `📍 *Lokasi* : ${report.location || '-'}\n`;
-                                externalExtra += `🏢 *Unit* : ${report.unit?.name || '-'}\n`;
-                                if (photoUrls.length > 0) {
-                                    externalExtra += `\n🖼️ *Foto Laporan* :\n`;
-                                    photoUrls.forEach((url, i) => {
-                                        externalExtra += `${i + 1}. ${url}\n`;
-                                    });
-                                }
-                                externalExtra += '\n';
+                                const msgTech = `Bismillah.\n🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
+                                    `Halo *${techUser?.name || techUser?.username || technician}*,\n` +
+                                    `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
+                                    `📜 *Kode* : ${report.code}\n` +
+                                    `📋 *Judul* : ${report.title}\n` +
+                                    `📝 *Masalah* : ${report.description}\n` +
+                                    (report.approvalNote ? `📌 *Catatan Tambahan* : ${report.approvalNote}\n\n` : `\n`) +
+                                    (isExternal ? externalExtra : `🚀 *MULAI PENGERJAAN*:\n${maintenanceUrl}\n\n`) +
+                                    `Syukron jazakumullahu khairan.`;
+
+                                setTimeout(async () => {
+                                    await whatsappService.sendMessage(actualTechPhone, msgTech);
+                                }, 45000); // Send slightly after submitter notif
+                            } else {
+                                console.warn(`[WA Maintenance] Mencegah notifikasi penugasan ganda ke ${actualTechPhone} untuk tiket #${report.id}`);
                             }
-
-                            const msgTech = `Bismillah.\n🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
-                                `Halo *${techUser?.name || techUser?.username || technician}*,\n` +
-                                `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
-                                `📜 *Kode* : ${report.code}\n` +
-                                `📋 *Judul* : ${report.title}\n` +
-                                `📝 *Masalah* : ${report.description}\n` +
-                                (report.approvalNote ? `📌 *Catatan Tambahan* : ${report.approvalNote}\n\n` : `\n`) +
-                                (isExternal ? externalExtra : `🚀 *MULAI PENGERJAAN*:\n${maintenanceUrl}\n\n`) +
-                                `Syukron jazakumullahu khairan.`;
-
-                            setTimeout(async () => {
-                                await whatsappService.sendMessage(actualTechPhone, msgTech);
-                            }, 45000); // Send slightly after submitter notif
                         }
                     } catch (e) {
                         console.error('WA Tech Notif Error:', e);
@@ -1276,6 +1310,16 @@ exports.updateStatus = async (req, res) => {
 
                 const submitter = report.user;
                 if (!submitter?.phone) return;
+
+                // Jika pelapor adalah teknisi yang ditugaskan (nomor WA sama), lewati notif submitter agar tidak menerima 2 pesan WA
+                if (status === 'ASSIGNED' && actualTechPhone) {
+                    const normSubmitterPhone = submitter.phone.replace(/^0/, '62').trim();
+                    const normTechPhone = actualTechPhone.replace(/^0/, '62').trim();
+                    if (normSubmitterPhone === normTechPhone) {
+                        console.log(`[WA Maintenance] Pelapor sama dengan teknisi yang ditugaskan (${actualTechPhone}). Melewati notifikasi status duplikat ke pelapor.`);
+                        return;
+                    }
+                }
 
                 const statusLabels = {
                     'APPROVED': 'Disetujui \u2705',

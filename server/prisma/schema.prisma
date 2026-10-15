@@ -66,6 +66,7 @@ model User {
   approvedMovements        Movement[]             @relation("ApprovedMovements")
   personnelReports         PersonnelReport[]
   setoranHafalan           SetoranHafalan[]
+  staffTrainings           StaffTraining[]
   assignedAssignments      PersonnelAssignment[]  @relation("Assignee")
   createdAssignments       PersonnelAssignment[]  @relation("Assigner")
   assignedProcurementItems ProcurementItem[]      @relation("ItemAssignee")
@@ -1019,6 +1020,33 @@ model SetoranHafalan {
   @@index([juz])
 }
 
+model StaffTraining {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  scheduleDate   DateTime
+  endDate        DateTime?
+  organizer      String?
+  location       String?
+  method         String    @default("OFFLINE") // OFFLINE, ONLINE, HYBRID
+  description    String?   @db.Text
+  certificateNo  String?
+  fileUrl        String    @db.Text
+  fileName       String?
+  fileSize       Int?
+  moduleUrl      String?   @db.Text
+  moduleFileName String?
+  moduleFileSize Int?
+  status         String    @default("COMPLETED")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([scheduleDate])
+  @@index([method])
+}
+
 enum AssignmentStatus {
   PENDING
   IN_PROGRESS
@@ -1609,6 +1637,7 @@ model WorkshopOrder {
   deadline        DateTime?
   startDate       DateTime?            // Tanggal mulai pengerjaan
   completionDate  DateTime?            // Tanggal selesai aktual
+  estimatedCompletionDate DateTime?    // Tanggal estimasi selesai pekerjaan dari Workshop saat menerima pesanan
   
   // Budget & Cost
   estimatedCost   Float                @default(0)
