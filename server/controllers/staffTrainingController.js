@@ -37,36 +37,21 @@ const ensureTableExists = async () => {
         // Check and safely add new columns if table existed prior
         try {
             await prisma.$executeRawUnsafe(`ALTER TABLE \`StaffTraining\` ADD COLUMN \`method\` VARCHAR(191) NOT NULL DEFAULT 'OFFLINE' AFTER \`location\`;`);
-        } catch (_) {}
+        } catch (_) { }
         try {
             await prisma.$executeRawUnsafe(`ALTER TABLE \`StaffTraining\` ADD COLUMN \`moduleUrl\` TEXT NULL AFTER \`fileSize\`;`);
-        } catch (_) {}
+        } catch (_) { }
         try {
             await prisma.$executeRawUnsafe(`ALTER TABLE \`StaffTraining\` ADD COLUMN \`moduleFileName\` VARCHAR(191) NULL AFTER \`moduleUrl\`;`);
-        } catch (_) {}
+        } catch (_) { }
         try {
             await prisma.$executeRawUnsafe(`ALTER TABLE \`StaffTraining\` ADD COLUMN \`moduleFileSize\` INT NULL AFTER \`moduleFileName\`;`);
-        } catch (_) {}
+        } catch (_) { }
 
         tableEnsured = true;
     } catch (e) {
         console.warn('[StaffTraining] Ensure table warning:', e.message);
     }
-};
-
-// Helper: Check if user is manager / admin aset / kabid
-const isPrivilegedUser = (user) => {
-    if (!user) return false;
-    const role = user.role || '';
-    const pos = (user.position || '').toLowerCase();
-    return role === 'KABID_SARPRAS' || 
-           role === 'SUPER_ADMIN' || 
-           role === 'ADMIN_ASET' || 
-           pos.includes('kepala bidang') || 
-           pos.includes('admin aset') || 
-           pos.includes('manajemen aset') ||
-           pos.includes('sarana dan prasarana') ||
-           pos.includes('sarpras');
 };
 
 /**
@@ -76,7 +61,9 @@ exports.getTrainings = async (req, res) => {
     await ensureTableExists();
     try {
         const currentUser = req.user;
-        const isKabid = isPrivilegedUser(currentUser);
+        const isKabid = currentUser.role === 'KABID_SARPRAS' ||
+            currentUser.role === 'SUPER_ADMIN' ||
+            (currentUser.position || '').toLowerCase().includes('kepala bidang');
 
         const { userId, search, method, startDate, endDate, page = 1, limit = 50 } = req.query;
 
@@ -160,7 +147,9 @@ exports.getTrainingStats = async (req, res) => {
     await ensureTableExists();
     try {
         const currentUser = req.user;
-        const isKabid = isPrivilegedUser(currentUser);
+        const isKabid = currentUser.role === 'KABID_SARPRAS' ||
+            currentUser.role === 'SUPER_ADMIN' ||
+            (currentUser.position || '').toLowerCase().includes('kepala bidang');
 
         const where = isKabid ? {} : { userId: currentUser.id };
 
@@ -243,11 +232,13 @@ exports.createTraining = async (req, res) => {
             return res.status(400).json({ error: 'Bukti dokumen pelatihan (PDF) wajib diunggah' });
         }
 
-        const isKabid = isPrivilegedUser(currentUser);
+        const isKabid = currentUser.role === 'KABID_SARPRAS' ||
+            currentUser.role === 'SUPER_ADMIN' ||
+            (currentUser.position || '').toLowerCase().includes('kepala bidang');
 
-        // Target user: default to current user (admin aset / staff who fills it), or selected staff
+        // Target user
         let targetUserId = currentUser.id;
-        if (userId) {
+        if (isKabid && userId) {
             targetUserId = parseInt(userId);
         }
 
@@ -312,7 +303,9 @@ exports.updateTraining = async (req, res) => {
             return res.status(404).json({ error: 'Data pelatihan tidak ditemukan' });
         }
 
-        const isKabid = isPrivilegedUser(currentUser);
+        const isKabid = currentUser.role === 'KABID_SARPRAS' ||
+            currentUser.role === 'SUPER_ADMIN' ||
+            (currentUser.position || '').toLowerCase().includes('kepala bidang');
 
         // Permission check
         if (!isKabid && existing.userId !== currentUser.id) {
@@ -329,7 +322,7 @@ exports.updateTraining = async (req, res) => {
         if (description !== undefined) updateData.description = description ? description.trim() : null;
         if (certificateNo !== undefined) updateData.certificateNo = certificateNo ? certificateNo.trim() : null;
         if (status !== undefined) updateData.status = status;
-        if (userId !== undefined) updateData.userId = parseInt(userId);
+        if (isKabid && userId !== undefined) updateData.userId = parseInt(userId);
 
         // Resolving uploaded files
         const newFileUrl = req.fileUrls?.file || req.fileUrl;
@@ -412,7 +405,9 @@ exports.deleteTraining = async (req, res) => {
             return res.status(404).json({ error: 'Data pelatihan tidak ditemukan' });
         }
 
-        const isKabid = isPrivilegedUser(currentUser);
+        const isKabid = currentUser.role === 'KABID_SARPRAS' ||
+            currentUser.role === 'SUPER_ADMIN' ||
+            (currentUser.position || '').toLowerCase().includes('kepala bidang');
 
         // Permission check
         if (!isKabid && existing.userId !== currentUser.id) {

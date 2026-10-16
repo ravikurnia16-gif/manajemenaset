@@ -168,8 +168,8 @@ const upsertPointToDailyReport = async (userId, dailyReport, newPoint, currentHo
         const morning = Array.isArray(manualPoints.morning) ? [...manualPoints.morning] : [];
         const afternoon = Array.isArray(manualPoints.afternoon) ? [...manualPoints.afternoon] : [];
 
-        const matchFn = (p) => p.sourceType === 'PLAN' && 
-            parseInt(p.sourceId) === parseInt(newPoint.sourceId) && 
+        const matchFn = (p) => p.sourceType === 'PLAN' &&
+            parseInt(p.sourceId) === parseInt(newPoint.sourceId) &&
             (
                 (newPoint.planItemIndex !== null && newPoint.planItemIndex !== undefined && parseInt(p.planItemIndex) === parseInt(newPoint.planItemIndex)) ||
                 ((newPoint.planItemIndex === null || newPoint.planItemIndex === undefined) && (p.planItemIndex === null || p.planItemIndex === undefined))
@@ -360,7 +360,7 @@ exports.updateReport = async (req, res) => {
             const planTitle = metadata.title || 'Rencana Kerja';
             const planCategory = updated.metadata?.categoryTag || updated.category || 'UMUM';
             const items = metadata.items || [];
-            
+
             await syncPlanToDailyReport(
                 user.id,
                 parseInt(id),
@@ -485,7 +485,7 @@ exports.createReport = async (req, res) => {
             const planTitle = metadata.title || 'Rencana Kerja';
             const planCategory = report.metadata?.categoryTag || report.category || 'UMUM';
             const items = metadata.items || [];
-            
+
             await syncPlanToDailyReport(
                 user.id,
                 report.id,
@@ -815,10 +815,10 @@ exports.purgeRoutineAssignments = async (req, res) => {
                 ]
             }
         });
-        res.json({ 
-            success: true, 
-            count: deleted.count, 
-            message: `Berhasil membersihkan ${deleted.count} tugas rutin otomatis dari database.` 
+        res.json({
+            success: true,
+            count: deleted.count,
+            message: `Berhasil membersihkan ${deleted.count} tugas rutin otomatis dari database.`
         });
     } catch (error) {
         console.error('Error purging routine assignments:', error);
@@ -979,7 +979,7 @@ exports.updateAssignmentStatus = async (req, res) => {
                     let changed = false;
                     const updatePt = (p) => {
                         const isMatch = (p.sourceType === 'ASSIGNMENT' && parseInt(p.sourceId) === assignment.id) ||
-                                        (mId && p.sourceType === 'MAINTENANCE' && parseInt(p.sourceId) === mId);
+                            (mId && p.sourceType === 'MAINTENANCE' && parseInt(p.sourceId) === mId);
                         if (isMatch) {
                             p.progressPercentage = updated.progressPercentage;
                             p.status = updated.progressPercentage === 100 ? 'COMPLETED' : (updated.progressPercentage > 0 ? 'IN_PROGRESS' : 'PENDING');
@@ -2027,10 +2027,10 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
 
             userReports.forEach(r => {
                 const pts = r.metadata?.manualPoints;
-                const m = (pts?.morning || pts?.morningPoints || []).filter(p => 
+                const m = (pts?.morning || pts?.morningPoints || []).filter(p =>
                     p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
                 );
-                const a = (pts?.afternoon || pts?.afternoonPoints || []).filter(p => 
+                const a = (pts?.afternoon || pts?.afternoonPoints || []).filter(p =>
                     p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
                 );
 
@@ -2169,7 +2169,7 @@ exports.checkPlanDeadlines = async () => {
 
             const items = Array.isArray(meta.items) ? meta.items : [];
             const doneItemsCount = items.filter(it => it.percentage === 100 || it.status === 'SELESAI').length;
-            const avgPct = items.length > 0 
+            const avgPct = items.length > 0
                 ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length)
                 : (meta.percentage || (meta.status === 'SELESAI' ? 100 : 0));
             const isAllDone = avgPct === 100 || (items.length > 0 && doneItemsCount === items.length);
@@ -2948,7 +2948,7 @@ exports.reviewSanctionLift = async (req, res) => {
 
             for (const st of staffKendaraan) {
                 if (st.phone && st.phone.trim() && st.phone !== '08') {
-                    try { await whatsappService.sendMessage(st.phone.trim(), teamApproveMsg); } catch(e) {}
+                    try { await whatsappService.sendMessage(st.phone.trim(), teamApproveMsg); } catch (e) { }
                 }
             }
 
@@ -2998,7 +2998,7 @@ exports.reviewSanctionLift = async (req, res) => {
 
             for (const st of staffKendaraan) {
                 if (st.phone && st.phone.trim() && st.phone !== '08') {
-                    try { await whatsappService.sendMessage(st.phone.trim(), teamRejectMsg); } catch(e) {}
+                    try { await whatsappService.sendMessage(st.phone.trim(), teamRejectMsg); } catch (e) { }
                 }
             }
 

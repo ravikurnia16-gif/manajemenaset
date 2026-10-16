@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-    GraduationCap, Plus, Search, Calendar, FileText, Download, Eye, 
-    Trash2, Edit3, X, CheckCircle2, AlertCircle, Loader2, Award, 
+import {
+    GraduationCap, Plus, Search, Calendar, FileText, Download, Eye,
+    Trash2, Edit3, X, CheckCircle2, AlertCircle, Loader2, Award,
     Building2, MapPin, User, FileCheck, RefreshCw, Filter, Sparkles,
     Clock, ExternalLink, ShieldCheck, Globe, Users, BookOpen, Layers
 } from 'lucide-react';
@@ -32,48 +32,11 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
 
-    // Check if user is manager / admin aset / kabid
-    const canManageAll = useMemo(() => {
-        if (isKabid) return true;
-        const role = user?.role || '';
-        const pos = (user?.position || '').toLowerCase();
-        return ['ADMIN_ASET', 'SUPER_ADMIN'].includes(role) || 
-               pos.includes('admin aset') || 
-               pos.includes('manajemen aset') ||
-               pos.includes('sarana');
-    }, [isKabid, user]);
-
-    // Ensure currently logged-in user is always in the staff list so their name can be selected/shown
-    const staffOptions = useMemo(() => {
-        const list = Array.isArray(staffList) ? [...staffList] : [];
-        if (user?.id) {
-            const exists = list.some(s => String(s.id) === String(user.id));
-            if (!exists) {
-                list.unshift({
-                    id: user.id,
-                    name: user.name || user.username || 'Saya (Admin Aset)',
-                    position: user.position || 'Admin Aset'
-                });
-            }
-        }
-        if (editingItem?.user?.id) {
-            const exists = list.some(s => String(s.id) === String(editingItem.user.id));
-            if (!exists) {
-                list.push({
-                    id: editingItem.user.id,
-                    name: editingItem.user.name,
-                    position: editingItem.user.position || 'Staf'
-                });
-            }
-        }
-        return list;
-    }, [staffList, user, editingItem]);
-
     // Modal Form States
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [formData, setFormData] = useState({
-        userId: user?.id ? String(user.id) : '',
+        userId: user?.id || '',
         title: '',
         scheduleDate: dayjs().format('YYYY-MM-DD'),
         endDate: '',
@@ -113,7 +76,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         try {
             setLoading(true);
             const params = {};
-            if (canManageAll && selectedStaffFilter !== 'ALL') {
+            if (isKabid && selectedStaffFilter !== 'ALL') {
                 params.userId = selectedStaffFilter;
             }
             if (methodFilter !== 'ALL') {
@@ -126,11 +89,13 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             if (filterEndDate) params.endDate = filterEndDate;
 
             const res = await api.get('/personnel/trainings', { params });
-            if (res.data?.success) {
-                setTrainings(res.data.data || []);
-            }
+            const list = Array.isArray(res.data?.data) 
+                ? res.data.data 
+                : (Array.isArray(res.data) ? res.data : []);
+            setTrainings(list);
         } catch (err) {
             console.error('Failed to fetch trainings:', err);
+            setTrainings([]);
             showToast(err.response?.data?.error || 'Gagal memuat data pelatihan', 'error');
         } finally {
             setLoading(false);
@@ -141,8 +106,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const fetchStats = async () => {
         try {
             const res = await api.get('/personnel/trainings/stats');
-            if (res.data?.success) {
-                setStats(res.data.stats || {});
+            if (res.data?.success && res.data?.stats) {
+                setStats(res.data.stats);
             }
         } catch (err) {
             console.error('Failed to fetch training stats:', err);
@@ -158,7 +123,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const handleOpenCreateModal = () => {
         setEditingItem(null);
         setFormData({
-            userId: user?.id ? String(user.id) : (staffOptions[0]?.id ? String(staffOptions[0].id) : ''),
+            userId: user?.id || '',
             title: '',
             scheduleDate: dayjs().format('YYYY-MM-DD'),
             endDate: '',
@@ -181,7 +146,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const handleOpenEditModal = (item) => {
         setEditingItem(item);
         setFormData({
-            userId: item.userId ? String(item.userId) : (user?.id ? String(user.id) : ''),
+            userId: item.userId || user?.id || '',
             title: item.title || '',
             scheduleDate: item.scheduleDate ? dayjs(item.scheduleDate).format('YYYY-MM-DD') : '',
             endDate: item.endDate ? dayjs(item.endDate).format('YYYY-MM-DD') : '',
@@ -282,8 +247,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             form.append('method', formData.method || 'OFFLINE');
             if (formData.description) form.append('description', formData.description.trim());
             if (formData.certificateNo) form.append('certificateNo', formData.certificateNo.trim());
-            const targetUserId = formData.userId || user?.id;
-            if (targetUserId) form.append('userId', targetUserId);
+            if (formData.status) form.append('status', formData.status);
+            if (isKabid && formData.userId) form.append('userId', formData.userId);
 
             // Bukti Dokumen PDF
             if (selectedFile) {
@@ -342,11 +307,13 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
 
     // Format bytes helper
     const formatBytes = (bytes) => {
-        if (!bytes || bytes === 0) return '0 B';
+        const num = Number(bytes);
+        if (!num || isNaN(num) || num <= 0) return '0 B';
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        const i = Math.min(Math.floor(Math.log(num) / Math.log(k)), sizes.length - 1);
+        if (i < 0 || isNaN(i)) return '0 B';
+        return parseFloat((num / Math.pow(k, i)).toFixed(1)) + ' ' + (sizes[i] || 'B');
     };
 
     // Method badge helper
@@ -376,11 +343,10 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         <div className="space-y-6">
             {/* Feedback Alert Toast */}
             {feedback && (
-                <div className={`p-4 rounded-2xl flex items-center justify-between text-xs font-bold shadow-md transition-all animate-in fade-in slide-in-from-top-2 ${
-                    feedback.type === 'error' 
-                        ? 'bg-rose-50 border border-rose-200 text-rose-800' 
+                <div className={`p-4 rounded-2xl flex items-center justify-between text-xs font-bold shadow-md transition-all animate-in fade-in slide-in-from-top-2 ${feedback.type === 'error'
+                        ? 'bg-rose-50 border border-rose-200 text-rose-800'
                         : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                }`}>
+                    }`}>
                     <div className="flex items-center gap-2">
                         {feedback.type === 'error' ? <AlertCircle size={18} className="text-rose-600" /> : <CheckCircle2 size={18} className="text-emerald-600" />}
                         <span>{feedback.message}</span>
@@ -515,8 +481,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                         </select>
                     </div>
 
-                    {/* Staff Filter (For Kabid & Admin Aset) */}
-                    {canManageAll ? (
+                    {/* Staff Filter (For Kabid) */}
+                    {isKabid ? (
                         <div>
                             <select
                                 value={selectedStaffFilter}
@@ -524,7 +490,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
                             >
                                 <option value="ALL">Semua Karyawan</option>
-                                {staffOptions.map(s => (
+                                {(Array.isArray(staffOptions) ? staffOptions : []).map(s => (
                                     <option key={s.id} value={String(s.id)}>
                                         {s.name} ({s.position || 'Staf'})
                                     </option>
@@ -601,11 +567,11 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {trainings.map((item) => {
-                        const canEdit = canManageAll || item.userId === user?.id;
+                    {(Array.isArray(trainings) ? trainings : []).map((item) => {
+                        const canEdit = isKabid || item.userId === user?.id;
 
                         return (
-                            <div 
+                            <div
                                 key={item.id}
                                 className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 group"
                             >
@@ -786,7 +752,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                     </p>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setShowModal(false)}
                                 className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
                             >
@@ -796,32 +762,30 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Target User / Nama Karyawan */}
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="text-xs font-bold text-slate-700">
+                            {/* Target User (For Kabid) */}
+                            {isKabid && (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 block mb-1">
                                         Nama Karyawan / Peserta *
                                     </label>
-                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-medium border border-amber-200/60">
-                                        Otomatis terisi akun pengisi
-                                    </span>
+                                    <select
+                                        required
+                                        value={formData.userId}
+                                        onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
+                                    >
+                                        <option value="">Pilih Karyawan</option>
+                                        {(Array.isArray(staffOptions) ? staffOptions : []).map(s => {
+                                            const isCurrentUser = String(s.id) === String(user?.id);
+                                            return (
+                                                <option key={s.id} value={String(s.id)}>
+                                                    {s.name} ({s.position || 'Staf'}) {isCurrentUser ? '★ (Akun Pengisi / Saya)' : ''}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
                                 </div>
-                                <select
-                                    required
-                                    value={String(formData.userId || user?.id || '')}
-                                    onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
-                                >
-                                    {staffOptions.map(s => {
-                                        const isCurrentUser = String(s.id) === String(user?.id);
-                                        return (
-                                            <option key={s.id} value={String(s.id)}>
-                                                {s.name} ({s.position || 'Staf'}) {isCurrentUser ? '★ (Akun Pengisi / Saya)' : ''}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                            </div>
+                            )}
 
                             {/* 1. Judul Pelatihan */}
                             <div>
@@ -861,27 +825,24 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                         <button
                                             type="button"
                                             onClick={() => setFormData({ ...formData, method: 'OFFLINE' })}
-                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                                formData.method === 'OFFLINE' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${formData.method === 'OFFLINE' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
                                         >
                                             Offline
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setFormData({ ...formData, method: 'ONLINE' })}
-                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                                formData.method === 'ONLINE' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${formData.method === 'ONLINE' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
                                         >
                                             Online
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setFormData({ ...formData, method: 'HYBRID' })}
-                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                                formData.method === 'HYBRID' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                            className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${formData.method === 'HYBRID' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
                                         >
                                             Hybrid
                                         </button>
@@ -963,7 +924,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                 <label className="text-xs font-bold text-slate-700 block mb-1">
                                     Bukti Dokumen Pelatihan (PDF Sertifikat / Kehadiran) *
                                 </label>
-                                
+
                                 <div className="border-2 border-dashed border-slate-200 hover:border-amber-400 transition-colors p-4 rounded-2xl bg-slate-50/50 text-center space-y-2">
                                     <input
                                         type="file"

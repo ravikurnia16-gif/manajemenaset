@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-    FileText, Calendar, Plus, Save, RefreshCw, Loader2, User, Camera, X, 
-    Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles, 
-    Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight, 
+import {
+    FileText, Calendar, Plus, Save, RefreshCw, Loader2, User, Camera, X,
+    Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles,
+    Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight,
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
     BookOpen, Target, GraduationCap
 } from 'lucide-react';
@@ -184,12 +184,10 @@ const LaporanStaff = () => {
             fetchWeeklySummary();
         } else if (activeTab === 'penugasan') {
             fetchAssignments();
-            fetchStaffList();
+            if (isKabid) fetchStaffList();
         } else if (activeTab === 'perencanaan') {
             fetchPlans();
-            fetchStaffList();
-        } else if (activeTab === 'pelatihan') {
-            fetchStaffList();
+            if (isKabid) fetchStaffList();
         }
     }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate]);
 
@@ -372,8 +370,8 @@ const LaporanStaff = () => {
                 if (targetPeriod === 'morning') periodText = 'Sesi Pagi ';
                 else if (targetPeriod === 'afternoon') periodText = 'Sesi Siang ';
 
-                alert(isOldDate 
-                    ? `Alhamdulillah, laporan ${periodText}susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!` 
+                alert(isOldDate
+                    ? `Alhamdulillah, laporan ${periodText}susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!`
                     : `Alhamdulillah, laporan ${periodText}harian berhasil disimpan!`
                 );
                 await Promise.all([fetchMyReport(), fetchMyStats(), fetchPlans()]);
@@ -471,8 +469,8 @@ const LaporanStaff = () => {
         const itemText = item ? (item.activity || item.text || '') : '';
         const reportTitle = plan.metadata?.title || 'Rencana Kerja';
         const isSingleGoal = !item;
-        
-        const isDone = isSingleGoal 
+
+        const isDone = isSingleGoal
             ? (plan.metadata?.status === 'SELESAI' || plan.metadata?.percentage === 100)
             : (item?.percentage === 100 || item?.status === 'SELESAI');
 
@@ -625,12 +623,8 @@ const LaporanStaff = () => {
     const fetchStaffList = async () => {
         try {
             const res = await api.get('/personnel/staff');
-            if (Array.isArray(res.data?.staff)) {
-                setStaffList(res.data.staff);
-            } else if (Array.isArray(res.data?.data)) {
-                setStaffList(res.data.data);
-            } else if (Array.isArray(res.data)) {
-                setStaffList(res.data);
+            if (res.data.success || res.data.data) {
+                setStaffList(res.data.staff || res.data.data || []);
             }
         } catch (e) {
             console.error('Error fetching staff list:', e);
@@ -973,10 +967,10 @@ const LaporanStaff = () => {
 
     const handleRemindStaff = async (targetUserId = null, staffName = null) => {
         try {
-            const confirmMsg = targetUserId 
-                ? `Kirimkan pengingat pengisian laporan kepada ${staffName} via WhatsApp & Notifikasi Aplikasi?` 
+            const confirmMsg = targetUserId
+                ? `Kirimkan pengingat pengisian laporan kepada ${staffName} via WhatsApp & Notifikasi Aplikasi?`
                 : `Kirimkan pengingat pengisian laporan kepada SEMUA staf yang belum melengkapi laporan hari ini via WhatsApp & Notifikasi Aplikasi?`;
-            
+
             if (!window.confirm(confirmMsg)) return;
 
             setRemindingStaff(true);
@@ -1064,7 +1058,7 @@ const LaporanStaff = () => {
                             </span>
                         </div>
                         <p className="text-slate-400 text-[11px] sm:text-sm font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
-                            {isKabid 
+                            {isKabid
                                 ? (activeTab === 'laporan' ? 'Catat agenda dan aktivitas kerja harian Kepala Bidang Sarana (Sesi Pagi & Siang), foto bukti lapangan, dan simpan laporan.' : 'Pusat evaluasi kerja, monitoring kendala lapangan, analitik AI, dan rekapitulasi pekanan.')
                                 : 'Catat kegiatan kerja Sesi Pagi & Siang, dokumentasikan bukti foto, dan pantau tugas.'}
                         </p>
@@ -1078,24 +1072,22 @@ const LaporanStaff = () => {
                             <button
                                 type="button"
                                 onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}
-                                className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
-                                    selectedDate === dayjs().format('YYYY-MM-DD') ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
-                                }`}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${selectedDate === dayjs().format('YYYY-MM-DD') ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                                    }`}
                             >
                                 Hari Ini
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setSelectedDate(dayjs().subtract(1, 'day').format('YYYY-MM-DD'))}
-                                className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
-                                    selectedDate === dayjs().subtract(1, 'day').format('YYYY-MM-DD') ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
-                                }`}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${selectedDate === dayjs().subtract(1, 'day').format('YYYY-MM-DD') ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'
+                                    }`}
                             >
                                 Kemarin
                             </button>
                             <div className="flex items-center gap-1 pl-1 pr-1.5 border-l border-slate-200">
                                 <Calendar size={14} className="text-slate-400 shrink-0" />
-                                <input 
+                                <input
                                     type="date"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
@@ -1139,78 +1131,96 @@ const LaporanStaff = () => {
                 </div>
             </div>
 
-            {/* TAB NAVIGATION - Sticky & Scrollable */}
-            <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-1 sm:py-2 flex items-center gap-1.5 sm:gap-2 overflow-x-auto custom-scrollbar border-b border-slate-200 print:hidden no-print">
+            {/* TAB NAVIGATION - Sticky & Responsive Wrap */}
+            <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-2.5 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-2.5 border-b border-slate-200/90 print:hidden no-print">
                 {isKabid ? (
                     <>
                         <button
                             onClick={() => setActiveTab('dashboard')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'dashboard'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <TrendingUp size={16} /> Executive Dashboard
                         </button>
                         <button
                             onClick={() => setActiveTab('laporan')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'laporan' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'laporan'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <FileText size={16} /> Isi Laporan Harian
                         </button>
                         <button
                             onClick={() => setActiveTab('monitoring')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'monitoring' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'monitoring'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <Eye size={16} /> Monitoring Feed Tim
                         </button>
                         <button
                             onClick={() => setActiveTab('matrix')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'matrix' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'matrix'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <Calendar size={16} /> Matriks Kedisiplinan
                         </button>
                         <button
                             onClick={() => setActiveTab('weekly-pdf')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'weekly-pdf' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'weekly-pdf'
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 ring-2 ring-indigo-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <Printer size={16} /> Laporan Mingguan Kabid (PDF)
                         </button>
                         <button
                             onClick={() => setActiveTab('penugasan')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'penugasan' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'penugasan'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <CheckSquare size={16} /> Delegasi Penugasan
                         </button>
                         <button
                             onClick={() => setActiveTab('perencanaan')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'perencanaan' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'perencanaan'
+                                    ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <Target size={16} /> Perencanaan Kerja
                         </button>
                         <button
                             onClick={() => setActiveTab('hafalan')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'hafalan' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'hafalan'
+                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <BookOpen size={16} /> Setoran Hafalan
                         </button>
                         <button
                             onClick={() => setActiveTab('pelatihan')}
-                            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'pelatihan' ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'pelatihan'
+                                    ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <GraduationCap size={16} /> Pelatihan Karyawan
@@ -1220,40 +1230,50 @@ const LaporanStaff = () => {
                     <>
                         <button
                             onClick={() => setActiveTab('laporan')}
-                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'laporan' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'laporan'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <FileText size={16} /> Laporan Harian Saya
                         </button>
                         <button
                             onClick={() => setActiveTab('penugasan')}
-                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'penugasan' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'penugasan'
+                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <CheckSquare size={16} /> Penugasan Saya
                         </button>
                         <button
                             onClick={() => setActiveTab('perencanaan')}
-                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'perencanaan' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'perencanaan'
+                                    ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <Target size={16} /> Perencanaan Kerja
                         </button>
                         <button
                             onClick={() => setActiveTab('hafalan')}
-                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'hafalan' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'hafalan'
+                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <BookOpen size={16} /> Setoran Hafalan
                         </button>
                         <button
                             onClick={() => setActiveTab('pelatihan')}
-                            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                                activeTab === 'pelatihan' ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                activeTab === 'pelatihan'
+                                    ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                             }`}
                         >
                             <GraduationCap size={16} /> Pelatihan Karyawan
@@ -1269,13 +1289,13 @@ const LaporanStaff = () => {
                         <Sparkles size={16} className="text-amber-600" />
                         Draft laporan sebelumnya berhasil dipulihkan otomatis dari browser Anda.
                     </div>
-                    <button 
+                    <button
                         onClick={() => {
                             const draftKey = `draft_laporan_${user.id || 'default'}_${selectedDate}`;
                             localStorage.removeItem(draftKey);
                             setHasRestoredDraft(false);
                             fetchMyReport();
-                        }} 
+                        }}
                         className="text-amber-700 underline font-bold hover:text-amber-900"
                     >
                         Hapus Draft
@@ -1479,10 +1499,10 @@ const LaporanStaff = () => {
 
                     {/* TAB: PELATIHAN KARYAWAN */}
                     {activeTab === 'pelatihan' && (
-                        <TrainingTab 
-                            isKabid={isKabid} 
-                            user={user} 
-                            staffList={staffList} 
+                        <TrainingTab
+                            isKabid={isKabid}
+                            user={user}
+                            staffList={staffList}
                         />
                     )}
                 </>
