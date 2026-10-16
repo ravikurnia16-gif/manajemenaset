@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2, Sparkles, FileText, Bus, ArrowRight, ShieldAlert, CheckSquare } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2, Sparkles, FileText, Bus, ArrowRight, ShieldAlert, CheckSquare, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell, PieChart, Pie } from 'recharts';
 import api from '../../lib/axios';
 import VehicleReportTab from './components/VehicleReportTab';
+import VehicleSevenReportsSection from './components/VehicleSevenReportsSection';
 
 /* ── jsPDF + autoTable CDN loader ── */
 function loadJsPDF() {
@@ -55,9 +56,21 @@ const VehicleDashboard = () => {
     const [filterMode, setFilterMode] = useState('month'); // 'month' | 'range'
     const [tempDateRange, setTempDateRange] = useState({ startDate: '', endDate: '' });
     const [exporting, setExporting] = useState(false);
-    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'reports'
+    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'seven_reports' | 'reports'
     const [reportCategory, setReportCategory] = useState('PERFORMANCE');
     const dashboardRef = useRef(null);
+
+    const periodLabel = useMemo(() => {
+        if (filter.startDate && filter.endDate) {
+            const sStr = new Date(filter.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            const eStr = new Date(filter.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            return `${sStr} s/d ${eStr}`;
+        }
+        if (filter.month && filter.year) {
+            return `Bulan ${new Date(`${filter.year}-${filter.month}-01`).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+        }
+        return 'Ringkasan Kumulatif Semua Periode';
+    }, [filter]);
 
     const navigateToReport = (category = 'PERFORMANCE') => {
         setReportCategory(category);
@@ -489,6 +502,248 @@ const VehicleDashboard = () => {
                 margin: { left: 14, right: 14 }
             });
 
+            // ==============================================================
+            // PAGE 4: 7 LAPORAN KHUSUS & REKAPITULASI STRATEGIS ARMADA
+            // ==============================================================
+            doc.addPage('landscape', 'a4');
+
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('LAMPIRAN: 7 LAPORAN KHUSUS OPERASIONAL ARMADA', pageW / 2, 14, { align: 'center' });
+
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text(`REKAPITULASI ARMADA AKTIF, BBM, RESERVASI & OMSET BUS, SERVIS TERLAKSANA, DRIVER & AUDIT WAKTU (Periode: ${periodLabel})`, pageW / 2, 19, { align: 'center' });
+
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.5);
+            doc.line(14, 22, pageW - 14, 22);
+
+            // Table 7.1: Perjalanan Kendaraan Aktif Saja (Laporan 1)
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('7.1 REKAP JUMLAH PERJALANAN KENDARAAN AKTIF SAJA', 14, 28);
+
+            const activeTripRows = (data.activeVehicleTripStats || []).map((v, idx) => [
+                idx + 1,
+                v.name || '-',
+                v.plate || '-',
+                v.type || 'KENDARAAN',
+                `${v.tripCount || 0} Perjalanan`,
+                `${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM`,
+                `${(v.utilization || 0).toFixed(0)}%`,
+                'AKTIF'
+            ]);
+
+            const totActTrips = (data.activeVehicleTripStats || []).reduce((s, v) => s + (v.tripCount || 0), 0);
+            const totActKm = (data.activeVehicleTripStats || []).reduce((s, v) => s + (v.totalKm || 0), 0);
+
+            doc.autoTable({
+                startY: 31,
+                head: [['#', 'Nama Kendaraan', 'Plat Nomor', 'Tipe', 'Jumlah Perjalanan', 'Total Jarak Tempuh', 'Utilisasi', 'Status']],
+                body: activeTripRows.length > 0 ? activeTripRows : [['-', 'Tidak ada data kendaraan aktif dalam periode ini', '-', '-', '-', '-', '-', '-']],
+                foot: activeTripRows.length > 0 ? [[
+                    '', 'TOTAL PERJALANAN ARMADA AKTIF', '', '',
+                    `${totActTrips} Perjalanan`,
+                    `${Math.round(totActKm).toLocaleString('id-ID')} KM`,
+                    '-', 'AKTIF'
+                ]] : undefined,
+                theme: 'striped',
+                headStyles: { fillColor: [79, 70, 229], fontSize: 7, fontStyle: 'bold' },
+                footStyles: { fillColor: [238, 242, 255], textColor: [49, 46, 129], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Table 7.2: BBM yang Dikeluarkan Kendaraan Aktif Saja (Laporan 2 - Tanpa Metrik Efisiensi)
+            let currY = doc.lastAutoTable.finalY + 7;
+            if (currY > pageH - 70) {
+                doc.addPage('landscape', 'a4');
+                currY = 20;
+            }
+
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('7.2 REALISASI BBM YANG DIKELUARKAN KENDARAAN AKTIF SAJA', 14, currY);
+
+            const activeFuelRows = (data.activeVehicleFuelStats || []).map((v, idx) => [
+                idx + 1,
+                v.name || '-',
+                v.plate || '-',
+                v.type || 'KENDARAAN',
+                v.liters > 0 ? `${v.liters.toFixed(1)} Liter` : '0 Liter',
+                `Rp ${Math.round(v.fuelCost || 0).toLocaleString('id-ID')}`,
+                v.fuelCost > 0 ? 'Tercatat di Logbook' : 'Nihil Pengisian'
+            ]);
+
+            const totActFuelLiters = (data.activeVehicleFuelStats || []).reduce((s, v) => s + (v.liters || 0), 0);
+            const totActFuelCost = (data.activeVehicleFuelStats || []).reduce((s, v) => s + (v.fuelCost || 0), 0);
+
+            doc.autoTable({
+                startY: currY + 3,
+                head: [['#', 'Nama Kendaraan', 'Plat Nomor', 'Tipe Kendaraan', 'Volume BBM (Liter)', 'Total Biaya BBM (Rp)', 'Keterangan']],
+                body: activeFuelRows.length > 0 ? activeFuelRows : [['-', 'Tidak ada transaksi BBM kendaraan aktif dalam periode ini', '-', '-', '-', '-', '-']],
+                foot: activeFuelRows.length > 0 ? [[
+                    '', 'TOTAL BIAYA BBM ARMADA AKTIF', '', '',
+                    `${totActFuelLiters.toFixed(1)} Liter`,
+                    `Rp ${Math.round(totActFuelCost).toLocaleString('id-ID')}`,
+                    `${(data.activeVehicleFuelStats || []).filter(v => v.fuelCost > 0).length} Unit Mengisi BBM`
+                ]] : undefined,
+                theme: 'striped',
+                headStyles: { fillColor: [2, 132, 199], fontSize: 7, fontStyle: 'bold' },
+                footStyles: { fillColor: [240, 249, 255], textColor: [7, 89, 133], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Table 7.3: Bus Omset (Laporan 3 & 5)
+            currY = doc.lastAutoTable.finalY + 7;
+            if (currY > pageH - 70) {
+                doc.addPage('landscape', 'a4');
+                currY = 20;
+            }
+
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('7.3 STATISTIK RESERVASI BUS & SISA OMSET (NET SURPLUS)', 14, currY);
+
+            const bOmset = data.busOmsetStats || {};
+            const bStats = data.busBookingStats || {};
+            const busFinancialRows = [
+                ['Total Jadwal Reservasi Bus', `${bStats.total || 0} Booking (Disetujui: ${bStats.statusCounts?.APPROVED || 0}, Selesai: ${bStats.statusCounts?.COMPLETED || 0}, Batal: ${bStats.statusCounts?.CANCELLED || 0})`],
+                ['Total Penumpang Terlayani', `${(bStats.totalPassengers || 0).toLocaleString('id-ID')} Orang`],
+                ['Total Pendapatan / Omset Bus', `Rp ${Math.round(bOmset.totalRevenue || 0).toLocaleString('id-ID')} (Tagihan: Rp ${Math.round(bOmset.bookingRevenue || 0).toLocaleString('id-ID')}, Lainnya: Rp ${Math.round(bOmset.otherIncome || 0).toLocaleString('id-ID')})`],
+                ['Total Beban Operasional Bus', `Rp ${Math.round(bOmset.totalExpenses || 0).toLocaleString('id-ID')} (BBM: Rp ${Math.round(bOmset.fuelExpenses || 0).toLocaleString('id-ID')}, Servis: Rp ${Math.round(bOmset.maintenanceExpenses || 0).toLocaleString('id-ID')}, Tak Terduga: Rp ${Math.round(bOmset.unexpectedExpenses || 0).toLocaleString('id-ID')})`],
+                ['SISA OMSET (NET SURPLUS BUS)', `Rp ${Math.round(bOmset.sisaOmset || 0).toLocaleString('id-ID')} (Profit Margin: ${bOmset.marginPercent || 0}%)`]
+            ];
+
+            doc.autoTable({
+                startY: currY + 3,
+                head: [['Indikator Kinerja Keuangan Bus', 'Rincian Realisasi Finansial']],
+                body: busFinancialRows,
+                theme: 'grid',
+                headStyles: { fillColor: [147, 51, 234], fontSize: 7.2, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 7 },
+                columnStyles: { 0: { cellWidth: 80, fontStyle: 'bold' } },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Table 7.4: Pemeliharaan yang Terlaksana (Laporan 4)
+            currY = doc.lastAutoTable.finalY + 7;
+            if (currY > pageH - 60) {
+                doc.addPage('landscape', 'a4');
+                currY = 20;
+            }
+
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            const cMaint = data.completedMaintenanceStats || {};
+            doc.text(`7.4 PEMELIHARAAN YANG TELAH TERLAKSANA (Total: ${cMaint.totalCount || 0} Kegiatan, Rp ${Math.round(cMaint.totalCost || 0).toLocaleString('id-ID')})`, 14, currY);
+
+            const maintRows = (cMaint.services || []).slice(0, 15).map((m, i) => [
+                i + 1,
+                m.serviceDate ? new Date(m.serviceDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+                `${m.vehicle?.name || '-'} (${m.vehicle?.plateNumber || '-'})`,
+                m.serviceType || 'PERBAIKAN',
+                m.workshopName || '-',
+                (m.description || '-').substring(0, 40),
+                `Rp ${Math.round(m.cost || 0).toLocaleString('id-ID')}`
+            ]);
+
+            doc.autoTable({
+                startY: currY + 3,
+                head: [['#', 'Tgl Servis', 'Kendaraan', 'Jenis Perawatan', 'Bengkel', 'Deskripsi Perbaikan', 'Biaya']],
+                body: maintRows.length > 0 ? maintRows : [['-', '-', 'Tidak ada riwayat pemeliharaan yang telah selesai dalam rentang ini', '-', '-', '-', '-']],
+                theme: 'striped',
+                headStyles: { fillColor: [249, 115, 22], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // ==============================================================
+            // PAGE 5: TOP DRIVER & AUDIT PELANGGARAN RENTANG TANGGAL
+            // ==============================================================
+            doc.addPage('landscape', 'a4');
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('LEADERBOARD PENGEMUDI & AUDIT KEPATUHAN PENGEMBALIAN', pageW / 2, 14, { align: 'center' });
+
+            doc.setFontSize(8.5);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Evaluasi Disiplin & Mobilitas  |  Periode: ${periodLabel}`, pageW / 2, 19, { align: 'center' });
+
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.5);
+            doc.line(14, 22, pageW - 14, 22);
+
+            // Table 7.5: Top Drivers (Laporan 6)
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            doc.text('7.5 LEADERBOARD TOP DRIVER (MOBILITAS & DISIPLIN)', 14, 28);
+
+            const driverRows = (data.topDrivers || []).map((d, i) => [
+                i + 1,
+                d.name || '-',
+                d.phone || '-',
+                `${d.totalTrips || 0} Trip (${d.vehicleTrips || 0} Mobil, ${d.busTrips || 0} Bus)`,
+                `${Math.round(d.totalKm || 0).toLocaleString('id-ID')} KM`,
+                `${d.violationCount || 0} Peringatan`,
+                i === 0 ? '🏆 Driver Teladan' : d.violationCount > 0 ? '⚠️ Dalam Pantauan' : '✅ Disiplin'
+            ]);
+
+            doc.autoTable({
+                startY: 31,
+                head: [['Rank', 'Nama Pengemudi', 'Kontak', 'Total Perjalanan', 'Jarak Tempuh', 'Pelanggaran', 'Status Evaluasi']],
+                body: driverRows.length > 0 ? driverRows : [['-', 'Tidak ada aktivitas penugasan driver dalam rentang ini', '-', '-', '-', '-', '-']],
+                theme: 'striped',
+                headStyles: { fillColor: [217, 119, 6], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Table 7.6: Violations Audit (Laporan 7)
+            let violY = doc.lastAutoTable.finalY + 8;
+            if (violY > pageH - 70) {
+                doc.addPage('landscape', 'a4');
+                violY = 20;
+            }
+
+            doc.setFontSize(9.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 41, 59);
+            const dViol = data.dateViolationsStats || {};
+            doc.text(`7.6 AUDIT PENGGUNA MELANGGAR RENTANG TANGGAL (Total: ${dViol.totalViolations || 0} Kasus, Sanksi Aktif: ${dViol.sanctionedCount || 0} User)`, 14, violY);
+
+            const violRows = (dViol.violations || []).slice(0, 15).map((v, i) => [
+                i + 1,
+                v.userName || '-',
+                v.unitName || '-',
+                `${v.vehicleName || '-'} (${v.plateNumber || '-'})`,
+                v.expectedEnd ? new Date(v.expectedEnd).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-',
+                v.actualEnd ? new Date(v.actualEnd).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sedang Berlangsung (Overdue)',
+                v.lateDurationFormatted || '-',
+                v.isSanctioned ? '🔴 DIBEKUKAN (SANKSI)' : `Peringatan: ${v.warningCount || 0}`
+            ]);
+
+            doc.autoTable({
+                startY: violY + 3,
+                head: [['#', 'Peminjam', 'Unit Kerja', 'Kendaraan', 'Jadwal Seharusnya', 'Waktu Pengembalian', 'Durasi Telat', 'Status Sanksi']],
+                body: violRows.length > 0 ? violRows : [['-', 'Nihil pelanggaran rentang tanggal peminjaman pada periode ini', '-', '-', '-', '-', '-', '-']],
+                theme: 'striped',
+                headStyles: { fillColor: [220, 38, 38], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.8 },
+                margin: { left: 14, right: 14 }
+            });
+
             // TANDA TANGAN PENGESAHAN
             let signY = doc.lastAutoTable.finalY + 10;
             if (signY > pageH - 35) {
@@ -760,11 +1015,11 @@ const VehicleDashboard = () => {
                 )}
             </div>
 
-            {/* Tab Navigation: Dashboard vs Laporan Armada */}
-            <div className="flex items-center gap-2 border-b border-slate-200">
+            {/* Tab Navigation: Dashboard vs 7 Laporan Utama & AI vs Laporan Armada */}
+            <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-px">
                 <button
                     onClick={() => setActiveTab('dashboard')}
-                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all ${
+                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all shrink-0 ${
                         activeTab === 'dashboard'
                             ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-xl'
                             : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -773,8 +1028,21 @@ const VehicleDashboard = () => {
                     <Activity size={16} /> Dashboard & Monitoring
                 </button>
                 <button
+                    onClick={() => setActiveTab('seven_reports')}
+                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all shrink-0 ${
+                        activeTab === 'seven_reports'
+                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-xl'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <BarChart3 size={16} /> 7 Laporan Utama & AI
+                    <span className="px-2 py-0.5 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-extrabold flex items-center gap-1 normal-case tracking-normal">
+                        <Sparkles size={10} /> Statistik & AI
+                    </span>
+                </button>
+                <button
                     onClick={() => setActiveTab('reports')}
-                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all ${
+                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all shrink-0 ${
                         activeTab === 'reports'
                             ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-xl'
                             : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -782,13 +1050,21 @@ const VehicleDashboard = () => {
                 >
                     <FileText size={16} /> Laporan Armada & Ekspor PDF
                     <span className="px-2 py-0.5 rounded-full text-[9px] bg-indigo-100 text-indigo-700 font-extrabold flex items-center gap-1 normal-case tracking-normal">
-                        <Sparkles size={10} /> Bidang Sarana & AI
+                        <Sparkles size={10} /> Bidang Sarana
                     </span>
                 </button>
             </div>
 
             {/* Tab Content */}
-            {activeTab === 'reports' ? (
+            {activeTab === 'seven_reports' ? (
+                <div className="space-y-6">
+                    <VehicleSevenReportsSection
+                        data={data}
+                        periodLabel={periodLabel}
+                        onNavigateToReport={navigateToReport}
+                    />
+                </div>
+            ) : activeTab === 'reports' ? (
                 <VehicleReportTab 
                     dashboardData={data} 
                     availableMonths={data?.availableMonths || []} 
@@ -802,6 +1078,13 @@ const VehicleDashboard = () => {
                 />
             ) : (
                 <>
+                    {/* 7 Laporan Utama & AI Section */}
+                    <VehicleSevenReportsSection
+                        data={data}
+                        periodLabel={periodLabel}
+                        onNavigateToReport={navigateToReport}
+                    />
+
                     {/* Banner Peringatan Pengguna Terkena Sanksi Perjalanan */}
                     {data?.sanctionedUsers && data.sanctionedUsers.length > 0 && (
                         <div className="bg-white rounded-3xl border-2 border-red-200 shadow-xl shadow-red-50/70 overflow-hidden animate-in slide-in-from-top-4 duration-700">

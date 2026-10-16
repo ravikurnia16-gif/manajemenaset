@@ -75,6 +75,7 @@ export default function InventoryDashboard() {
   const [customEnd, setCustomEnd] = useState('');
   const [showCustomRange, setShowCustomRange] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [orderTab, setOrderTab] = useState('ALL'); // 'ALL', 'COMPLETED', 'PENDING'
 
   useEffect(() => {
     fetchDashboardData(false, startDate, endDate, selectedWarehouseId);
@@ -155,10 +156,15 @@ export default function InventoryDashboard() {
       const printDateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
       // 1. KOP SURAT
-      doc.setFontSize(16);
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
       doc.setTextColor(30, 41, 59);
-      doc.text('BIDANG SARANA & PRASARANA', pageW / 2, 16, { align: 'center' });
+      doc.text('YAYASAN DAR EL IMAN', pageW / 2, 13, { align: 'center' });
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 58, 138);
+      doc.text('BIDANG SARANA', pageW / 2, 18, { align: 'center' });
 
       doc.setFontSize(11);
       doc.setFont(undefined, 'bold');
@@ -203,12 +209,136 @@ export default function InventoryDashboard() {
 
       startY = doc.lastAutoTable.finalY + 8;
 
-      // 3. BARANG PALING BANYAK KELUAR (FAST MOVING)
+      // =========================================================================
+      // 2. LAPORAN TOTAL PESANAN RENTANG TANGGAL YANG DIPILIH
+      // =========================================================================
+      const allPeriodOrders = data?.allPeriodOrders || [];
+      const completedPeriodOrders = data?.completedPeriodOrders || allPeriodOrders.filter(o => o.status === 'COMPLETED');
+
+      if (startY > doc.internal.pageSize.getHeight() - 75) {
+        doc.addPage();
+        startY = 20;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`2. Rekapitulasi & Daftar Total Pesanan Masuk Periode Terpilih (Total: ${allPeriodOrders.length} Pesanan)`, 14, startY);
+      startY += 4;
+
+      const pendingCount = periodMetrics.pendingOrders || allPeriodOrders.filter(o => o.status === 'PENDING').length;
+      const approvedCount = periodMetrics.approvedOrders || allPeriodOrders.filter(o => o.status === 'APPROVED').length;
+      const processCount = periodMetrics.processOrders || allPeriodOrders.filter(o => o.status === 'PROCESS').length;
+      const completedCount = completedPeriodOrders.length;
+      const rejectedCount = periodMetrics.rejectedOrders || allPeriodOrders.filter(o => o.status === 'REJECTED').length;
+
+      // Status breakdown table
+      doc.autoTable({
+        startY,
+        head: [['Total Pesanan Masuk', 'Menunggu Persetujuan', 'Disetujui', 'Dalam Proses', 'Selesai Disalurkan', 'Ditolak']],
+        body: [[
+          `${allPeriodOrders.length} Pesanan`,
+          `${pendingCount}`,
+          `${approvedCount}`,
+          `${processCount}`,
+          `${completedCount}`,
+          `${rejectedCount}`
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [30, 64, 175], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+        bodyStyles: { fontSize: 7.5, fontStyle: 'bold', halign: 'center', textColor: [30, 41, 59] },
+        margin: { left: 14, right: 14 }
+      });
+
+      startY = doc.lastAutoTable.finalY + 4;
+
+      // Tabel Seluruh Pesanan Masuk
+      const allOrderRows = allPeriodOrders.map((ord, i) => [
+        i + 1,
+        ord.code || '-',
+        new Date(ord.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+        `${ord.requesterName || '-'}\n(${ord.requesterUnit || ord.createdBy?.unitId || '-'})`,
+        ord.itemsSummary || (ord.items || []).map(it => `${it.item?.name} (${it.qtyRequested})`).join(', ') || '-',
+        `${ord.totalQtyRequested || 0} Unit`,
+        ord.status === 'COMPLETED' ? 'SELESAI' :
+        ord.status === 'PROCESS' ? 'DIPROSES' :
+        ord.status === 'APPROVED' ? 'DISETUJUI' :
+        ord.status === 'REJECTED' ? 'DITOLAK' : 'MENUNGGU',
+        ord.paymentStatus || 'BEBAS BIAYA'
+      ]);
+
+      doc.autoTable({
+        startY,
+        head: [['#', 'No. Pesanan', 'Tanggal', 'Pemohon & Unit Kerja', 'Rincian Barang Dipesan', 'Total Qty', 'Status Pesanan', 'Keterangan']],
+        body: allOrderRows.length > 0 ? allOrderRows : [['-', 'Tidak ada pesanan masuk pada rentang tanggal yang dipilih', '-', '-', '-', '-', '-', '-']],
+        foot: allOrderRows.length > 0 ? [[
+          '', 'TOTAL PESANAN PERIODE INI', '', '', '',
+          `${allPeriodOrders.reduce((sum, o) => sum + (o.totalQtyRequested || 0), 0)} Unit`,
+          `${allPeriodOrders.length} Pesanan`, '-'
+        ]] : undefined,
+        theme: 'striped',
+        headStyles: { fillColor: [59, 130, 246], fontSize: 7, fontStyle: 'bold' },
+        footStyles: { fillColor: [239, 246, 255], textColor: [30, 64, 175], fontSize: 7, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 6.8 },
+        margin: { left: 14, right: 14 }
+      });
+
+      startY = doc.lastAutoTable.finalY + 8;
+
+      // =========================================================================
+      // 3. LAPORAN PESANAN YANG SELESAI BERDASARKAN RENTANG TANGGAL YANG DIPILIH
+      // =========================================================================
+      if (startY > doc.internal.pageSize.getHeight() - 75) {
+        doc.addPage();
+        startY = 20;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`3. Daftar Pesanan yang Selesai Disalurkan (COMPLETED) (Total: ${completedPeriodOrders.length} Pesanan)`, 14, startY);
+      startY += 4;
+
+      const completedOrderRows = completedPeriodOrders.map((ord, i) => [
+        i + 1,
+        ord.code || '-',
+        new Date(ord.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+        `${ord.requesterName || '-'}\n(${ord.requesterUnit || ord.createdBy?.unitId || '-'})`,
+        ord.itemsSummary || (ord.items || []).map(it => `${it.item?.name} (${it.qtyDelivered || it.qtyRequested})`).join(', ') || '-',
+        `${ord.totalQtyDelivered || ord.totalQtyRequested || 0} Unit`,
+        ord.receiverName || ord.signatures?.requester?.name || ord.requesterName || '-',
+        'Barang Telah Diserahkan'
+      ]);
+
+      doc.autoTable({
+        startY,
+        head: [['#', 'No. Pesanan', 'Tgl Pesan', 'Pemohon & Unit Kerja', 'Barang yang Diserahkan (Qty)', 'Total Qty', 'Penerima Barang', 'Status Penyaluran']],
+        body: completedOrderRows.length > 0 ? completedOrderRows : [['-', 'Tidak ada pesanan yang selesai pada rentang tanggal ini', '-', '-', '-', '-', '-', '-']],
+        foot: completedOrderRows.length > 0 ? [[
+          '', 'TOTAL PESANAN SELESAI DISALURKAN', '', '', '',
+          `${completedPeriodOrders.reduce((sum, o) => sum + (o.totalQtyDelivered || o.totalQtyRequested || 0), 0)} Unit`,
+          `${completedPeriodOrders.length} Pesanan`, 'SELESAI'
+        ]] : undefined,
+        theme: 'striped',
+        headStyles: { fillColor: [16, 185, 129], fontSize: 7, fontStyle: 'bold' },
+        footStyles: { fillColor: [236, 253, 245], textColor: [6, 95, 70], fontSize: 7, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 6.8 },
+        margin: { left: 14, right: 14 }
+      });
+
+      startY = doc.lastAutoTable.finalY + 8;
+
+      // 4. BARANG PALING BANYAK KELUAR (FAST MOVING)
       if (periodMetrics.topOutItems && periodMetrics.topOutItems.length > 0) {
+        if (startY > doc.internal.pageSize.getHeight() - 65) {
+          doc.addPage();
+          startY = 20;
+        }
+
         doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text('2. Rekapitulasi Barang Paling Banyak Keluar / Dipakai (Periode Ini)', 14, startY);
+        doc.text('4. Rekapitulasi Barang Paling Banyak Keluar / Dipakai (Periode Ini)', 14, startY);
         startY += 4;
 
         const headTop = [['#', 'Kode', 'Nama Barang', 'Kategori', 'Qty Keluar', 'Satuan']];
@@ -226,18 +356,18 @@ export default function InventoryDashboard() {
           head: headTop,
           body: bodyTop,
           theme: 'striped',
-          headStyles: { fillColor: [249, 115, 22], fontSize: 8, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 8 },
+          headStyles: { fillColor: [249, 115, 22], fontSize: 7.5, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 7 },
           margin: { left: 14, right: 14 }
         });
 
         startY = doc.lastAutoTable.finalY + 8;
       }
 
-      // 4. TABEL TRANSAKSI MUTASI DALAM PERIODE
+      // 5. TABEL TRANSAKSI MUTASI DALAM PERIODE
       const transactionsToPrint = data?.allPeriodTransactions || recentTransactions;
       if (transactionsToPrint.length > 0) {
-        if (startY > doc.internal.pageSize.getHeight() - 60) {
+        if (startY > doc.internal.pageSize.getHeight() - 65) {
           doc.addPage();
           startY = 20;
         }
@@ -245,7 +375,7 @@ export default function InventoryDashboard() {
         doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text('3. Riwayat Transaksi & Mutasi Barang dalam Periode', 14, startY);
+        doc.text('5. Riwayat Transaksi & Mutasi Barang dalam Periode', 14, startY);
         startY += 4;
 
         const headTx = [['#', 'Tanggal', 'Kode TRX', 'Tipe', 'Nama Barang', 'Jumlah', 'Gudang', 'Petugas']];
@@ -265,8 +395,8 @@ export default function InventoryDashboard() {
           head: headTx,
           body: bodyTx,
           theme: 'striped',
-          headStyles: { fillColor: [16, 185, 129], fontSize: 8, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 7.5 },
+          headStyles: { fillColor: [13, 148, 136], fontSize: 7.5, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 7 },
           margin: { left: 14, right: 14 }
         });
 
@@ -283,13 +413,49 @@ export default function InventoryDashboard() {
       doc.setTextColor(51, 65, 85);
       doc.setFont(undefined, 'normal');
 
+      // Left: Dibuat Oleh
       doc.text('Dibuat Oleh,', 25, startY);
-      doc.text('Staf / Petugas Gudang Logistik', 25, startY + 5);
-      doc.text('( ............................................. )', 25, startY + 26);
+      doc.text('Staf / Petugas Gudang Logistik', 25, startY + 4.5);
+      doc.text('( ............................................. )', 25, startY + 36);
+      doc.text('Petugas Logistik & Gudang', 25, startY + 40);
 
-      doc.text('Mengetahui,', pageW - 85, startY);
-      doc.text('Kepala Bidang Sarana', pageW - 85, startY + 5);
-      doc.text('( ............................................. )', pageW - 85, startY + 26);
+      // Right: Mengetahui (Digital TTE Kepala Bidang Sarana)
+      const signBoxW = 68;
+      const signBoxH = 24;
+      const box2X = pageW - signBoxW - 14;
+
+      doc.text('Mengetahui,', box2X + (signBoxW / 2), startY, { align: 'center' });
+      doc.setFont(undefined, 'bold');
+      doc.text('Kepala Bidang Sarana', box2X + (signBoxW / 2), startY + 4.5, { align: 'center' });
+
+      // TTE Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(box2X, startY + 7, signBoxW, signBoxH, 2, 2, 'FD');
+
+      doc.setFillColor(16, 185, 129);
+      doc.roundedRect(box2X + 1.5, startY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      doc.setTextColor(5, 150, 105);
+      doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', box2X + 6.5, startY + 12.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.2);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', box2X + 6.5, startY + 16.5);
+      doc.text('Yayasan Dar el Iman Padang', box2X + 6.5, startY + 20);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Ravi Kurnia, S.T.', box2X + (signBoxW / 2), startY + 36, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Kepala Bidang Sarana', box2X + (signBoxW / 2), startY + 40, { align: 'center' });
 
       // Page numbers
       const pageCount = doc.internal.getNumberOfPages();
@@ -373,12 +539,20 @@ export default function InventoryDashboard() {
 
   const metrics = data?.metrics || {};
   const periodMetrics = data?.periodMetrics || {};
+  const allPeriodOrders = data?.allPeriodOrders || [];
+  const completedPeriodOrders = data?.completedPeriodOrders || allPeriodOrders.filter(o => o.status === 'COMPLETED');
   const warehouses = data?.warehouses || [];
   const alertItems = data?.alertItems || [];
   const recentPendingOrders = data?.recentPendingOrders || [];
   const recentTransactions = data?.recentTransactions || [];
   const categoryChartData = data?.categoryChartData || [];
   const orderStatusData = data?.orderStatusData || [];
+
+  const displayedOrders = orderTab === 'COMPLETED' 
+    ? completedPeriodOrders 
+    : orderTab === 'PENDING'
+    ? allPeriodOrders.filter(o => o.status !== 'COMPLETED' && o.status !== 'REJECTED')
+    : allPeriodOrders;
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -597,6 +771,137 @@ export default function InventoryDashboard() {
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">{periodMetrics.completedOrders || 0} Selesai Disalurkan</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION: LAPORAN PESANAN PERIODE TERPILIH (TOTAL PESANAN & PESANAN SELESAI) */}
+      {(startDate || endDate || allPeriodOrders.length > 0) && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-3">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                <ShoppingCart size={16} />
+              </div>
+              <div>
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                  Laporan Pesanan Periode Terpilih ({startDate ? `${new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} s/d ${new Date(endDate || startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Semua Periode'})
+                </h3>
+                <p className="text-[10px] text-slate-500">
+                  Total {allPeriodOrders.length} Pesanan Masuk • {completedPeriodOrders.length} Pesanan Telah Selesai Disalurkan
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="inline-flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold">
+                <button
+                  onClick={() => setOrderTab('ALL')}
+                  className={`px-3 py-1 rounded-md transition-all ${orderTab === 'ALL' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Semua Pesanan ({allPeriodOrders.length})
+                </button>
+                <button
+                  onClick={() => setOrderTab('COMPLETED')}
+                  className={`px-3 py-1 rounded-md transition-all ${orderTab === 'COMPLETED' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Pesanan Selesai ({completedPeriodOrders.length})
+                </button>
+                <button
+                  onClick={() => setOrderTab('PENDING')}
+                  className={`px-3 py-1 rounded-md transition-all ${orderTab === 'PENDING' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Menunggu / Proses ({allPeriodOrders.filter(o => o.status !== 'COMPLETED' && o.status !== 'REJECTED').length})
+                </button>
+              </div>
+
+              <button
+                onClick={handleExportPDF}
+                disabled={isExportingPdf}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-xs"
+              >
+                {isExportingPdf ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />}
+                <span>Cetak PDF</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-4 text-center w-12">#</th>
+                  <th className="py-2.5 px-4">No. Pesanan</th>
+                  <th className="py-2.5 px-4">Tanggal</th>
+                  <th className="py-2.5 px-4">Pemohon & Unit</th>
+                  <th className="py-2.5 px-4">Rincian Barang</th>
+                  <th className="py-2.5 px-4 text-center">Total Qty</th>
+                  <th className="py-2.5 px-4 text-center">Status Pesanan</th>
+                  <th className="py-2.5 px-4 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {displayedOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                      Tidak ada pesanan ditemukan untuk filter ini.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedOrders.map((ord, idx) => (
+                    <tr key={ord.id || idx} className="hover:bg-blue-50/20 transition-colors">
+                      <td className="py-2.5 px-4 text-center text-slate-400 font-bold">{idx + 1}</td>
+                      <td className="py-2.5 px-4 font-mono font-bold text-slate-800">{ord.code}</td>
+                      <td className="py-2.5 px-4 text-slate-500 font-mono">
+                        {new Date(ord.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="font-bold text-slate-900">{ord.requesterName}</div>
+                        <div className="text-[10px] text-slate-500 font-semibold">{ord.requesterUnit || ord.createdBy?.unitId || '-'}</div>
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-700 max-w-[280px] truncate" title={ord.itemsSummary || ord.itemNames}>
+                        {ord.itemsSummary || ord.itemNames || '-'}
+                      </td>
+                      <td className="py-2.5 px-4 text-center font-bold text-slate-800">
+                        {ord.totalQtyDelivered || ord.totalQtyRequested || 0} Unit
+                      </td>
+                      <td className="py-2.5 px-4 text-center">
+                        {ord.status === 'COMPLETED' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                            Selesai
+                          </span>
+                        ) : ord.status === 'PROCESS' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-100 text-indigo-800 uppercase tracking-wider">
+                            Diproses
+                          </span>
+                        ) : ord.status === 'APPROVED' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-800 uppercase tracking-wider">
+                            Disetujui
+                          </span>
+                        ) : ord.status === 'REJECTED' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-800 uppercase tracking-wider">
+                            Ditolak
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 uppercase tracking-wider">
+                            Menunggu
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 text-center">
+                        <Link
+                          to={`/inventory/orders?search=${ord.code}`}
+                          className="text-blue-600 hover:text-blue-800 font-bold inline-flex items-center gap-1"
+                        >
+                          Detail <ArrowRight size={11} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

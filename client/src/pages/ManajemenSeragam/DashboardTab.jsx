@@ -44,6 +44,7 @@ export const DashboardTab = ({
   const [customEnd, setCustomEnd] = useState(endDate);
   const [showCustomRange, setShowCustomRange] = useState(datePreset === 'CUSTOM');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [waridFilterStatus, setWaridFilterStatus] = useState('ALL'); // 'ALL' | 'COMPLETED' | 'PROSES' | 'PENDING' | 'CANCELLED'
 
   useEffect(() => {
     setCustomStart(startDate);
@@ -73,6 +74,28 @@ export const DashboardTab = ({
   const totalPaid = sales.totalPaid || 0;
   const totalUnpaid = sales.totalUnpaid || 0;
   const paidPercentage = totalRevenue > 0 ? Math.round((totalPaid / totalRevenue) * 100) : 0;
+
+  const warid = useMemo(() => sales.warid || {
+    total: sales.retail || 0,
+    completed: 0,
+    proses: 0,
+    pending: 0,
+    cancelled: 0,
+    totalRevenue: 0,
+    totalPaid: 0,
+    totalUnpaid: 0,
+    orders: []
+  }, [sales.warid, sales.retail]);
+
+  const filteredWaridOrders = useMemo(() => {
+    const list = warid.orders || [];
+    if (waridFilterStatus === 'ALL') return list;
+    if (waridFilterStatus === 'COMPLETED') return list.filter(o => o.status === 'COMPLETED' || o.status === 'SELESAI');
+    if (waridFilterStatus === 'PROSES') return list.filter(o => o.status === 'PROSES' || o.status === 'PARTIAL_DELIVERED' || o.status === 'SEDIA');
+    if (waridFilterStatus === 'PENDING') return list.filter(o => o.status === 'PENDING');
+    if (waridFilterStatus === 'CANCELLED') return list.filter(o => o.status === 'CANCELLED' || o.status === 'BATAL');
+    return list;
+  }, [warid.orders, waridFilterStatus]);
 
   const totalFulfillmentItems = (fulfillment.sedia || 0) + (fulfillment.diambil || 0) + (fulfillment.indent || 0);
   const deliveredPercentage = totalFulfillmentItems > 0 
@@ -185,10 +208,15 @@ export const DashboardTab = ({
         : 'Semua Gudang (Global)';
 
       // 1. KOP SURAT
-      doc.setFontSize(16);
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
       doc.setTextColor(30, 41, 59);
-      doc.text('BIDANG SARANA & PRASARANA', pageW / 2, 16, { align: 'center' });
+      doc.text('YAYASAN DAR EL IMAN', pageW / 2, 13, { align: 'center' });
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 58, 138);
+      doc.text('BIDANG SARANA', pageW / 2, 18, { align: 'center' });
 
       doc.setFontSize(11);
       doc.setFont(undefined, 'bold');
@@ -234,12 +262,84 @@ export const DashboardTab = ({
 
       startY = doc.lastAutoTable.finalY + 8;
 
+      // =========================================================================
+      // 2. LAPORAN KHUSUS PESANAN WARID (RETAIL) & OMSET DITERIMA
+      // =========================================================================
+      if (startY > doc.internal.pageSize.getHeight() - 75) {
+        doc.addPage();
+        startY = 20;
+      }
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`2. Rekapitulasi & Status Pesanan Warid (Retail) Periode Terpilih (Total Masuk: ${warid.total || 0} Pesanan)`, 14, startY);
+      startY += 4;
+
+      doc.autoTable({
+        startY,
+        head: [['Total Masuk', 'Selesai (Diambil)', 'Dalam Proses', 'Menunggu', 'Batal', 'Total Tagihan', 'Total Omset Diterima', 'Sisa Piutang']],
+        body: [[
+          `${warid.total || 0} Pesanan`,
+          `${warid.completed || 0}`,
+          `${warid.proses || 0}`,
+          `${warid.pending || 0}`,
+          `${warid.cancelled || 0}`,
+          `Rp ${Number(warid.totalRevenue || 0).toLocaleString('id-ID')}`,
+          `Rp ${Number(warid.totalPaid || 0).toLocaleString('id-ID')}`,
+          `Rp ${Number(warid.totalUnpaid || 0).toLocaleString('id-ID')}`
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+        bodyStyles: { fontSize: 7.5, fontStyle: 'bold', halign: 'center', textColor: [30, 41, 59] },
+        margin: { left: 14, right: 14 }
+      });
+
+      startY = doc.lastAutoTable.finalY + 4;
+
+      const waridRows = (warid.orders || []).map((ord, i) => [
+        i + 1,
+        ord.code || '-',
+        ord.date ? new Date(ord.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+        `${ord.customerName || ord.studentName || '-'}\n(${ord.targetUnit || ord.studentClass || '-'})`,
+        ord.status === 'COMPLETED' || ord.status === 'SELESAI' ? 'SELESAI' :
+        ord.status === 'PROSES' || ord.status === 'PARTIAL_DELIVERED' || ord.status === 'SEDIA' ? 'DIPROSES' :
+        ord.status === 'CANCELLED' || ord.status === 'BATAL' ? 'BATAL' : 'MENUNGGU',
+        ord.paymentStatus === 'PAID' ? 'LUNAS' : ord.paymentStatus === 'PARTIAL' ? 'SEBAGIAN' : 'BELUM BAYAR',
+        `Rp ${Number(ord.totalAmount || 0).toLocaleString('id-ID')}`,
+        `Rp ${Number(ord.paidAmount || 0).toLocaleString('id-ID')}`
+      ]);
+
+      doc.autoTable({
+        startY,
+        head: [['#', 'No. Invoice', 'Tanggal Masuk', 'Pelanggan / Santri', 'Status Pesanan Terkini', 'Status Bayar', 'Total Tagihan', 'Omset Diterima']],
+        body: waridRows.length > 0 ? waridRows : [['-', 'Tidak ada pesanan Warid pada rentang tanggal yang dipilih', '-', '-', '-', '-', '-', '-']],
+        foot: waridRows.length > 0 ? [[
+          '', 'TOTAL OMSET PESANAN WARID', '', '',
+          `${warid.completed || 0} Selesai / ${warid.total || 0} Total`, '',
+          `Rp ${Number(warid.totalRevenue || 0).toLocaleString('id-ID')}`,
+          `Rp ${Number(warid.totalPaid || 0).toLocaleString('id-ID')}`
+        ]] : undefined,
+        theme: 'striped',
+        headStyles: { fillColor: [67, 56, 202], fontSize: 7, fontStyle: 'bold' },
+        footStyles: { fillColor: [238, 242, 255], textColor: [49, 46, 129], fontSize: 7, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 6.8 },
+        margin: { left: 14, right: 14 }
+      });
+
+      startY = doc.lastAutoTable.finalY + 8;
+
       // 3. TABEL TOP PENJUALAN
       if (topSellingItems.length > 0) {
+        if (startY > doc.internal.pageSize.getHeight() - 65) {
+          doc.addPage();
+          startY = 20;
+        }
+
         doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text('2. Rekapitulasi Produk Seragam Terlaris dalam Periode', 14, startY);
+        doc.text('3. Rekapitulasi Produk Seragam Terlaris dalam Periode', 14, startY);
         startY += 4;
 
         const headSelling = [['#', 'Nama Seragam / Produk', 'Qty Terjual', 'Estimasi Omset']];
@@ -273,7 +373,7 @@ export const DashboardTab = ({
         doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text('3. Riwayat Mutasi & Pergerakan Stok dalam Periode', 14, startY);
+        doc.text('4. Riwayat Mutasi & Pergerakan Stok dalam Periode', 14, startY);
         startY += 4;
 
         const headAct = [['#', 'Waktu', 'Aktivitas', 'Nama Seragam', 'Ukuran', 'Jumlah', 'Lokasi / Pihak', 'Catatan']];
@@ -311,7 +411,7 @@ export const DashboardTab = ({
         doc.setFontSize(10);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(225, 29, 72);
-        doc.text('4. Peringatan Stok Menipis & Kebutuhan Pengadaan Mendesak', 14, startY);
+        doc.text('5. Peringatan Stok Menipis & Kebutuhan Pengadaan Mendesak', 14, startY);
         startY += 4;
 
         const headRestock = [['#', 'Nama Seragam', 'Jenjang', 'Ukuran', 'Sisa Stok', 'Inden', 'Rekomendasi PO', 'Status']];
@@ -349,13 +449,49 @@ export const DashboardTab = ({
       doc.setTextColor(51, 65, 85);
       doc.setFont(undefined, 'normal');
 
+      // Left: Dibuat Oleh
       doc.text('Dibuat Oleh,', 25, startY);
-      doc.text('Staf / Penanggung Jawab Seragam', 25, startY + 5);
-      doc.text('( ............................................. )', 25, startY + 26);
+      doc.text('Staf / Penanggung Jawab Seragam', 25, startY + 4.5);
+      doc.text('( ............................................. )', 25, startY + 36);
+      doc.text('Petugas Administrasi Seragam', 25, startY + 40);
 
-      doc.text('Mengetahui,', pageW - 85, startY);
-      doc.text('Kepala Bidang Sarana', pageW - 85, startY + 5);
-      doc.text('( ............................................. )', pageW - 85, startY + 26);
+      // Right: Mengetahui (Digital TTE Kepala Bidang Sarana)
+      const signBoxW = 68;
+      const signBoxH = 24;
+      const box2X = pageW - signBoxW - 14;
+
+      doc.text('Mengetahui,', box2X + (signBoxW / 2), startY, { align: 'center' });
+      doc.setFont(undefined, 'bold');
+      doc.text('Kepala Bidang Sarana', box2X + (signBoxW / 2), startY + 4.5, { align: 'center' });
+
+      // TTE Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(box2X, startY + 7, signBoxW, signBoxH, 2, 2, 'FD');
+
+      doc.setFillColor(16, 185, 129);
+      doc.roundedRect(box2X + 1.5, startY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      doc.setTextColor(5, 150, 105);
+      doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', box2X + 6.5, startY + 12.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.2);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', box2X + 6.5, startY + 16.5);
+      doc.text('Yayasan Dar el Iman Padang', box2X + 6.5, startY + 20);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Ravi Kurnia, S.T.', box2X + (signBoxW / 2), startY + 36, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Kepala Bidang Sarana', box2X + (signBoxW / 2), startY + 40, { align: 'center' });
 
       // 7. FOOTER PAGE NUMBERING
       const pageCount = doc.internal.getNumberOfPages();
@@ -684,6 +820,259 @@ export const DashboardTab = ({
           </div>
         </div>
 
+      </div>
+
+      {/* =========================================================================
+          SECTION: LAPORAN KHUSUS PESANAN WARID (RETAIL SANTRI)
+      ========================================================================= */}
+      <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden space-y-4 p-5 bg-gradient-to-br from-white via-indigo-50/20 to-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-md shadow-indigo-600/20">
+              <ShoppingCart size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-slate-800 text-sm sm:text-base">
+                  Laporan Khusus Pesanan Warid (Retail Santri)
+                </h3>
+                <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Non-SPMB
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Rekapitulasi pesanan warid yang masuk, status terkini pemrosesan, dan total omset yang diterima.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportPDF}
+              disabled={isExportingPdf}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+            >
+              {isExportingPdf ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />}
+              <span>Cetak Laporan PDF</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Warid KPI Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Card 1: Total Pesanan Masuk */}
+          <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100/80 space-y-1">
+            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider block">
+              1. Total Pesanan Warid Masuk
+            </span>
+            <div className="text-2xl font-black text-indigo-950">
+              {Number(warid.total || 0).toLocaleString('id-ID')} <span className="text-xs font-bold text-slate-500">Pesanan</span>
+            </div>
+            <p className="text-[11px] text-indigo-700 font-medium">
+              Berdasarkan rentang tanggal terpilih
+            </p>
+          </div>
+
+          {/* Card 2: Status Pesanan Terkini */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+            <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider block">
+              2. Status Pesanan Terkini
+            </span>
+            <div className="flex items-baseline gap-2 pt-0.5">
+              <span className="text-xl font-black text-emerald-700">{warid.completed || 0}</span>
+              <span className="text-[11px] text-slate-500 font-semibold">Selesai</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-xl font-black text-blue-700">{warid.proses || 0}</span>
+              <span className="text-[11px] text-slate-500 font-semibold">Proses</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
+              <span>{warid.pending || 0} Menunggu</span>
+              <span>•</span>
+              <span className="text-rose-600">{warid.cancelled || 0} Batal</span>
+            </div>
+          </div>
+
+          {/* Card 3: Total Omset Diterima */}
+          <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100/80 space-y-1">
+            <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider block">
+              3. Total Omset Diterima (Kas Masuk)
+            </span>
+            <div className="text-xl font-black text-emerald-950 truncate" title={`Rp ${Number(warid.totalPaid || 0).toLocaleString('id-ID')}`}>
+              Rp {Number(warid.totalPaid || 0).toLocaleString('id-ID')}
+            </div>
+            <p className="text-[11px] text-emerald-700 font-semibold truncate">
+              {warid.totalRevenue > 0 ? Math.round(((warid.totalPaid || 0) / warid.totalRevenue) * 100) : 0}% dari tagihan (Rp {Number(warid.totalRevenue || 0).toLocaleString('id-ID')})
+            </p>
+          </div>
+
+          {/* Card 4: Sisa Tagihan Belum Lunas */}
+          <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-100/80 space-y-1">
+            <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider block">
+              Sisa Tagihan / Piutang Warid
+            </span>
+            <div className="text-xl font-black text-amber-950 truncate" title={`Rp ${Number(warid.totalUnpaid || 0).toLocaleString('id-ID')}`}>
+              Rp {Number(warid.totalUnpaid || 0).toLocaleString('id-ID')}
+            </div>
+            <p className="text-[11px] text-amber-700 font-medium">
+              {warid.orders?.filter(o => o.paymentStatus !== 'PAID').length || 0} pesanan belum lunas
+            </p>
+          </div>
+        </div>
+
+        {/* Tab Filter Status Pesanan Warid */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs font-bold">
+            <button
+              onClick={() => setWaridFilterStatus('ALL')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${waridFilterStatus === 'ALL' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Semua ({warid.total || 0})
+            </button>
+            <button
+              onClick={() => setWaridFilterStatus('COMPLETED')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${waridFilterStatus === 'COMPLETED' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Selesai ({warid.completed || 0})
+            </button>
+            <button
+              onClick={() => setWaridFilterStatus('PROSES')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${waridFilterStatus === 'PROSES' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Diproses ({warid.proses || 0})
+            </button>
+            <button
+              onClick={() => setWaridFilterStatus('PENDING')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${waridFilterStatus === 'PENDING' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Menunggu ({warid.pending || 0})
+            </button>
+            <button
+              onClick={() => setWaridFilterStatus('CANCELLED')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${waridFilterStatus === 'CANCELLED' ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Batal ({warid.cancelled || 0})
+            </button>
+          </div>
+
+          <button
+            onClick={() => onNavigate && onNavigate('sales_retail')}
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 self-end sm:self-auto shrink-0"
+          >
+            <span>Buka Modul Pesanan Warid</span>
+            <ExternalLink size={12} />
+          </button>
+        </div>
+
+        {/* Tabel Data Pesanan Warid Terkini */}
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+              <tr>
+                <th className="py-2.5 px-3 text-center w-10">#</th>
+                <th className="py-2.5 px-3">No. Invoice</th>
+                <th className="py-2.5 px-3">Tanggal Masuk</th>
+                <th className="py-2.5 px-3">Pelanggan / Santri</th>
+                <th className="py-2.5 px-3">Unit / Kelas</th>
+                <th className="py-2.5 px-3 text-center">Status Pesanan</th>
+                <th className="py-2.5 px-3 text-center">Pembayaran</th>
+                <th className="py-2.5 px-3 text-right">Total Tagihan</th>
+                <th className="py-2.5 px-3 text-right">Omset Diterima</th>
+                <th className="py-2.5 px-3 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {filteredWaridOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="py-8 text-center text-slate-400 italic">
+                    Tidak ada pesanan warid yang tercatat dalam periode ini.
+                  </td>
+                </tr>
+              ) : (
+                filteredWaridOrders.slice(0, 15).map((ord, idx) => (
+                  <tr key={ord.id || idx} className="hover:bg-indigo-50/20 transition-colors">
+                    <td className="py-2.5 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                    <td className="py-2.5 px-3 font-mono font-bold text-indigo-900">{ord.code}</td>
+                    <td className="py-2.5 px-3 text-slate-500 font-mono">
+                      {ord.date ? new Date(ord.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-slate-800">
+                      {ord.customerName || ord.studentName || '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">
+                      <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-semibold">
+                        {ord.targetUnit || ord.studentClass || '-'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      {ord.status === 'COMPLETED' || ord.status === 'SELESAI' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                          Selesai
+                        </span>
+                      ) : ord.status === 'PROSES' || ord.status === 'PARTIAL_DELIVERED' || ord.status === 'SEDIA' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-800 uppercase tracking-wider">
+                          Diproses
+                        </span>
+                      ) : ord.status === 'CANCELLED' || ord.status === 'BATAL' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-800 uppercase tracking-wider">
+                          Batal
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 uppercase tracking-wider">
+                          Menunggu
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      {ord.paymentStatus === 'PAID' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          LUNAS
+                        </span>
+                      ) : ord.paymentStatus === 'PARTIAL' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          SEBAGIAN
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-50 text-amber-700 border border-amber-200">
+                          BELUM
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-700">
+                      Rp {Number(ord.totalAmount || 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-700">
+                      Rp {Number(ord.paidAmount || 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        onClick={() => onNavigate && onNavigate('sales_retail')}
+                        className="text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1"
+                      >
+                        Detail <ChevronRight size={12} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {filteredWaridOrders.length > 0 && (
+              <tfoot className="bg-indigo-50/50 border-t-2 border-indigo-100 font-black text-slate-800 text-xs">
+                <tr>
+                  <td colSpan={7} className="py-2.5 px-3 text-right uppercase text-[10px] text-indigo-900 tracking-wider">
+                    Total Omset Pesanan Warid ({filteredWaridOrders.length} Pesanan):
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-800">
+                    Rp {Number(filteredWaridOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0)).toLocaleString('id-ID')}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-emerald-800 text-sm">
+                    Rp {Number(filteredWaridOrders.reduce((sum, o) => sum + (o.paidAmount || 0), 0)).toLocaleString('id-ID')}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
       </div>
 
       {/* Middle Section: 2 Columns (Distribusi Gudang & Status Fulfillment) */}

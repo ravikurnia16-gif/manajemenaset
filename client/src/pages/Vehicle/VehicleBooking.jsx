@@ -320,7 +320,10 @@ const VehicleBooking = () => {
     const isYayasanLeader = yayasanPositions.includes(user.position);
 
     // Head of Sarpras
-    const isKabidSarpras = user.position === 'Kepala Bidang Sarana';
+    const isKabidSarpras = user.role === 'KABID_SARPRAS' || 
+                           (user.position || '').toLowerCase().includes('kepala bidang sarana') || 
+                           (user.position || '').toLowerCase().includes('kabid sarpras') ||
+                           (user.position || '').toLowerCase().includes('sarana');
     const isStaffKendaraan = user.position === 'Staff Kendaraan' || Boolean(user.position?.toLowerCase()?.includes('staff kendaraan'));
     const canManageBooking = isAdminAset || isSuperAdmin || isKabidSarpras || isStaffKendaraan;
 
@@ -1058,7 +1061,7 @@ const VehicleBooking = () => {
         { id: 'CALENDAR', label: 'Kalender', icon: <Calendar size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
-        ...((isSuperAdmin || isAdminAset || isPIC || isStaffKendaraan) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
+        ...((isSuperAdmin || isAdminAset || isPIC || isStaffKendaraan || isKabidSarpras) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
         ...((canApprove || isStaffKendaraan) ? [{ id: 'DISCREPANCIES', label: 'Audit & Diskrepansi KM', icon: <Gauge size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
@@ -1067,12 +1070,12 @@ const VehicleBooking = () => {
     ];
 
     useEffect(() => {
-        if (isStaffKendaraan || isPIC || isSuperAdmin || isAdminAset) {
+        if (isStaffKendaraan || isPIC || isSuperAdmin || isAdminAset || isKabidSarpras) {
             api.get('/vehicle-checklists')
                 .then(res => setChecklists(res.data))
                 .catch(err => console.error('Error fetching checklists:', err));
         }
-    }, [isStaffKendaraan, isPIC, isSuperAdmin, isAdminAset]);
+    }, [isStaffKendaraan, isPIC, isSuperAdmin, isAdminAset, isKabidSarpras]);
 
     const uncheckedVehicles = useMemo(() => {
         if (!isStaffKendaraan || vehicles.length === 0) return [];
@@ -1366,7 +1369,7 @@ const VehicleBooking = () => {
             {/* Tab Contents */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
                 {activeTab === 'TRACKING_MAP' && <LiveTrackingMap />}
-                {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile || user} isAdmin={isAdminAset || isSuperAdmin} />}
+                {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile || user} isAdmin={isAdminAset || isSuperAdmin || isKabidSarpras} />}
                 {activeTab === 'DISCREPANCIES' && <VehicleDiscrepancyTab currentUserProfile={currentUserProfile} isAdmin={canApprove} />}
                 {activeTab === 'CURRENT_FLEET' && (
                     <div className="p-6">

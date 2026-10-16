@@ -82,9 +82,47 @@ export default function WeeklyPdfTab({
     const [aiAnalysis, setAiAnalysis] = useState('');
     const [aiLoading, setAiLoading] = useState(false);
     const [includeAiInPdf, setIncludeAiInPdf] = useState(true);
-    const [includePhotosInPdf, setIncludePhotosInPdf] = useState(true);
+    const [includePhotosInPdf, setIncludePhotosInPdf] = useState(false);
     const [aiMode, setAiMode] = useState('WEEKLY_EXECUTIVE'); // 'WEEKLY_EXECUTIVE' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
     const [isEditingAi, setIsEditingAi] = useState(false);
+
+    // Compute or retrieve position-based summary without staff personal names
+    const positionSummaries = React.useMemo(() => {
+        if (weeklyData?.positionSummary && weeklyData.positionSummary.length > 0) {
+            return weeklyData.positionSummary;
+        }
+        const posMap = {};
+        (weeklyData?.dailyDivisionBreakdown || []).forEach(day => {
+            (day.activities || []).forEach(act => {
+                const pos = act.position || 'Staf Sarana & Prasarana';
+                if (!posMap[pos]) {
+                    posMap[pos] = {
+                        position: pos,
+                        totalCompleted: 0,
+                        totalInProgress: 0,
+                        totalObstacles: 0,
+                        totalActivities: 0,
+                        keyTasks: new Set(),
+                        categories: new Set()
+                    };
+                }
+                posMap[pos].totalActivities++;
+                if (act.status === 'COMPLETED') posMap[pos].totalCompleted++;
+                else if (act.status === 'IN_PROGRESS') posMap[pos].totalInProgress++;
+                else if (act.status === 'OBSTACLE') posMap[pos].totalObstacles++;
+                if (act.categoryTag) posMap[pos].categories.add(act.categoryTag);
+                if (act.activity && act.activity.trim() && !act.activity.includes('Dokumentasi Foto')) {
+                    posMap[pos].keyTasks.add(act.activity.trim());
+                }
+            });
+        });
+        return Object.values(posMap).map(p => ({
+            ...p,
+            keyTasks: Array.from(p.keyTasks),
+            categories: Array.from(p.categories),
+            completionRate: p.totalActivities > 0 ? Math.round((p.totalCompleted / p.totalActivities) * 100) : 0
+        })).sort((a, b) => b.totalActivities - a.totalActivities);
+    }, [weeklyData]);
 
     const handleGenerateAI = async () => {
         try {
@@ -271,7 +309,7 @@ export default function WeeklyPdfTab({
                                 onChange={(e) => setIncludePhotosInPdf(e.target.checked)}
                                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span>Lampiran Foto ({weeklyData?.documentationPhotos?.length || 0})</span>
+                            <span>Preview Foto Lapangan ({weeklyData?.documentationPhotos?.length || 0})</span>
                         </label>
 
                         <button
@@ -308,7 +346,7 @@ export default function WeeklyPdfTab({
                 {/* KOP SURAT YAYASAN */}
                 <div className="text-center border-b-2 border-slate-800 pb-4 space-y-1">
                     <h2 className="text-xl font-black tracking-wider text-slate-900 uppercase">YAYASAN DAR EL IMAN</h2>
-                    <h3 className="text-base font-black text-indigo-950 uppercase tracking-widest">BIDANG SARANA & PRASARANA</h3>
+                    <h3 className="text-base font-black text-indigo-950 uppercase tracking-widest">BIDANG SARANA</h3>
                     <p className="text-[11px] text-slate-600">Jl. Gunung Juaro, Kel. Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat</p>
                 </div>
 
@@ -386,31 +424,96 @@ export default function WeeklyPdfTab({
                     </div>
                 )}
 
-                {/* III. RINCIAN AKTIVITAS PER HARI */}
+                {/* III. RANGKUMAN KINERJA PER POSISI STAF */}
                 <div className="space-y-4">
-                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                        {hasAiSection ? 'III.' : 'II.'} Rincian Aktivitas Harian Staf Bidang Sarana
-                    </h5>
-                    {(!weeklyData?.dailyDivisionBreakdown || weeklyData.dailyDivisionBreakdown.length === 0) ? (
-                        <p className="text-xs text-slate-400 italic py-2">Belum ada rincian aktivitas staf tercatat pada rentang tanggal ini.</p>
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-slate-800"></span>
+                            {hasAiSection ? 'III.' : 'II.'} Rangkuman Kinerja per Posisi Staf Bidang Sarana
+                        </h5>
+                        <span className="text-[10px] text-slate-500 font-semibold italic">
+                            *Rangkuman pencapaian tugas berdasarkan bidang dan posisi staf
+                        </span>
+                    </div>
+
+                    {(!positionSummaries || positionSummaries.length === 0) ? (
+                        <p className="text-xs text-slate-400 italic py-2">Belum ada rangkuman kinerja posisi staf tercatat pada rentang tanggal ini.</p>
                     ) : (
-                        weeklyData.dailyDivisionBreakdown.map((dayObj, dIdx) => (
-                            <div key={dIdx} className="space-y-2 break-inside-avoid">
-                                <h6 className="text-xs font-bold text-indigo-900 bg-slate-100 px-3 py-1.5 rounded-lg">{dayObj.date} ({dayObj.totalActivities} kegiatan)</h6>
-                                {dayObj.activities.length === 0 ? (
-                                    <p className="text-[11px] text-slate-400 italic pl-3">- Tidak ada aktivitas tercatat -</p>
-                                ) : (
-                                    <ul className="list-disc pl-6 space-y-1 text-xs leading-relaxed">
-                                        {dayObj.activities.map((act, aIdx) => (
-                                            <li key={aIdx}>
-                                                <b>[{act.categoryTag}] {act.staffName} ({act.position}):</b> {act.activity}
-                                                {act.obstacleNote && <span className="text-rose-600 font-bold"> (Kendala: {act.obstacleNote})</span>}
-                                            </li>
+                        <div className="space-y-3">
+                            <div className="overflow-hidden border border-slate-200 rounded-xl">
+                                <table className="w-full text-xs text-left border-collapse">
+                                    <thead className="bg-slate-100/80 font-bold border-b border-slate-200 text-slate-700 text-[11px]">
+                                        <tr>
+                                            <th className="p-2.5 w-10 text-center border-r border-slate-200">No</th>
+                                            <th className="p-2.5 w-48 border-r border-slate-200">Posisi / Jabatan</th>
+                                            <th className="p-2.5 border-r border-slate-200">Rangkuman Cakupan & Realisasi Pekerjaan</th>
+                                            <th className="p-2.5 w-16 text-center border-r border-slate-200 text-emerald-800">Selesai</th>
+                                            <th className="p-2.5 w-16 text-center border-r border-slate-200 text-amber-800">Proses</th>
+                                            <th className="p-2.5 w-16 text-center border-r border-slate-200 text-rose-800">Kendala</th>
+                                            <th className="p-2.5 w-20 text-center">Capaian</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                        {positionSummaries.map((pos, pIdx) => (
+                                            <tr key={pIdx} className="break-inside-avoid align-top hover:bg-slate-50/50">
+                                                <td className="p-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    {pIdx + 1}
+                                                </td>
+                                                <td className="p-2.5 font-black text-slate-800 border-r border-slate-200">
+                                                    <div className="font-bold text-slate-900 text-xs">{pos.position}</div>
+                                                    {pos.categories && pos.categories.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                            {pos.categories.map((c, cIdx) => (
+                                                                <span key={cIdx} className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                                                                    {c}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="p-2.5 border-r border-slate-200">
+                                                    {pos.keyTasks && pos.keyTasks.length > 0 ? (
+                                                        <ul className="space-y-1 text-[11px] leading-relaxed text-slate-700">
+                                                            {pos.keyTasks.slice(0, 5).map((task, tIdx) => (
+                                                                <li key={tIdx} className="flex items-start gap-1.5">
+                                                                    <span className="text-slate-400 font-bold">•</span>
+                                                                    <span>{task}</span>
+                                                                </li>
+                                                            ))}
+                                                            {pos.keyTasks.length > 5 && (
+                                                                <li className="text-[10px] text-slate-400 italic pl-3">
+                                                                    +{pos.keyTasks.length - 5} item pekerjaan operasional lainnya
+                                                                </li>
+                                                            )}
+                                                        </ul>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic text-[11px]">- Menjalankan tugas pemeliharaan rutin -</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-2.5 text-center font-bold text-emerald-700 border-r border-slate-200">
+                                                    {pos.totalCompleted}
+                                                </td>
+                                                <td className="p-2.5 text-center font-bold text-amber-700 border-r border-slate-200">
+                                                    {pos.totalInProgress}
+                                                </td>
+                                                <td className="p-2.5 text-center font-bold text-rose-700 border-r border-slate-200">
+                                                    {pos.totalObstacles}
+                                                </td>
+                                                <td className="p-2.5 text-center">
+                                                    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-black ${
+                                                        pos.completionRate >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                                                        pos.completionRate >= 50 ? 'bg-amber-100 text-amber-800' :
+                                                        'bg-slate-100 text-slate-700'
+                                                    }`}>
+                                                        {pos.completionRate}%
+                                                    </span>
+                                                </td>
+                                            </tr>
                                         ))}
-                                    </ul>
-                                )}
+                                    </tbody>
+                                </table>
                             </div>
-                        ))
+                        </div>
                     )}
                 </div>
 
@@ -424,7 +527,7 @@ export default function WeeklyPdfTab({
                             <thead className="bg-slate-50 font-bold border-b border-slate-200">
                                 <tr>
                                     <th className="p-2 border-r">Tgl</th>
-                                    <th className="p-2 border-r">Staf</th>
+                                    <th className="p-2 border-r">Posisi / Bidang Tugas</th>
                                     <th className="p-2 border-r">Pekerjaan</th>
                                     <th className="p-2">Uraian Kendala</th>
                                 </tr>
@@ -432,8 +535,8 @@ export default function WeeklyPdfTab({
                             <tbody className="divide-y divide-slate-200">
                                 {weeklyData.obstacleList.map((obs, idx) => (
                                     <tr key={idx}>
-                                        <td className="p-2 border-r">{obs.date}</td>
-                                        <td className="p-2 border-r font-bold">{obs.staffName}</td>
+                                        <td className="p-2 border-r whitespace-nowrap">{obs.date}</td>
+                                        <td className="p-2 border-r font-bold text-slate-800">{obs.position || 'Staf Sarpras'}</td>
                                         <td className="p-2 border-r">{obs.activity}</td>
                                         <td className="p-2 text-rose-700 font-medium">{obs.obstacleNote}</td>
                                     </tr>
@@ -443,35 +546,60 @@ export default function WeeklyPdfTab({
                     </div>
                 )}
 
-                {/* SIGNATURE BLOCK */}
+                {/* SIGNATURE BLOCK (DIGITAL TTE KEPALA BIDANG SARANA) */}
                 <div className="pt-8 flex justify-end break-inside-avoid">
-                    <div className="text-center space-y-16">
+                    <div className="text-center w-72 space-y-2">
                         <div>
-                            <p className="text-xs font-medium">Padang, {dayjs().format('DD MMMM YYYY')}</p>
-                            <p className="text-xs font-bold uppercase mt-1">Kepala Bidang Sarana & Prasarana</p>
+                            <p className="text-xs font-medium text-slate-600">Padang, {dayjs().format('DD MMMM YYYY')}</p>
+                            <p className="text-xs font-bold uppercase mt-0.5 text-slate-900">Kepala Bidang Sarana</p>
                         </div>
-                        <div className="space-y-0.5">
-                            <p className="text-xs font-bold underline">{weeklyData?.kabid?.name || user?.name || 'Ravi Kurnia'}</p>
+                        
+                        {/* TTE Digital Seal / Badge */}
+                        <div className="p-3 my-2 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center gap-2.5 text-left shadow-2xs">
+                            <div className="p-2 bg-emerald-100 rounded-lg text-emerald-700 shrink-0">
+                                <CheckCircle2 size={24} />
+                            </div>
+                            <div className="space-y-0.5 leading-tight">
+                                <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider block">
+                                    Ditandatangani Digital (TTE)
+                                </span>
+                                <span className="text-[9px] text-slate-600 block">
+                                    Dokumen Sah & Terverifikasi
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-mono block">
+                                    E-Office Yayasan Dar el Iman
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-0.5 pt-1">
+                            <p className="text-xs font-bold text-slate-900 underline">{weeklyData?.kabid?.name || user?.name || 'Ravi Kurnia, S.T.'}</p>
                             <p className="text-[10px] text-slate-600 font-mono">
-                                NIY. {customKabidNiy || weeklyData?.kabid?.niy || user?.nip || user?.username || ''}
+                                NIY. {customKabidNiy || weeklyData?.kabid?.niy || user?.nip || user?.username || 'Yayasan Dar el Iman'}
+                            </p>
+                            <p className="text-[10px] font-semibold text-slate-500">
+                                Kepala Bidang Sarana
                             </p>
                         </div>
                     </div>
                 </div>
 
                 {/* ============================================================== */}
-                {/* HALAMAN LAMPIRAN DOKUMENTASI FOTO KEGIATAN */}
+                {/* PREVIEW FOTO DOKUMENTASI (HANYA DITAMPILKAN DI LAYAR BILA DIAKTIFKAN, DISEMBUNYIKAN SAAT DICETAK) */}
                 {/* ============================================================== */}
                 {includePhotosInPdf && (
-                    <div className="pt-10 mt-10 border-t-2 border-dashed border-slate-300 print:border-none print:pt-0 print:mt-0" style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
+                    <div className="pt-10 mt-10 border-t-2 border-dashed border-slate-300 print:hidden no-print">
                         {/* KOP LAMPIRAN */}
                         <div className="text-center border-b-2 border-slate-800 pb-3 space-y-1">
-                            <h3 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">LAMPIRAN DOKUMENTASI LAPANGAN</h3>
+                            <h3 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">LAMPIRAN DOKUMENTASI LAPANGAN (PREVIEW WEB)</h3>
                             <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
                                 FOTO BUKTI AKTIVITAS HARIAN STAF BIDANG SARANA
                             </h4>
                             <p className="text-xs font-bold text-slate-600">
                                 Periode: {weeklyData?.period?.formattedPeriod || `${weeklyStartDate} s/d ${weeklyEndDate}`}
+                            </p>
+                            <p className="text-[10px] text-amber-600 italic">
+                                *Halaman dokumentasi foto ini secara otomatis tidak disertakan dalam cetakan PDF resmi sesuai format ringkasan pimpinan.
                             </p>
                         </div>
 
@@ -508,7 +636,7 @@ export default function WeeklyPdfTab({
                                                     </span>
                                                 </div>
                                                 <p className="text-xs font-black text-slate-800 line-clamp-1">
-                                                    {doc.staffName} <span className="text-[10px] font-normal text-slate-500">({doc.position})</span>
+                                                    {doc.position || doc.staffName}
                                                 </p>
                                                 <p className="text-[11px] text-slate-600 font-medium line-clamp-2 leading-tight">
                                                     {doc.activity}
@@ -533,7 +661,7 @@ export default function WeeklyPdfTab({
                         {/* Catatan Kaki Lampiran */}
                         <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 mt-6">
                             <span>Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El Iman Padang</span>
-                            <span>Halaman Lampiran Dokumentasi Foto Kegiatan Lapangan</span>
+                            <span>Halaman Dokumentasi Foto Lapangan</span>
                         </div>
                     </div>
                 )}

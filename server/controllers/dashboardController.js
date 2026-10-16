@@ -1184,4 +1184,422 @@ Keluarkan HANYA JSON MURNI tanpa markdown tambahan (tanpa \`\`\`json \`\`\`) den
     }
 };
 
+/**
+ * Controller: Laporan Rentang Tanggal Eksekutif Manajemen Aset
+ * Mencakup:
+ * 1. Jumlah aset saat ini: total aset menyeluruh & total aset per unit
+ * 2. Pengadaan: pengajuan masuk per unit (unit 0 disembunyikan), yang selesai tahap finalisasi per unit, jenis barang yang dibeli
+ * 3. Pemeliharaan (khusus targetDept: 'SARPRAS'): pengajuan masuk per unit (unit 0 disembunyikan), yang selesai dikerjakan dalam rentang tanggal
+ */
+exports.getDateRangeReport = async (req, res) => {
+    try {
+        const { role, unitId: userUnitId } = req.user;
+        const { startDate, endDate, unitId } = req.query;
+
+        // 1. Tentukan Rentang Tanggal
+        let start, end;
+        if (startDate && endDate) {
+            start = new Date(`${startDate}T00:00:00.000Z`);
+            end = new Date(`${endDate}T23:59:59.999Z`);
+        } else {
+            const today = new Date();
+            start = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000);
+            start.setUTCHours(0, 0, 0, 0);
+            end = new Date(today);
+            end.setUTCHours(23, 59, 59, 999);
+        }
+
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana';
+        let targetUnitId = null;
+        if (unitId && unitId !== 'all') {
+            targetUnitId = parseInt(unitId);
+        } else if (!isGlobalAdmin && userUnitId) {
+            targetUnitId = userUnitId;
+        }
+
+        // ==========================================
+        // 1. JUMLAH ASET SAAT INI (KONDISI & PER UNIT)
+        // ==========================================
+        const assetWhere = {
+            condition: { not: 'DISPOSED' }
+        };
+        if (targetUnitId) assetWhere.unitId = targetUnitId;
+
+        const allUnits = await prisma.unit.findMany({
+            select: { id: true, name: true, code: true },
+            orderBy: { name: 'asc' }
+        });
+
+        const activeAssets = await prisma.asset.findMany({
+            where: assetWhere,
+            select: {
+                id: true,
+                price: true,
+                condition: true,
+                unitId: true,
+                unit: { select: { id: true, name: true, code: true } }
+            }
+        });
+
+        let totalAssetsCount = activeAssets.length;
+        let totalAssetValue = 0;
+        let goodCount = 0;
+        let lightDamagedCount = 0;
+        let heavyDamagedCount = 0;
+
+        const unitAssetMap = {};
+        allUnits.forEach(u => {
+            unitAssetMap[u.id] = {
+                unitId: u.id,
+                unitName: u.name,
+                unitCode: u.code,
+                totalAssets: 0,
+                goodCount: 0,
+                lightDamagedCount: 0,
+                heavyDamagedCount: 0,
+                totalValue: 0
+            };
+        });
+
+        activeAssets.forEach(a => {
+            const price = a.price || 0;
+            totalAssetValue += price;
+
+            if (a.condition === 'BAIK') goodCount++;
+            else if (a.condition === 'RUSAK_RINGAN') lightDamagedCount++;
+            else if (a.condition === 'RUSAK_BERAT') heavyDamagedCount++;
+
+            if (a.unitId && unitAssetMap[a.unitId]) {
+                unitAssetMap[a.unitId].totalAssets += 1;
+                unitAssetMap[a.unitId].totalValue += price;
+                if (a.condition === 'BAIK') unitAssetMap[a.unitId].goodCount += 1;
+                else if (a.condition === 'RUSAK_RINGAN') unitAssetMap[a.unitId].lightDamagedCount += 1;
+                else if (a.condition === 'RUSAK_BERAT') unitAssetMap[a.unitId].heavyDamagedCount += 1;
+            }
+        });
+
+        const assetsPerUnit = Object.values(unitAssetMap)
+            .filter(u => targetUnitId ? u.unitId === targetUnitId : u.totalAssets > 0)
+            .sort((a, b) => b.totalAssets - a.totalAssets);
+
+        // ==========================================
+        // 2. PENGADAAN (PROCUREMENT)
+        // ==========================================
+        // A. Pengajuan Masuk dalam Rentang Tanggal
+        const procSubWhere = {
+            createdAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) procSubWhere.unitId = targetUnitId;
+
+        const submittedProcurements = await prisma.procurement.findMany({
+            where: procSubWhere,
+            include: {
+                unit: { select: { id: true, name: true, code: true } },
+                items: {
+                    select: {
+                        id: true,
+                        name: true,
+                        spec: true,
+                        qty: true,
+                        unit: true,
+                        estPrice: true,
+                        finalPrice: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Group by unit: "jangan tampilkan unit yang tidak mengajukan atau pengajuannya 0"
+        const procUnitMap = {};
+        submittedProcurements.forEach(p => {
+            const uId = p.unitId;
+            if (!procUnitMap[uId]) {
+                procUnitMap[uId] = {
+                    unitId: uId,
+                    unitName: p.unit?.name || `Unit #${uId}`,
+                    unitCode: p.unit?.code || '',
+                    totalSubmissions: 0,
+                    completedCount: 0,
+                    processCount: 0,
+                    pendingCount: 0,
+                    rejectedCount: 0,
+                    totalEstBudget: 0
+                };
+            }
+            procUnitMap[uId].totalSubmissions += 1;
+            const budget = (p.items || []).reduce((sum, it) => sum + ((it.finalPrice || it.estPrice || 0) * (it.qty || 1)), 0);
+            procUnitMap[uId].totalEstBudget += budget;
+
+            if (p.status === 'COMPLETED') procUnitMap[uId].completedCount += 1;
+            else if (['PROCESS', 'APPROVED'].includes(p.status)) procUnitMap[uId].processCount += 1;
+            else if (['DRAFT', 'SUBMITTED', 'VALIDATED'].includes(p.status)) procUnitMap[uId].pendingCount += 1;
+            else if (p.status === 'REJECTED') procUnitMap[uId].rejectedCount += 1;
+        });
+
+        // STRICT CONSTRAINT: Hanya unit yang mengajukan (> 0)
+        const procurementSubmittedByUnit = Object.values(procUnitMap)
+            .filter(u => u.totalSubmissions > 0)
+            .sort((a, b) => b.totalSubmissions - a.totalSubmissions);
+
+        // B. Pengadaan Selesai Sampai Tahap Finalisasi Sesuai Tanggal
+        const procFinalWhere = {
+            status: 'COMPLETED',
+            OR: [
+                { bastDate: { gte: start, lte: end } },
+                {
+                    bastDate: null,
+                    updatedAt: { gte: start, lte: end }
+                }
+            ]
+        };
+        if (targetUnitId) procFinalWhere.unitId = targetUnitId;
+
+        const finalizedProcurements = await prisma.procurement.findMany({
+            where: procFinalWhere,
+            include: {
+                unit: { select: { id: true, name: true, code: true } },
+                items: {
+                    select: {
+                        id: true,
+                        name: true,
+                        spec: true,
+                        qty: true,
+                        unit: true,
+                        estPrice: true,
+                        finalPrice: true,
+                        vendorName: true,
+                        brand: true
+                    }
+                }
+            },
+            orderBy: { bastDate: 'desc' }
+        });
+
+        const procFinalUnitMap = {};
+        finalizedProcurements.forEach(p => {
+            const uId = p.unitId;
+            if (!procFinalUnitMap[uId]) {
+                procFinalUnitMap[uId] = {
+                    unitId: uId,
+                    unitName: p.unit?.name || `Unit #${uId}`,
+                    unitCode: p.unit?.code || '',
+                    finalizedCount: 0,
+                    totalFinalValue: 0
+                };
+            }
+            procFinalUnitMap[uId].finalizedCount += 1;
+            const val = (p.items || []).reduce((sum, it) => sum + ((it.finalPrice || it.estPrice || 0) * (it.qty || 1)), 0);
+            procFinalUnitMap[uId].totalFinalValue += val;
+        });
+
+        const procurementFinalizedByUnit = Object.values(procFinalUnitMap)
+            .filter(u => u.finalizedCount > 0)
+            .sort((a, b) => b.finalizedCount - a.finalizedCount);
+
+        const finalizedProcurementList = finalizedProcurements.map(p => {
+            const totalVal = (p.items || []).reduce((s, it) => s + ((it.finalPrice || it.estPrice || 0) * (it.qty || 1)), 0);
+            return {
+                id: p.id,
+                code: p.code,
+                title: p.title || 'Pengadaan Sarana',
+                unitName: p.unit?.name || '-',
+                bastDate: p.bastDate || p.updatedAt,
+                totalValue: totalVal,
+                itemCount: p.items?.length || 0
+            };
+        });
+
+        // C. Jenis Barang yang Dibeli
+        const procItemsWhere = {
+            procurement: {
+                OR: [
+                    { createdAt: { gte: start, lte: end } },
+                    { bastDate: { gte: start, lte: end } },
+                    { status: 'COMPLETED', updatedAt: { gte: start, lte: end } }
+                ],
+                ...(targetUnitId ? { unitId: targetUnitId } : {})
+            }
+        };
+
+        const rawPurchasedItems = await prisma.procurementItem.findMany({
+            where: procItemsWhere,
+            include: {
+                procurement: {
+                    select: {
+                        id: true,
+                        code: true,
+                        title: true,
+                        status: true,
+                        createdAt: true,
+                        bastDate: true,
+                        unit: { select: { id: true, name: true } }
+                    }
+                },
+                vendor: { select: { name: true } }
+            },
+            orderBy: { id: 'desc' }
+        });
+
+        const purchasedItems = rawPurchasedItems.map(item => {
+            const finalP = item.finalPrice || item.estPrice || 0;
+            const total = finalP * (item.qty || 1);
+            return {
+                id: item.id,
+                name: item.name,
+                spec: item.spec || '-',
+                brand: item.brand || '-',
+                qty: item.qty || 1,
+                unit: item.unit || 'Unit',
+                price: finalP,
+                totalPrice: total,
+                vendor: item.vendorName || item.vendor?.name || '-',
+                unitName: item.procurement?.unit?.name || '-',
+                procurementCode: item.procurement?.code || '-',
+                status: item.procurement?.status || '-',
+                date: item.procurement?.bastDate || item.procurement?.createdAt
+            };
+        });
+
+        // ==========================================
+        // 3. PEMELIHARAAN (TARGETDEPT: 'SARPRAS' SAJA)
+        // ==========================================
+        // A. Pengajuan yang masuk sesuai tanggal (targetDept SARPRAS)
+        const maintSubWhere = {
+            targetDept: 'SARPRAS',
+            createdAt: { gte: start, lte: end }
+        };
+        if (targetUnitId) maintSubWhere.unitId = targetUnitId;
+
+        const submittedMaintenances = await prisma.maintenance.findMany({
+            where: maintSubWhere,
+            include: {
+                unit: { select: { id: true, name: true, code: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Group by unit: "jangan tampilkan unit yang tidak mengajukan atau pengajuannya 0"
+        const maintUnitMap = {};
+        submittedMaintenances.forEach(m => {
+            const uId = m.unitId;
+            if (!maintUnitMap[uId]) {
+                maintUnitMap[uId] = {
+                    unitId: uId,
+                    unitName: m.unit?.name || `Unit #${uId}`,
+                    unitCode: m.unit?.code || '',
+                    totalRequests: 0,
+                    completedCount: 0,
+                    inProgressCount: 0,
+                    pendingCount: 0,
+                    rejectedCount: 0,
+                    totalCost: 0
+                };
+            }
+            maintUnitMap[uId].totalRequests += 1;
+            maintUnitMap[uId].totalCost += (m.cost || 0);
+
+            if (m.status === 'COMPLETED') maintUnitMap[uId].completedCount += 1;
+            else if (['IN_PROGRESS', 'ASSIGNED', 'VALIDATED', 'APPROVED'].includes(m.status)) maintUnitMap[uId].inProgressCount += 1;
+            else if (m.status === 'SUBMITTED') maintUnitMap[uId].pendingCount += 1;
+            else if (m.status === 'REJECTED') maintUnitMap[uId].rejectedCount += 1;
+        });
+
+        // STRICT CONSTRAINT: Hanya unit yang mengajukan (> 0)
+        const maintenanceSubmittedByUnit = Object.values(maintUnitMap)
+            .filter(u => u.totalRequests > 0)
+            .sort((a, b) => b.totalRequests - a.totalRequests);
+
+        // B. Yang selesai dikerjakan dalam rentang tanggal (targetDept: 'SARPRAS')
+        const maintCompWhere = {
+            targetDept: 'SARPRAS',
+            status: 'COMPLETED',
+            OR: [
+                { completionDate: { gte: start, lte: end } },
+                {
+                    completionDate: null,
+                    updatedAt: { gte: start, lte: end }
+                }
+            ]
+        };
+        if (targetUnitId) maintCompWhere.unitId = targetUnitId;
+
+        const completedMaintenances = await prisma.maintenance.findMany({
+            where: maintCompWhere,
+            include: {
+                unit: { select: { id: true, name: true, code: true } }
+            },
+            orderBy: { completionDate: 'desc' }
+        });
+
+        const maintCompUnitMap = {};
+        completedMaintenances.forEach(m => {
+            const uId = m.unitId;
+            if (!maintCompUnitMap[uId]) {
+                maintCompUnitMap[uId] = {
+                    unitId: uId,
+                    unitName: m.unit?.name || `Unit #${uId}`,
+                    unitCode: m.unit?.code || '',
+                    completedCount: 0,
+                    totalCost: 0
+                };
+            }
+            maintCompUnitMap[uId].completedCount += 1;
+            maintCompUnitMap[uId].totalCost += (m.cost || 0);
+        });
+
+        const maintenanceCompletedByUnit = Object.values(maintCompUnitMap)
+            .filter(u => u.completedCount > 0)
+            .sort((a, b) => b.completedCount - a.completedCount);
+
+        const completedMaintenanceList = completedMaintenances.map(m => ({
+            id: m.id,
+            code: m.code,
+            title: m.title,
+            unitName: m.unit?.name || '-',
+            urgency: m.urgency,
+            category: m.category,
+            technician: m.technician || '-',
+            actionTaken: m.actionTaken || m.description || '-',
+            cost: m.cost || 0,
+            completionDate: m.completionDate || m.updatedAt
+        }));
+
+        res.json({
+            success: true,
+            period: {
+                startDate: start.toISOString().split('T')[0],
+                endDate: end.toISOString().split('T')[0]
+            },
+            assetSummary: {
+                totalAssets: totalAssetsCount,
+                totalValue: totalAssetValue,
+                goodCount,
+                lightDamagedCount,
+                heavyDamagedCount,
+                assetsPerUnit
+            },
+            procurementSummary: {
+                totalSubmitted: submittedProcurements.length,
+                submittedByUnit: procurementSubmittedByUnit,
+                totalFinalized: finalizedProcurements.length,
+                finalizedByUnit: procurementFinalizedByUnit,
+                finalizedList: finalizedProcurementList,
+                purchasedItems
+            },
+            maintenanceSarprasSummary: {
+                totalSubmitted: submittedMaintenances.length,
+                submittedByUnit: maintenanceSubmittedByUnit,
+                totalCompleted: completedMaintenances.length,
+                completedByUnit: maintenanceCompletedByUnit,
+                completedList: completedMaintenanceList
+            }
+        });
+    } catch (err) {
+        console.error('Date Range Report Controller Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
 

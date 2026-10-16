@@ -4815,7 +4815,7 @@ exports.getDashboardStats = async (req, res) => {
                     id: true, code: true, type: true, status: true, 
                     subtotal: true, discount: true, totalAmount: true, 
                     paidAmount: true, paymentStatus: true, createdAt: true,
-                    customerName: true, studentName: true
+                    customerName: true, studentName: true, studentClass: true, targetUnit: true
                 },
                 orderBy: { createdAt: 'desc' }
             }),
@@ -4893,6 +4893,33 @@ exports.getDashboardStats = async (req, res) => {
         const totalRevenue = allSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
         const totalPaid = allSales.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
         const totalUnpaid = Math.max(0, totalRevenue - totalPaid);
+
+        // Khusus Pesanan Warid (Retail Santri / Pelanggan Non-SPMB)
+        const waridSales = allSales.filter(s => s.type === 'RETAIL');
+        const waridTotalCount = waridSales.length;
+        const waridCompletedCount = waridSales.filter(s => s.status === 'COMPLETED' || s.status === 'SELESAI').length;
+        const waridProcessCount = waridSales.filter(s => s.status === 'PROSES' || s.status === 'PARTIAL_DELIVERED' || s.status === 'SEDIA').length;
+        const waridPendingCount = waridSales.filter(s => s.status === 'PENDING').length;
+        const waridCancelledCount = waridSales.filter(s => s.status === 'CANCELLED' || s.status === 'BATAL').length;
+
+        const waridTotalRevenue = waridSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+        const waridTotalPaid = waridSales.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
+        const waridTotalUnpaid = Math.max(0, waridTotalRevenue - waridTotalPaid);
+
+        const waridOrdersList = waridSales.map(s => ({
+            id: s.id,
+            code: s.code,
+            date: s.createdAt,
+            customerName: s.customerName || '-',
+            studentName: s.studentName || '-',
+            studentClass: s.studentClass || '-',
+            targetUnit: s.targetUnit || '-',
+            status: s.status,
+            paymentStatus: s.paymentStatus || 'UNPAID',
+            totalAmount: s.totalAmount || 0,
+            paidAmount: s.paidAmount || 0,
+            remainingAmount: Math.max(0, (s.totalAmount || 0) - (s.paidAmount || 0))
+        }));
 
         // 4. Fulfillment & Indent Analysis
         const indentItemsList = saleItems.filter(i => ['INDENT', 'TIDAK_TERSEDIA', 'BACKORDER'].includes(i.status));
@@ -5073,7 +5100,18 @@ exports.getDashboardStats = async (req, res) => {
                 pending: pendingSalesCount,
                 totalRevenue,
                 totalPaid,
-                totalUnpaid
+                totalUnpaid,
+                warid: {
+                    total: waridTotalCount,
+                    completed: waridCompletedCount,
+                    proses: waridProcessCount,
+                    pending: waridPendingCount,
+                    cancelled: waridCancelledCount,
+                    totalRevenue: waridTotalRevenue,
+                    totalPaid: waridTotalPaid,
+                    totalUnpaid: waridTotalUnpaid,
+                    orders: waridOrdersList
+                }
             },
             fulfillment: {
                 totalItemRows: saleItems.length,

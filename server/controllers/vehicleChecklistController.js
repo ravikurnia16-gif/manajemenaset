@@ -47,6 +47,61 @@ exports.createChecklist = async (req, res) => {
             }
         });
 
+        // Jika status ceklis membutuhkan perbaikan/kerusakan, buat tiket pemeliharaan otomatis
+        if (status === 'PERLU PERBAIKAN') {
+            try {
+                const cklCode = `PK/CKL/${checklist.id.toString().padStart(4, '0')}`;
+                await prisma.vehicleService.create({
+                    data: {
+                        code: cklCode,
+                        vehicleId: parseInt(vehicleId),
+                        date: new Date(),
+                        category: 'NON_ROUTINE',
+                        type: 'PERBAIKAN',
+                        description: `[LAPORAN KERUSAKAN CEKLIS #${checklist.id}] Temuan inspeksi/ceklis: ${notes || 'Kondisi kendaraan memerlukan perbaikan/servis segera.'}`,
+                        cost: 0,
+                        status: 'PENDING',
+                        urgency: 'URGENT',
+                        requesterId: driverId ? parseInt(driverId) : req.user.id
+                    }
+                });
+
+                // Notifikasi ke Kepala Bidang Sarana
+                const kabidUsers = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { position: { contains: 'Sarana' } },
+                            { role: 'KABID_SARPRAS' }
+                        ],
+                        phone: { not: null }
+                    },
+                    select: { id: true, phone: true, name: true }
+                });
+
+                const v = await prisma.vehicle.findUnique({
+                    where: { id: parseInt(vehicleId) },
+                    select: { name: true, plateNumber: true }
+                });
+                const vText = v ? `${v.name} (${v.plateNumber})` : 'Kendaraan Operasional';
+
+                const msg = `🚨 *LAPORAN KERUSAKAN DARI CEKLIS KENDARAAN*\n\n` +
+                    `Terdapat temuan kerusakan pada hasil ceklis/inspeksi berkala:\n` +
+                    `• Kendaraan: *${vText}*\n` +
+                    `• Tipe Ceklis: *${type || 'Pemeriksaan Rutin'}*\n` +
+                    `• Catatan Kerusakan: _${notes || 'Perlu perbaikan segera'}_\n` +
+                    `• Kode Pengajuan: *${cklCode}*\n\n` +
+                    `Pengajuan perbaikan otomatis telah masuk ke daftar Pemeliharaan Kendaraan dan menunggu persetujuan Anda. Terima kasih.`;
+
+                for (const kabid of kabidUsers) {
+                    if (kabid.phone) {
+                        await sendMessage(kabid.phone, msg);
+                    }
+                }
+            } catch (errService) {
+                console.error('[Checklist Auto-Service Ticket Error]:', errService.message);
+            }
+        }
+
         res.status(201).json({ message: 'Ceklis berhasil disimpan', data: checklist });
     } catch (err) {
         res.status(500).json({ error: err.message });

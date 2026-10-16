@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Car, Wrench, Calendar, Gauge, DollarSign, AlertCircle, Upload, Check, Plus, Trash2 } from 'lucide-react';
+import { X, Car, Wrench, Calendar, Gauge, DollarSign, AlertCircle, Upload, Check, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import api from '../../../lib/axios';
 
 const ROUTINE_COMPONENTS_BY_TYPE = {
@@ -26,7 +26,15 @@ function resolveCategory(vehicleType = '') {
     return 'GENERAL';
 }
 
-export default function VehicleMaintenanceRequestModal({ show, onClose, onSuccess, vehicles = [] }) {
+export default function VehicleMaintenanceRequestModal({ show, onClose, onSuccess, vehicles = [], currentUser }) {
+    const activeUser = currentUser || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {});
+    const userPosition = (activeUser?.position || '').toLowerCase();
+    const isStaffKeuangan = 
+        activeUser?.position === 'Staff Keuangan dan Administrasi' ||
+        userPosition.includes('staff keuangan dan administrasi') ||
+        userPosition.includes('keuangan dan administrasi') ||
+        userPosition.includes('staff keuangan');
+
     const [localVehicles, setLocalVehicles] = useState(vehicles);
     const [selectedVehicleId, setSelectedVehicleId] = useState('');
     const [category, setCategory] = useState('ROUTINE');
@@ -42,6 +50,11 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
     const [photoPreview, setPhotoPreview] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
+
+    // Fitur Anggaran Sudah Tersedia (Hanya untuk position 'Staff Keuangan dan Administrasi')
+    const [isBudgetAvailable, setIsBudgetAvailable] = useState(true);
+    const [budgetSource, setBudgetSource] = useState('Kas Operasional Kendaraan');
+    const [budgetNote, setBudgetNote] = useState('');
 
     useEffect(() => {
         if (vehicles && vehicles.length > 0) {
@@ -116,6 +129,15 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
             if (odometer) formData.append('odometer', odometer);
             if (estimatedCost) formData.append('estimatedCost', estimatedCost);
             if (workshop) formData.append('workshop', workshop);
+
+            // Khusus position: Staff Keuangan dan Administrasi
+            if (isStaffKeuangan) {
+                formData.append('isBudgetAvailable', isBudgetAvailable ? 'true' : 'false');
+                if (isBudgetAvailable) {
+                    if (budgetSource) formData.append('budgetSource', budgetSource);
+                    if (budgetNote) formData.append('budgetNote', budgetNote);
+                }
+            }
             
             // Format items
             const itemsData = selectedComponents.map(name => ({
@@ -361,6 +383,77 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
                             />
                         </div>
                     </div>
+
+                    {/* 5b. Khusus Position: Staff Keuangan dan Administrasi */}
+                    {isStaffKeuangan && (
+                        <div className="p-4 bg-gradient-to-br from-emerald-50/90 to-teal-50/70 border border-emerald-200/90 rounded-2xl space-y-3 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-xs">
+                                        <DollarSign size={16} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-bold text-emerald-950">Konfirmasi Ketersediaan Anggaran</h4>
+                                        <p className="text-[10px] text-emerald-700">Fitur khusus jabatan Staff Keuangan dan Administrasi</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] bg-white text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                                    Staff Keuangan &amp; Adm
+                                </span>
+                            </div>
+
+                            <label className="flex items-start gap-3 p-3 bg-white border border-emerald-200 rounded-xl cursor-pointer hover:bg-emerald-50/40 transition">
+                                <input
+                                    type="checkbox"
+                                    checked={isBudgetAvailable}
+                                    onChange={(e) => setIsBudgetAvailable(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-slate-800">Anggaran Sudah Tersedia</span>
+                                        {isBudgetAvailable && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                                <CheckCircle2 size={11} className="text-emerald-600" /> Terverifikasi
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                        Centang opsi ini jika anggaran/dana pemeliharaan kendaraan sudah dialokasikan dan siap dicairkan.
+                                    </p>
+                                </div>
+                            </label>
+
+                            {isBudgetAvailable && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                            Sumber / Pos Anggaran <span className="text-slate-400 font-normal">(Opsional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={budgetSource}
+                                            onChange={(e) => setBudgetSource(e.target.value)}
+                                            placeholder="Contoh: Kas Operasional Kendaraan"
+                                            className="w-full text-xs px-3 py-2 bg-white border border-emerald-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                            Catatan Keuangan <span className="text-slate-400 font-normal">(Opsional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={budgetNote}
+                                            onChange={(e) => setBudgetNote(e.target.value)}
+                                            placeholder="Contoh: Disetujui sesuai pagu bulan ini"
+                                            className="w-full text-xs px-3 py-2 bg-white border border-emerald-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* 6. Unggah Foto Bukti / Kondisi Kerusakan */}
                     <div>

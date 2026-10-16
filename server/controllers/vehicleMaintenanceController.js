@@ -11,11 +11,24 @@ exports.getAllMaintenanceLogs = async (req, res) => {
         const { id: userId, role } = req.user;
         let where = {};
 
-        const pos = (req.user?.position || '').toLowerCase();
-        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
-        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
+        // Ambil data user aktual dari database untuk mengantisipasi JWT token usang
+        const userDb = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true, position: true }
+        });
+        const activeRole = userDb?.role || role;
+        const pos = (userDb?.position || req.user?.position || '').toLowerCase();
+        const isKabidSarpras = activeRole === 'SUPER_ADMIN' || 
+                               activeRole === 'KABID_SARPRAS' || 
+                               pos.includes('kepala bidang sarana') || 
+                               pos.includes('kabid sarpras') || 
+                               pos.includes('sarana');
+        const isSarpras = activeRole === 'KEPALA_BIDANG' || 
+                          pos.includes('sarana dan prasarana') || 
+                          pos.includes('manajemen aset') || 
+                          isKabidSarpras;
 
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(activeRole) && !isSarpras) {
             where = {
                 vehicle: {
                     pics: {
@@ -35,18 +48,80 @@ exports.getAllMaintenanceLogs = async (req, res) => {
             }
         }
 
-        // Cleanup legacy auto-created pending incident or checklist records from maintenance logs if any exist
+        // Sinkronisasi otomatis: jika ada insiden di jalan (hasIncident) yang belum memiliki tiket servis
         try {
-            await prisma.vehicleService.deleteMany({
+            const orphanIncidents = await prisma.vehicleBooking.findMany({
                 where: {
-                    status: 'PENDING',
-                    OR: [
-                        { description: { contains: '[LAPORAN KERUSAKAN CEKLIS' } },
-                        { description: { contains: '[LAPORAN INSIDEN JALAN' } }
-                    ]
-                }
+                    hasIncident: true,
+                    maintenanceId: null
+                },
+                include: { vehicle: true, driver: true, user: true }
             });
-        } catch (_) {}
+
+            for (const b of orphanIncidents) {
+                const incidentCode = `PK/INS/${b.id.toString().padStart(4, '0')}`;
+                const newService = await prisma.vehicleService.create({
+                    data: {
+                        code: incidentCode,
+                        vehicleId: b.vehicleId,
+                        date: b.tripEndTime || b.endDate || new Date(),
+                        category: 'NON_ROUTINE',
+                        type: 'PERBAIKAN',
+                        description: `[LAPORAN INSIDEN JALAN] ${b.incidentNotes || 'Kerusakan kendaraan saat perjalanan'}`,
+                        cost: 0,
+                        odometer: b.endKm || null,
+                        status: 'PENDING',
+                        urgency: 'URGENT',
+                        complaintPhoto: b.incidentPhoto || null,
+                        proofFile: b.incidentPhoto || null,
+                        requesterId: b.driverId || b.userId || userId
+                    }
+                });
+                await prisma.vehicleBooking.update({
+                    where: { id: b.id },
+                    data: { maintenanceId: newService.id }
+                });
+            }
+        } catch (syncErr) {
+            console.error('[Sync Orphan Incidents Error]:', syncErr.message);
+        }
+
+        // Sinkronisasi otomatis: jika ada ceklis dengan status PERLU PERBAIKAN yang belum memiliki tiket servis
+        try {
+            const damageChecklists = await prisma.vehicleChecklist.findMany({
+                where: { status: 'PERLU PERBAIKAN' },
+                include: { vehicle: true }
+            });
+
+            for (const c of damageChecklists) {
+                const exists = await prisma.vehicleService.findFirst({
+                    where: {
+                        vehicleId: c.vehicleId,
+                        description: { contains: `[LAPORAN KERUSAKAN CEKLIS #${c.id}]` }
+                    }
+                });
+
+                if (!exists) {
+                    const cklCode = `PK/CKL/${c.id.toString().padStart(4, '0')}`;
+                    await prisma.vehicleService.create({
+                        data: {
+                            code: cklCode,
+                            vehicleId: c.vehicleId,
+                            date: c.date || c.createdAt || new Date(),
+                            category: 'NON_ROUTINE',
+                            type: 'PERBAIKAN',
+                            description: `[LAPORAN KERUSAKAN CEKLIS #${c.id}] Temuan inspeksi/ceklis: ${c.notes || 'Kondisi kendaraan memerlukan perbaikan/servis segera.'}`,
+                            cost: 0,
+                            status: 'PENDING',
+                            urgency: 'URGENT',
+                            requesterId: c.driverId || userId
+                        }
+                    });
+                }
+            }
+        } catch (cklErr) {
+            console.error('[Sync Damage Checklists Error]:', cklErr.message);
+        }
 
         const logs = await prisma.vehicleService.findMany({
             where,
@@ -80,12 +155,24 @@ exports.getMaintenanceLogById = async (req, res) => {
 
         if (!log) return res.status(404).json({ error: 'Log tidak ditemukan' });
 
-        // Access Check
-        const pos = (req.user?.position || '').toLowerCase();
-        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
-        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
+        // Access Check live from DB
+        const userDb = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true, position: true }
+        });
+        const activeRole = userDb?.role || role;
+        const pos = (userDb?.position || req.user?.position || '').toLowerCase();
+        const isKabidSarpras = activeRole === 'SUPER_ADMIN' || 
+                               activeRole === 'KABID_SARPRAS' || 
+                               pos.includes('kepala bidang sarana') || 
+                               pos.includes('kabid sarpras') || 
+                               pos.includes('sarana');
+        const isSarpras = activeRole === 'KEPALA_BIDANG' || 
+                          pos.includes('sarana dan prasarana') || 
+                          pos.includes('manajemen aset') || 
+                          isKabidSarpras;
 
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(activeRole) && !isSarpras) {
             const isPic = log.vehicle.pics.some(p => p.id === userId);
             if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki akses ke log kendaraan ini.' });
         }
@@ -363,6 +450,9 @@ exports.createMaintenanceRequest = async (req, res) => {
             odometer,
             workshop,
             items,
+            isBudgetAvailable,
+            budgetSource,
+            budgetNote,
         } = req.body;
 
         if (!vehicleId || !description) {
@@ -398,6 +488,16 @@ exports.createMaintenanceRequest = async (req, res) => {
 
         const complaintPhoto = req.fileUrl || req.body.complaintPhoto || null;
 
+        // Keterangan ketersediaan anggaran dari Staff Keuangan dan Administrasi
+        let finalDescription = description;
+        const budgetAvailableBool = isBudgetAvailable === 'true' || isBudgetAvailable === true;
+        if (budgetAvailableBool) {
+            const budgetExtra = `\n\n💰 [Status Anggaran: Sudah Tersedia | Sumber: ${budgetSource || 'Kas Operasional'}${budgetNote ? ' | Catatan: ' + budgetNote : ''}]`;
+            if (!finalDescription.includes('Status Anggaran: Sudah Tersedia')) {
+                finalDescription += budgetExtra;
+            }
+        }
+
         const serviceRequest = await prisma.vehicleService.create({
             data: {
                 code,
@@ -405,7 +505,7 @@ exports.createMaintenanceRequest = async (req, res) => {
                 date: new Date(),
                 category,
                 type,
-                description,
+                description: finalDescription,
                 urgency,
                 status: 'PENDING',
                 cost: 0,
@@ -436,6 +536,9 @@ exports.createMaintenanceRequest = async (req, res) => {
 
                 const requesterName = serviceRequest.requester?.name || serviceRequest.requester?.username || 'Staff Kendaraan';
                 const estCostFormatted = estimatedCost ? 'Rp ' + parseFloat(estimatedCost).toLocaleString('id-ID') : '-';
+                const budgetStatusFormatted = budgetAvailableBool 
+                    ? `✅ *Sudah Tersedia* (${budgetSource || 'Kas Operasional'}${budgetNote ? ' - ' + budgetNote : ''})` 
+                    : `Menunggu Konfirmasi`;
 
                 const msgKabid = `🚗 *PENGAJUAN PEMELIHARAAN KENDARAAN BARU*\n\n` +
                     `Kode: *${code}*\n` +
@@ -444,6 +547,7 @@ exports.createMaintenanceRequest = async (req, res) => {
                     `Tipe: *${type}* (${category === 'ROUTINE' ? 'Rutin' : 'Insidentil/Perbaikan'})\n` +
                     `Urgensi: *${urgency}*\n` +
                     `Estimasi Biaya: *${estCostFormatted}*\n` +
+                    (budgetAvailableBool ? `Status Anggaran: *${budgetStatusFormatted}*\n` : '') +
                     `Keluhan: _${description}_\n\n` +
                     `Mohon untuk ditinjau dan disetujui melalui Aplikasi Manajemen Aset. Terima kasih.`;
 
@@ -474,6 +578,7 @@ exports.createMaintenanceRequest = async (req, res) => {
                     `• Tipe: *${type}* (${category === 'ROUTINE' ? 'Rutin' : 'Insidentil/Perbaikan'})\n` +
                     `• Urgensi: *${urgency}*\n` +
                     `• *Estimasi Biaya*: *${estCostFormatted}*\n` +
+                    (budgetAvailableBool ? `• *Status Anggaran*: *Sudah Tersedia* (${budgetSource || 'Kas Operasional'}${budgetNote ? ' - ' + budgetNote : ''})\n` : '') +
                     `• Keluhan / Rincian: _${description}_\n\n` +
                     `Pemberitahuan ini diteruskan kepada Bagian Keuangan dan Administrasi untuk pencatatan dan monitoring rencana biaya pemeliharaan. Terima kasih.`;
 
@@ -513,7 +618,11 @@ exports.approveMaintenanceRequest = async (req, res) => {
             select: { id: true, name: true, username: true, role: true, position: true, phone: true }
         });
         const userPosition = (currentUser?.position || '').toLowerCase();
-        const isKabidSarana = userPosition.includes('kepala bidang sarana');
+        const isKabidSarana = currentUser?.role === 'SUPER_ADMIN' ||
+                              currentUser?.role === 'KABID_SARPRAS' ||
+                              userPosition.includes('kepala bidang sarana') ||
+                              userPosition.includes('kabid sarpras') ||
+                              userPosition.includes('sarana');
 
         if (!isKabidSarana) {
             return res.status(403).json({
@@ -690,7 +799,11 @@ exports.rejectMaintenanceRequest = async (req, res) => {
             select: { id: true, name: true, username: true, role: true, position: true }
         });
         const userPosition = (currentUser?.position || '').toLowerCase();
-        const isKabidSarana = userPosition.includes('kepala bidang sarana');
+        const isKabidSarana = currentUser?.role === 'SUPER_ADMIN' ||
+                              currentUser?.role === 'KABID_SARPRAS' ||
+                              userPosition.includes('kepala bidang sarana') ||
+                              userPosition.includes('kabid sarpras') ||
+                              userPosition.includes('sarana');
 
         if (!isKabidSarana) {
             return res.status(403).json({

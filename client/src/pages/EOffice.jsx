@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import dayjs from 'dayjs';
 import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save, MessageSquare, Phone, Users, ListOrdered } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 import ProcurementAssignmentOrderModal from '../components/ProcurementAssignmentOrderModal';
@@ -2661,6 +2664,7 @@ const EOffice = () => {
     const [dispositionTargetDoc, setDispositionTargetDoc] = useState(null);
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [selectedAssignmentOrder, setSelectedAssignmentOrder] = useState(null);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'KEPALA_BIDANG' || user?.role === 'SUPER_ADMIN';
@@ -2917,12 +2921,22 @@ const EOffice = () => {
                     </h1>
                     <p className="text-slate-500 font-medium text-xs sm:text-base hidden sm:block">Manajemen Dokumen & Tanda Tangan Elektronik</p>
                 </div>
-                <button
-                    onClick={() => setIsTypeModalOpen(true)}
-                    className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0"
-                >
-                    <Plus size={16} /> <span className="hidden sm:inline">Buat Dokumen</span><span className="sm:hidden">Buat</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setIsReportModalOpen(true)}
+                        className="bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-2xs hover:shadow-sm transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer"
+                        title="Ekspor rekapitulasi surat masuk dan keluar per jenis surat berdasarkan rentang tanggal"
+                    >
+                        <Download size={16} className="text-blue-600" />
+                        <span>Ekspor Laporan</span>
+                    </button>
+                    <button
+                        onClick={() => setIsTypeModalOpen(true)}
+                        className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer"
+                    >
+                        <Plus size={16} /> <span className="hidden sm:inline">Buat Dokumen</span><span className="sm:hidden">Buat</span>
+                    </button>
+                </div>
             </div>
 
             <div className="flex items-center gap-1 bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-x-auto max-w-full" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
@@ -3046,6 +3060,10 @@ const EOffice = () => {
                 isOpen={isAgendaModalOpen}
                 onClose={() => setIsAgendaModalOpen(false)}
                 defaultType={tab === 'surat-masuk' ? 'SURAT_MASUK' : 'SURAT_KELUAR'}
+            />
+            <OfficeReportModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
             />
 
             {submitApprovalData && (
@@ -5927,6 +5945,636 @@ const AgendaRegisterModal = ({ isOpen, onClose, defaultType = 'SURAT_MASUK' }) =
                             Tidak ada data surat pada periode yang dipilih
                         </div>
                     )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Modal for Range-Based E-Office Letter Reports (Surat Masuk & Surat Keluar + Breakdown per Jenis Surat)
+ */
+const OfficeReportModal = ({ isOpen, onClose }) => {
+    const [startDate, setStartDate] = useState(dayjs().startOf('month').format('YYYY-MM-DD'));
+    const [endDate, setEndDate] = useState(dayjs().endOf('month').format('YYYY-MM-DD'));
+    const [loading, setLoading] = useState(false);
+    const [reportData, setReportData] = useState(null);
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchReport();
+        }
+    }, [isOpen]);
+
+    const fetchReport = async (s = startDate, e = endDate) => {
+        try {
+            setLoading(true);
+            const params = {};
+            if (s) params.startDate = s;
+            if (e) params.endDate = e;
+            const res = await api.get('/office-documents/report/range', { params });
+            setReportData(res.data);
+        } catch (err) {
+            console.error('Failed to load office range report:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    const totalIncoming = reportData?.totalIncoming || 0;
+    const totalOutgoing = reportData?.totalOutgoing || 0;
+    const breakdown = reportData?.outgoingTypeBreakdown || [];
+    const statusMap = reportData?.outgoingByStatus || {};
+    const incomingDocs = reportData?.incomingDocs || [];
+    const outgoingDocs = reportData?.outgoingDocs || [];
+
+    const handleExportExcel = () => {
+        try {
+            // Sheet 1: Ringkasan
+            const summaryData = [
+                { 'PARAMETER LAPORAN': 'Periode Laporan', 'NILAI / JUMLAH': `${startDate ? dayjs(startDate).format('DD/MM/YYYY') : 'Awal'} s.d. ${endDate ? dayjs(endDate).format('DD/MM/YYYY') : 'Sekarang'}` },
+                { 'PARAMETER LAPORAN': '1. Jumlah Surat Masuk', 'NILAI / JUMLAH': totalIncoming },
+                { 'PARAMETER LAPORAN': '2. Total Surat Keluar', 'NILAI / JUMLAH': totalOutgoing },
+                { 'PARAMETER LAPORAN': 'Surat Keluar Bertanda Tangan (SIGNED)', 'NILAI / JUMLAH': statusMap.SIGNED || 0 },
+                { 'PARAMETER LAPORAN': 'Surat Keluar Menunggu TTE', 'NILAI / JUMLAH': statusMap.PENDING_APPROVAL || 0 },
+                { 'PARAMETER LAPORAN': 'Surat Keluar Draft', 'NILAI / JUMLAH': statusMap.DRAFT || 0 },
+                { 'PARAMETER LAPORAN': '', 'NILAI / JUMLAH': '' },
+                { 'PARAMETER LAPORAN': '--- RINCIAN SURAT KELUAR PER JENIS SURAT ---', 'NILAI / JUMLAH': '' },
+                ...breakdown.map((b, idx) => ({
+                    'PARAMETER LAPORAN': `${idx + 1}. ${b.category}`,
+                    'NILAI / JUMLAH': `${b.count} Dokumen (${b.percentage}%)`
+                }))
+            ];
+
+            // Sheet 2: Surat Keluar
+            const outgoingRows = outgoingDocs.map((doc, idx) => ({
+                'No': idx + 1,
+                'Nomor Surat': doc.number || 'DRAFT',
+                'Tanggal Surat': doc.date ? dayjs(doc.date).format('DD/MM/YYYY') : '-',
+                'Jenis Surat (Kategori)': doc.category || doc.type || 'Lainnya',
+                'Tujuan / Penerima': doc.party2Name ? `${doc.party2Name} (${doc.party2Org || doc.party2Address || '-'})` : '-',
+                'Perihal / Subjek': doc.subject || '-',
+                'Konseptor / Pembuat': doc.author?.name || '-',
+                'Penandatangan': doc.signedBy?.name || '-',
+                'Status TTE': doc.status || 'DRAFT'
+            }));
+
+            // Sheet 3: Surat Masuk
+            const incomingRows = incomingDocs.map((doc, idx) => ({
+                'No': idx + 1,
+                'Nomor Agenda': doc.number || `SM-${doc.id}`,
+                'Tanggal Diterima': doc.receivedDate ? dayjs(doc.receivedDate).format('DD/MM/YYYY') : '-',
+                'Nomor Surat Pengirim': doc.referenceNumber || '-',
+                'Tanggal Surat Asal': doc.date ? dayjs(doc.date).format('DD/MM/YYYY') : '-',
+                'Asal / Pengirim': `${doc.senderName || '-'} ${doc.senderOrg ? `(${doc.senderOrg})` : ''}`,
+                'Perihal Surat': doc.subject || '-',
+                'Disposisi Pimpinan': doc.dispositions?.length > 0 
+                    ? doc.dispositions.map(d => `${d.toUser?.name} (${d.instruction || '-'})`).join('; ')
+                    : 'Belum Didisposisi'
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan_Persuratan');
+
+            if (outgoingRows.length > 0) {
+                const wsOutgoing = XLSX.utils.json_to_sheet(outgoingRows);
+                XLSX.utils.book_append_sheet(wb, wsOutgoing, 'Surat_Keluar');
+            }
+
+            if (incomingRows.length > 0) {
+                const wsIncoming = XLSX.utils.json_to_sheet(incomingRows);
+                XLSX.utils.book_append_sheet(wb, wsIncoming, 'Surat_Masuk');
+            }
+
+            XLSX.writeFile(wb, `Laporan_Persuratan_EOffice_${startDate || 'All'}_sd_${endDate || 'All'}.xlsx`);
+        } catch (err) {
+            console.error('Failed to export E-Office Excel:', err);
+            alert('Gagal mengekspor berkas Excel: ' + err.message);
+        }
+    };
+
+    const handleExportPDF = () => {
+        try {
+            setExportingPdf(true);
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+
+            // Kop Surat Yayasan
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.setTextColor(15, 23, 42);
+            doc.text('YAYASAN DAR EL IMAN', pageW / 2, 13, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setTextColor(30, 58, 138); // blue-900
+            doc.text('BIDANG SARANA', pageW / 2, 18, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Jl. Gunung Juaro, Kel. Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat', pageW / 2, 22.5, { align: 'center' });
+
+            doc.setDrawColor(15, 23, 42);
+            doc.setLineWidth(0.6);
+            doc.line(14, 25.5, pageW - 14, 25.5);
+            doc.setLineWidth(0.2);
+            doc.line(14, 26.5, pageW - 14, 26.5);
+
+            // Document Title
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(15, 23, 42);
+            doc.text('LAPORAN REKAPITULASI SURAT MASUK & SURAT KELUAR', pageW / 2, 33, { align: 'center' });
+
+            const sDateFormatted = startDate ? dayjs(startDate).format('DD MMMM YYYY') : 'Awal';
+            const eDateFormatted = endDate ? dayjs(endDate).format('DD MMMM YYYY') : 'Sekarang';
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Periode: ${sDateFormatted} s.d. ${eDateFormatted}`, pageW / 2, 37.5, { align: 'center' });
+
+            // KPI Box
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(14, 41, pageW - 28, 11, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(30, 41, 59);
+            doc.text(`1. Jumlah Surat Masuk: ${totalIncoming}`, 20, 47.5);
+            doc.text(`2. Total Surat Keluar: ${totalOutgoing}`, 85, 47.5);
+            doc.text(`Telah Ditandatangani: ${statusMap.SIGNED || 0}`, 155, 47.5);
+            doc.text(`Dicetak: ${dayjs().format('DD/MM/YYYY HH:mm')}`, 235, 47.5);
+
+            let currentY = 56;
+
+            // SECTION 1: Rincian Surat Keluar per Jenis Surat
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(15, 23, 42);
+            doc.text('A. Rincian Surat Keluar Berdasarkan Jenis Surat', 14, currentY);
+
+            const breakdownHeaders = [['No', 'Jenis Surat / Kategori', 'Jumlah Dokumen', 'Persentase (%)']];
+            const breakdownRows = breakdown.map((b, i) => [
+                i + 1,
+                b.category,
+                `${b.count} Surat`,
+                `${b.percentage}%`
+            ]);
+
+            autoTable(doc, {
+                startY: currentY + 3,
+                head: breakdownHeaders,
+                body: breakdownRows.length > 0 ? breakdownRows : [[1, 'Tidak ada surat keluar', '0', '0%']],
+                theme: 'grid',
+                styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [15, 23, 42], lineWidth: 0.1 },
+                headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 12 },
+                    1: { cellWidth: 100, fontStyle: 'bold' },
+                    2: { halign: 'center', cellWidth: 50 },
+                    3: { halign: 'center', cellWidth: 40 }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            currentY = doc.lastAutoTable.finalY + 8;
+
+            // SECTION 2: Tabel Dokumen Surat Keluar
+            if (currentY + 25 > pageH) {
+                doc.addPage();
+                currentY = 20;
+            }
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(15, 23, 42);
+            doc.text('B. Daftar Dokumen Surat Keluar pada Periode Tersebut', 14, currentY);
+
+            const outgoingTableHeaders = [['No', 'Nomor Surat', 'Tanggal', 'Jenis / Kategori', 'Tujuan / Penerima', 'Perihal Surat', 'Status TTE']];
+            const outgoingTableRows = outgoingDocs.map((d, i) => [
+                i + 1,
+                d.number || 'DRAFT',
+                d.date ? dayjs(d.date).format('DD/MM/YYYY') : '-',
+                d.category || d.type || 'Lainnya',
+                d.party2Name || '-',
+                d.subject || '-',
+                d.status || 'DRAFT'
+            ]);
+
+            autoTable(doc, {
+                startY: currentY + 3,
+                head: outgoingTableHeaders,
+                body: outgoingTableRows.length > 0 ? outgoingTableRows : [[1, '-', '-', '-', '-', 'Belum ada surat keluar pada periode ini', '-']],
+                theme: 'grid',
+                styles: { fontSize: 7, cellPadding: 2, textColor: [15, 23, 42], lineWidth: 0.1 },
+                headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 10 },
+                    1: { cellWidth: 45, fontStyle: 'bold' },
+                    2: { halign: 'center', cellWidth: 22 },
+                    3: { cellWidth: 30 },
+                    4: { cellWidth: 45 },
+                    5: { cellWidth: 'auto' },
+                    6: { halign: 'center', cellWidth: 25 }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            currentY = doc.lastAutoTable.finalY + 8;
+
+            // SECTION 3: Tabel Dokumen Surat Masuk (jika ada)
+            if (totalIncoming > 0) {
+                if (currentY + 25 > pageH) {
+                    doc.addPage();
+                    currentY = 20;
+                }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(15, 23, 42);
+                doc.text(`C. Daftar Dokumen Surat Masuk (${totalIncoming} Surat Diterima)`, 14, currentY);
+
+                const incomingTableHeaders = [['No', 'No. Agenda', 'Tgl Terima', 'Nomor Surat Asal', 'Asal / Pengirim', 'Perihal Surat', 'Disposisi']];
+                const incomingTableRows = incomingDocs.map((d, i) => [
+                    i + 1,
+                    d.number || `SM-${d.id}`,
+                    d.receivedDate ? dayjs(d.receivedDate).format('DD/MM/YYYY') : '-',
+                    d.referenceNumber || '-',
+                    d.senderName ? `${d.senderName} ${d.senderOrg ? `(${d.senderOrg})` : ''}` : '-',
+                    d.subject || '-',
+                    d.dispositions?.length > 0 ? `${d.dispositions.length} Disposisi` : 'Belum Didisposisi'
+                ]);
+
+                autoTable(doc, {
+                    startY: currentY + 3,
+                    head: incomingTableHeaders,
+                    body: incomingTableRows,
+                    theme: 'grid',
+                    styles: { fontSize: 7, cellPadding: 2, textColor: [15, 23, 42], lineWidth: 0.1 },
+                    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+                    columnStyles: {
+                        0: { halign: 'center', cellWidth: 10 },
+                        1: { cellWidth: 30, fontStyle: 'bold' },
+                        2: { halign: 'center', cellWidth: 22 },
+                        3: { cellWidth: 35 },
+                        4: { cellWidth: 50 },
+                        5: { cellWidth: 'auto' },
+                        6: { halign: 'center', cellWidth: 30 }
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 8;
+            }
+
+            // Signature block (Digital TTE Kepala Bidang Sarana)
+            const signBoxW = 72;
+            const signBoxH = 26;
+            const signBoxX = pageW - signBoxW - 14;
+            if (currentY + 45 > pageH) {
+                doc.addPage();
+                currentY = 20;
+            }
+            const signY = currentY + 6;
+
+            doc.setFontSize(8.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(`Padang, ${dayjs().format('DD MMMM YYYY')}`, signBoxX + (signBoxW / 2), signY, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+            doc.text('Kepala Bidang Sarana', signBoxX + (signBoxW / 2), signY + 4.5, { align: 'center' });
+
+            // TTE Box
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.3);
+            doc.roundedRect(signBoxX, signY + 7, signBoxW, signBoxH, 2, 2, 'FD');
+
+            doc.setFillColor(16, 185, 129);
+            doc.roundedRect(signBoxX + 1.5, signY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.2);
+            doc.setTextColor(5, 150, 105);
+            doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', signBoxX + 7, signY + 13);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', signBoxX + 7, signY + 17.5);
+            doc.text('Yayasan Dar el Iman Padang', signBoxX + 7, signY + 21.5);
+
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(6);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`ID: TTE-${dayjs().format('YYYYMMDD')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, signBoxX + 7, signY + 25.5);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8.5);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Ravi Kurnia, S.T.', signBoxX + (signBoxW / 2), signY + 38, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Kepala Bidang Sarana', signBoxX + (signBoxW / 2), signY + 42, { align: 'center' });
+
+            // Page numbers
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(7.5);
+                doc.setTextColor(148, 163, 184);
+                doc.text(`Halaman ${i} dari ${pageCount}`, pageW - 14, pageH - 8, { align: 'right' });
+                doc.text('Sistem Informasi Manajemen Persuratan & E-Office Yayasan Dar El Iman', 14, pageH - 8);
+            }
+
+            doc.save(`Laporan_Persuratan_EOffice_${startDate || 'All'}_sd_${endDate || 'All'}.pdf`);
+        } catch (err) {
+            console.error('Failed to export E-Office PDF:', err);
+            alert('Gagal mengekspor dokumen PDF: ' + err.message);
+        } finally {
+            setExportingPdf(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-100 animate-in zoom-in-95">
+                {/* Header */}
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
+                            <FileSignature size={22} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-900 text-base sm:text-lg">Ekspor Laporan Persuratan E-Office</h3>
+                            <p className="text-xs text-slate-500 font-medium">Rekapitulasi jumlah surat masuk dan surat keluar (total & per jenis surat)</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-white/80 transition cursor-pointer">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                    {/* Date Presets & Inputs */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-black text-slate-700 uppercase tracking-wider">Rentang Tanggal Laporan:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const s = dayjs().startOf('month').format('YYYY-MM-DD');
+                                        const e = dayjs().endOf('month').format('YYYY-MM-DD');
+                                        setStartDate(s);
+                                        setEndDate(e);
+                                        fetchReport(s, e);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition cursor-pointer"
+                                >
+                                    Bulan Ini
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const s = dayjs().subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+                                        const e = dayjs().subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
+                                        setStartDate(s);
+                                        setEndDate(e);
+                                        fetchReport(s, e);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition cursor-pointer"
+                                >
+                                    Bulan Lalu
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const s = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                                        const e = dayjs().format('YYYY-MM-DD');
+                                        setStartDate(s);
+                                        setEndDate(e);
+                                        fetchReport(s, e);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition cursor-pointer"
+                                >
+                                    30 Hari Terakhir
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const s = dayjs().startOf('year').format('YYYY-MM-DD');
+                                        const e = dayjs().endOf('year').format('YYYY-MM-DD');
+                                        setStartDate(s);
+                                        setEndDate(e);
+                                        fetchReport(s, e);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition cursor-pointer"
+                                >
+                                    Tahun {dayjs().year()}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStartDate('');
+                                        setEndDate('');
+                                        fetchReport('', '');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 transition cursor-pointer"
+                                >
+                                    Semua Periode
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 pt-1">
+                            <div className="w-full sm:w-1/2">
+                                <label className="text-[11px] font-bold text-slate-500 block mb-1">Dari Tanggal</label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="w-full sm:w-1/2">
+                                <label className="text-[11px] font-bold text-slate-500 block mb-1">Sampai Tanggal</label>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="self-end w-full sm:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => fetchReport(startDate, endDate)}
+                                    disabled={loading}
+                                    className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                >
+                                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                                    <span>Terapkan</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Ringkasan Metrik (Surat Masuk & Total Surat Keluar) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-2xs flex items-center gap-3.5">
+                            <div className="p-3 bg-blue-100 text-blue-700 rounded-2xl">
+                                <Inbox size={24} />
+                            </div>
+                            <div>
+                                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">1. Surat Masuk</div>
+                                <div className="text-2xl font-black text-blue-700">
+                                    {loading ? '...' : totalIncoming}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-medium">
+                                    {totalIncoming === 0 ? 'Tidak ada surat masuk' : `${totalIncoming} surat diterima`}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-2xs flex items-center gap-3.5">
+                            <div className="p-3 bg-emerald-100 text-emerald-700 rounded-2xl">
+                                <Send size={24} />
+                            </div>
+                            <div>
+                                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">2. Total Surat Keluar</div>
+                                <div className="text-2xl font-black text-emerald-700">
+                                    {loading ? '...' : totalOutgoing}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-medium">
+                                    {statusMap.SIGNED || 0} telah ditandatangani
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl border border-indigo-200/80 shadow-2xs flex items-center gap-3.5">
+                            <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl">
+                                <Tag size={24} />
+                            </div>
+                            <div>
+                                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jenis Surat Terbanyak</div>
+                                <div className="text-lg font-black text-slate-800 truncate max-w-[170px]" title={breakdown[0]?.category || '-'}>
+                                    {loading ? '...' : (breakdown[0]?.category || '-')}
+                                </div>
+                                <div className="text-[10px] text-indigo-600 font-medium">
+                                    {breakdown[0] ? `${breakdown[0].count} surat (${breakdown[0].percentage}%)` : '-'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Breakdown Bagi Per Jenis Surat */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                Rincian Surat Keluar Bagi per Jenis Surat
+                            </h4>
+                            <span className="text-[11px] font-bold text-slate-500">
+                                Total: {breakdown.length} Jenis Dokumen
+                            </span>
+                        </div>
+
+                        {loading ? (
+                            <div className="p-8 text-center text-slate-400">
+                                <Loader2 size={24} className="animate-spin mx-auto text-blue-600 mb-2" />
+                                <span className="text-xs">Menghitung rekapitulasi persuratan...</span>
+                            </div>
+                        ) : breakdown.length === 0 ? (
+                            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs italic">
+                                Belum ada surat keluar pada rentang tanggal yang dipilih.
+                            </div>
+                        ) : (
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                                        <tr>
+                                            <th className="p-3 w-12 text-center">No</th>
+                                            <th className="p-3">Jenis Surat / Kategori</th>
+                                            <th className="p-3 w-32 text-center">Jumlah Surat</th>
+                                            <th className="p-3 w-48">Proporsi</th>
+                                            <th className="p-3 w-24 text-center">Persentase</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {breakdown.map((item, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/70 transition">
+                                                <td className="p-3 text-center font-bold text-slate-400">{idx + 1}</td>
+                                                <td className="p-3 font-black text-slate-800">
+                                                    <span>{item.category}</span>
+                                                    {CATEGORY_CODES_PREVIEW[item.category] && (
+                                                        <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 text-slate-600 font-bold">
+                                                            {CATEGORY_CODES_PREVIEW[item.category]}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3 text-center font-black text-emerald-700">
+                                                    {item.count} Dokumen
+                                                </td>
+                                                <td className="p-3">
+                                                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                                            style={{ width: `${item.percentage}%` }}
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                        {item.percentage}%
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 text-slate-500 hover:text-slate-700 text-xs font-bold transition cursor-pointer"
+                    >
+                        Tutup
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            disabled={loading || (totalIncoming === 0 && totalOutgoing === 0)}
+                            onClick={handleExportExcel}
+                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                        >
+                            <Download size={15} /> <span>Ekspor Excel</span>
+                        </button>
+                        <button
+                            type="button"
+                            disabled={loading || exportingPdf || (totalIncoming === 0 && totalOutgoing === 0)}
+                            onClick={handleExportPDF}
+                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
+                        >
+                            {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
+                            <span>Cetak / Unduh PDF</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

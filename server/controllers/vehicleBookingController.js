@@ -728,6 +728,33 @@ exports.endTrip = async (req, res) => {
             }
         }
 
+        let createdMaintenanceId = null;
+        if (isIncident) {
+            try {
+                const incCode = `PK/INS/${Date.now().toString().slice(-6)}`;
+                const newService = await prisma.vehicleService.create({
+                    data: {
+                        code: incCode,
+                        vehicleId: booking.vehicleId,
+                        date: new Date(),
+                        category: 'NON_ROUTINE',
+                        type: 'PERBAIKAN',
+                        description: `[LAPORAN INSIDEN JALAN] ${incidentNotes || 'Kerusakan kendaraan saat perjalanan dinas'}`,
+                        cost: 0,
+                        odometer: parseInt(endKm) || null,
+                        status: 'PENDING',
+                        urgency: 'URGENT',
+                        complaintPhoto: photoUrl || null,
+                        proofFile: photoUrl || null,
+                        requesterId: booking.driverId || booking.userId || req.user.id
+                    }
+                });
+                createdMaintenanceId = newService.id;
+            } catch (errInc) {
+                console.error('[EndTrip Incident Service Create Error]:', errInc.message);
+            }
+        }
+
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
             data: {
@@ -742,7 +769,7 @@ exports.endTrip = async (req, res) => {
                 hasIncident: isIncident,
                 incidentPhoto: isIncident ? photoUrl : null,
                 incidentNotes: isIncident ? incidentNotes : null,
-                maintenanceId: null,
+                maintenanceId: createdMaintenanceId,
                 status: 'COMPLETED'
             }
         });

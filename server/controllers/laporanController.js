@@ -802,6 +802,7 @@ exports.getWeeklySummary = async (req, res) => {
         let totalInProgress = 0;
         let totalObstacles = 0;
         const obstacleList = [];
+        const positionMap = {};
 
         while (curr.isBefore(endDate.endOf('day'))) {
             const dateStr = curr.format('YYYY-MM-DD');
@@ -809,6 +810,20 @@ exports.getWeeklySummary = async (req, res) => {
 
             const activities = [];
             dayReports.forEach(r => {
+                const posName = r.user?.position || 'Staf Sarana & Prasarana';
+                if (!positionMap[posName]) {
+                    positionMap[posName] = {
+                        position: posName,
+                        totalCompleted: 0,
+                        totalInProgress: 0,
+                        totalObstacles: 0,
+                        totalActivities: 0,
+                        taskSummaries: new Set(),
+                        categories: new Set(),
+                        obstacles: []
+                    };
+                }
+
                 const pts = r.metadata?.manualPoints;
                 const m = pts?.morning || pts?.morningPoints || [];
                 const a = pts?.afternoon || pts?.afternoonPoints || [];
@@ -824,8 +839,8 @@ exports.getWeeklySummary = async (req, res) => {
                                 photoUrl: url.trim(),
                                 date: curr.format('dddd, DD MMMM YYYY'),
                                 dateShort: curr.format('DD/MM'),
-                                staffName: r.user?.name || 'Staf',
-                                position: r.user?.position || 'Bidang Sarana',
+                                staffName: posName, // Mask personal name with position
+                                position: posName,
                                 categoryTag: item.categoryTag || 'UMUM',
                                 activity: item.text || 'Dokumentasi Lapangan',
                                 status: item.status || 'COMPLETED',
@@ -836,21 +851,40 @@ exports.getWeeklySummary = async (req, res) => {
 
                     if (item.text || photos.length > 0) {
                         const status = item.status || 'COMPLETED';
-                        if (status === 'COMPLETED') totalCompleted++;
-                        else if (status === 'IN_PROGRESS') totalInProgress++;
-                        else if (status === 'OBSTACLE') {
+                        positionMap[posName].totalActivities++;
+                        if (status === 'COMPLETED') {
+                            totalCompleted++;
+                            positionMap[posName].totalCompleted++;
+                        } else if (status === 'IN_PROGRESS') {
+                            totalInProgress++;
+                            positionMap[posName].totalInProgress++;
+                        } else if (status === 'OBSTACLE') {
                             totalObstacles++;
+                            positionMap[posName].totalObstacles++;
                             obstacleList.push({
                                 date: curr.format('DD/MM/YYYY'),
-                                staffName: r.user?.name,
+                                position: posName, // Only position, no staff personal name
                                 activity: item.text || 'Kendala Lapangan',
                                 obstacleNote: item.obstacleNote || 'Kendala'
                             });
+                            positionMap[posName].obstacles.push({
+                                date: curr.format('DD/MM/YYYY'),
+                                note: item.obstacleNote || 'Kendala',
+                                task: item.text || 'Tugas operasional'
+                            });
+                        }
+
+                        if (item.categoryTag) {
+                            positionMap[posName].categories.add(item.categoryTag);
+                        }
+
+                        if (item.text && item.text.trim()) {
+                            const trimmedText = item.text.trim();
+                            positionMap[posName].taskSummaries.add(trimmedText);
                         }
 
                         activities.push({
-                            staffName: r.user?.name,
-                            position: r.user?.position,
+                            position: posName,
                             categoryTag: item.categoryTag || 'UMUM',
                             activity: item.text || '(Dokumentasi Foto Lapangan)',
                             status,
@@ -871,6 +905,18 @@ exports.getWeeklySummary = async (req, res) => {
             curr = curr.add(1, 'day');
         }
 
+        const positionSummary = Object.values(positionMap).map(p => ({
+            position: p.position,
+            totalCompleted: p.totalCompleted,
+            totalInProgress: p.totalInProgress,
+            totalObstacles: p.totalObstacles,
+            totalActivities: p.totalActivities,
+            completionRate: p.totalActivities > 0 ? Math.round((p.totalCompleted / p.totalActivities) * 100) : 0,
+            categories: Array.from(p.categories),
+            keyTasks: Array.from(p.taskSummaries),
+            obstacles: p.obstacles
+        })).sort((a, b) => b.totalActivities - a.totalActivities);
+
         res.json({
             success: true,
             kabid: {
@@ -889,6 +935,7 @@ exports.getWeeklySummary = async (req, res) => {
                 totalObstacles,
                 totalAll: totalCompleted + totalInProgress + totalObstacles
             },
+            positionSummary,
             dailyDivisionBreakdown,
             obstacleList,
             documentationPhotos

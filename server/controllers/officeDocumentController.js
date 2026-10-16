@@ -1857,3 +1857,112 @@ exports.getAgendaRegister = async (req, res) => {
         res.status(500).json({ error: 'Gagal memuat buku agenda surat' });
     }
 };
+
+/**
+ * GET /api/office-documents/report/range
+ * Aggregated report of incoming and outgoing letters by date range.
+ */
+exports.getRangeReport = async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        let dateFilter = {};
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter = { gte: start, lte: end };
+        } else if (startDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            dateFilter = { gte: start };
+        } else if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter = { lte: end };
+        }
+
+        // 1. Incoming letters (SURAT_MASUK)
+        const incomingWhere = { type: 'SURAT_MASUK' };
+        if (Object.keys(dateFilter).length > 0) {
+            incomingWhere.OR = [
+                { receivedDate: dateFilter },
+                { date: dateFilter }
+            ];
+        }
+
+        // 2. Outgoing letters (All types other than SURAT_MASUK)
+        const outgoingWhere = { type: { not: 'SURAT_MASUK' } };
+        if (Object.keys(dateFilter).length > 0) {
+            outgoingWhere.date = dateFilter;
+        }
+
+        const [incomingDocs, outgoingDocs] = await Promise.all([
+            prisma.officeDocument.findMany({
+                where: incomingWhere,
+                include: {
+                    author: { select: { id: true, name: true, position: true } },
+                    dispositions: {
+                        include: {
+                            toUser: { select: { id: true, name: true, position: true } }
+                        }
+                    }
+                },
+                orderBy: { date: 'desc' }
+            }),
+            prisma.officeDocument.findMany({
+                where: outgoingWhere,
+                include: {
+                    author: { select: { id: true, name: true, position: true } },
+                    signedBy: { select: { id: true, name: true, position: true } }
+                },
+                orderBy: { date: 'desc' }
+            })
+        ]);
+
+        // Aggregate outgoing by letter type (category / type)
+        const outgoingByType = {};
+        const outgoingByStatus = {
+            SIGNED: 0,
+            PENDING_APPROVAL: 0,
+            APPROVED: 0,
+            DRAFT: 0,
+            REJECTED: 0
+        };
+
+        outgoingDocs.forEach(doc => {
+            const typeKey = doc.category || doc.type || 'Lainnya';
+            outgoingByType[typeKey] = (outgoingByType[typeKey] || 0) + 1;
+            if (doc.status && outgoingByStatus[doc.status] !== undefined) {
+                outgoingByStatus[doc.status]++;
+            } else if (doc.status) {
+                outgoingByStatus[doc.status] = 1;
+            }
+        });
+
+        // Convert outgoingByType to sorted array
+        const outgoingTypeBreakdown = Object.entries(outgoingByType).map(([category, count]) => ({
+            category,
+            count,
+            percentage: outgoingDocs.length > 0 ? Math.round((count / outgoingDocs.length) * 100) : 0
+        })).sort((a, b) => b.count - a.count);
+
+        res.json({
+            success: true,
+            period: {
+                startDate: startDate || null,
+                endDate: endDate || null
+            },
+            totalIncoming: incomingDocs.length,
+            totalOutgoing: outgoingDocs.length,
+            outgoingTypeBreakdown,
+            outgoingByStatus,
+            incomingDocs,
+            outgoingDocs
+        });
+    } catch (error) {
+        console.error('getRangeReport error:', error);
+        res.status(500).json({ error: 'Gagal memuat rekap laporan e-office' });
+    }
+};

@@ -160,6 +160,24 @@ export default function VehicleMaintenanceReviewModal({ show, onClose, onSuccess
                             </p>
                         </div>
 
+                        {/* Status Anggaran Terkonfirmasi (Staff Keuangan dan Administrasi) */}
+                        {request.description?.includes('Status Anggaran: Sudah Tersedia') && (
+                            <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-2xs">
+                                        <Check size={14} />
+                                    </div>
+                                    <div>
+                                        <span className="text-xs font-bold text-emerald-950 block">Anggaran Sudah Tersedia</span>
+                                        <span className="text-[11px] text-emerald-700 block">Dikonfirmasi oleh Staff Keuangan dan Administrasi</span>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold bg-white text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs">
+                                    Dana Siap
+                                </span>
+                            </div>
+                        )}
+
                         {/* Komponen yang diajukan */}
                         {items.length > 0 && (
                             <div className="pt-2 border-t border-slate-200">

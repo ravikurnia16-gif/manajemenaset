@@ -37,6 +37,9 @@ router.post('/outgoing', handleBulkUpload('files', 5, 'e-office/surat-keluar'), 
 // Agenda Register
 router.get('/agenda-register', ctrl.getAgendaRegister);
 
+// Date Range Report (Incoming vs Outgoing and Outgoing breakdown by type)
+router.get('/report/range', ctrl.getRangeReport);
+
 // Single document operations
 router.get('/:id', ctrl.getDocumentById);
 router.put('/:id', handleBulkUpload('files', 5, 'e-office'), ctrl.updateDocument);

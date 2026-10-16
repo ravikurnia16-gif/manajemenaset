@@ -743,6 +743,8 @@ exports.getVehicleDashboard = async (req, res) => {
 
             return {
                 id: v.id, name: v.name, plate: v.plateNumber,
+                type: v.type || 'KENDARAAN',
+                status: v.status || 'ACTIVE',
                 kml: calculatedKml,
                 liters: parseFloat(dLiters.toFixed(1)),
                 utilization: Math.min(utilization, 100),
@@ -751,6 +753,7 @@ exports.getVehicleDashboard = async (req, res) => {
                 fuelCost: dFuelCost,
                 serviceCost: dServiceCost,
                 totalKm: dTotalKm,
+                tripCount: completedBookings.length,
                 unitUsage: unitUsageArray
             };
         }));
@@ -888,6 +891,420 @@ exports.getVehicleDashboard = async (req, res) => {
             }
         });
 
+        // =========================================================================
+        // 12. LAPORAN 1 & 2: PERJALANAN & BBM MASING-MASING KENDARAAN (AKTIF SAJA)
+        // =========================================================================
+        const activeVehicles = vStats.filter(v => (v.status || 'ACTIVE') === 'ACTIVE');
+        const activeVehicleTripStats = activeVehicles.map(v => ({
+            id: v.id,
+            name: v.name,
+            plate: v.plate,
+            type: v.type || 'KENDARAAN',
+            tripCount: v.tripCount || 0,
+            totalKm: v.totalKm || 0,
+            utilization: v.utilization || 0
+        })).sort((a, b) => b.tripCount - a.tripCount || b.totalKm - a.totalKm);
+
+        const activeVehicleFuelStats = activeVehicles.map(v => ({
+            id: v.id,
+            name: v.name,
+            plate: v.plate,
+            type: v.type || 'KENDARAAN',
+            liters: v.liters || 0,
+            fuelCost: v.fuelCost || 0,
+            totalKm: v.totalKm || 0
+        })).sort((a, b) => b.fuelCost - a.fuelCost);
+
+        // =========================================================================
+        // 13. LAPORAN 3: JUMLAH & STATISTIK BOOKINGAN BUS
+        // =========================================================================
+        const allBusFilterWhere = {};
+        if (!isSummary) {
+            allBusFilterWhere.startDate = { gte: filterStart, lte: filterEnd };
+        }
+        const allPeriodBusBookings = await prisma.busBooking.findMany({
+            where: allBusFilterWhere,
+            include: {
+                vehicle: { select: { id: true, name: true, plateNumber: true } },
+                user: { select: { id: true, name: true, unit: { select: { name: true } } } },
+                driver: { select: { id: true, name: true, phone: true } }
+            },
+            orderBy: { startDate: 'desc' }
+        });
+
+        const busStatusCounts = {
+            TOTAL: allPeriodBusBookings.length,
+            COMPLETED: allPeriodBusBookings.filter(b => b.status === 'COMPLETED').length,
+            APPROVED: allPeriodBusBookings.filter(b => b.status === 'APPROVED').length,
+            CANCELLED: allPeriodBusBookings.filter(b => b.status === 'CANCELLED').length,
+            OTHER: allPeriodBusBookings.filter(b => !['COMPLETED', 'APPROVED', 'CANCELLED'].includes(b.status)).length
+        };
+        const totalBusPassengers = allPeriodBusBookings.reduce((sum, b) => sum + (b.passengerCount || 0), 0);
+
+        const busBookingsByVehicleMap = {};
+        allPeriodBusBookings.forEach(b => {
+            const vName = b.vehicle?.name || 'Bus Operasional';
+            if (!busBookingsByVehicleMap[vName]) {
+                busBookingsByVehicleMap[vName] = {
+                    name: vName,
+                    plate: b.vehicle?.plateNumber || '-',
+                    count: 0,
+                    totalKm: 0,
+                    totalBill: 0
+                };
+            }
+            busBookingsByVehicleMap[vName].count += 1;
+            busBookingsByVehicleMap[vName].totalKm += (b.totalKm || 0);
+            busBookingsByVehicleMap[vName].totalBill += (b.totalBill || 0);
+        });
+        const busBookingsByVehicle = Object.values(busBookingsByVehicleMap).sort((a, b) => b.count - a.count);
+
+        // =========================================================================
+        // 14. LAPORAN 4: PEMELIHARAAN YANG TERLAKSANA
+        // =========================================================================
+        const completedServiceWhere = {
+            status: 'COMPLETED'
+        };
+        if (!isSummary) {
+            completedServiceWhere.date = { gte: filterStart, lte: filterEnd };
+        }
+        const completedServices = await prisma.vehicleService.findMany({
+            where: completedServiceWhere,
+            include: {
+                vehicle: { select: { id: true, name: true, plateNumber: true, type: true } }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        const totalCompletedServicesCount = completedServices.length;
+        const totalCompletedServicesCost = completedServices.reduce((sum, s) => sum + (s.cost || 0), 0);
+
+        const serviceByTypeMap = {};
+        completedServices.forEach(s => {
+            const type = s.type || s.category || 'LAINNYA';
+            if (!serviceByTypeMap[type]) {
+                serviceByTypeMap[type] = { type, count: 0, totalCost: 0 };
+            }
+            serviceByTypeMap[type].count += 1;
+            serviceByTypeMap[type].totalCost += (s.cost || 0);
+        });
+        const completedServicesByType = Object.values(serviceByTypeMap).sort((a, b) => b.count - a.count);
+
+        const serviceByVehicleMap = {};
+        completedServices.forEach(s => {
+            const vName = s.vehicle?.name || 'Armada';
+            if (!serviceByVehicleMap[vName]) {
+                serviceByVehicleMap[vName] = {
+                    name: vName,
+                    plate: s.vehicle?.plateNumber || '-',
+                    count: 0,
+                    totalCost: 0
+                };
+            }
+            serviceByVehicleMap[vName].count += 1;
+            serviceByVehicleMap[vName].totalCost += (s.cost || 0);
+        });
+        const completedServicesByVehicle = Object.values(serviceByVehicleMap).sort((a, b) => b.totalCost - a.totalCost);
+
+        // =========================================================================
+        // 15. LAPORAN 5: SISA OMSET BUS (PEMASUKAN VS PENGELUARAN)
+        // =========================================================================
+        const busVehicles = allVehicles.filter(v =>
+            (v.type && v.type.toLowerCase().includes('bus')) ||
+            (v.name && v.name.toLowerCase().includes('bus'))
+        );
+        const busVehicleIds = busVehicles.map(v => v.id);
+
+        const busBookingRevenue = allPeriodBusBookings
+            .filter(b => b.status !== 'CANCELLED')
+            .reduce((sum, b) => sum + (b.totalBill || 0), 0);
+
+        const otherIncomeWhere = {};
+        if (!isSummary) {
+            otherIncomeWhere.date = { gte: filterStart, lte: filterEnd };
+        }
+        const busOtherIncomes = await prisma.busOtherIncome.findMany({
+            where: otherIncomeWhere,
+            select: { id: true, amount: true, description: true, date: true }
+        });
+        const totalBusOtherIncome = busOtherIncomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+        const totalBusRevenue = busBookingRevenue + totalBusOtherIncome;
+
+        const busFuelCost = vStats
+            .filter(v => busVehicleIds.includes(v.id))
+            .reduce((sum, v) => sum + (v.fuelCost || 0), 0);
+
+        const busServiceCost = vStats
+            .filter(v => busVehicleIds.includes(v.id))
+            .reduce((sum, v) => sum + (v.serviceCost || 0), 0);
+
+        const unexpectedExpenseWhere = {};
+        if (!isSummary) {
+            unexpectedExpenseWhere.date = { gte: filterStart, lte: filterEnd };
+        }
+        const busUnexpectedExpenses = await prisma.busUnexpectedExpense.findMany({
+            where: unexpectedExpenseWhere,
+            select: { id: true, amount: true, description: true, date: true }
+        });
+        const totalBusUnexpected = busUnexpectedExpenses.reduce((sum, u) => sum + (u.amount || 0), 0);
+
+        const totalBusExpenses = busFuelCost + busServiceCost + totalBusUnexpected;
+        const sisaOmsetBus = totalBusRevenue - totalBusExpenses;
+        const busMarginPercent = totalBusRevenue > 0 ? parseFloat(((sisaOmsetBus / totalBusRevenue) * 100).toFixed(1)) : 0;
+
+        const busOmsetStats = {
+            totalRevenue: totalBusRevenue,
+            bookingRevenue: busBookingRevenue,
+            otherIncome: totalBusOtherIncome,
+            totalExpenses: totalBusExpenses,
+            fuelExpenses: busFuelCost,
+            maintenanceExpenses: busServiceCost,
+            unexpectedExpenses: totalBusUnexpected,
+            sisaOmset: sisaOmsetBus,
+            marginPercent: busMarginPercent,
+            busUnitsCount: busVehicles.length
+        };
+
+        // =========================================================================
+        // 16. LAPORAN 6: TOP DRIVER (LEADERBOARD SUPIR)
+        // =========================================================================
+        const officialDrivers = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: { contains: 'Sopir' } },
+                    { position: { contains: 'Driver' } }
+                ]
+            },
+            select: { id: true, name: true, phone: true, position: true, unit: { select: { name: true } } }
+        });
+
+        const vBookingDriverWhere = { driverId: { not: null }, status: 'COMPLETED' };
+        const busBookingDriverWhere = { driverId: { not: null } };
+        if (!isSummary) {
+            vBookingDriverWhere.OR = [
+                { tripEndTime: { gte: filterStart, lte: filterEnd } },
+                { tripEndTime: null, startDate: { gte: filterStart, lte: filterEnd } }
+            ];
+            busBookingDriverWhere.startDate = { gte: filterStart, lte: filterEnd };
+        }
+
+        const [driverVehicleBookings, driverBusBookings] = await Promise.all([
+            prisma.vehicleBooking.findMany({
+                where: vBookingDriverWhere,
+                select: {
+                    driverId: true, startKm: true, endKm: true,
+                    driver: { select: { id: true, name: true, phone: true, position: true, unit: { select: { name: true } } } }
+                }
+            }),
+            prisma.busBooking.findMany({
+                where: busBookingDriverWhere,
+                select: {
+                    driverId: true, totalKm: true, status: true,
+                    driver: { select: { id: true, name: true, phone: true, position: true, unit: { select: { name: true } } } }
+                }
+            })
+        ]);
+
+        const driverStatsMap = {};
+        officialDrivers.forEach(d => {
+            driverStatsMap[d.id] = {
+                id: d.id,
+                name: d.name,
+                phone: d.phone || '-',
+                position: d.position || 'Driver',
+                unit: d.unit?.name || 'Sarpras',
+                vehicleTrips: 0,
+                vehicleKm: 0,
+                busTrips: 0,
+                busKm: 0,
+                totalTrips: 0,
+                totalKm: 0,
+                violationCount: 0
+            };
+        });
+
+        driverVehicleBookings.forEach(b => {
+            if (!b.driverId) return;
+            if (!driverStatsMap[b.driverId]) {
+                driverStatsMap[b.driverId] = {
+                    id: b.driverId,
+                    name: b.driver?.name || `Driver #${b.driverId}`,
+                    phone: b.driver?.phone || '-',
+                    position: b.driver?.position || 'Driver',
+                    unit: b.driver?.unit?.name || 'Sarpras',
+                    vehicleTrips: 0,
+                    vehicleKm: 0,
+                    busTrips: 0,
+                    busKm: 0,
+                    totalTrips: 0,
+                    totalKm: 0,
+                    violationCount: 0
+                };
+            }
+            const km = Math.max(0, (b.endKm || 0) - (b.startKm || 0));
+            driverStatsMap[b.driverId].vehicleTrips += 1;
+            driverStatsMap[b.driverId].vehicleKm += km;
+            driverStatsMap[b.driverId].totalTrips += 1;
+            driverStatsMap[b.driverId].totalKm += km;
+        });
+
+        driverBusBookings.forEach(b => {
+            if (!b.driverId) return;
+            if (!driverStatsMap[b.driverId]) {
+                driverStatsMap[b.driverId] = {
+                    id: b.driverId,
+                    name: b.driver?.name || `Driver #${b.driverId}`,
+                    phone: b.driver?.phone || '-',
+                    position: b.driver?.position || 'Driver',
+                    unit: b.driver?.unit?.name || 'Sarpras',
+                    vehicleTrips: 0,
+                    vehicleKm: 0,
+                    busTrips: 0,
+                    busKm: 0,
+                    totalTrips: 0,
+                    totalKm: 0,
+                    violationCount: 0
+                };
+            }
+            driverStatsMap[b.driverId].busTrips += 1;
+            driverStatsMap[b.driverId].busKm += (b.totalKm || 0);
+            driverStatsMap[b.driverId].totalTrips += 1;
+            driverStatsMap[b.driverId].totalKm += (b.totalKm || 0);
+        });
+
+        const driverIds = Object.keys(driverStatsMap).map(id => parseInt(id));
+        const driverViolations = await prisma.driverViolation.findMany({
+            where: {
+                driverId: { in: driverIds },
+                ...(isSummary ? {} : { date: { gte: filterStart, lte: filterEnd } })
+            },
+            select: { driverId: true }
+        });
+        driverViolations.forEach(v => {
+            if (driverStatsMap[v.driverId]) {
+                driverStatsMap[v.driverId].violationCount += 1;
+            }
+        });
+
+        const topDrivers = Object.values(driverStatsMap)
+            .sort((a, b) => b.totalTrips - a.totalTrips || b.totalKm - a.totalKm)
+            .map((d, index) => ({
+                ...d,
+                rank: index + 1
+            }));
+
+        // =========================================================================
+        // 17. LAPORAN 7: USER YANG MELANGGAR RENTANG TANGGAL
+        // =========================================================================
+        const formatDuration = (minutes) => {
+            if (minutes < 60) return `${minutes} Menit`;
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            if (hours < 24) return `${hours} Jam ${mins > 0 ? mins + ' Menit' : ''}`.trim();
+            const days = Math.floor(hours / 24);
+            const remHours = hours % 24;
+            return `${days} Hari ${remHours > 0 ? remHours + ' Jam' : ''}`.trim();
+        };
+
+        const lateBookingWhere = {
+            status: 'COMPLETED',
+            tripEndTime: { not: null }
+        };
+        if (!isSummary) {
+            lateBookingWhere.OR = [
+                { tripEndTime: { gte: filterStart, lte: filterEnd } },
+                { startDate: { gte: filterStart, lte: filterEnd } }
+            ];
+        }
+        const completedBookingsForViolations = await prisma.vehicleBooking.findMany({
+            where: lateBookingWhere,
+            include: {
+                user: { select: { id: true, name: true, phone: true, position: true, isSanctioned: true, unit: { select: { name: true } } } },
+                vehicle: { select: { id: true, name: true, plateNumber: true } }
+            },
+            orderBy: { tripEndTime: 'desc' },
+            take: 100
+        });
+
+        const lateReturns = [];
+        completedBookingsForViolations.forEach(b => {
+            if (!b.endDate || !b.tripEndTime) return;
+            const diffMs = new Date(b.tripEndTime).getTime() - new Date(b.endDate).getTime();
+            const lateMins = Math.round(diffMs / 60000);
+            if (lateMins >= 15) { // 15 menit batas toleransi wajar
+                lateReturns.push({
+                    id: b.id,
+                    type: 'TERLAMBAT_KEMBALI',
+                    statusLabel: 'Selesai Terlambat',
+                    userName: b.user?.name || 'Tidak Diketahui',
+                    userPhone: b.user?.phone || '-',
+                    userUnit: b.user?.unit?.name || 'Umum',
+                    userPosition: b.user?.position || 'Staff',
+                    isUserSanctioned: !!b.user?.isSanctioned,
+                    vehicleName: b.vehicle?.name || '-',
+                    vehiclePlate: b.vehicle?.plateNumber || '-',
+                    destination: b.destination,
+                    purpose: b.purpose || '-',
+                    startDate: b.startDate,
+                    endDate: b.endDate,
+                    actualEndTime: b.tripEndTime,
+                    lateMinutes: lateMins,
+                    lateDuration: formatDuration(lateMins),
+                    warningCount: b.endWarningCount || 0,
+                    notes: b.tripNotes || null
+                });
+            }
+        });
+
+        const overdueActiveBookings = await prisma.vehicleBooking.findMany({
+            where: {
+                status: { in: ['APPROVED', 'BERLANGSUNG'] },
+                endDate: { lt: now }
+            },
+            include: {
+                user: { select: { id: true, name: true, phone: true, position: true, isSanctioned: true, unit: { select: { name: true } } } },
+                vehicle: { select: { id: true, name: true, plateNumber: true } }
+            },
+            orderBy: { endDate: 'asc' }
+        });
+
+        const overdueActive = overdueActiveBookings.map(b => {
+            const diffMs = now.getTime() - new Date(b.endDate).getTime();
+            const lateMins = Math.round(diffMs / 60000);
+            return {
+                id: b.id,
+                type: 'SEDANG_OVERDUE',
+                statusLabel: 'Belum Kembali (Overdue)',
+                userName: b.user?.name || 'Tidak Diketahui',
+                userPhone: b.user?.phone || '-',
+                userUnit: b.user?.unit?.name || 'Umum',
+                userPosition: b.user?.position || 'Staff',
+                isUserSanctioned: !!b.user?.isSanctioned,
+                vehicleName: b.vehicle?.name || '-',
+                vehiclePlate: b.vehicle?.plateNumber || '-',
+                destination: b.destination,
+                purpose: b.purpose || '-',
+                startDate: b.startDate,
+                endDate: b.endDate,
+                actualEndTime: null,
+                lateMinutes: lateMins,
+                lateDuration: `Lewat ${formatDuration(lateMins)}`,
+                warningCount: b.endWarningCount || 0,
+                notes: 'Sedang berjalan melewati batas jadwal pengembalian'
+            };
+        });
+
+        const allDateViolations = [...overdueActive, ...lateReturns].sort((a, b) => b.lateMinutes - a.lateMinutes);
+
+        const dateViolationsStats = {
+            totalViolations: allDateViolations.length,
+            overdueActiveCount: overdueActive.length,
+            lateReturnCount: lateReturns.length,
+            sanctionedCount: sanctionedUsers.length,
+            violations: allDateViolations,
+            sanctionedUsers
+        };
+
         res.json({
             isSummary,
             period: periodStr,
@@ -895,8 +1312,20 @@ exports.getVehicleDashboard = async (req, res) => {
             endDate: endDate || null,
             stats: {
                 totalVehicles: allVehicles.length,
+                activeVehiclesCount: activeVehicles.length,
+                activeVehiclesTotalTrips: activeVehicleTripStats.reduce((s, v) => s + v.tripCount, 0),
+                activeVehiclesFuelCost: activeVehicleFuelStats.reduce((s, v) => s + v.fuelCost, 0),
+                activeVehiclesFuelLiters: activeVehicleFuelStats.reduce((s, v) => s + v.liters, 0),
                 activeBookings: activeBookingsCount,
                 activeBusBookings: activeBusBookingsCount,
+                totalBusBookingsCount: allPeriodBusBookings.length,
+                completedMaintenanceCount: totalCompletedServicesCount,
+                completedMaintenanceCost: totalCompletedServicesCost,
+                sisaOmsetBus: sisaOmsetBus,
+                totalBusRevenue: totalBusRevenue,
+                totalBusExpenses: totalBusExpenses,
+                busMarginPercent: busMarginPercent,
+                totalDateViolationsCount: allDateViolations.length,
                 sanctionedUsersCount: sanctionedUsers.length,
                 needingService: urgentActions.filter(a => a.type === 'SERVICE').length,
                 taxWarnings: urgentActions.filter(a => ['TAX', 'STNK', 'KIR'].includes(a.type)).length,
@@ -916,6 +1345,26 @@ exports.getVehicleDashboard = async (req, res) => {
             urgentActions,
             availableMonths,
             vStats: vStats.sort((a, b) => b.totalKm - a.totalKm),
+            // Dedicated 7 Reports Datasets:
+            activeVehicleTripStats,
+            activeVehicleFuelStats,
+            busBookingStats: {
+                total: allPeriodBusBookings.length,
+                statusCounts: busStatusCounts,
+                totalPassengers: totalBusPassengers,
+                byVehicle: busBookingsByVehicle,
+                bookings: allPeriodBusBookings
+            },
+            completedMaintenanceStats: {
+                totalCount: totalCompletedServicesCount,
+                totalCost: totalCompletedServicesCost,
+                byType: completedServicesByType,
+                byVehicle: completedServicesByVehicle,
+                services: completedServices
+            },
+            busOmsetStats,
+            topDrivers,
+            dateViolationsStats,
             bookingTrends,
             mileageTrends,
             fuelTrends,
@@ -939,42 +1388,79 @@ exports.reviewSanctionLift = personnelController.reviewSanctionLift;
 // --- AI FLEET ANALYSIS FOR BIDANG SARANA ---
 exports.analyzeFleetWithAI = async (req, res) => {
     try {
-        const { period, stats, vStats, urgentActions, busSummary } = req.body;
+        const {
+            period, stats, vStats, urgentActions, busSummary,
+            activeVehicleTripStats, activeVehicleFuelStats,
+            busBookingStats, completedMaintenanceStats,
+            busOmsetStats, topDrivers, dateViolationsStats
+        } = req.body;
 
-        const vehicleSummary = (vStats || []).map(v => 
-            `- ${v.name} (${v.plate}): Total Jarak: ${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM, Efisiensi: ${(v.kml || 0).toFixed(1)} KM/L, Cost/KM: Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}, Biaya BBM/KM: Rp ${Math.round(v.fuelCpkm || 0).toLocaleString('id-ID')}`
-        ).join('\n');
+        const activeTripsSummary = (activeVehicleTripStats || []).slice(0, 10).map(v => 
+            `- ${v.name} (${v.plate}): ${v.tripCount} perjalanan (${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM, utilisasi ${v.utilization?.toFixed(0)}%)`
+        ).join('\n') || 'Tidak ada perjalanan armada aktif.';
 
-        const urgentSummary = (urgentActions || []).map(a => 
-            `- ${a.vehicle} (${a.plate}): ${a.action} (${a.date ? new Date(a.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : (a.km ? 'Overdue KM > ' + a.km : '-')})`
-        ).join('\n') || 'Tidak ada peringatan mendesak.';
+        const activeFuelSummary = (activeVehicleFuelStats || []).slice(0, 10).map(v => 
+            `- ${v.name} (${v.plate} - ${v.type || 'Kendaraan'}): ${v.liters ? v.liters.toFixed(1) + ' L' : '0 L'} | Total Pengeluaran BBM: Rp ${Math.round(v.fuelCost || 0).toLocaleString('id-ID')}`
+        ).join('\n') || 'Tidak ada data BBM armada aktif.';
+
+        const maintenanceSummary = completedMaintenanceStats 
+            ? `Total Pemeliharaan Terlaksana: ${completedMaintenanceStats.totalCount || 0} kegiatan (Total Biaya: Rp ${Math.round(completedMaintenanceStats.totalCost || 0).toLocaleString('id-ID')})\nRincian Kategori: ${(completedMaintenanceStats.byType || []).map(t => `${t.type} (${t.count}x - Rp ${Math.round(t.totalCost).toLocaleString('id-ID')})`).join(', ') || '-'}`
+            : 'Belum ada catatan servis.';
+
+        const busOmsetSummary = busOmsetStats 
+            ? `Total Pemasukan Bus: Rp ${Math.round(busOmsetStats.totalRevenue || 0).toLocaleString('id-ID')} (Booking Sewa: Rp ${Math.round(busOmsetStats.bookingRevenue || 0).toLocaleString('id-ID')}, Lainnya: Rp ${Math.round(busOmsetStats.otherIncome || 0).toLocaleString('id-ID')})\n` +
+              `Total Pengeluaran Bus: Rp ${Math.round(busOmsetStats.totalExpenses || 0).toLocaleString('id-ID')} (BBM: Rp ${Math.round(busOmsetStats.fuelExpenses || 0).toLocaleString('id-ID')}, Servis: Rp ${Math.round(busOmsetStats.maintenanceExpenses || 0).toLocaleString('id-ID')}, Tak Terduga: Rp ${Math.round(busOmsetStats.unexpectedExpenses || 0).toLocaleString('id-ID')})\n` +
+              `SISA OMSET BERSIH BUS: Rp ${Math.round(busOmsetStats.sisaOmset || 0).toLocaleString('id-ID')} (Margin: ${busOmsetStats.marginPercent || 0}%)`
+            : 'Belum ada data keuangan bus.';
+
+        const topDriversSummary = (topDrivers || []).slice(0, 5).map(d => 
+            `#${d.rank} ${d.name} (${d.unit || 'Driver'}): Total ${d.totalTrips} Perjalanan (${Math.round(d.totalKm || 0).toLocaleString('id-ID')} KM) [Mobil: ${d.vehicleTrips}x, Bus: ${d.busTrips}x] - Pelanggaran: ${d.violationCount}`
+        ).join('\n') || 'Belum ada data driver.';
+
+        const violationsSummary = dateViolationsStats 
+            ? `Total Pelanggaran Rentang Tanggal: ${dateViolationsStats.totalViolations || 0} kasus (Terlambat Selesai: ${dateViolationsStats.lateReturnCount || 0}, Sedang Overdue: ${dateViolationsStats.overdueActiveCount || 0}, Akun Disanksi: ${dateViolationsStats.sanctionedCount || 0})\n` +
+              `Contoh Kasus:\n` +
+              (dateViolationsStats.violations || []).slice(0, 5).map(v => 
+                  `- ${v.userName} (${v.userUnit}): ${v.vehicleName} (${v.vehiclePlate}) -> ${v.statusLabel} (${v.lateDuration}) | Tujuan: ${v.destination}`
+              ).join('\n')
+            : 'Tidak ada pelanggaran jadwal.';
 
         const prompt = `
-Anda adalah Konsultan Senior Fleet Management & Ahli Efisiensi Operasional Kendaraan untuk Bidang Sarana.
-Berikut adalah data kinerja operasional armada kendaraan periode: ${period || 'Semua Periode'}.
+Anda adalah Konsultan Senior Fleet Management & Audit Operasional Kendaraan untuk Bidang Sarana & Prasarana Yayasan Dar El-Iman.
+Berikut adalah 7 Laporan Utama Kinerja Operasional Armada Kendaraan untuk periode: ${period || 'Semua Periode'}.
 
-Ringkasan KPI Armada:
-- Total Armada Aktif: ${stats?.totalVehicles || 0} unit
-- Total Pengeluaran BBM: Rp ${Math.round(stats?.totalFuelCost || 0).toLocaleString('id-ID')}
-- Total Biaya Servis / Perawatan Tahunan: Rp ${Math.round(stats?.totalServiceCostYearly || 0).toLocaleString('id-ID')}
-- Reservasi Bus Operasional: ${stats?.activeBusBookings || 0} agenda aktif
+1. 🚗 JUMLAH PERJALANAN MASING-MASING KENDARAAN (AKTIF SAJA):
+${activeTripsSummary}
 
-Rincian Matriks Kendaraan:
-${vehicleSummary || 'Belum ada data perjalanan.'}
+2. ⛽ KONSUMSI BBM MASING-MASING KENDARAAN (AKTIF SAJA):
+${activeFuelSummary}
 
-Status Kepatuhan & Peringatan Mendesak (Pajak, STNK, Uji KIR, Servis):
-${urgentSummary}
+3. 🚌 JUMLAH BOOKINGAN BUS:
+Total Booking Bus: ${busBookingStats?.total || 0} agenda (Selesai: ${busBookingStats?.statusCounts?.COMPLETED || 0}, Disetujui/Berjalan: ${busBookingStats?.statusCounts?.APPROVED || 0}, Dibatalkan: ${busBookingStats?.statusCounts?.CANCELLED || 0})
+Total Penumpang: ${busBookingStats?.totalPassengers || 0} orang
 
-${busSummary ? `Ringkasan Reservasi & Jadwal Bus:\n${busSummary}\n` : ''}
+4. 🛠️ PEMELIHARAAN YANG TERLAKSANA:
+${maintenanceSummary}
+
+5. 💰 KEUANGAN & SISA OMSET BUS:
+${busOmsetSummary}
+
+6. 🏆 TOP DRIVER (LEADERBOARD SUPIR):
+${topDriversSummary}
+
+7. ⚠️ USER YANG MELANGGAR RENTANG TANGGAL PEMINJAMAN:
+${violationsSummary}
+
 INSTRUKSI:
-Buatkan laporan analisis mendalam, tajam, bernas, dan bernada eksekutif untuk Kepala Bidang Sarana dalam format Markdown yang rapi:
-1. 📊 **Ringkasan Kondisi & Efisiensi Armada**: Evaluasi singkat kondisi umum operasional armada pada periode ini.
-2. ⚠️ **Temuan Kendaraan Boros & Potensi Anomali**: Sorot unit mana yang paling boros (Cost/KM tinggi atau rasio KM/L rendah) dan analisis kemungkinan penyebabnya.
-3. 🛠️ **Status Kepatuhan Pajak, KIR & Perawatan Berkala**: Evaluasi risiko kepatuhan hukum dan keselamatan armada.
-4. 🚌 **Evaluasi Jadwal & Utilisasi Bus Operasional**: Analisis pemanfaatan bus dan kesiapan driver serta rute.
-5. 💡 **Rekomendasi Strategis Bidang Sarana**: Berikan 3-4 aksi konkret untuk penghematan anggaran BBM, jadwal servis preventif, dan optimalisasi unit.
+Sajikan Analisis AI Komprehensif, Tajam, Berbasis Data, dan Bernada Eksekutif untuk Kepala Bidang Sarana dalam format Markdown yang rapi dengan subjudul berikut:
+1. 📊 **Evaluasi Mobilitas & Efisiensi Armada Aktif**: Tinjauan perjalanan dan efisiensi belanja BBM unit aktif.
+2. 🚌 **Kinerja Operasional & Profitabilitas Bus**: Analisis volume bookingan bus dan kesehatan sisa omset bersih.
+3. 🛠️ **Audit Pemeliharaan & Kelaikan Teknis**: Penilaian realisasi servis kendaraan yang terlaksana dan efisiensi biaya bengkel.
+4. 🏆 **Apresiasi & Penilaian Top Driver**: Evaluasi produktivitas supir terbaik dan beban kerjanya.
+5. ⚖️ **Audit Disiplin & Pelanggaran Rentang Tanggal**: Evaluasi keterlambatan peminjaman, akar masalah, dan rekomendasi sanksi / SOP perpanjangan.
+6. 🎯 **Rekomendasi Strategis 30 Hari ke Depan**: 3-4 langkah aksi konkret untuk optimalisasi anggaran dan kepatuhan.
 
-Gunakan bahasa Indonesia baku, formal, dan profesional.`;
+Gunakan bahasa Indonesia yang profesional, formal, lugas, dan solutif.`;
 
         const result = await aiService.generateContentWithFallback(prompt);
         const analysis = result?.response?.text() || 'Analisis AI tidak dapat dihasilkan.';

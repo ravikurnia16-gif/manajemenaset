@@ -2581,7 +2581,18 @@ exports.getDashboardSummary = async (req, res) => {
             prisma.invOrder.findMany({
                 where: orderWhere,
                 orderBy: { date: 'desc' },
-                include: { items: { include: { item: true } } }
+                include: {
+                    items: {
+                        include: {
+                            item: {
+                                include: { category: true }
+                            }
+                        }
+                    },
+                    createdBy: { select: { id: true, name: true, username: true, unitId: true } },
+                    vendor: true,
+                    project: true
+                }
             }),
             prisma.invCategory.findMany({
                 include: { _count: { select: { items: true } } }
@@ -2670,13 +2681,30 @@ exports.getDashboardSummary = async (req, res) => {
             .sort((a, b) => b.qty - a.qty)
             .slice(0, 8);
 
+        // Parse orders for detailed reporting
+        const parsedAllPeriodOrders = orders.map(ord => {
+            const parsed = parseOrderSignatures(ord);
+            const totalQtyRequested = (ord.items || []).reduce((acc, it) => acc + (it.qtyRequested || 0), 0);
+            const totalQtyDelivered = (ord.items || []).reduce((acc, it) => acc + (it.qtyDelivered || 0), 0);
+            const itemsSummary = (ord.items || []).map(it => `${it.item?.name || 'Item'} (${it.qtyDelivered || it.qtyRequested} ${it.item?.unit || 'Unit'})`).join(', ');
+            return {
+                ...parsed,
+                totalQtyRequested,
+                totalQtyDelivered,
+                itemsSummary,
+                itemsCount: ord.items?.length || 0,
+                itemNames: (ord.items || []).map(it => it.item?.name).filter(Boolean).join(', ')
+            };
+        });
+
+        const completedPeriodOrders = parsedAllPeriodOrders.filter(o => o.status === 'COMPLETED');
         const pendingOrdersCount = orders.filter(o => o.status === 'PENDING').length;
         const approvedOrdersCount = orders.filter(o => o.status === 'APPROVED').length;
         const processOrdersCount = orders.filter(o => o.status === 'PROCESS').length;
-        const completedOrdersCount = orders.filter(o => o.status === 'COMPLETED').length;
+        const completedOrdersCount = completedPeriodOrders.length;
         const rejectedOrdersCount = orders.filter(o => o.status === 'REJECTED').length;
 
-        const recentPendingOrders = orders.filter(o => o.status === 'PENDING').slice(0, 5);
+        const recentPendingOrders = parsedAllPeriodOrders.filter(o => o.status === 'PENDING').slice(0, 5);
 
         const categoryChartData = categories.map(cat => ({
             name: cat.name,
@@ -2707,6 +2735,9 @@ exports.getDashboardSummary = async (req, res) => {
                 totalOrders: orders.length,
                 completedOrders: completedOrdersCount,
                 pendingOrders: pendingOrdersCount,
+                approvedOrders: approvedOrdersCount,
+                processOrders: processOrdersCount,
+                rejectedOrders: rejectedOrdersCount,
                 topOutItems
             },
             metrics: {
@@ -2719,10 +2750,15 @@ exports.getDashboardSummary = async (req, res) => {
                 outOfStockCount,
                 pendingOrders: pendingOrdersCount,
                 completedOrders: completedOrdersCount,
+                approvedOrders: approvedOrdersCount,
+                processOrders: processOrdersCount,
+                rejectedOrders: rejectedOrdersCount,
                 totalOrders: orders.length
             },
             recentTransactions: allPeriodTransactions.slice(0, 20),
             allPeriodTransactions: allPeriodTransactions.slice(0, 100),
+            allPeriodOrders: parsedAllPeriodOrders,
+            completedPeriodOrders,
             recentPendingOrders,
             alertItems: alertItems.slice(0, 10),
             categoryChartData,

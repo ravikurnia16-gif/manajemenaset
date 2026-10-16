@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Settings, Plus, Search, Calendar, Car, Wrench, Trash2, Pencil, Eye, 
     Download, AlertTriangle, Image, X, ExternalLink, CheckCircle, CheckCircle2, 
-    Clock, ShieldCheck, Printer, ArrowRight, AlertCircle, FileText, ChevronRight
+    Clock, ShieldCheck, Printer, ArrowRight, AlertCircle, FileText, ChevronRight,
+    DollarSign
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
@@ -36,7 +37,12 @@ const VehicleMaintenanceList = () => {
     const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
     const userPosition = (currentUser?.position || '').toLowerCase();
     const userRole = currentUser?.role || '';
-    const isKabidSarana = userRole === 'SUPER_ADMIN' || userRole === 'KABID_SARPRAS' || userPosition.includes('kepala bidang sarana');
+    const isKabidSarana = 
+        userRole === 'SUPER_ADMIN' || 
+        userRole === 'KABID_SARPRAS' || 
+        userPosition.includes('kepala bidang sarana') ||
+        userPosition.includes('kabid sarpras') ||
+        userPosition.includes('sarana');
 
     useEffect(() => {
         fetchLogs();
@@ -90,12 +96,23 @@ const VehicleMaintenanceList = () => {
         return log.proofFile || log.complaintPhoto || log.photo || null;
     };
 
-    // Pengajuan Pemeliharaan (Murni pengajuan mandiri langsung dari PIC / Staff Kendaraan)
-    const requestLogs = logs.filter(l => {
+    // Helper cek apakah sebuah record adalah laporan kerusakan / insiden
+    const isDamageReport = (l) => {
+        if (!l) return false;
         const desc = (l.description || '').toLowerCase();
-        if (desc.includes('[laporan kerusakan ceklis') || desc.includes('temuan inspeksi ceklis')) {
-            return false;
-        }
+        const type = (l.type || '').toLowerCase();
+        const cat = (l.category || '').toLowerCase();
+        return (
+            cat === 'non_routine' ||
+            type === 'perbaikan' ||
+            desc.includes('kerusakan') ||
+            desc.includes('insiden') ||
+            desc.includes('[laporan')
+        );
+    };
+
+    // Pengajuan Pemeliharaan (Termasuk pengajuan perbaikan/kerusakan, servis rutin, maupun temuan ceklis/insiden)
+    const requestLogs = logs.filter(l => {
         return (
             (l.code && l.code.startsWith('PK/')) ||
             l.status === 'PENDING' || 
@@ -112,6 +129,7 @@ const VehicleMaintenanceList = () => {
     );
 
     // Badge Counters
+    const damageRequestsCount = requestLogs.filter(isDamageReport).length;
     const pendingRequestsCount = requestLogs.filter(l => l.status === 'PENDING').length;
     const approvedRequestsCount = requestLogs.filter(l => l.status === 'APPROVED').length;
     const inProgressRequestsCount = requestLogs.filter(l => l.status === 'IN_PROGRESS').length;
@@ -120,6 +138,7 @@ const VehicleMaintenanceList = () => {
     const currentTabLogs = activeTab === 'requests'
         ? requestLogs.filter(l => {
             if (requestStatusFilter === 'ALL') return true;
+            if (requestStatusFilter === 'KERUSAKAN') return isDamageReport(l);
             return l.status === requestStatusFilter;
         })
         : maintenanceLogs;
@@ -359,6 +378,7 @@ const VehicleMaintenanceList = () => {
                     <span className="text-xs font-bold text-slate-500 mr-1">Status Pengajuan:</span>
                     {[
                         { key: 'ALL', label: 'Semua Status' },
+                        { key: 'KERUSAKAN', label: '🚨 Laporan Kerusakan', count: damageRequestsCount, dot: 'bg-rose-500' },
                         { key: 'PENDING', label: 'Menunggu Review', count: pendingRequestsCount, dot: 'bg-amber-500' },
                         { key: 'APPROVED', label: 'Disetujui / Siap Servis', count: approvedRequestsCount, dot: 'bg-blue-500' },
                         { key: 'IN_PROGRESS', label: 'Sedang di Bengkel', count: inProgressRequestsCount, dot: 'bg-purple-500' },
@@ -459,8 +479,13 @@ const VehicleMaintenanceList = () => {
                                                             <Calendar size={12} className="text-slate-400" />
                                                             {new Date(log.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                         </div>
-                                                        <div className="mt-0.5">
+                                                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                                             {renderUrgencyBadge(log.urgency)}
+                                                            {isDamageReport(log) && (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 shadow-2xs">
+                                                                    🚨 Laporan Kerusakan
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -519,6 +544,14 @@ const VehicleMaintenanceList = () => {
                                                         <div className="text-xs text-slate-500">
                                                             Estimasi: <b className="text-slate-800">Rp {(log.estimatedCost || 0).toLocaleString('id-ID')}</b>
                                                         </div>
+
+                                                        {log.description?.includes('Status Anggaran: Sudah Tersedia') && (
+                                                            <div className="mt-0.5">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
+                                                                    <DollarSign size={10} /> Anggaran Tersedia
+                                                                </span>
+                                                            </div>
+                                                        )}
 
                                                         {log.cost > 0 && (
                                                             <div className="text-xs text-emerald-700 font-extrabold">
@@ -764,6 +797,11 @@ const VehicleMaintenanceList = () => {
                                             )}
                                             <span className="font-bold text-slate-800 text-base">{log.vehicle?.name || 'Tanpa Nama'}</span>
                                             <span className="text-xs uppercase font-mono text-slate-400 tracking-wider">{log.vehicle?.plateNumber}</span>
+                                            {isDamageReport(log) && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 shadow-2xs mt-1 w-fit">
+                                                    🚨 Laporan Kerusakan
+                                                </span>
+                                            )}
                                         </div>
                                         <div>
                                             {isReq ? (
@@ -911,6 +949,7 @@ const VehicleMaintenanceList = () => {
                 show={showRequestModal}
                 onClose={() => setShowRequestModal(false)}
                 vehicles={vehicles}
+                currentUser={currentUser}
                 onSuccess={() => {
                     fetchLogs();
                     setActiveTab('requests');

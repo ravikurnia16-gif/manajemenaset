@@ -5,9 +5,12 @@ import {
     Zap, Check, RotateCcw, FileText, AlertCircle, CalendarDays,
     BarChart3, Layers, ArrowRight, CheckSquare, Square, Flame,
     ShieldAlert, Camera, Image as ImageIcon, X, Upload, Loader2,
-    Eye
+    Eye, Download, FileSpreadsheet, Printer
 } from 'lucide-react';
 import dayjs from 'dayjs';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import api from '../../../lib/axios';
 import { getMediaUrl } from '../../../lib/media';
 import LightboxModal from '../modals/LightboxModal';
@@ -94,6 +97,333 @@ export default function WorkPlanTab({
     const [filterStatus, setFilterStatus] = useState('ACTIVE'); // 'ALL' | 'ACTIVE' | 'DONE'
     const [filterPriority, setFilterPriority] = useState('ALL'); // 'ALL' | 'TINGGI' | 'SEDANG' | 'RENDAH'
     const [selectedStaffFilter, setSelectedStaffFilter] = useState('ALL');
+
+    // Export Modal States
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportStartDate, setExportStartDate] = useState(dayjs().startOf('month').format('YYYY-MM-DD'));
+    const [exportEndDate, setExportEndDate] = useState(dayjs().endOf('month').format('YYYY-MM-DD'));
+    const [exportCategory, setExportCategory] = useState('ALL');
+    const [exportPriority, setExportPriority] = useState('ALL');
+    const [exportStatus, setExportStatus] = useState('ALL');
+    const [exportStaffFilter, setExportStaffFilter] = useState('ALL');
+    const [exportingPdf, setExportingPdf] = useState(false);
+
+    // Filtered plans for export based on date range and selected filters
+    const plansForExport = useMemo(() => {
+        return plans.filter(p => {
+            const meta = p.metadata || {};
+            const items = meta.items || [];
+            
+            let isDone = false;
+            if (items.length > 0) {
+                const avgPct = Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length);
+                isDone = avgPct === 100 || items.every(i => i.status === 'SELESAI' || i.percentage === 100);
+            } else {
+                isDone = meta.status === 'SELESAI' || meta.percentage === 100;
+            }
+
+            if (exportStatus === 'ACTIVE' && isDone) return false;
+            if (exportStatus === 'DONE' && !isDone) return false;
+
+            const planPriority = meta.priority || 'SEDANG';
+            if (exportPriority !== 'ALL' && planPriority !== exportPriority) return false;
+
+            if (exportCategory !== 'ALL' && p.category !== exportCategory && meta.categoryTag !== exportCategory) return false;
+
+            if (isKabid && exportStaffFilter !== 'ALL' && p.userId !== parseInt(exportStaffFilter)) return false;
+
+            // Date Range overlap filter
+            if (exportStartDate || exportEndDate) {
+                const pStart = meta.startDate ? dayjs(meta.startDate) : (p.createdAt ? dayjs(p.createdAt) : null);
+                const pEnd = meta.endDate ? dayjs(meta.endDate) : (meta.startDate ? dayjs(meta.startDate) : null);
+
+                if (exportStartDate && pEnd && pEnd.isBefore(dayjs(exportStartDate), 'day')) return false;
+                if (exportEndDate && pStart && pStart.isAfter(dayjs(exportEndDate), 'day')) return false;
+            }
+
+            return true;
+        });
+    }, [plans, exportStartDate, exportEndDate, exportCategory, exportPriority, exportStatus, exportStaffFilter, isKabid]);
+
+    const handleExportWorkPlanPDF = () => {
+        try {
+            setExportingPdf(true);
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+
+            // Kop Surat Yayasan
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.setTextColor(15, 23, 42);
+            doc.text('YAYASAN DAR EL IMAN', pageW / 2, 13, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setTextColor(30, 58, 138);
+            doc.text('BIDANG SARANA', pageW / 2, 18, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Jl. Gunung Juaro, Kel. Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat', pageW / 2, 22.5, { align: 'center' });
+
+            doc.setDrawColor(15, 23, 42);
+            doc.setLineWidth(0.6);
+            doc.line(14, 25.5, pageW - 14, 25.5);
+            doc.setLineWidth(0.2);
+            doc.line(14, 26.5, pageW - 14, 26.5);
+
+            // Judul Dokumen
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(15, 23, 42);
+            doc.text('LAPORAN REKAPITULASI RENCANA KERJA & TARGET OPERASIONAL (WORK PLAN)', pageW / 2, 33, { align: 'center' });
+
+            const sDateFormatted = exportStartDate ? dayjs(exportStartDate).format('DD MMMM YYYY') : 'Awal';
+            const eDateFormatted = exportEndDate ? dayjs(exportEndDate).format('DD MMMM YYYY') : 'Sekarang';
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Periode: ${sDateFormatted} s.d. ${eDateFormatted}`, pageW / 2, 37.5, { align: 'center' });
+
+            // Summary Metrics Box
+            const total = plansForExport.length;
+            let doneCount = 0;
+            let activeCount = 0;
+            let sumPct = 0;
+
+            plansForExport.forEach(p => {
+                const meta = p.metadata || {};
+                const items = meta.items || [];
+                let pct = 0;
+                let isDone = false;
+                if (items.length > 0) {
+                    pct = Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length);
+                    isDone = pct === 100 || items.every(i => i.status === 'SELESAI' || i.percentage === 100);
+                } else {
+                    isDone = meta.status === 'SELESAI' || meta.percentage === 100;
+                    pct = meta.percentage !== undefined ? meta.percentage : (meta.status === 'SELESAI' ? 100 : 0);
+                }
+                if (isDone) doneCount++; else activeCount++;
+                sumPct += pct;
+            });
+            const avgRate = total > 0 ? Math.round(sumPct / total) : 0;
+
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(14, 41, pageW - 28, 11, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(30, 41, 59);
+            doc.text(`Total Rencana: ${total}`, 20, 47.5);
+            doc.text(`Selesai (100%): ${doneCount}`, 75, 47.5);
+            doc.text(`Sedang Berjalan: ${activeCount}`, 130, 47.5);
+            doc.text(`Rata-rata Capaian: ${avgRate}%`, 190, 47.5);
+            doc.text(`Dicetak: ${dayjs().format('DD/MM/YYYY HH:mm')}`, 240, 47.5);
+
+            // Table Data
+            const tableHeaders = [
+                ['No', 'Judul Rencana Kerja', 'Posisi / Jabatan', 'Kategori', 'Prioritas', 'Periode Target', 'Progres', 'Status', 'Rincian Langkah Target']
+            ];
+
+            const tableRows = plansForExport.map((p, idx) => {
+                const meta = p.metadata || {};
+                const items = meta.items || [];
+                let pct = 0;
+                let isDone = false;
+                if (items.length > 0) {
+                    pct = Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length);
+                    isDone = pct === 100 || items.every(i => i.status === 'SELESAI' || i.percentage === 100);
+                } else {
+                    isDone = meta.status === 'SELESAI' || meta.percentage === 100;
+                    pct = meta.percentage !== undefined ? meta.percentage : (meta.status === 'SELESAI' ? 100 : 0);
+                }
+
+                const sStr = meta.startDate ? dayjs(meta.startDate).format('DD/MM/YY') : '-';
+                const eStr = meta.endDate ? dayjs(meta.endDate).format('DD/MM/YY') : '-';
+                const stepsSummary = items.length > 0
+                    ? items.map((it, i) => `${i + 1}. [${it.status === 'SELESAI' || it.percentage === 100 ? 'Selesai' : `${it.percentage || 0}%`}] ${it.activity || it.text || ''}`).join('\n')
+                    : (p.content || '-');
+
+                return [
+                    idx + 1,
+                    meta.title || p.content || 'Rencana Kerja',
+                    meta.position || p.user?.position || 'Staf Sarana',
+                    p.category || meta.categoryTag || 'UMUM',
+                    meta.priority || 'SEDANG',
+                    `${sStr} s/d ${eStr}`,
+                    `${pct}%`,
+                    isDone ? 'SELESAI' : 'AKTIF',
+                    stepsSummary
+                ];
+            });
+
+            autoTable(doc, {
+                startY: 55,
+                head: tableHeaders,
+                body: tableRows,
+                theme: 'grid',
+                styles: {
+                    fontSize: 7.5,
+                    cellPadding: 2,
+                    textColor: [15, 23, 42],
+                    lineColor: [226, 232, 240],
+                    lineWidth: 0.1
+                },
+                headStyles: {
+                    fillColor: [30, 41, 59],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 10 },
+                    1: { cellWidth: 50, fontStyle: 'bold' },
+                    2: { cellWidth: 32 },
+                    3: { halign: 'center', cellWidth: 20 },
+                    4: { halign: 'center', cellWidth: 18 },
+                    5: { halign: 'center', cellWidth: 26 },
+                    6: { halign: 'center', cellWidth: 16 },
+                    7: { halign: 'center', cellWidth: 18 },
+                    8: { cellWidth: 'auto' }
+                },
+                margin: { left: 14, right: 14, bottom: 25 },
+                didDrawPage: (data) => {
+                    const str = `Halaman ${doc.internal.getNumberOfPages()}`;
+                    doc.setFontSize(8);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text(str, pageW - 14, pageH - 10, { align: 'right' });
+                    doc.text('Sistem Informasi Manajemen Aset & Sarpras Yayasan Dar El Iman Padang', 14, pageH - 10);
+                }
+            });
+
+            // Signature block on the last page (Digital TTE Kepala Bidang Sarana)
+            const finalY = doc.lastAutoTable?.finalY || 100;
+            const signBoxW = 72;
+            const signBoxH = 26;
+            const signBoxX = pageW - signBoxW - 14;
+            const signY = (finalY + 45 > pageH) ? 20 : finalY + 10;
+            if (finalY + 45 > pageH) {
+                doc.addPage();
+            }
+
+            doc.setFontSize(8.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(`Padang, ${dayjs().format('DD MMMM YYYY')}`, signBoxX + (signBoxW / 2), signY, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+            doc.text('Kepala Bidang Sarana', signBoxX + (signBoxW / 2), signY + 4.5, { align: 'center' });
+
+            // TTE Box
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.3);
+            doc.roundedRect(signBoxX, signY + 7, signBoxW, signBoxH, 2, 2, 'FD');
+
+            doc.setFillColor(16, 185, 129);
+            doc.roundedRect(signBoxX + 1.5, signY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.2);
+            doc.setTextColor(5, 150, 105);
+            doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', signBoxX + 7, signY + 13);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', signBoxX + 7, signY + 17.5);
+            doc.text('Yayasan Dar el Iman Padang', signBoxX + 7, signY + 21.5);
+
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(6);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`ID: TTE-${dayjs().format('YYYYMMDD')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, signBoxX + 7, signY + 25.5);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8.5);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Ravi Kurnia, S.T.', signBoxX + (signBoxW / 2), signY + 38, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Kepala Bidang Sarana', signBoxX + (signBoxW / 2), signY + 42, { align: 'center' });
+
+            doc.save(`Laporan_Rencana_Kerja_${exportStartDate || 'All'}_sd_${exportEndDate || 'All'}.pdf`);
+        } catch (err) {
+            console.error('Failed to export Work Plan PDF:', err);
+            alert('Gagal mengekspor dokumen PDF rencana kerja: ' + err.message);
+        } finally {
+            setExportingPdf(false);
+        }
+    };
+
+    const handleExportWorkPlanExcel = () => {
+        try {
+            const summaryRows = plansForExport.map((p, idx) => {
+                const meta = p.metadata || {};
+                const items = meta.items || [];
+                let pct = 0;
+                let isDone = false;
+                if (items.length > 0) {
+                    pct = Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length);
+                    isDone = pct === 100 || items.every(i => i.status === 'SELESAI' || i.percentage === 100);
+                } else {
+                    isDone = meta.status === 'SELESAI' || meta.percentage === 100;
+                    pct = meta.percentage !== undefined ? meta.percentage : (meta.status === 'SELESAI' ? 100 : 0);
+                }
+
+                return {
+                    'No': idx + 1,
+                    'Judul Rencana': meta.title || p.content || '-',
+                    'Posisi / Jabatan': meta.position || p.user?.position || '-',
+                    'Kategori': p.category || meta.categoryTag || 'UMUM',
+                    'Prioritas': meta.priority || 'SEDANG',
+                    'Tanggal Mulai': meta.startDate ? dayjs(meta.startDate).format('DD/MM/YYYY') : '-',
+                    'Target Selesai': meta.endDate ? dayjs(meta.endDate).format('DD/MM/YYYY') : '-',
+                    'Status': isDone ? 'SELESAI' : 'AKTIF',
+                    'Capaian (%)': pct,
+                    'Total Langkah': items.length,
+                    'Langkah Selesai': items.filter(i => i.status === 'SELESAI' || i.percentage === 100).length
+                };
+            });
+
+            const stepRows = [];
+            plansForExport.forEach((p, pIdx) => {
+                const meta = p.metadata || {};
+                const items = meta.items || [];
+                items.forEach((it, sIdx) => {
+                    stepRows.push({
+                        'No Rencana': pIdx + 1,
+                        'Judul Rencana': meta.title || p.content || '-',
+                        'Posisi / Jabatan': meta.position || p.user?.position || '-',
+                        'No Langkah': sIdx + 1,
+                        'Aktivitas / Langkah': it.activity || it.text || '-',
+                        'Estimasi Target': it.targetDate ? dayjs(it.targetDate).format('DD/MM/YYYY') : '-',
+                        'Status Langkah': it.status || 'PENDING',
+                        'Progres (%)': it.percentage !== undefined ? it.percentage : (it.status === 'SELESAI' ? 100 : 0)
+                    });
+                });
+            });
+
+            const wb = XLSX.utils.book_new();
+            const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+            XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan_Rencana');
+
+            if (stepRows.length > 0) {
+                const wsSteps = XLSX.utils.json_to_sheet(stepRows);
+                XLSX.utils.book_append_sheet(wb, wsSteps, 'Rincian_Langkah');
+            }
+
+            XLSX.writeFile(wb, `Laporan_Rencana_Kerja_${exportStartDate || 'All'}_sd_${exportEndDate || 'All'}.xlsx`);
+        } catch (err) {
+            console.error('Failed to export Work Plan Excel:', err);
+            alert('Gagal mengekspor berkas Excel rencana kerja: ' + err.message);
+        }
+    };
 
     // Modal / Form state for Create & Edit Plan
     const [showFormModal, setShowFormModal] = useState(false);
@@ -563,6 +893,14 @@ export default function WorkPlanTab({
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                            type="button"
+                            onClick={() => setShowExportModal(true)}
+                            className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shadow-2xs hover:shadow-sm active:scale-95 cursor-pointer"
+                            title="Ekspor laporan rencana kerja berdasarkan rentang tanggal"
+                        >
+                            <Download size={16} className="text-violet-600" /> Ekspor Rencana Kerja
+                        </button>
                         <button
                             type="button"
                             onClick={handleOpenCreateModal}
@@ -1661,6 +1999,203 @@ export default function WorkPlanTab({
                     photoUrl={lightboxPhoto}
                     onClose={() => setLightboxPhoto(null)}
                 />
+            )}
+
+            {/* 7. EXPORT WORK PLAN MODAL */}
+            {showExportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col border border-slate-100 animate-in zoom-in-95">
+                        {/* Header */}
+                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-violet-50 to-indigo-50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-violet-600 text-white rounded-2xl shadow-md shadow-violet-500/20">
+                                    <FileSpreadsheet size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-slate-800 text-base">Ekspor Laporan Rencana Kerja</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Unduh dokumen PDF resmi atau file Excel berdasarkan rentang tanggal</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowExportModal(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-white/80 transition cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+                            {/* Preset Buttons */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">Pilih Rentang Cepat:</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setExportStartDate(dayjs().startOf('month').format('YYYY-MM-DD'));
+                                            setExportEndDate(dayjs().endOf('month').format('YYYY-MM-DD'));
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-violet-100 hover:text-violet-700 text-slate-700 transition cursor-pointer"
+                                    >
+                                        Bulan Ini
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setExportStartDate(dayjs().subtract(1, 'month').startOf('month').format('YYYY-MM-DD'));
+                                            setExportEndDate(dayjs().subtract(1, 'month').endOf('month').format('YYYY-MM-DD'));
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-violet-100 hover:text-violet-700 text-slate-700 transition cursor-pointer"
+                                    >
+                                        Bulan Lalu
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setExportStartDate(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
+                                            setExportEndDate(dayjs().startOf('week').add(6, 'day').format('YYYY-MM-DD'));
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-violet-100 hover:text-violet-700 text-slate-700 transition cursor-pointer"
+                                    >
+                                        Minggu Ini
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setExportStartDate(dayjs().startOf('year').format('YYYY-MM-DD'));
+                                            setExportEndDate(dayjs().endOf('year').format('YYYY-MM-DD'));
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-violet-100 hover:text-violet-700 text-slate-700 transition cursor-pointer"
+                                    >
+                                        Tahun {dayjs().year()}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setExportStartDate('');
+                                            setExportEndDate('');
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-violet-100 hover:text-violet-700 text-slate-700 transition cursor-pointer"
+                                    >
+                                        Semua Periode
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Date Inputs */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-black text-slate-700 block mb-1">Dari Tanggal:</label>
+                                    <input
+                                        type="date"
+                                        value={exportStartDate}
+                                        onChange={(e) => setExportStartDate(e.target.value)}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-700 block mb-1">Sampai Tanggal:</label>
+                                    <input
+                                        type="date"
+                                        value={exportEndDate}
+                                        onChange={(e) => setExportEndDate(e.target.value)}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Filters Row */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Status</label>
+                                    <select
+                                        value={exportStatus}
+                                        onChange={(e) => setExportStatus(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white outline-none"
+                                    >
+                                        <option value="ALL">Semua Status</option>
+                                        <option value="ACTIVE">Aktif (Sedang Berjalan)</option>
+                                        <option value="DONE">Selesai 100%</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Prioritas</label>
+                                    <select
+                                        value={exportPriority}
+                                        onChange={(e) => setExportPriority(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white outline-none"
+                                    >
+                                        <option value="ALL">Semua Prioritas</option>
+                                        <option value="TINGGI">Tinggi</option>
+                                        <option value="SEDANG">Sedang</option>
+                                        <option value="RENDAH">Rendah</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Kategori</label>
+                                    <select
+                                        value={exportCategory}
+                                        onChange={(e) => setExportCategory(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white outline-none"
+                                    >
+                                        <option value="ALL">Semua Kategori</option>
+                                        {DIVISION_TAGS.map(t => (
+                                            <option key={t.id} value={t.id}>{t.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Live Counter Preview */}
+                            <div className="p-3.5 bg-violet-50/60 border border-violet-100 rounded-2xl flex items-center justify-between text-xs">
+                                <div>
+                                    <span className="font-black text-slate-800 block">Total Data Rencana Terfilter:</span>
+                                    <span className="text-slate-500 text-[11px]">
+                                        {exportStartDate || exportEndDate
+                                            ? `${exportStartDate ? dayjs(exportStartDate).format('DD/MM/YYYY') : 'Awal'} s.d. ${exportEndDate ? dayjs(exportEndDate).format('DD/MM/YYYY') : 'Sekarang'}`
+                                            : 'Semua Periode'}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-lg font-black text-violet-700">{plansForExport.length}</span>
+                                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Rencana Kerja</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowExportModal(false)}
+                                className="px-4 py-2 text-slate-500 hover:text-slate-700 text-xs font-bold transition cursor-pointer"
+                            >
+                                Tutup
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={plansForExport.length === 0}
+                                    onClick={handleExportWorkPlanExcel}
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                                >
+                                    <FileSpreadsheet size={15} /> Unduh Excel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={plansForExport.length === 0 || exportingPdf}
+                                    onClick={handleExportWorkPlanPDF}
+                                    className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-violet-600/20 disabled:opacity-50 cursor-pointer"
+                                >
+                                    {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />}
+                                    <span>Unduh PDF Resmi</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
