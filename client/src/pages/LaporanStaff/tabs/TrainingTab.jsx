@@ -32,6 +32,25 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
 
+    // Modal Form States
+    const [showModal, setShowModal] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [formData, setFormData] = useState({
+        userId: user?.id ? String(user.id) : '',
+        title: '',
+        scheduleDate: dayjs().format('YYYY-MM-DD'),
+        endDate: '',
+        organizer: '',
+        location: '',
+        method: 'OFFLINE', // OFFLINE | ONLINE | HYBRID
+        description: '',
+        certificateNo: '',
+        status: 'COMPLETED'
+    });
+
+    // Local staff list state and auto-fetcher
+    const [localStaffList, setLocalStaffList] = useState(Array.isArray(staffList) ? staffList : []);
+
     // Role check: can user manage all staff trainings
     const canManageAll = useMemo(() => {
         if (!user) return false;
@@ -39,13 +58,11 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         const role = user.role || '';
         const pos = (user.position || '').toLowerCase();
         return ['ADMIN_ASET', 'SUPER_ADMIN'].includes(role) ||
+               pos.includes('kepala bidang') ||
                pos.includes('admin aset') ||
                pos.includes('manajemen aset') ||
                pos.includes('sarana');
     }, [isKabid, user]);
-
-    // Local staff list state and auto-fetcher
-    const [localStaffList, setLocalStaffList] = useState(Array.isArray(staffList) ? staffList : []);
 
     useEffect(() => {
         if (Array.isArray(staffList) && staffList.length > 0) {
@@ -88,22 +105,6 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         }
         return list;
     }, [localStaffList, staffList, user, editingItem]);
-
-    // Modal Form States
-    const [showModal, setShowModal] = useState(false);
-    const [editingItem, setEditingItem] = useState(null);
-    const [formData, setFormData] = useState({
-        userId: user?.id ? String(user.id) : '',
-        title: '',
-        scheduleDate: dayjs().format('YYYY-MM-DD'),
-        endDate: '',
-        organizer: '',
-        location: '',
-        method: 'OFFLINE', // OFFLINE | ONLINE | HYBRID
-        description: '',
-        certificateNo: '',
-        status: 'COMPLETED'
-    });
 
     // File 1: Bukti Sertifikat / Kehadiran (Wajib)
     const [selectedFile, setSelectedFile] = useState(null);
