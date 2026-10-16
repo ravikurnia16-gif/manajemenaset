@@ -32,6 +32,41 @@ import LightboxModal from './modals/LightboxModal';
 
 dayjs.locale('id');
 
+class TabErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error, info) {
+        console.error('Tab rendered error:', error, info);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="bg-white rounded-3xl border border-rose-100 p-8 text-center space-y-3 shadow-sm my-4">
+                    <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto">
+                        <AlertCircle size={24} />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-800">Gagal Memuat Konten Tab</h3>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                        {this.state.error?.message || 'Terjadi kendala saat merender komponen ini.'}
+                    </p>
+                    <button
+                        onClick={() => { this.setState({ hasError: false }); }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all cursor-pointer"
+                    >
+                        Coba Lagi
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 const LaporanStaff = () => {
     const { tab } = useParams();
     const navigate = useNavigate();
@@ -188,6 +223,10 @@ const LaporanStaff = () => {
         } else if (activeTab === 'perencanaan') {
             fetchPlans();
             if (isKabid) fetchStaffList();
+        } else if (activeTab === 'hafalan') {
+            if (isKabid) fetchStaffList();
+        } else if (activeTab === 'pelatihan') {
+            fetchStaffList();
         }
     }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate]);
 
@@ -1494,16 +1533,20 @@ const LaporanStaff = () => {
 
                     {/* TAB: SETORAN HAFALAN */}
                     {activeTab === 'hafalan' && (
-                        <SetoranHafalanTab isKabid={isKabid} user={user} />
+                        <TabErrorBoundary>
+                            <SetoranHafalanTab isKabid={isKabid} user={user} />
+                        </TabErrorBoundary>
                     )}
 
                     {/* TAB: PELATIHAN KARYAWAN */}
                     {activeTab === 'pelatihan' && (
-                        <TrainingTab
-                            isKabid={isKabid}
-                            user={user}
-                            staffList={staffList}
-                        />
+                        <TabErrorBoundary>
+                            <TrainingTab
+                                isKabid={isKabid}
+                                user={user}
+                                staffList={staffList}
+                            />
+                        </TabErrorBoundary>
                     )}
                 </>
             )}

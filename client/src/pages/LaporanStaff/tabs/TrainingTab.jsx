@@ -32,11 +32,68 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
 
+    // Role check: can user manage all staff trainings
+    const canManageAll = useMemo(() => {
+        if (!user) return false;
+        if (isKabid) return true;
+        const role = user.role || '';
+        const pos = (user.position || '').toLowerCase();
+        return ['ADMIN_ASET', 'SUPER_ADMIN'].includes(role) ||
+               pos.includes('admin aset') ||
+               pos.includes('manajemen aset') ||
+               pos.includes('sarana');
+    }, [isKabid, user]);
+
+    // Local staff list state and auto-fetcher
+    const [localStaffList, setLocalStaffList] = useState(Array.isArray(staffList) ? staffList : []);
+
+    useEffect(() => {
+        if (Array.isArray(staffList) && staffList.length > 0) {
+            setLocalStaffList(staffList);
+        } else if (canManageAll) {
+            api.get('/personnel/staff')
+                .then(res => {
+                    const list = Array.isArray(res.data) 
+                        ? res.data 
+                        : (Array.isArray(res.data?.staff) ? res.data.staff : []);
+                    setLocalStaffList(list);
+                })
+                .catch(err => console.error('Failed to load staff in TrainingTab:', err));
+        }
+    }, [staffList, canManageAll]);
+
+    // Ensure currently logged-in user is always in the staff list so their name can be selected/shown
+    const staffOptions = useMemo(() => {
+        const source = localStaffList.length > 0 ? localStaffList : (Array.isArray(staffList) ? staffList : []);
+        const list = source.filter(s => s && typeof s === 'object' && s.id != null);
+        if (user?.id) {
+            const exists = list.some(s => s && s.id != null && String(s.id) === String(user.id));
+            if (!exists) {
+                list.unshift({
+                    id: user.id,
+                    name: user.name || user.username || 'Saya (Admin Aset)',
+                    position: user.position || 'Admin Aset'
+                });
+            }
+        }
+        if (editingItem?.user?.id) {
+            const exists = list.some(s => s && s.id != null && String(s.id) === String(editingItem.user.id));
+            if (!exists) {
+                list.push({
+                    id: editingItem.user.id,
+                    name: editingItem.user.name,
+                    position: editingItem.user.position || 'Staf'
+                });
+            }
+        }
+        return list;
+    }, [localStaffList, staffList, user, editingItem]);
+
     // Modal Form States
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [formData, setFormData] = useState({
-        userId: user?.id || '',
+        userId: user?.id ? String(user.id) : '',
         title: '',
         scheduleDate: dayjs().format('YYYY-MM-DD'),
         endDate: '',
@@ -76,7 +133,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         try {
             setLoading(true);
             const params = {};
-            if (isKabid && selectedStaffFilter !== 'ALL') {
+            if (canManageAll && selectedStaffFilter !== 'ALL') {
                 params.userId = selectedStaffFilter;
             }
             if (methodFilter !== 'ALL') {
@@ -123,7 +180,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const handleOpenCreateModal = () => {
         setEditingItem(null);
         setFormData({
-            userId: user?.id || '',
+            userId: user?.id ? String(user.id) : (staffOptions[0]?.id ? String(staffOptions[0].id) : ''),
             title: '',
             scheduleDate: dayjs().format('YYYY-MM-DD'),
             endDate: '',
@@ -146,10 +203,10 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const handleOpenEditModal = (item) => {
         setEditingItem(item);
         setFormData({
-            userId: item.userId || user?.id || '',
+            userId: item.userId ? String(item.userId) : (user?.id ? String(user.id) : ''),
             title: item.title || '',
-            scheduleDate: item.scheduleDate ? dayjs(item.scheduleDate).format('YYYY-MM-DD') : '',
-            endDate: item.endDate ? dayjs(item.endDate).format('YYYY-MM-DD') : '',
+            scheduleDate: item.scheduleDate && dayjs(item.scheduleDate).isValid() ? dayjs(item.scheduleDate).format('YYYY-MM-DD') : '',
+            endDate: item.endDate && dayjs(item.endDate).isValid() ? dayjs(item.endDate).format('YYYY-MM-DD') : '',
             organizer: item.organizer || '',
             location: item.location || '',
             method: item.method || 'OFFLINE',
@@ -248,7 +305,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             if (formData.description) form.append('description', formData.description.trim());
             if (formData.certificateNo) form.append('certificateNo', formData.certificateNo.trim());
             if (formData.status) form.append('status', formData.status);
-            if (isKabid && formData.userId) form.append('userId', formData.userId);
+            if (canManageAll && formData.userId) form.append('userId', formData.userId);
 
             // Bukti Dokumen PDF
             if (selectedFile) {
@@ -481,8 +538,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                         </select>
                     </div>
 
-                    {/* Staff Filter (For Kabid) */}
-                    {isKabid ? (
+                    {/* Staff Filter (For Kabid & Admin) */}
+                    {canManageAll ? (
                         <div>
                             <select
                                 value={selectedStaffFilter}
@@ -568,7 +625,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {(Array.isArray(trainings) ? trainings : []).map((item) => {
-                        const canEdit = isKabid || item.userId === user?.id;
+                        const canEdit = canManageAll || item.userId === user?.id;
 
                         return (
                             <div
@@ -580,8 +637,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                     <div className="flex items-start justify-between gap-2 flex-wrap">
                                         <div className="flex items-center gap-1.5 text-[11px] font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl">
                                             <Calendar size={13} />
-                                            <span>{dayjs(item.scheduleDate).format('DD MMMM YYYY')}</span>
-                                            {item.endDate && (
+                                            <span>{item.scheduleDate && dayjs(item.scheduleDate).isValid() ? dayjs(item.scheduleDate).format('DD MMMM YYYY') : '-'}</span>
+                                            {item.endDate && dayjs(item.endDate).isValid() && (
                                                 <span> - {dayjs(item.endDate).format('DD MMM YYYY')}</span>
                                             )}
                                         </div>
@@ -762,8 +819,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Target User (For Kabid) */}
-                            {isKabid && (
+                            {/* Target User (For Kabid & Admin) */}
+                            {canManageAll && (
                                 <div>
                                     <label className="text-xs font-bold text-slate-700 block mb-1">
                                         Nama Karyawan / Peserta *
