@@ -68,8 +68,25 @@ const syncExternalUser = async (niy, externalData, password) => {
     // Mapping logic (Flexible based on common API patterns)
     const name = externalData.nama || externalData.name || externalData.fullName;
     const phone = externalData.hp || externalData.phone || externalData.no_hp || externalData.noHp;
-    const email = externalData.email;
+    const rawEmail = externalData.email;
     const position = externalData.jabatan || externalData.position;
+
+    // Normalize and validate email to avoid unique constraint crashes (e.g., empty string or duplicate)
+    let validEmail = (typeof rawEmail === 'string' && rawEmail.trim() !== '') ? rawEmail.trim().toLowerCase() : null;
+    if (validEmail) {
+        const existingEmailUser = await prisma.user.findFirst({
+            where: {
+                email: validEmail,
+                ...(user ? { NOT: { id: user.id } } : {})
+            }
+        });
+        if (existingEmailUser) {
+            console.warn(`[SIMAK Sync] Email '${validEmail}' sudah digunakan oleh user '${existingEmailUser.username}' (id: ${existingEmailUser.id}). Melewati sinkronisasi email untuk ${niy}.`);
+            validEmail = user ? user.email : null;
+        }
+    } else {
+        validEmail = user ? user.email : null;
+    }
 
     // Unit mapping (Attempt to find unit by name if provided)
     let unitId = null;
@@ -128,28 +145,45 @@ const syncExternalUser = async (niy, externalData, password) => {
 
     if (!user) {
         // Scenario: First time login (Auto-Register)
-        user = await prisma.user.create({
-            data: {
-                username: niy,
-                nip: niy,
-                name: name,
-                phone: phone,
-                email: email,
-                position: position,
-                password: hashedPassword,
-                role: 'USER', // Default role for new syncs
-                unitId: unitId
-            },
-            include: { unit: true }
-        });
+        const createData = {
+            username: niy,
+            nip: niy,
+            name: name,
+            phone: phone,
+            email: validEmail,
+            position: position,
+            password: hashedPassword,
+            role: 'USER', // Default role for new syncs
+            unitId: unitId
+        };
+        try {
+            user = await prisma.user.create({
+                data: createData,
+                include: { unit: true }
+            });
+        } catch (createErr) {
+            if (createErr.code === 'P2002' && (createErr.meta?.target?.includes('email') || createErr.message?.includes('User_email_key'))) {
+                console.warn(`[SIMAK Sync] Duplicate email collision saat pendaftaran ${niy}, mendaftar tanpa email.`);
+                createData.email = null;
+                user = await prisma.user.create({
+                    data: createData,
+                    include: { unit: true }
+                });
+            } else {
+                throw createErr;
+            }
+        }
     } else {
         // Scenario: Subsequent login (Option B: Sync profile)
         const updateData = {
             name: name || user.name,
             phone: phone || user.phone,
-            email: email || user.email,
             password: hashedPassword, // Keep local password in sync for fallback
         };
+
+        if (validEmail && validEmail !== user.email) {
+            updateData.email = validEmail;
+        }
 
         // NEW: Auto-sync unit ONLY for 'USER' role & Semesterly (26 Jan & 26 Jun)
         if (user.role === 'USER' && unitId && user.unitId !== unitId) {
@@ -197,11 +231,25 @@ const syncExternalUser = async (niy, externalData, password) => {
             }
         }
 
-        user = await prisma.user.update({
-            where: { id: user.id },
-            data: updateData,
-            include: { unit: true }
-        });
+        try {
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: updateData,
+                include: { unit: true }
+            });
+        } catch (updateErr) {
+            if (updateErr.code === 'P2002' && (updateErr.meta?.target?.includes('email') || updateErr.message?.includes('User_email_key'))) {
+                console.warn(`[SIMAK Sync] Email constraint error saat update ${user.username}, retrying tanpa update email.`);
+                delete updateData.email;
+                user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: updateData,
+                    include: { unit: true }
+                });
+            } else {
+                throw updateErr;
+            }
+        }
     }
     return user;
 };

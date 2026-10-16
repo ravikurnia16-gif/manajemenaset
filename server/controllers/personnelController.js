@@ -92,26 +92,28 @@ const syncPlanToCalendar = async (report, user) => {
 // Auto-log activity to daily report (called when updating plans/tasks/routines)
 const autoLogActivity = async (userId, source, sourceId, sourceTitle, description, percentage) => {
     try {
-        const now = new Date();
-        const todayStart = new Date(now.setHours(0, 0, 0, 0));
-        const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
         const currentTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
         // Check if an entry for this item already exists for today
-        const existingLog = await prisma.personnelReport.findFirst({
+        const existingLogs = await prisma.personnelReport.findMany({
             where: {
                 userId: parseInt(userId),
                 type: 'DAILY',
-                category: 'UMUM',
                 date: {
                     gte: todayStart,
                     lte: todayEnd
-                },
-                metadata: {
-                    path: ['sourceId'],
-                    equals: sourceId
                 }
             }
+        });
+
+        const existingLog = existingLogs.find(log => {
+            const m = log.metadata;
+            if (!m || typeof m !== 'object') return false;
+            return String(m.sourceId) === String(sourceId) && (m.source === source || !source);
         });
 
         if (existingLog) {
@@ -121,7 +123,7 @@ const autoLogActivity = async (userId, source, sourceId, sourceTitle, descriptio
                 data: {
                     content: description,
                     metadata: {
-                        ...existingLog.metadata,
+                        ...(existingLog.metadata || {}),
                         progressPercentage: percentage,
                         endTime: currentTime,
                         timestamp: new Date().toISOString()
@@ -2653,16 +2655,15 @@ exports.getPersonnelAISummary = async (req, res) => {
         });
 
         // B. Recent Plans (Weekly Reports with isPlan: true)
-        const plans = await prisma.personnelReport.findMany({
+        const weeklyReports = await prisma.personnelReport.findMany({
             where: {
                 type: 'WEEKLY',
-                date: { gte: last7Days },
-                metadata: { path: ['isPlan'], equals: true }
+                date: { gte: last7Days }
             },
             include: { user: { select: { name: true } } },
-            orderBy: { date: 'desc' },
-            take: 10
+            orderBy: { date: 'desc' }
         });
+        const plans = weeklyReports.filter(r => r.metadata && (r.metadata.isPlan === true || r.metadata.isPlan === 'true')).slice(0, 10);
 
         // C. Active Routines
         const routines = await prisma.personnelRoutine.findMany({
@@ -2738,16 +2739,15 @@ exports.generateSummary = async (req, res) => {
         });
 
         // B. Recent Plans (Weekly Reports with isPlan: true)
-        const plans = await prisma.personnelReport.findMany({
+        const weeklyReportsAuth = await prisma.personnelReport.findMany({
             where: {
                 type: 'WEEKLY',
-                date: { gte: last7Days },
-                metadata: { path: ['isPlan'], equals: true }
+                date: { gte: last7Days }
             },
             include: { user: { select: { name: true } } },
-            orderBy: { date: 'desc' },
-            take: 10
+            orderBy: { date: 'desc' }
         });
+        const plans = weeklyReportsAuth.filter(r => r.metadata && (r.metadata.isPlan === true || r.metadata.isPlan === 'true')).slice(0, 10);
 
         // C. Active Routines
         const routines = await prisma.personnelRoutine.findMany({
