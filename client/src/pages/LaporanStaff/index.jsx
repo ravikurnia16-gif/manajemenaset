@@ -184,10 +184,12 @@ const LaporanStaff = () => {
             fetchWeeklySummary();
         } else if (activeTab === 'penugasan') {
             fetchAssignments();
-            if (isKabid) fetchStaffList();
+            fetchStaffList();
         } else if (activeTab === 'perencanaan') {
             fetchPlans();
-            if (isKabid) fetchStaffList();
+            fetchStaffList();
+        } else if (activeTab === 'pelatihan') {
+            fetchStaffList();
         }
     }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate]);
 
@@ -623,8 +625,12 @@ const LaporanStaff = () => {
     const fetchStaffList = async () => {
         try {
             const res = await api.get('/personnel/staff');
-            if (res.data.success || res.data.data) {
-                setStaffList(res.data.staff || res.data.data || []);
+            if (Array.isArray(res.data?.staff)) {
+                setStaffList(res.data.staff);
+            } else if (Array.isArray(res.data?.data)) {
+                setStaffList(res.data.data);
+            } else if (Array.isArray(res.data)) {
+                setStaffList(res.data);
             }
         } catch (e) {
             console.error('Error fetching staff list:', e);

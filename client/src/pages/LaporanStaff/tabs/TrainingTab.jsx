@@ -32,11 +32,48 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
 
+    // Check if user is manager / admin aset / kabid
+    const canManageAll = useMemo(() => {
+        if (isKabid) return true;
+        const role = user?.role || '';
+        const pos = (user?.position || '').toLowerCase();
+        return ['ADMIN_ASET', 'SUPER_ADMIN'].includes(role) || 
+               pos.includes('admin aset') || 
+               pos.includes('manajemen aset') ||
+               pos.includes('sarana');
+    }, [isKabid, user]);
+
+    // Ensure currently logged-in user is always in the staff list so their name can be selected/shown
+    const staffOptions = useMemo(() => {
+        const list = Array.isArray(staffList) ? [...staffList] : [];
+        if (user?.id) {
+            const exists = list.some(s => String(s.id) === String(user.id));
+            if (!exists) {
+                list.unshift({
+                    id: user.id,
+                    name: user.name || user.username || 'Saya (Admin Aset)',
+                    position: user.position || 'Admin Aset'
+                });
+            }
+        }
+        if (editingItem?.user?.id) {
+            const exists = list.some(s => String(s.id) === String(editingItem.user.id));
+            if (!exists) {
+                list.push({
+                    id: editingItem.user.id,
+                    name: editingItem.user.name,
+                    position: editingItem.user.position || 'Staf'
+                });
+            }
+        }
+        return list;
+    }, [staffList, user, editingItem]);
+
     // Modal Form States
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [formData, setFormData] = useState({
-        userId: user?.id || '',
+        userId: user?.id ? String(user.id) : '',
         title: '',
         scheduleDate: dayjs().format('YYYY-MM-DD'),
         endDate: '',
@@ -76,7 +113,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         try {
             setLoading(true);
             const params = {};
-            if (isKabid && selectedStaffFilter !== 'ALL') {
+            if (canManageAll && selectedStaffFilter !== 'ALL') {
                 params.userId = selectedStaffFilter;
             }
             if (methodFilter !== 'ALL') {
@@ -121,7 +158,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const handleOpenCreateModal = () => {
         setEditingItem(null);
         setFormData({
-            userId: user?.id || '',
+            userId: user?.id ? String(user.id) : (staffOptions[0]?.id ? String(staffOptions[0].id) : ''),
             title: '',
             scheduleDate: dayjs().format('YYYY-MM-DD'),
             endDate: '',
@@ -144,7 +181,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
     const handleOpenEditModal = (item) => {
         setEditingItem(item);
         setFormData({
-            userId: item.userId || user?.id || '',
+            userId: item.userId ? String(item.userId) : (user?.id ? String(user.id) : ''),
             title: item.title || '',
             scheduleDate: item.scheduleDate ? dayjs(item.scheduleDate).format('YYYY-MM-DD') : '',
             endDate: item.endDate ? dayjs(item.endDate).format('YYYY-MM-DD') : '',
@@ -245,8 +282,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             form.append('method', formData.method || 'OFFLINE');
             if (formData.description) form.append('description', formData.description.trim());
             if (formData.certificateNo) form.append('certificateNo', formData.certificateNo.trim());
-            if (formData.status) form.append('status', formData.status);
-            if (isKabid && formData.userId) form.append('userId', formData.userId);
+            const targetUserId = formData.userId || user?.id;
+            if (targetUserId) form.append('userId', targetUserId);
 
             // Bukti Dokumen PDF
             if (selectedFile) {
@@ -478,8 +515,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                         </select>
                     </div>
 
-                    {/* Staff Filter (For Kabid) */}
-                    {isKabid ? (
+                    {/* Staff Filter (For Kabid & Admin Aset) */}
+                    {canManageAll ? (
                         <div>
                             <select
                                 value={selectedStaffFilter}
@@ -487,8 +524,8 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
                             >
                                 <option value="ALL">Semua Karyawan</option>
-                                {staffList.map(s => (
-                                    <option key={s.id} value={s.id}>
+                                {staffOptions.map(s => (
+                                    <option key={s.id} value={String(s.id)}>
                                         {s.name} ({s.position || 'Staf'})
                                     </option>
                                 ))}
@@ -565,7 +602,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {trainings.map((item) => {
-                        const canEdit = isKabid || item.userId === user?.id;
+                        const canEdit = canManageAll || item.userId === user?.id;
 
                         return (
                             <div 
@@ -759,27 +796,32 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Target User (For Kabid) */}
-                            {isKabid && (
-                                <div>
-                                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                            {/* Target User / Nama Karyawan */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-bold text-slate-700">
                                         Nama Karyawan / Peserta *
                                     </label>
-                                    <select
-                                        required
-                                        value={formData.userId}
-                                        onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
-                                    >
-                                        <option value="">Pilih Karyawan</option>
-                                        {staffList.map(s => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.name} ({s.position || 'Staf'})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-medium border border-amber-200/60">
+                                        Otomatis terisi akun pengisi
+                                    </span>
                                 </div>
-                            )}
+                                <select
+                                    required
+                                    value={String(formData.userId || user?.id || '')}
+                                    onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
+                                >
+                                    {staffOptions.map(s => {
+                                        const isCurrentUser = String(s.id) === String(user?.id);
+                                        return (
+                                            <option key={s.id} value={String(s.id)}>
+                                                {s.name} ({s.position || 'Staf'}) {isCurrentUser ? '★ (Akun Pengisi / Saya)' : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
 
                             {/* 1. Judul Pelatihan */}
                             <div>
