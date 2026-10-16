@@ -23,6 +23,7 @@ router.get('/dashboard/analytics', laporanController.getDashboardAnalytics);
 router.get('/weekly-summary', laporanController.getWeeklySummary);
 router.post('/ai/analyze', laporanController.analyzeWithAI);
 router.post('/ai/breakdown-plan', laporanController.breakdownPlanWithAI);
+router.post('/ai/polish-text', laporanController.polishTextWithAI);
 router.put('/:id/verify', laporanController.verifyReport);
 router.put('/:id/point-review', laporanController.updatePointReview);
 

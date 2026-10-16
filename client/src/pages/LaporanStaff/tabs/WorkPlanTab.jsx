@@ -1,14 +1,65 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
     Target, Calendar, CheckCircle2, Clock, Plus, Trash2, Edit3, 
     User, Sparkles, Filter, Search, ChevronDown, ChevronUp, 
     Zap, Check, RotateCcw, FileText, AlertCircle, CalendarDays,
     BarChart3, Layers, ArrowRight, CheckSquare, Square, Flame,
-    ShieldAlert
+    ShieldAlert, Camera, Image as ImageIcon, X, Upload, Loader2,
+    Eye
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import api from '../../../lib/axios';
+import { getMediaUrl } from '../../../lib/media';
+import LightboxModal from '../modals/LightboxModal';
 import { DIVISION_TAGS } from '../constants';
+
+const compressImageToBase64 = (fileOrBlob, maxWidth = 1200, quality = 0.82) => {
+    return new Promise((resolve, reject) => {
+        let objectUrl = null;
+        const img = new Image();
+        img.onload = () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            try {
+                let width = img.naturalWidth || img.width;
+                let height = img.naturalHeight || img.height;
+                if (!width || !height) return reject(new Error('Dimensi foto tidak valid.'));
+                const maxHeight = 1600;
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const compressed = canvas.toDataURL('image/jpeg', quality);
+                resolve(compressed);
+            } catch (err) {
+                reject(err);
+            }
+        };
+        img.onerror = () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            reject(new Error('Gagal memuat berkas gambar.'));
+        };
+        if (typeof fileOrBlob === 'string') {
+            img.src = fileOrBlob;
+        } else if (fileOrBlob instanceof Blob || fileOrBlob instanceof File) {
+            objectUrl = URL.createObjectURL(fileOrBlob);
+            img.src = objectUrl;
+        } else {
+            reject(new Error('Format berkas tidak didukung.'));
+        }
+    });
+};
 
 const getUserCategory = (pos = '', division = 'UMUM') => {
     const p = (pos || '').toLowerCase();
@@ -58,6 +109,189 @@ export default function WorkPlanTab({
         notes: '',
         items: []
     });
+
+    // Modal state for 100% completion with photo proof & direct Daily Report sync
+    const [completionModal, setCompletionModal] = useState({
+        isOpen: false,
+        plan: null,
+        item: null,
+        itemIndex: null, // null for single-goal plan
+        photoFile: null,
+        photoPreview: null,
+        syncToDailyReport: true,
+        sessionPeriod: dayjs().hour() < 12 ? 'morning' : 'afternoon'
+    });
+    const [uploadingCompletion, setUploadingCompletion] = useState(false);
+    const [lightboxPhoto, setLightboxPhoto] = useState(null);
+    const completionFileInputRef = useRef(null);
+
+    // AI Polish for Plan Form Title & Steps
+    const [polishingPlanItemIdx, setPolishingPlanItemIdx] = useState(null);
+    const [polishingPlanTitle, setPolishingPlanTitle] = useState(false);
+
+    const handlePolishPlanTitle = async () => {
+        if (!planForm.title?.trim()) return;
+        try {
+            setPolishingPlanTitle(true);
+            const res = await api.post('/laporan/ai/polish-text', {
+                text: planForm.title,
+                categoryTag: planForm.category || userDivision || 'UMUM',
+                mode: 'activity'
+            });
+            if (res.data?.success && res.data?.polished) {
+                setPlanForm(prev => ({
+                    ...prev,
+                    title: res.data.polished.replace(/\.$/, '')
+                }));
+            }
+        } catch (err) {
+            console.error('Failed to polish plan title:', err);
+            alert('Gagal merapikan judul rencana.');
+        } finally {
+            setPolishingPlanTitle(false);
+        }
+    };
+
+    const handlePolishPlanItem = async (index) => {
+        const item = planForm.items[index];
+        if (!item?.activity?.trim()) return;
+
+        try {
+            setPolishingPlanItemIdx(index);
+            const res = await api.post('/laporan/ai/polish-text', {
+                text: item.activity,
+                categoryTag: planForm.category || userDivision || 'UMUM',
+                mode: 'activity'
+            });
+            if (res.data?.success && res.data?.polished) {
+                handleItemChange(index, 'activity', res.data.polished.replace(/\.$/, ''));
+            }
+        } catch (err) {
+            console.error('Failed to polish step activity:', err);
+            alert('Gagal merapikan teks langkah.');
+        } finally {
+            setPolishingPlanItemIdx(null);
+        }
+    };
+
+    // Open 100% Completion Modal
+    const handleOpenCompletionModal = (plan, item = null, itemIndex = null) => {
+        setCompletionModal({
+            isOpen: true,
+            plan,
+            item,
+            itemIndex,
+            photoFile: null,
+            photoPreview: null,
+            syncToDailyReport: true,
+            sessionPeriod: dayjs().hour() < 12 ? 'morning' : 'afternoon'
+        });
+    };
+
+    const handleCompletionPhotoSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('Berkas harus berupa gambar (JPG, PNG, JPEG, WebP).');
+            return;
+        }
+        if (file.size > 15 * 1024 * 1024) {
+            alert('Ukuran berkas maksimal 15MB.');
+            return;
+        }
+        const previewUrl = URL.createObjectURL(file);
+        setCompletionModal(prev => ({
+            ...prev,
+            photoFile: file,
+            photoPreview: previewUrl
+        }));
+    };
+
+    const handleRemoveCompletionPhoto = () => {
+        if (completionModal.photoPreview) {
+            URL.revokeObjectURL(completionModal.photoPreview);
+        }
+        if (completionFileInputRef.current) {
+            completionFileInputRef.current.value = '';
+        }
+        setCompletionModal(prev => ({
+            ...prev,
+            photoFile: null,
+            photoPreview: null
+        }));
+    };
+
+    const handleSubmitCompletion = async (e) => {
+        if (e) e.preventDefault();
+        const { plan, item, itemIndex, photoFile, syncToDailyReport, sessionPeriod } = completionModal;
+        if (!plan) return;
+
+        try {
+            setUploadingCompletion(true);
+            let uploadedPhotos = [];
+
+            // 1. Upload photo if attached
+            if (photoFile) {
+                try {
+                    const base64Str = await compressImageToBase64(photoFile);
+                    const res = await api.post('/laporan/upload-photo', { base64: base64Str });
+                    if (res.data?.success && res.data?.url) {
+                        uploadedPhotos = [{
+                            url: res.data.url,
+                            timestamp: res.data.timestamp || new Date().toISOString()
+                        }];
+                    }
+                } catch (uploadErr) {
+                    console.error('Failed to upload proof photo:', uploadErr);
+                    if (!window.confirm('Gagal mengunggah foto bukti ke server. Tetap lanjutkan penyelesaian 100% tanpa bukti foto?')) {
+                        setUploadingCompletion(false);
+                        return;
+                    }
+                }
+            }
+
+            // 2. Mark Plan or Sub-item as 100% SELESAI
+            const isSingleGoal = itemIndex === null;
+            if (isSingleGoal) {
+                const extraMeta = {
+                    percentage: 100,
+                    status: 'SELESAI',
+                    ...(uploadedPhotos.length > 0 ? { photos: uploadedPhotos } : {})
+                };
+                await handleTogglePlanStatus(plan, extraMeta);
+            } else {
+                const updates = {
+                    percentage: 100,
+                    status: 'SELESAI',
+                    ...(uploadedPhotos.length > 0 ? { photos: uploadedPhotos } : {})
+                };
+                await handleUpdatePlanItem(plan, itemIndex, updates);
+            }
+
+            // 3. Directly import into Laporan Harian if selected
+            if (syncToDailyReport && onImportPlanItemToReport) {
+                onImportPlanItemToReport(plan, item, itemIndex, sessionPeriod, uploadedPhotos);
+            }
+
+            // 4. Cleanup and close modal
+            handleRemoveCompletionPhoto();
+            setCompletionModal({
+                isOpen: false,
+                plan: null,
+                item: null,
+                itemIndex: null,
+                photoFile: null,
+                photoPreview: null,
+                syncToDailyReport: true,
+                sessionPeriod: 'morning'
+            });
+        } catch (err) {
+            console.error('Error completing plan item:', err);
+            alert('Gagal menyimpan penyelesaian rencana kerja: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setUploadingCompletion(false);
+        }
+    };
 
     // Open Create Modal
     const handleOpenCreateModal = () => {
@@ -696,10 +930,14 @@ export default function WorkPlanTab({
                                                                 disabled={!isOwner && !isKabid}
                                                                 onClick={() => {
                                                                     const newPct = itemDone ? 0 : 100;
-                                                                    handleUpdatePlanItem(plan, idx, {
-                                                                        percentage: newPct,
-                                                                        status: newPct === 100 ? 'SELESAI' : 'PENDING'
-                                                                    });
+                                                                    if (newPct === 100) {
+                                                                        handleOpenCompletionModal(plan, it, idx);
+                                                                    } else {
+                                                                        handleUpdatePlanItem(plan, idx, {
+                                                                            percentage: 0,
+                                                                            status: 'PENDING'
+                                                                        });
+                                                                    }
                                                                 }}
                                                                 className={`mt-0.5 shrink-0 rounded-lg p-0.5 transition cursor-pointer ${
                                                                     itemDone 
@@ -738,6 +976,22 @@ export default function WorkPlanTab({
                                                                             {itIsOverdue && <span className="font-black text-rose-900">• Terlewat</span>}
                                                                         </span>
                                                                     )}
+
+                                                                    {/* Step Proof Photo Badge */}
+                                                                    {((it.photos && it.photos.length > 0) || it.photo) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setLightboxPhoto(it.photos?.[0]?.url || it.photos?.[0] || it.photo)}
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[9px] font-bold transition cursor-pointer shadow-2xs"
+                                                                            title="Klik untuk melihat bukti foto pelaksanaan"
+                                                                        >
+                                                                            <Camera size={10} className="text-emerald-600" />
+                                                                            <span>Bukti Foto</span>
+                                                                            <span className="w-3.5 h-3.5 rounded-full bg-emerald-200 text-emerald-800 text-[8px] flex items-center justify-center font-black">
+                                                                                {it.photos?.length || 1}
+                                                                            </span>
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -752,10 +1006,14 @@ export default function WorkPlanTab({
                                                                             key={pct}
                                                                             type="button"
                                                                             onClick={() => {
-                                                                                handleUpdatePlanItem(plan, idx, {
-                                                                                    percentage: pct,
-                                                                                    status: pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING')
-                                                                                });
+                                                                                if (pct === 100 && itemPct !== 100) {
+                                                                                    handleOpenCompletionModal(plan, it, idx);
+                                                                                } else {
+                                                                                    handleUpdatePlanItem(plan, idx, {
+                                                                                        percentage: pct,
+                                                                                        status: pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING')
+                                                                                    });
+                                                                                }
                                                                             }}
                                                                             className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                                                                                 itemPct === pct
@@ -799,11 +1057,26 @@ export default function WorkPlanTab({
                                 ) : (
                                     /* SCENARIO B: SINGLE-GOAL PLAN WITHOUT SUB-ITEMS */
                                     <div className="p-3.5 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-violet-400 shrink-0" />
                                             <p className="text-xs text-slate-500 font-medium">
                                                 Rencana kerja mandiri (tanpa butir langkah tambahan).
                                             </p>
+                                            {/* Single-Goal Proof Photo Badge */}
+                                            {((plan.metadata?.photos && plan.metadata.photos.length > 0) || plan.metadata?.photo) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setLightboxPhoto(plan.metadata.photos?.[0]?.url || plan.metadata.photos?.[0] || plan.metadata.photo)}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                                                    title="Klik untuk melihat bukti foto pelaksanaan"
+                                                >
+                                                    <Camera size={11} className="text-emerald-600" />
+                                                    <span>Bukti Foto</span>
+                                                    <span className="w-4 h-4 rounded-full bg-emerald-200 text-emerald-800 text-[9px] flex items-center justify-center font-black">
+                                                        {plan.metadata.photos?.length || 1}
+                                                    </span>
+                                                </button>
+                                            )}
                                         </div>
 
                                         {(isOwner || isKabid) && (
@@ -811,7 +1084,13 @@ export default function WorkPlanTab({
                                                 {/* Single Toggle Button */}
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleTogglePlanStatus && handleTogglePlanStatus(plan)}
+                                                    onClick={() => {
+                                                        if (!isDone) {
+                                                            handleOpenCompletionModal(plan, null, null);
+                                                        } else {
+                                                            handleTogglePlanStatus && handleTogglePlanStatus(plan);
+                                                        }
+                                                    }}
                                                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
                                                         isDone
                                                             ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
@@ -891,29 +1170,50 @@ export default function WorkPlanTab({
                         <form onSubmit={onSubmitPlanForm} className="space-y-4">
                             {/* 1. Judul Rencana */}
                             <div>
-                                <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center justify-between mb-1 gap-2">
                                     <label className="text-xs font-bold text-slate-700">
                                         1. Judul Rencana Kerja <span className="text-rose-500">*</span>
                                     </label>
-                                    <button
-                                        type="button"
-                                        disabled={loadingAiBreakdown}
-                                        onClick={handleAiBreakdown}
-                                        className="px-2.5 py-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow-xs shadow-violet-600/25 active:scale-95 cursor-pointer disabled:opacity-50"
-                                        title="Gunakan Google Gemini untuk merinci langkah kerja secara logis & otomatis"
-                                    >
-                                        {loadingAiBreakdown ? (
-                                            <>
-                                                <RotateCcw size={12} className="animate-spin" />
-                                                <span>AI Sedang Merinci...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles size={12} className="text-amber-300 fill-amber-300" />
-                                                <span>AI Rinci Langkah Otomatis</span>
-                                            </>
-                                        )}
-                                    </button>
+                                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                        <button
+                                            type="button"
+                                            disabled={polishingPlanTitle || !planForm.title?.trim()}
+                                            onClick={handlePolishPlanTitle}
+                                            className="px-2.5 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-xl text-[11px] font-bold transition flex items-center gap-1 active:scale-95 cursor-pointer disabled:opacity-40"
+                                            title="Rapikan kalimat judul rencana kerja menggunakan standar bahasa formal"
+                                        >
+                                            {polishingPlanTitle ? (
+                                                <>
+                                                    <RotateCcw size={11} className="animate-spin text-violet-600" />
+                                                    <span>Merapikan...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles size={11} className="text-violet-600" />
+                                                    <span>Rapikan Judul (AI)</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={loadingAiBreakdown}
+                                            onClick={handleAiBreakdown}
+                                            className="px-2.5 py-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow-xs shadow-violet-600/25 active:scale-95 cursor-pointer disabled:opacity-50"
+                                            title="Gunakan Google Gemini untuk merinci langkah kerja secara logis & otomatis"
+                                        >
+                                            {loadingAiBreakdown ? (
+                                                <>
+                                                    <RotateCcw size={12} className="animate-spin" />
+                                                    <span>AI Sedang Merinci...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles size={12} className="text-amber-300 fill-amber-300" />
+                                                    <span>AI Rinci Langkah Otomatis</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
                                 <input
                                     required
@@ -1061,6 +1361,20 @@ export default function WorkPlanTab({
                                                     />
                                                     <button
                                                         type="button"
+                                                        disabled={polishingPlanItemIdx === idx || !it.activity?.trim()}
+                                                        onClick={() => handlePolishPlanItem(idx)}
+                                                        className="px-2 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-40 shrink-0"
+                                                        title="Rapikan kalimat langkah ini dengan AI"
+                                                    >
+                                                        {polishingPlanItemIdx === idx ? (
+                                                            <RotateCcw size={10} className="animate-spin text-violet-600" />
+                                                        ) : (
+                                                            <Sparkles size={10} className="text-violet-600" />
+                                                        )}
+                                                        <span>Rapikan</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
                                                         onClick={() => handleRemoveItemField(idx)}
                                                         className="p-1.5 text-slate-300 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition cursor-pointer"
                                                         title="Hapus langkah ini"
@@ -1123,6 +1437,230 @@ export default function WorkPlanTab({
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* 5. MODAL: SELESAIKAN 100% & BUKTI FOTO & HUBUNGKAN KE LAPORAN HARIAN */}
+            {completionModal.isOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+                    <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden flex flex-col my-8">
+                        {/* Modal Header */}
+                        <div className="p-5 sm:p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shadow-inner">
+                                    <CheckCircle2 size={22} className="text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base sm:text-lg font-black tracking-tight">
+                                        Selesaikan Target 100%
+                                    </h3>
+                                    <p className="text-emerald-100 text-xs font-medium">
+                                        Bukti foto pelaksanaan & hubungkan ke Laporan Harian
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={uploadingCompletion}
+                                onClick={() => {
+                                    handleRemoveCompletionPhoto();
+                                    setCompletionModal(prev => ({ ...prev, isOpen: false }));
+                                }}
+                                className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <form onSubmit={handleSubmitCompletion} className="p-5 sm:p-6 space-y-4">
+                            {/* Task Preview Card */}
+                            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <span>Target yang Diselesaikan</span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">
+                                        {completionModal.plan?.metadata?.categoryTag || completionModal.plan?.category || 'UMUM'}
+                                    </span>
+                                </div>
+                                <h4 className="text-sm font-black text-slate-800">
+                                    {completionModal.plan?.metadata?.title || 'Rencana Kerja'}
+                                </h4>
+                                {completionModal.item && (
+                                    <div className="flex items-start gap-2 pt-1 border-t border-slate-200/60 text-xs text-slate-600">
+                                        <ArrowRight size={14} className="text-emerald-600 shrink-0 mt-0.5" />
+                                        <span className="font-semibold">{completionModal.item.activity || completionModal.item.text}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Photo Upload (Optional) */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                        <Camera size={14} className="text-violet-600" />
+                                        Bukti Foto Pelaksanaan
+                                    </label>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                                        Opsional
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">
+                                    Sertakan foto bukti hasil kegiatan jika ada.
+                                </p>
+
+                                <input
+                                    type="file"
+                                    ref={completionFileInputRef}
+                                    accept="image/*"
+                                    onChange={handleCompletionPhotoSelect}
+                                    className="hidden"
+                                />
+
+                                {completionModal.photoPreview ? (
+                                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 aspect-video max-h-48 flex items-center justify-center group">
+                                        <img
+                                            src={completionModal.photoPreview}
+                                            alt="Preview Bukti Foto"
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => completionFileInputRef.current?.click()}
+                                                className="px-3 py-1.5 bg-white text-slate-800 text-xs font-bold rounded-xl shadow cursor-pointer hover:bg-slate-100"
+                                            >
+                                                Ganti Foto
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveCompletionPhoto}
+                                                className="p-1.5 bg-rose-600 text-white rounded-xl shadow cursor-pointer hover:bg-rose-700"
+                                                title="Hapus Foto"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveCompletionPhoto}
+                                            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shadow hover:bg-rose-700 cursor-pointer"
+                                        >
+                                            <X size={13} strokeWidth={2.5} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div
+                                        onClick={() => completionFileInputRef.current?.click()}
+                                        className="border-2 border-dashed border-slate-200 hover:border-violet-400 bg-slate-50/70 hover:bg-violet-50/30 rounded-2xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+                                    >
+                                        <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 shadow-2xs text-slate-400 group-hover:text-violet-600 group-hover:border-violet-200 flex items-center justify-center transition-all">
+                                            <Upload size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-700 group-hover:text-violet-700">
+                                                Klik untuk Ambil / Pilih Foto
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                                Mendukung kamera HP/laptop • JPG, PNG, WebP (Maks 15MB)
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Link to Daily Report Section */}
+                            <div className="p-3.5 bg-violet-50/60 rounded-2xl border border-violet-100 space-y-3">
+                                <label className="flex items-start gap-2.5 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={completionModal.syncToDailyReport}
+                                        onChange={(e) => setCompletionModal(prev => ({ ...prev, syncToDailyReport: e.target.checked }))}
+                                        className="mt-0.5 w-4 h-4 rounded text-violet-600 focus:ring-violet-500 border-slate-300 cursor-pointer"
+                                    />
+                                    <div className="text-xs">
+                                        <span className="font-black text-violet-900 block">
+                                            Langsung masukkan ke Laporan Harian hari ini
+                                        </span>
+                                        <span className="text-[11px] text-violet-600 font-medium">
+                                            Kegiatan ini akan dicatat tuntas 100% beserta bukti foto di Laporan Harian Anda.
+                                        </span>
+                                    </div>
+                                </label>
+
+                                {completionModal.syncToDailyReport && (
+                                    <div className="pt-2 border-t border-violet-100/80 space-y-1.5">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-violet-700 block">
+                                            Pilih Sesi Laporan Harian:
+                                        </span>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCompletionModal(prev => ({ ...prev, sessionPeriod: 'morning' }))}
+                                                className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                                    completionModal.sessionPeriod === 'morning'
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                ☀️ Sesi Pagi (08:00 - 12:00)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCompletionModal(prev => ({ ...prev, sessionPeriod: 'afternoon' }))}
+                                                className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                                    completionModal.sessionPeriod === 'afternoon'
+                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                🌤️ Sesi Siang (13:00 - 16:30)
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    disabled={uploadingCompletion}
+                                    onClick={() => {
+                                        handleRemoveCompletionPhoto();
+                                        setCompletionModal(prev => ({ ...prev, isOpen: false }));
+                                    }}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={uploadingCompletion}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer disabled:opacity-50"
+                                >
+                                    {uploadingCompletion ? (
+                                        <>
+                                            <Loader2 size={15} className="animate-spin" />
+                                            <span>Menyimpan & Mengunggah...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 size={15} />
+                                            <span>Simpan & Selesaikan 100%</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 6. LIGHTBOX MODAL FOR VIEWING PHOTO PROOF */}
+            {lightboxPhoto && (
+                <LightboxModal
+                    photoUrl={lightboxPhoto}
+                    onClose={() => setLightboxPhoto(null)}
+                />
             )}
         </div>
     );

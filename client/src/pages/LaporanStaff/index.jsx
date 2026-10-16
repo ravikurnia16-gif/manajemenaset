@@ -504,7 +504,7 @@ const LaporanStaff = () => {
         setActiveTab('laporan');
     };
 
-    const convertPlanItemToReport = (plan, item, itemIndex, period = 'morning') => {
+    const convertPlanItemToReport = (plan, item, itemIndex, period = 'morning', extraPhotos = []) => {
         const itemText = item ? (item.activity || item.text || '') : '';
         const reportTitle = plan.metadata?.title || 'Rencana Kerja';
         const isSingleGoal = !item;
@@ -513,17 +513,28 @@ const LaporanStaff = () => {
             ? (plan.metadata?.status === 'SELESAI' || plan.metadata?.percentage === 100)
             : (item?.percentage === 100 || item?.status === 'SELESAI');
 
+        let resolvedPhotos = [];
+        if (Array.isArray(extraPhotos) && extraPhotos.length > 0) {
+            resolvedPhotos = extraPhotos;
+        } else if (item?.photos && Array.isArray(item.photos) && item.photos.length > 0) {
+            resolvedPhotos = item.photos;
+        } else if (item?.photo) {
+            resolvedPhotos = [{ url: item.photo, timestamp: new Date().toISOString() }];
+        } else if (isSingleGoal && plan.metadata?.photos && Array.isArray(plan.metadata.photos)) {
+            resolvedPhotos = plan.metadata.photos;
+        }
+
         const reportItem = {
             text: isSingleGoal ? `[Rencana Kerja] ${reportTitle}` : `[Rencana: ${reportTitle}] ${itemText}`,
             categoryTag: plan.metadata?.categoryTag || plan.category || 'UMUM',
             status: isDone ? 'COMPLETED' : 'IN_PROGRESS',
-            progressPercentage: isSingleGoal ? (plan.metadata?.percentage || 50) : (item?.percentage !== undefined ? item.percentage : 50),
+            progressPercentage: isDone ? 100 : (isSingleGoal ? (plan.metadata?.percentage || 50) : (item?.percentage !== undefined ? item.percentage : 50)),
             sourceType: 'PLAN',
             sourceId: plan.id,
             planItemIndex: isSingleGoal ? undefined : itemIndex,
             obstacleNote: '',
             isRoutine: false,
-            photos: []
+            photos: resolvedPhotos
         };
         if (period === 'morning') {
             setMorningPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [reportItem] : [...prev, reportItem]);
@@ -797,12 +808,12 @@ const LaporanStaff = () => {
         }
     };
 
-    const handleTogglePlanStatus = async (plan) => {
+    const handleTogglePlanStatus = async (plan, extraMeta = {}) => {
         try {
             const meta = plan.metadata || {};
             const isCurrentlyDone = meta.status === 'SELESAI' || meta.percentage === 100;
-            const newStatus = isCurrentlyDone ? 'PENDING' : 'SELESAI';
-            const newPercentage = isCurrentlyDone ? 0 : 100;
+            const newStatus = extraMeta.status || (isCurrentlyDone ? 'PENDING' : 'SELESAI');
+            const newPercentage = extraMeta.percentage !== undefined ? extraMeta.percentage : (isCurrentlyDone ? 0 : 100);
 
             const updatedItems = Array.isArray(meta.items)
                 ? meta.items.map(it => ({
@@ -819,6 +830,7 @@ const LaporanStaff = () => {
                 date: plan.date,
                 metadata: {
                     ...meta,
+                    ...extraMeta,
                     status: newStatus,
                     percentage: newPercentage,
                     ...(updatedItems.length > 0 ? { items: updatedItems } : {})

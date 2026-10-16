@@ -2359,4 +2359,97 @@ KEMBALIKAN HANYA FORMAT JSON MURNI TANPA MARKDOWN (tanpa blok backtick json):
     }
 };
 
+/**
+ * POST /api/laporan/ai/polish-text
+ * Polishes informal, shorthand Indonesian text into executive/corporate formal prose for daily reports & work plans.
+ */
+exports.polishTextWithAI = async (req, res) => {
+    const { text, categoryTag, mode = 'activity' } = req.body;
+
+    if (!text || !text.trim() || text.trim().length < 3) {
+        return res.status(400).json({ error: 'Teks terlalu pendek untuk dirapikan (minimal 3 karakter).' });
+    }
+
+    const trimmed = text.trim();
+
+    try {
+        const prompt = `
+Anda adalah Asisten Redaksi & Tata Bahasa Formal untuk Laporan Kinerja Staf Sarana Prasarana Yayasan Dar el-Iman Padang.
+Tugas Anda adalah merapikan catatan kegiatan kerja staf berikut menjadi kalimat laporan kerja resmi berbahasa Indonesia yang baku, profesional, jelas, dan lugas.
+
+KATEGORI BIDANG: ${categoryTag || 'UMUM'}
+JABATAN STAF: ${req.user?.position || 'Staf Operasional'}
+TIPE TEKS: ${mode === 'obstacle' ? 'Catatan Kendala/Hambatan Lapangan' : 'Uraian Aktivitas Kerja'}
+
+TEKS ASAL DARI STAF:
+"${trimmed}"
+
+ATURAN WAJIB:
+1. Perbaiki singkatan informal menjadi kata baku (contoh: "lnt/lt" -> "Lantai", "ac" -> "AC", "udh/sdh" -> "telah", "benerin/bikin" -> "memperbaiki/membuat", "nyuci" -> "mencuci dan membersihkan", "cek" -> "melakukan pengecekan/pemeriksaan", "ga ada/gak ada" -> "tidak tersedia").
+2. Gunakan kata kerja aktif formal yang sesuai (contoh: "Melakukan inspeksi...", "Melaksanakan perbaikan...", "Mengganti komponen...", "Menyusun rekapitulasi...", "Memperbaiki unit...").
+3. Jaga substansi fakta dan rincian pekerjaan agar TETAP ASLI DAN AKURAT sesuai maksud staf. JANGAN mengarang atau menambah fakta fiktif yang tidak disebutkan dalam teks asal.
+4. Buat menjadi 1 kalimat yang padat, berbobot, dan elegan (maksimal 20-25 kata).
+5. KEMBALIKAN HANYA TEKS HASIL AKHIR SAJA (plain text murni), tanpa tanda kutip pembuka/penutup, tanpa penjelasan tambahan, tanpa kata sambutan, dan tanpa format markdown.
+`;
+
+        let polishedText = '';
+        try {
+            const aiResult = await aiService.generateContentWithFallback(prompt);
+            let rawText = aiResult?.response?.text() || '';
+            // Clean up any quotation marks or backticks
+            polishedText = rawText.replace(/^["'`]+|["'`]+$/g, '').trim();
+        } catch (aiErr) {
+            console.warn('[AI Polish Text] Gemini error, using heuristic fallback:', aiErr.message);
+        }
+
+        // Programmatic heuristic fallback if Gemini failed or returned empty
+        if (!polishedText) {
+            let fallback = trimmed;
+            const dictionary = [
+                { pattern: /\bbenerin\b/gi, replacement: 'Memperbaiki' },
+                { pattern: /\bperbaiki\b/gi, replacement: 'Melakukan perbaikan' },
+                { pattern: /\bcek\b/gi, replacement: 'Melakukan pengecekan dan pemeriksaan' },
+                { pattern: /\bganti\b/gi, replacement: 'Melakukan penggantian' },
+                { pattern: /\bnyuci\b/gi, replacement: 'Mencuci dan membersihkan' },
+                { pattern: /\bbersihin\b/gi, replacement: 'Membersihkan' },
+                { pattern: /\bberesin\b/gi, replacement: 'Merapikan dan menata' },
+                { pattern: /\bbikin\b/gi, replacement: 'Menyusun dan membuat' },
+                { pattern: /\bservis\b/gi, replacement: 'Melakukan servis dan perawatan' },
+                { pattern: /\bantar\b/gi, replacement: 'Mengantarkan' },
+                { pattern: /\bjemput\b/gi, replacement: 'Menjemput' },
+                { pattern: /\blnt\b|\blt\b/gi, replacement: 'Lantai' },
+                { pattern: /\bgdg\b/gi, replacement: 'Gedung' },
+                { pattern: /\bac\b/gi, replacement: 'unit AC' },
+                { pattern: /\bsdh\b|\budh\b/gi, replacement: 'sudah' },
+                { pattern: /\byg\b/gi, replacement: 'yang' },
+                { pattern: /\bkrn\b/gi, replacement: 'karena' },
+                { pattern: /\bdg\b|\bdgn\b/gi, replacement: 'dengan' },
+                { pattern: /\butk\b/gi, replacement: 'untuk' },
+                { pattern: /\bblm\b/gi, replacement: 'belum' },
+                { pattern: /\bgak\b|\bga\b/gi, replacement: 'tidak' },
+                { pattern: /\btoko langganan\b/gi, replacement: 'vendor rekanan' }
+            ];
+
+            dictionary.forEach(entry => {
+                fallback = fallback.replace(entry.pattern, entry.replacement);
+            });
+
+            // Ensure first letter is capitalized
+            fallback = fallback.charAt(0).toUpperCase() + fallback.slice(1);
+            if (!fallback.endsWith('.')) fallback += '.';
+            polishedText = fallback;
+        }
+
+        res.json({
+            success: true,
+            original: trimmed,
+            polished: polishedText
+        });
+    } catch (err) {
+        console.error('[AI Polish Error]:', err);
+        res.status(500).json({ error: 'Gagal merapikan teks dengan AI.' });
+    }
+};
+
+
 

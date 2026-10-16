@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
     Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, 
     Plus, X, RotateCcw, Edit2, Trash2, Layers, Clock, AlertTriangle, 
-    Camera, Loader2, Save, Target 
+    Camera, Loader2, Save, Target, Sparkles, Wand2, Undo2
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
+import api from '../../../lib/axios';
 import { getMediaUrl } from '../../../lib/media';
 import { DIVISION_TAGS, ROUTINE_TEMPLATES } from '../constants';
 
@@ -61,6 +62,128 @@ const DailyReportFormTab = ({
     convertPlanItemToReport,
     applyRoutine
 }) => {
+    // State for AI Polish feature
+    const [polishingKey, setPolishingKey] = useState(null);
+    const [originalHistory, setOriginalHistory] = useState({});
+
+    // Polish activity text
+    const handlePolishText = async (index, period = 'morning') => {
+        const list = period === 'morning' ? morningPoints : afternoonPoints;
+        const item = list[index];
+        if (!item || !item.text || !item.text.trim()) return;
+
+        const key = `${period}-${index}`;
+        try {
+            setPolishingKey(key);
+            const res = await api.post('/laporan/ai/polish-text', {
+                text: item.text,
+                categoryTag: item.categoryTag || userDivision || 'UMUM',
+                mode: 'activity'
+            });
+
+            if (res.data?.success && res.data?.polished) {
+                setOriginalHistory(prev => ({
+                    ...prev,
+                    [key]: item.text
+                }));
+
+                const updated = [...list];
+                updated[index] = {
+                    ...updated[index],
+                    text: res.data.polished
+                };
+                if (period === 'morning') setMorningPoints(updated);
+                else setAfternoonPoints(updated);
+            }
+        } catch (err) {
+            console.error('Failed to polish text:', err);
+            alert(err.response?.data?.error || 'Gagal merapikan teks dengan AI. Silakan coba lagi.');
+        } finally {
+            setPolishingKey(null);
+        }
+    };
+
+    // Revert activity text to original
+    const handleRevertText = (index, period = 'morning') => {
+        const key = `${period}-${index}`;
+        const orig = originalHistory[key];
+        if (!orig) return;
+
+        const list = period === 'morning' ? morningPoints : afternoonPoints;
+        const updated = [...list];
+        updated[index] = {
+            ...updated[index],
+            text: orig
+        };
+        if (period === 'morning') setMorningPoints(updated);
+        else setAfternoonPoints(updated);
+
+        setOriginalHistory(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    // Polish obstacle note
+    const handlePolishObstacle = async (index, period = 'morning') => {
+        const list = period === 'morning' ? morningPoints : afternoonPoints;
+        const item = list[index];
+        if (!item || !item.obstacleNote || !item.obstacleNote.trim()) return;
+
+        const key = `obs-${period}-${index}`;
+        try {
+            setPolishingKey(key);
+            const res = await api.post('/laporan/ai/polish-text', {
+                text: item.obstacleNote,
+                categoryTag: item.categoryTag || userDivision || 'UMUM',
+                mode: 'obstacle'
+            });
+
+            if (res.data?.success && res.data?.polished) {
+                setOriginalHistory(prev => ({
+                    ...prev,
+                    [key]: item.obstacleNote
+                }));
+
+                const updated = [...list];
+                updated[index] = {
+                    ...updated[index],
+                    obstacleNote: res.data.polished
+                };
+                if (period === 'morning') setMorningPoints(updated);
+                else setAfternoonPoints(updated);
+            }
+        } catch (err) {
+            console.error('Failed to polish obstacle:', err);
+            alert(err.response?.data?.error || 'Gagal merapikan kendala dengan AI.');
+        } finally {
+            setPolishingKey(null);
+        }
+    };
+
+    // Revert obstacle note to original
+    const handleRevertObstacle = (index, period = 'morning') => {
+        const key = `obs-${period}-${index}`;
+        const orig = originalHistory[key];
+        if (!orig) return;
+
+        const list = period === 'morning' ? morningPoints : afternoonPoints;
+        const updated = [...list];
+        updated[index] = {
+            ...updated[index],
+            obstacleNote: orig
+        };
+        if (period === 'morning') setMorningPoints(updated);
+        else setAfternoonPoints(updated);
+
+        setOriginalHistory(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
     return (
         <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300">
             {/* Personal Scorecard Banner - Compact on Mobile */}
@@ -823,34 +946,114 @@ const DailyReportFormTab = ({
                                         </div>
                                     )}
 
-                                    {/* Activity Description */}
-                                    <textarea
-                                        rows="3"
-                                        placeholder="Uraikan aktivitas kerja pagi yang dikerjakan secara jelas..."
-                                        value={point.text}
-                                        onChange={(e) => {
-                                            const n = [...morningPoints];
-                                            n[index].text = e.target.value;
-                                            setMorningPoints(n);
-                                        }}
-                                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-                                    />
+                                    {/* Activity Description with AI Polish */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                Uraian Kegiatan:
+                                            </label>
+                                            <button
+                                                type="button"
+                                                disabled={polishingKey === `morning-${index}` || !point.text?.trim()}
+                                                onClick={() => handlePolishText(index, 'morning')}
+                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black transition-all border cursor-pointer ${
+                                                    polishingKey === `morning-${index}`
+                                                        ? 'bg-violet-100 text-violet-700 border-violet-300 animate-pulse'
+                                                        : !point.text?.trim()
+                                                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                                                            : 'bg-gradient-to-r from-violet-50 to-indigo-50 hover:from-violet-100 hover:to-indigo-100 text-violet-700 border-violet-200 shadow-2xs hover:shadow-xs active:scale-95'
+                                                }`}
+                                                title="Rapihkan tata bahasa kalimat menjadi bahasa laporan resmi (AI)"
+                                            >
+                                                {polishingKey === `morning-${index}` ? (
+                                                    <>
+                                                        <Loader2 size={12} className="animate-spin text-violet-600" />
+                                                        <span>Merapikan Teks...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles size={12} className="text-violet-600 fill-violet-200" />
+                                                        <span>Rapihkan Kalimat (AI)</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
 
-                                    {/* Obstacle Note Field */}
+                                        <textarea
+                                            rows="3"
+                                            placeholder="Uraikan aktivitas kerja pagi yang dikerjakan secara jelas..."
+                                            value={point.text}
+                                            onChange={(e) => {
+                                                const n = [...morningPoints];
+                                                n[index].text = e.target.value;
+                                                setMorningPoints(n);
+                                            }}
+                                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                                        />
+
+                                        {/* Revert chip if text was polished */}
+                                        {originalHistory[`morning-${index}`] && (
+                                            <div className="flex items-center justify-between px-3 py-1 bg-violet-50/90 border border-violet-200/80 rounded-xl text-[10px] text-violet-900 animate-in fade-in">
+                                                <span className="flex items-center gap-1.5 font-medium">
+                                                    <Sparkles size={11} className="text-violet-600 shrink-0" />
+                                                    Kalimat telah dirapikan ke bahasa laporan resmi.
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRevertText(index, 'morning')}
+                                                    className="font-bold underline text-violet-700 hover:text-violet-950 flex items-center gap-1 cursor-pointer ml-2"
+                                                    title="Kembalikan ke teks sebelum dirapikan"
+                                                >
+                                                    <Undo2 size={10} /> Kembalikan teks awal
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Obstacle Note Field with AI Polish button */}
                                     {point.status === 'OBSTACLE' && (
-                                        <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
-                                            <AlertCircle size={14} className="text-rose-600 shrink-0" />
-                                            <input 
-                                                type="text"
-                                                placeholder="Jelaskan kendala/masalah yang dihadapi..."
-                                                value={point.obstacleNote}
-                                                onChange={(e) => {
-                                                    const n = [...morningPoints];
-                                                    n[index].obstacleNote = e.target.value;
-                                                    setMorningPoints(n);
-                                                }}
-                                                className="w-full bg-transparent text-xs font-bold text-rose-800 outline-none placeholder:text-rose-400"
-                                            />
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
+                                                <AlertCircle size={14} className="text-rose-600 shrink-0" />
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Jelaskan kendala/masalah yang dihadapi..."
+                                                    value={point.obstacleNote}
+                                                    onChange={(e) => {
+                                                        const n = [...morningPoints];
+                                                        n[index].obstacleNote = e.target.value;
+                                                        setMorningPoints(n);
+                                                    }}
+                                                    className="w-full bg-transparent text-xs font-bold text-rose-800 outline-none placeholder:text-rose-400"
+                                                />
+                                                {point.obstacleNote?.trim() && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={polishingKey === `obs-morning-${index}`}
+                                                        onClick={() => handlePolishObstacle(index, 'morning')}
+                                                        className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition cursor-pointer shrink-0"
+                                                        title="Rapikan bahasa kendala (AI)"
+                                                    >
+                                                        {polishingKey === `obs-morning-${index}` ? (
+                                                            <Loader2 size={13} className="animate-spin text-rose-600" />
+                                                        ) : (
+                                                            <Sparkles size={13} className="text-rose-600" />
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {originalHistory[`obs-morning-${index}`] && (
+                                                <div className="flex items-center justify-between px-2.5 py-0.5 text-[9px] text-rose-700">
+                                                    <span>Kendala dirapikan oleh AI.</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRevertObstacle(index, 'morning')}
+                                                        className="font-bold underline hover:text-rose-950 cursor-pointer"
+                                                    >
+                                                        Kembalikan
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -1165,34 +1368,114 @@ const DailyReportFormTab = ({
                                         </div>
                                     )}
 
-                                    {/* Activity Description */}
-                                    <textarea
-                                        rows="3"
-                                        placeholder="Uraikan aktivitas kerja siang yang dikerjakan secara jelas..."
-                                        value={point.text}
-                                        onChange={(e) => {
-                                            const n = [...afternoonPoints];
-                                            n[index].text = e.target.value;
-                                            setAfternoonPoints(n);
-                                        }}
-                                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
-                                    />
+                                    {/* Activity Description with AI Polish */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                Uraian Kegiatan:
+                                            </label>
+                                            <button
+                                                type="button"
+                                                disabled={polishingKey === `afternoon-${index}` || !point.text?.trim()}
+                                                onClick={() => handlePolishText(index, 'afternoon')}
+                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black transition-all border cursor-pointer ${
+                                                    polishingKey === `afternoon-${index}`
+                                                        ? 'bg-indigo-100 text-indigo-700 border-indigo-300 animate-pulse'
+                                                        : !point.text?.trim()
+                                                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                                                            : 'bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 text-indigo-700 border-indigo-200 shadow-2xs hover:shadow-xs active:scale-95'
+                                                }`}
+                                                title="Rapihkan tata bahasa kalimat menjadi bahasa laporan resmi (AI)"
+                                            >
+                                                {polishingKey === `afternoon-${index}` ? (
+                                                    <>
+                                                        <Loader2 size={12} className="animate-spin text-indigo-600" />
+                                                        <span>Merapikan Teks...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles size={12} className="text-indigo-600 fill-indigo-200" />
+                                                        <span>Rapihkan Kalimat (AI)</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
 
-                                    {/* Obstacle Note Field */}
+                                        <textarea
+                                            rows="3"
+                                            placeholder="Uraikan aktivitas kerja siang yang dikerjakan secara jelas..."
+                                            value={point.text}
+                                            onChange={(e) => {
+                                                const n = [...afternoonPoints];
+                                                n[index].text = e.target.value;
+                                                setAfternoonPoints(n);
+                                            }}
+                                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
+                                        />
+
+                                        {/* Revert chip if text was polished */}
+                                        {originalHistory[`afternoon-${index}`] && (
+                                            <div className="flex items-center justify-between px-3 py-1 bg-indigo-50/90 border border-indigo-200/80 rounded-xl text-[10px] text-indigo-900 animate-in fade-in">
+                                                <span className="flex items-center gap-1.5 font-medium">
+                                                    <Sparkles size={11} className="text-indigo-600 shrink-0" />
+                                                    Kalimat telah dirapikan ke bahasa laporan resmi.
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRevertText(index, 'afternoon')}
+                                                    className="font-bold underline text-indigo-700 hover:text-indigo-950 flex items-center gap-1 cursor-pointer ml-2"
+                                                    title="Kembalikan ke teks sebelum dirapikan"
+                                                >
+                                                    <Undo2 size={10} /> Kembalikan teks awal
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Obstacle Note Field with AI Polish button */}
                                     {point.status === 'OBSTACLE' && (
-                                        <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
-                                            <AlertCircle size={14} className="text-rose-600 shrink-0" />
-                                            <input 
-                                                type="text"
-                                                placeholder="Jelaskan kendala/masalah yang dihadapi..."
-                                                value={point.obstacleNote}
-                                                onChange={(e) => {
-                                                    const n = [...afternoonPoints];
-                                                    n[index].obstacleNote = e.target.value;
-                                                    setAfternoonPoints(n);
-                                                }}
-                                                className="w-full bg-transparent text-xs font-bold text-rose-800 outline-none placeholder:text-rose-400"
-                                            />
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
+                                                <AlertCircle size={14} className="text-rose-600 shrink-0" />
+                                                <input 
+                                                    type="text"
+                                                    placeholder="Jelaskan kendala/masalah yang dihadapi..."
+                                                    value={point.obstacleNote}
+                                                    onChange={(e) => {
+                                                        const n = [...afternoonPoints];
+                                                        n[index].obstacleNote = e.target.value;
+                                                        setAfternoonPoints(n);
+                                                    }}
+                                                    className="w-full bg-transparent text-xs font-bold text-rose-800 outline-none placeholder:text-rose-400"
+                                                />
+                                                {point.obstacleNote?.trim() && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={polishingKey === `obs-afternoon-${index}`}
+                                                        onClick={() => handlePolishObstacle(index, 'afternoon')}
+                                                        className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition cursor-pointer shrink-0"
+                                                        title="Rapikan bahasa kendala (AI)"
+                                                    >
+                                                        {polishingKey === `obs-afternoon-${index}` ? (
+                                                            <Loader2 size={13} className="animate-spin text-rose-600" />
+                                                        ) : (
+                                                            <Sparkles size={13} className="text-rose-600" />
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {originalHistory[`obs-afternoon-${index}`] && (
+                                                <div className="flex items-center justify-between px-2.5 py-0.5 text-[9px] text-rose-700">
+                                                    <span>Kendala dirapikan oleh AI.</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRevertObstacle(index, 'afternoon')}
+                                                        className="font-bold underline hover:text-rose-950 cursor-pointer"
+                                                    >
+                                                        Kembalikan
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
