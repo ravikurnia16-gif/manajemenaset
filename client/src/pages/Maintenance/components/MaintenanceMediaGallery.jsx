@@ -16,6 +16,7 @@ import { getMediaUrl } from '../../../lib/media';
 export default function MaintenanceMediaGallery({
     report,
     isAdmin,
+    isAssignedTechnician = false,
     currentUserId,
     onAddMedia,
     uploadingMedia = false
@@ -82,7 +83,7 @@ export default function MaintenanceMediaGallery({
                         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                             Media Bukti & Dokumentasi Kerusakan
                         </h3>
-                        {(isAdmin || report.userId === currentUserId) && (
+                        {(isAdmin || report.userId === currentUserId || isAssignedTechnician) && (
                             <label className={`cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${uploadingMedia ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                 {uploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                                 {uploadingMedia ? 'Mengunggah...' : 'Upload Tambahan'}

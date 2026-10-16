@@ -443,39 +443,53 @@ const MaintenanceDetail = () => {
     if (!report) return <div className="p-10 text-center text-slate-400">Laporan tidak ditemukan.</div>;
 
     const isRejected = report.status === 'REJECTED';
-    const isAssignedTechnician = report.technician && (report.technician === user.name || report.technician === user.username);
+    const isAssignedTechnician = Boolean(
+        (report?.aiDiagnosis?.technicianId && user?.id && parseInt(report.aiDiagnosis.technicianId) === parseInt(user.id)) ||
+        (report?.technicianId && user?.id && parseInt(report.technicianId) === parseInt(user.id)) ||
+        (report?.technician && (
+            (user?.name && report.technician.trim().toLowerCase() === user.name.trim().toLowerCase()) ||
+            (user?.username && report.technician.trim().toLowerCase() === user.username.trim().toLowerCase()) ||
+            (user?.name && report.technician.toLowerCase().includes(user.name.trim().toLowerCase())) ||
+            (user?.username && report.technician.toLowerCase().includes(user.username.trim().toLowerCase())) ||
+            (user?.name && user.name.toLowerCase().includes(report.technician.trim().toLowerCase())) ||
+            (user?.username && user.username.toLowerCase().includes(report.technician.trim().toLowerCase()))
+        ))
+    );
 
     const getNextAction = () => {
         if (isRejected) return null;
 
-        if (!isAdmin && isAssignedTechnician) {
-            if (report.status === 'ASSIGNED') {
-                return { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' };
-            }
-            if (report.status === 'IN_PROGRESS') {
-                return {
-                    label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
-                    secondaryLabel: 'Update Progres', secondaryType: 'progress'
-                };
-            }
+        // User yang ditugaskan (atau Admin) pada status ASSIGNED atau IN_PROGRESS
+        if (report.status === 'ASSIGNED' && (isAdmin || isAssignedTechnician)) {
+            return {
+                label: 'Mulai Pengerjaan',
+                nextStatus: 'IN_PROGRESS',
+                type: 'start',
+                secondaryLabel: 'Selesaikan Pekerjaan',
+                secondaryType: 'completion',
+                secondaryNextStatus: 'COMPLETED',
+                cancelLabel: isAdmin ? 'Batalkan Laporan' : null
+            };
+        }
+
+        if (report.status === 'IN_PROGRESS' && (isAdmin || isAssignedTechnician)) {
+            return {
+                label: 'Selesaikan Pekerjaan',
+                nextStatus: 'COMPLETED',
+                type: 'completion',
+                secondaryLabel: 'Update Progres',
+                secondaryType: 'progress',
+                secondaryNextStatus: 'IN_PROGRESS',
+                cancelLabel: isAdmin ? 'Batalkan Laporan' : null
+            };
         }
 
         if (!isAdmin) return null;
         const transitions = {
             'SUBMITTED': { label: 'Setujui & Tugaskan', nextStatus: 'ASSIGNED', type: 'assignment', rejectLabel: 'Tolak' },
-            'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment', cancelLabel: 'Batalkan Laporan' },
-            'ASSIGNED': [
-                { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start', cancelLabel: 'Batalkan Laporan' },
-                { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' }
-            ],
-            'IN_PROGRESS': {
-                label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
-                secondaryLabel: 'Update Progres', secondaryType: 'progress', cancelLabel: 'Batalkan Laporan'
-            }
+            'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment', cancelLabel: 'Batalkan Laporan' }
         };
-        const action = transitions[report.status];
-        if (Array.isArray(action)) return action[0];
-        return action || null;
+        return transitions[report.status] || null;
     };
 
     const nextAction = getNextAction();
@@ -501,6 +515,65 @@ const MaintenanceDetail = () => {
                 onOpenSPK={() => setShowSPKModal(true)} 
             />
 
+            {/* Banner Khusus Teknisi / User yang Ditugaskan */}
+            {isAssignedTechnician && ['ASSIGNED', 'IN_PROGRESS'].includes(report.status) && (
+                <div className="bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-blue-500/10 border border-blue-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Wrench size={18} />
+                        </div>
+                        <div>
+                            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                <span>Anda Ditugaskan pada Laporan Ini</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                    report.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                }`}>
+                                    {report.status === 'ASSIGNED' ? 'Menunggu Dimulai' : 'Sedang Dikerjakan'}
+                                </span>
+                            </h4>
+                            <p className="text-xs text-slate-600 mt-0.5">
+                                {report.status === 'ASSIGNED'
+                                    ? 'Silakan mulai pengerjaan atau langsung selesaikan jika pekerjaan telah tuntas.'
+                                    : 'Pekerjaan perbaikan sedang berjalan. Anda dapat memperbarui progres atau menyelesaikan pekerjaan.'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {report.status === 'ASSIGNED' ? (
+                            <>
+                                <button
+                                    onClick={() => handleOpenActionModal('start', 'IN_PROGRESS')}
+                                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <CheckCircle size={14} /> Mulai Pengerjaan
+                                </button>
+                                <button
+                                    onClick={() => handleOpenActionModal('completion', 'COMPLETED')}
+                                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <CheckCircle size={14} /> Selesaikan
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => handleOpenActionModal('progress', 'IN_PROGRESS')}
+                                    className="px-3.5 py-2 bg-white border border-orange-400 text-orange-600 hover:bg-orange-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Sparkles size={14} /> Update Progres
+                                </button>
+                                <button
+                                    onClick={() => handleOpenActionModal('completion', 'COMPLETED')}
+                                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <CheckCircle size={14} /> Selesaikan
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* AI Diagnosis & Smart Troubleshooting Card */}
             <MaintenanceAIDiagnosisCard 
                 report={report} 
@@ -520,6 +593,7 @@ const MaintenanceDetail = () => {
             <MaintenanceMediaGallery 
                 report={report} 
                 isAdmin={isAdmin} 
+                isAssignedTechnician={isAssignedTechnician}
                 currentUserId={user?.id} 
                 onAddMedia={handleAddMedia} 
                 uploadingMedia={uploadingMedia} 
@@ -585,10 +659,15 @@ const MaintenanceDetail = () => {
 
                     {nextAction.secondaryLabel && (
                         <button
-                            onClick={() => handleOpenActionModal(nextAction.secondaryType, report.status)}
-                            className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-orange-500 text-orange-600 py-3 rounded-xl font-bold text-xs hover:bg-orange-50 transition-all cursor-pointer"
+                            onClick={() => handleOpenActionModal(nextAction.secondaryType, nextAction.secondaryNextStatus || report.status)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-md ${
+                                nextAction.secondaryType === 'completion'
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    : 'bg-white border-2 border-orange-500 text-orange-600 hover:bg-orange-50'
+                            }`}
                         >
-                            <Sparkles size={16} /> {nextAction.secondaryLabel}
+                            {nextAction.secondaryType === 'completion' ? <CheckCircle size={16} /> : <Sparkles size={16} />}
+                            {nextAction.secondaryLabel}
                         </button>
                     )}
 

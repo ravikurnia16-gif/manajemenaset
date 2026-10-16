@@ -949,8 +949,20 @@ exports.addMedia = async (req, res) => {
         const report = await prisma.maintenance.findUnique({ where: { id: parseInt(id) } });
         if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
 
-        const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
-        if (report.userId !== user.id && !isAdmin) {
+        const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_PBG'].includes(user.role);
+        const meta = report.aiDiagnosis || {};
+        const isAssignedTech = Boolean(
+            (meta.technicianId && parseInt(meta.technicianId) === user.id) ||
+            (report.technicianId && report.technicianId === user.id) ||
+            (report.technician && (
+                (user.name && report.technician.toLowerCase().includes(user.name.toLowerCase())) ||
+                (user.username && report.technician.toLowerCase().includes(user.username.toLowerCase())) ||
+                (user.name && user.name.toLowerCase().includes(report.technician.toLowerCase())) ||
+                (user.username && user.username.toLowerCase().includes(report.technician.toLowerCase()))
+            ))
+        );
+
+        if (report.userId !== user.id && !isAdmin && !isAssignedTech) {
             return res.status(403).json({ error: 'Anda tidak diizinkan menambahkan dokumentasi ke laporan ini.' });
         }
 
