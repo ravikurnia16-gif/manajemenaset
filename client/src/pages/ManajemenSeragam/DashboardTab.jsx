@@ -44,6 +44,7 @@ export const DashboardTab = ({
   const [customEnd, setCustomEnd] = useState(endDate);
   const [showCustomRange, setShowCustomRange] = useState(datePreset === 'CUSTOM');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingDoc, setIsExportingDoc] = useState(false);
   const [waridFilterStatus, setWaridFilterStatus] = useState('ALL'); // 'ALL' | 'COMPLETED' | 'PROSES' | 'PENDING' | 'CANCELLED'
 
   useEffect(() => {
@@ -401,97 +402,7 @@ export const DashboardTab = ({
         startY = doc.lastAutoTable.finalY + 8;
       }
 
-      // 5. TABEL URGENT RESTOCK / BACKORDER
-      if (urgentRestockItems.length > 0) {
-        if (startY > doc.internal.pageSize.getHeight() - 60) {
-          doc.addPage();
-          startY = 20;
-        }
 
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(225, 29, 72);
-        doc.text('5. Peringatan Stok Menipis & Kebutuhan Pengadaan Mendesak', 14, startY);
-        startY += 4;
-
-        const headRestock = [['#', 'Nama Seragam', 'Jenjang', 'Ukuran', 'Sisa Stok', 'Inden', 'Rekomendasi PO', 'Status']];
-        const bodyRestock = urgentRestockItems.slice(0, 15).map((item, i) => [
-          i + 1,
-          item.itemName || '-',
-          item.unitName || '-',
-          item.sizeName || '-',
-          `${item.currentStock || 0} pcs`,
-          `${item.totalIndentDemand || 0} pcs`,
-          `${item.recommendedQty || 0} pcs`,
-          item.urgencyLabel || '-'
-        ]);
-
-        doc.autoTable({
-          startY,
-          head: headRestock,
-          body: bodyRestock,
-          theme: 'striped',
-          headStyles: { fillColor: [225, 29, 72], fontSize: 8, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 7.5 },
-          margin: { left: 14, right: 14 }
-        });
-
-        startY = doc.lastAutoTable.finalY + 12;
-      }
-
-      // 6. LEMBAR PENGESAHAN / TANDA TANGAN
-      if (startY > doc.internal.pageSize.getHeight() - 40) {
-        doc.addPage();
-        startY = 25;
-      }
-
-      doc.setFontSize(8.5);
-      doc.setTextColor(51, 65, 85);
-      doc.setFont(undefined, 'normal');
-
-      // Left: Dibuat Oleh
-      doc.text('Dibuat Oleh,', 25, startY);
-      doc.text('Staf / Penanggung Jawab Seragam', 25, startY + 4.5);
-      doc.text('( ............................................. )', 25, startY + 36);
-      doc.text('Petugas Administrasi Seragam', 25, startY + 40);
-
-      // Right: Mengetahui (Digital TTE Kepala Bidang Sarana)
-      const signBoxW = 68;
-      const signBoxH = 24;
-      const box2X = pageW - signBoxW - 14;
-
-      doc.text('Mengetahui,', box2X + (signBoxW / 2), startY, { align: 'center' });
-      doc.setFont(undefined, 'bold');
-      doc.text('Kepala Bidang Sarana', box2X + (signBoxW / 2), startY + 4.5, { align: 'center' });
-
-      // TTE Box
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(box2X, startY + 7, signBoxW, signBoxH, 2, 2, 'FD');
-
-      doc.setFillColor(16, 185, 129);
-      doc.roundedRect(box2X + 1.5, startY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.8);
-      doc.setTextColor(5, 150, 105);
-      doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', box2X + 6.5, startY + 12.5);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.2);
-      doc.setTextColor(71, 85, 105);
-      doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', box2X + 6.5, startY + 16.5);
-      doc.text('Yayasan Dar el Iman Padang', box2X + 6.5, startY + 20);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text('Ravi Kurnia, S.T.', box2X + (signBoxW / 2), startY + 36, { align: 'center' });
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(71, 85, 105);
-      doc.text('Kepala Bidang Sarana', box2X + (signBoxW / 2), startY + 40, { align: 'center' });
 
       // 7. FOOTER PAGE NUMBERING
       const pageCount = doc.internal.getNumberOfPages();
@@ -514,6 +425,298 @@ export const DashboardTab = ({
       alert('Gagal mengekspor PDF laporan seragam: ' + err.message);
     } finally {
       setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportDOC = () => {
+    setIsExportingDoc(true);
+    try {
+      const now = new Date();
+      let periodLabel = 'Semua Riwayat Data';
+      if (startDate && endDate) {
+        const sStr = new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        const eStr = new Date(endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        periodLabel = `${sStr} s/d ${eStr}`;
+        if (datePreset === 'LAST_7_DAYS' || datePreset === 'THIS_WEEK') {
+          periodLabel += ' (Mingguan)';
+        }
+      } else if (startDate) {
+        periodLabel = `Mulai ${new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+      }
+      const printDateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      const whName = selectedWarehouseId 
+        ? (warehouseBreakdown.find(w => String(w.id) === String(selectedWarehouseId))?.name || 'Gudang Terpilih')
+        : 'Semua Gudang (Global)';
+
+      const fileCleanStart = (startDate || '').replace(/[^0-9]/g, '');
+      const fileCleanEnd = (endDate || '').replace(/[^0-9]/g, '');
+
+      // Table 1: Ringkasan Eksekutif KPI
+      const table1Html = `
+        <h4 style="margin: 12px 0 6px 0; font-size: 11pt; color: #1e293b; font-family: Calibri, Arial, sans-serif;">1. Ringkasan Kinerja & Omset Penjualan Seragam</h4>
+        <table class="report-table">
+          <thead>
+            <tr style="background-color: #2563eb; color: #ffffff;">
+              <th>Total Pesanan</th>
+              <th>Omset Tagihan</th>
+              <th>Terbayar</th>
+              <th>Sisa Piutang</th>
+              <th>Pesanan Selesai</th>
+              <th>Item Inden</th>
+              <th>Total Stok Fisik</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-center font-bold">${totalSalesCount} Pesanan</td>
+              <td class="text-center font-bold">Rp ${totalRevenue.toLocaleString('id-ID')}</td>
+              <td class="text-center font-bold">Rp ${totalPaid.toLocaleString('id-ID')}</td>
+              <td class="text-center font-bold">Rp ${totalUnpaid.toLocaleString('id-ID')}</td>
+              <td class="text-center font-bold">${sales.completed || 0} Trx</td>
+              <td class="text-center font-bold">${fulfillment.indent || 0} Pcs</td>
+              <td class="text-center font-bold">${totalStock.toLocaleString('id-ID')} Pcs</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+
+      // Table 2A: Warid Summary
+      const table2AHtml = `
+        <h4 style="margin: 16px 0 6px 0; font-size: 11pt; color: #1e293b; font-family: Calibri, Arial, sans-serif;">2. Rekapitulasi & Status Pesanan Warid (Retail) Periode Terpilih</h4>
+        <table class="report-table">
+          <thead>
+            <tr style="background-color: #4f46e5; color: #ffffff;">
+              <th>Total Masuk</th>
+              <th>Selesai (Diambil)</th>
+              <th>Dalam Proses</th>
+              <th>Menunggu</th>
+              <th>Batal</th>
+              <th>Total Tagihan</th>
+              <th>Total Omset Diterima</th>
+              <th>Sisa Piutang</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-center font-bold">${warid.total || 0} Pesanan</td>
+              <td class="text-center font-bold">${warid.completed || 0}</td>
+              <td class="text-center font-bold">${warid.proses || 0}</td>
+              <td class="text-center font-bold">${warid.pending || 0}</td>
+              <td class="text-center font-bold">${warid.cancelled || 0}</td>
+              <td class="text-center font-bold">Rp ${Number(warid.totalRevenue || 0).toLocaleString('id-ID')}</td>
+              <td class="text-center font-bold">Rp ${Number(warid.totalPaid || 0).toLocaleString('id-ID')}</td>
+              <td class="text-center font-bold">Rp ${Number(warid.totalUnpaid || 0).toLocaleString('id-ID')}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+
+      // Table 2B: Warid Detail Orders
+      const waridOrderRows = (warid.orders || []).map((ord, i) => `
+        <tr>
+          <td class="text-center">${i + 1}</td>
+          <td class="text-center font-bold">${ord.code || '-'}</td>
+          <td class="text-center">${ord.date ? new Date(ord.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
+          <td><b>${ord.customerName || ord.studentName || '-'}</b><br/><small style="color: #64748b;">${ord.targetUnit || ord.studentClass || '-'}</small></td>
+          <td class="text-center font-bold">${ord.status === 'COMPLETED' || ord.status === 'SELESAI' ? 'SELESAI' : ord.status === 'PROSES' || ord.status === 'PARTIAL_DELIVERED' || ord.status === 'SEDIA' ? 'DIPROSES' : ord.status === 'CANCELLED' || ord.status === 'BATAL' ? 'BATAL' : 'MENUNGGU'}</td>
+          <td class="text-center font-bold">${ord.paymentStatus === 'PAID' ? 'LUNAS' : ord.paymentStatus === 'PARTIAL' ? 'SEBAGIAN' : 'BELUM BAYAR'}</td>
+          <td class="text-right font-bold">Rp ${Number(ord.totalAmount || 0).toLocaleString('id-ID')}</td>
+          <td class="text-right font-bold" style="color: #166534;">Rp ${Number(ord.paidAmount || 0).toLocaleString('id-ID')}</td>
+        </tr>
+      `).join('');
+
+      const table2BHtml = `
+        <h5 style="margin: 10px 0 4px 0; font-size: 9.5pt; color: #4338ca; font-family: Calibri, Arial, sans-serif;">Daftar Pesanan Warid (Retail Santri):</h5>
+        <table class="report-table">
+          <thead>
+            <tr style="background-color: #4338ca; color: #ffffff;">
+              <th style="width: 30px;">#</th>
+              <th style="width: 100px;">No. Invoice</th>
+              <th style="width: 80px;">Tanggal</th>
+              <th>Pelanggan / Santri</th>
+              <th style="width: 85px;">Status Pesanan</th>
+              <th style="width: 85px;">Status Bayar</th>
+              <th style="width: 100px;">Total Tagihan</th>
+              <th style="width: 100px;">Omset Diterima</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${waridOrderRows || '<tr><td colspan="8" class="text-center">Tidak ada data pesanan Warid pada rentang tanggal ini</td></tr>'}
+          </tbody>
+          ${(warid.orders || []).length > 0 ? `
+            <tfoot>
+              <tr style="background-color: #eef2ff; font-weight: bold; color: #312e81;">
+                <td colspan="4" class="text-center font-bold">TOTAL OMSET PESANAN WARID</td>
+                <td class="text-center">${warid.completed || 0} Selesai / ${warid.total || 0} Total</td>
+                <td></td>
+                <td class="text-right">Rp ${Number(warid.totalRevenue || 0).toLocaleString('id-ID')}</td>
+                <td class="text-right" style="color: #166534;">Rp ${Number(warid.totalPaid || 0).toLocaleString('id-ID')}</td>
+              </tr>
+            </tfoot>
+          ` : ''}
+        </table>
+      `;
+
+      // Table 3: Top Selling Items
+      const topSellingRows = topSellingItems.map((item, i) => `
+        <tr>
+          <td class="text-center">${i + 1}</td>
+          <td class="font-bold">${item.itemName || '-'}</td>
+          <td class="text-center font-bold">${item.qty} pcs</td>
+          <td class="text-right font-bold">Rp ${(item.revenue || 0).toLocaleString('id-ID')}</td>
+        </tr>
+      `).join('');
+
+      const table3Html = topSellingItems.length > 0 ? `
+        <h4 style="margin: 16px 0 6px 0; font-size: 11pt; color: #1e293b; font-family: Calibri, Arial, sans-serif;">3. Rekapitulasi Produk Seragam Terlaris dalam Periode</h4>
+        <table class="report-table">
+          <thead>
+            <tr style="background-color: #4f46e5; color: #ffffff;">
+              <th style="width: 35px;">#</th>
+              <th>Nama Seragam / Produk</th>
+              <th style="width: 120px;">Qty Terjual</th>
+              <th style="width: 160px;">Estimasi Omset</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${topSellingRows}
+          </tbody>
+        </table>
+      ` : '';
+
+      // Table 4: Recent Stock Transactions
+      const actRows = (recentActivity || []).slice(0, 30).map((act, i) => `
+        <tr>
+          <td class="text-center">${i + 1}</td>
+          <td class="text-center">${act.date ? new Date(act.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
+          <td class="text-center font-bold">${act.title || act.type || '-'}</td>
+          <td><b>${act.itemName || '-'}</b></td>
+          <td class="text-center">${act.size || '-'}</td>
+          <td class="text-center font-bold">${act.qty || 0} pcs</td>
+          <td>${act.warehouse || '-'}</td>
+          <td>${act.note || '-'}</td>
+        </tr>
+      `).join('');
+
+      const table4Html = (recentActivity || []).length > 0 ? `
+        <h4 style="margin: 16px 0 6px 0; font-size: 11pt; color: #1e293b; font-family: Calibri, Arial, sans-serif;">4. Riwayat Mutasi & Pergerakan Stok dalam Periode</h4>
+        <table class="report-table">
+          <thead>
+            <tr style="background-color: #059669; color: #ffffff;">
+              <th style="width: 30px;">#</th>
+              <th style="width: 80px;">Waktu</th>
+              <th style="width: 110px;">Aktivitas</th>
+              <th>Nama Seragam</th>
+              <th style="width: 60px;">Ukuran</th>
+              <th style="width: 75px;">Jumlah</th>
+              <th>Lokasi / Pihak</th>
+              <th>Catatan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${actRows}
+          </tbody>
+        </table>
+      ` : '';
+
+      // Full Word Document HTML Template
+      const docHtml = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office'
+              xmlns:w='urn:schemas-microsoft-com:office:word'
+              xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset="utf-8">
+          <title>Laporan Manajemen Seragam</title>
+          <!--[if gte mso 9]>
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+              <w:DoNotOptimizeForBrowser/>
+            </w:WordDocument>
+          </xml>
+          <![endif]-->
+          <style>
+            @page Section1 {
+              size: 595.3pt 841.9pt;
+              mso-page-orientation: portrait;
+              margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+            }
+            div.Section1 {
+              page: Section1;
+              font-family: 'Calibri', 'Arial', sans-serif;
+              font-size: 9.5pt;
+              color: #1e293b;
+            }
+            .page-break {
+              page-break-before: always;
+              mso-special-character: line-break;
+            }
+            .report-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 12px;
+              font-size: 8.5pt;
+              font-family: Calibri, Arial, sans-serif;
+            }
+            .report-table th, .report-table td {
+              border: 1px solid #cbd5e1;
+              padding: 5px 7px;
+              vertical-align: middle;
+            }
+            .report-table th {
+              font-weight: bold;
+              text-align: center;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="Section1">
+            <!-- Kop Surat -->
+            <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+              <h2 style="margin: 0; font-size: 14pt; color: #1e293b; font-family: Calibri, Arial, sans-serif; text-transform: uppercase;">YAYASAN DAR EL IMAN</h2>
+              <h3 style="margin: 2px 0; font-size: 11pt; color: #1e3a8a; font-family: Calibri, Arial, sans-serif; text-transform: uppercase;">BIDANG SARANA</h3>
+              <h4 style="margin: 4px 0 2px 0; font-size: 11pt; color: #2563eb; font-family: Calibri, Arial, sans-serif;">LAPORAN MINGGUAN & PERIODIK MANAJEMEN SERAGAM</h4>
+              <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #64748b; font-family: Calibri, Arial, sans-serif;">
+                Periode: <b>${periodLabel}</b> &nbsp;|&nbsp; Gudang: <b>${whName}</b> &nbsp;|&nbsp; Dicetak: <b>${printDateStr}</b>
+              </p>
+            </div>
+
+            ${table1Html}
+            ${table2AHtml}
+            ${table2BHtml}
+            ${table3Html}
+            ${table4Html}
+
+
+
+            <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 6px; font-size: 8pt; color: #94a3b8; text-align: center;">
+              Laporan Manajemen Seragam Bidang Sarana Yayasan Dar El Iman &nbsp;|&nbsp; Dicetak Otomatis oleh Sistem
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\ufeff', docHtml], {
+        type: 'application/msword'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan_Seragam_${fileCleanStart || 'Semua'}_sd_${fileCleanEnd || 'Semua'}_${now.toISOString().slice(0, 10)}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('DOC Export Error:', err);
+      alert('Gagal mengekspor Word (.doc) laporan seragam: ' + err.message);
+    } finally {
+      setIsExportingDoc(false);
     }
   };
 
@@ -591,7 +794,7 @@ export const DashboardTab = ({
             <button
               onClick={handleExportPDF}
               disabled={isExportingPdf}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-blue-500/20 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
               title="Cetak Laporan PDF Mingguan atau Per Tanggal"
             >
               {isExportingPdf ? (
@@ -600,6 +803,20 @@ export const DashboardTab = ({
                 <Printer size={14} />
               )}
               <span>{isExportingPdf ? 'Menyusun PDF...' : 'Cetak Laporan PDF'}</span>
+            </button>
+
+            <button
+              onClick={handleExportDOC}
+              disabled={isExportingDoc}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-500/20 disabled:opacity-50 cursor-pointer"
+              title="Unduh Laporan Versi Microsoft Word (.doc)"
+            >
+              {isExportingDoc ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <FileText size={14} />
+              )}
+              <span>{isExportingDoc ? 'Menyusun Word...' : 'Cetak Laporan DOC'}</span>
             </button>
 
             <button
@@ -850,10 +1067,18 @@ export const DashboardTab = ({
             <button
               onClick={handleExportPDF}
               disabled={isExportingPdf}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               {isExportingPdf ? <Loader2 size={13} className="animate-spin" /> : <Printer size={13} />}
               <span>Cetak Laporan PDF</span>
+            </button>
+            <button
+              onClick={handleExportDOC}
+              disabled={isExportingDoc}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              {isExportingDoc ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+              <span>Cetak Laporan DOC</span>
             </button>
           </div>
         </div>

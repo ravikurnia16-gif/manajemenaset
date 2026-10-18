@@ -778,7 +778,7 @@ exports.getWeeklySummary = async (req, res) => {
                 user: STAFF_USER_WHERE
             },
             include: {
-                user: { select: { id: true, name: true, position: true } }
+                user: { select: { id: true, name: true, position: true, role: true } }
             },
             orderBy: { date: 'asc' }
         });
@@ -794,9 +794,28 @@ exports.getWeeklySummary = async (req, res) => {
             select: { id: true, name: true, nip: true, username: true, position: true }
         }) || req.user;
 
-        // Group by Date & Division
+        // Strictly exclude any reports submitted by Kepala Bidang Sarana
+        const isKabidEntity = (u) => {
+            if (!u) return false;
+            const role = (u.role || '').toUpperCase();
+            const pos = (u.position || '').toLowerCase();
+            const name = (u.name || '').toLowerCase();
+            return (
+                role === 'KABID_SARPRAS' ||
+                role === 'SUPER_ADMIN' ||
+                pos.includes('kepala bidang') ||
+                pos.includes('kabid') ||
+                name.includes('ravi kurnia') ||
+                (kabidUser?.id && u.id === kabidUser.id)
+            );
+        };
+
+        const staffOnlyReports = reports.filter(r => !isKabidEntity(r.user));
+
+        // Group by Date, Staff, & Division
         const dailyDivisionBreakdown = [];
         const documentationPhotos = [];
+        const staffMap = {};
         let curr = startDate.clone();
         let totalCompleted = 0;
         let totalInProgress = 0;
@@ -806,11 +825,27 @@ exports.getWeeklySummary = async (req, res) => {
 
         while (curr.isBefore(endDate.endOf('day'))) {
             const dateStr = curr.format('YYYY-MM-DD');
-            const dayReports = reports.filter(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
+            const dayReports = staffOnlyReports.filter(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
 
             const activities = [];
             dayReports.forEach(r => {
                 const posName = r.user?.position || 'Staf Sarana & Prasarana';
+                const staffName = r.user?.name || 'Staf Sarana';
+                const staffId = r.user?.id ? String(r.user.id) : staffName;
+
+                if (!staffMap[staffId]) {
+                    staffMap[staffId] = {
+                        userId: r.user?.id,
+                        staffName,
+                        position: posName,
+                        points: [],
+                        totalActivities: 0,
+                        totalCompleted: 0,
+                        totalInProgress: 0,
+                        totalObstacles: 0
+                    };
+                }
+
                 if (!positionMap[posName]) {
                     positionMap[posName] = {
                         position: posName,
@@ -839,7 +874,7 @@ exports.getWeeklySummary = async (req, res) => {
                                 photoUrl: url.trim(),
                                 date: curr.format('dddd, DD MMMM YYYY'),
                                 dateShort: curr.format('DD/MM'),
-                                staffName: posName, // Mask personal name with position
+                                staffName,
                                 position: posName,
                                 categoryTag: item.categoryTag || 'UMUM',
                                 activity: item.text || 'Dokumentasi Lapangan',
@@ -851,6 +886,8 @@ exports.getWeeklySummary = async (req, res) => {
 
                     if (item.text || photos.length > 0) {
                         const status = item.status || 'COMPLETED';
+                        const textClean = (item.text || '').trim();
+
                         positionMap[posName].totalActivities++;
                         if (status === 'COMPLETED') {
                             totalCompleted++;
@@ -863,14 +900,15 @@ exports.getWeeklySummary = async (req, res) => {
                             positionMap[posName].totalObstacles++;
                             obstacleList.push({
                                 date: curr.format('DD/MM/YYYY'),
-                                position: posName, // Only position, no staff personal name
-                                activity: item.text || 'Kendala Lapangan',
+                                staffName,
+                                position: posName,
+                                activity: textClean || 'Kendala Lapangan',
                                 obstacleNote: item.obstacleNote || 'Kendala'
                             });
                             positionMap[posName].obstacles.push({
                                 date: curr.format('DD/MM/YYYY'),
                                 note: item.obstacleNote || 'Kendala',
-                                task: item.text || 'Tugas operasional'
+                                task: textClean || 'Tugas operasional'
                             });
                         }
 
@@ -878,15 +916,31 @@ exports.getWeeklySummary = async (req, res) => {
                             positionMap[posName].categories.add(item.categoryTag);
                         }
 
-                        if (item.text && item.text.trim()) {
-                            const trimmedText = item.text.trim();
-                            positionMap[posName].taskSummaries.add(trimmedText);
+                        if (textClean) {
+                            positionMap[posName].taskSummaries.add(textClean);
+
+                            // Record individual point for the staff member
+                            staffMap[staffId].totalActivities++;
+                            if (status === 'COMPLETED') staffMap[staffId].totalCompleted++;
+                            else if (status === 'IN_PROGRESS') staffMap[staffId].totalInProgress++;
+                            else if (status === 'OBSTACLE') staffMap[staffId].totalObstacles++;
+
+                            staffMap[staffId].points.push({
+                                date: curr.format('dddd, DD MMMM YYYY'),
+                                dateShort: curr.format('DD/MM'),
+                                text: textClean,
+                                status,
+                                categoryTag: item.categoryTag || 'UMUM',
+                                obstacleNote: item.obstacleNote || ''
+                            });
                         }
 
                         activities.push({
+                            userId: r.user?.id,
+                            staffName,
                             position: posName,
                             categoryTag: item.categoryTag || 'UMUM',
-                            activity: item.text || '(Dokumentasi Foto Lapangan)',
+                            activity: textClean || '(Dokumentasi Foto Lapangan)',
                             status,
                             obstacleNote: item.obstacleNote || '',
                             photos: photos.map(p => typeof p === 'string' ? p : p?.url).filter(Boolean)
@@ -917,6 +971,11 @@ exports.getWeeklySummary = async (req, res) => {
             obstacles: p.obstacles
         })).sort((a, b) => b.totalActivities - a.totalActivities);
 
+        // Array of staff with their respective points, sorted by staff name
+        const staffSummary = Object.values(staffMap)
+            .filter(s => s.points.length > 0)
+            .sort((a, b) => a.staffName.localeCompare(b.staffName));
+
         res.json({
             success: true,
             kabid: {
@@ -936,6 +995,7 @@ exports.getWeeklySummary = async (req, res) => {
                 totalAll: totalCompleted + totalInProgress + totalObstacles
             },
             positionSummary,
+            staffSummary,
             dailyDivisionBreakdown,
             obstacleList,
             documentationPhotos
@@ -1305,19 +1365,36 @@ exports.analyzeWithAI = async (req, res) => {
             where: {
                 type: 'DAILY',
                 NOT: { content: 'SETORAN_HAFALAN' },
-                date: { gte: targetStart.toDate(), lte: targetEnd.toDate() }
+                date: { gte: targetStart.toDate(), lte: targetEnd.toDate() },
+                user: STAFF_USER_WHERE
             },
             include: {
-                user: { select: { name: true, position: true } }
+                user: { select: { id: true, name: true, position: true, role: true } }
             },
             orderBy: { date: 'asc' }
+        });
+
+        // Strictly exclude any reports submitted by Kepala Bidang Sarana
+        const validReports = reports.filter(r => {
+            const u = r.user;
+            if (!u) return false;
+            const role = (u.role || '').toUpperCase();
+            const pos = (u.position || '').toLowerCase();
+            const name = (u.name || '').toLowerCase();
+            return !(
+                role === 'KABID_SARPRAS' ||
+                role === 'SUPER_ADMIN' ||
+                pos.includes('kepala bidang') ||
+                pos.includes('kabid') ||
+                name.includes('ravi kurnia')
+            );
         });
 
         const activityList = [];
         const obstacles = [];
         const staffTaskCount = {};
 
-        reports.forEach(r => {
+        validReports.forEach(r => {
             const pts = r.metadata?.manualPoints;
             const m = pts?.morning || pts?.morningPoints || [];
             const a = pts?.afternoon || pts?.afternoonPoints || [];

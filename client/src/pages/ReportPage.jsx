@@ -7,12 +7,12 @@ import {
 import AssetDateRangeReport from '../components/AssetDateRangeReport';
 import VehicleWeeklySevenReportsTab from '../components/VehicleWeeklySevenReportsTab';
 import UniformDashboardPage from '../pages/ManajemenSeragam/pages/DashboardPage';
-import WarehouseDashboard from '../pages/WarehouseDashboard';
+import InventoryDashboard from '../pages/Inventory/InventoryDashboard';
 import StaffWeeklyAiReportTab from '../components/StaffWeeklyAiReportTab';
 import WorkPlanReportTab from '../components/WorkPlanReportTab';
 import { cn } from '../lib/utils';
 
-const VALID_TABS = ['asset', 'vehicle_seven', 'uniform', 'warehouse', 'staff_ai', 'workplan'];
+const VALID_TABS = ['asset', 'vehicle_seven', 'uniform', 'warehouse', 'inventory', 'staff_ai', 'workplan'];
 
 const TABS = [
     {
@@ -77,14 +77,17 @@ const ReportPage = () => {
     
     const [activeTab, setActiveTab] = useState(() => {
         if (tabFromUrl && VALID_TABS.includes(tabFromUrl)) {
-            return tabFromUrl;
+            return tabFromUrl === 'inventory' ? 'warehouse' : tabFromUrl;
         }
         return 'asset';
     });
 
     useEffect(() => {
-        if (tabFromUrl && VALID_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
-            setActiveTab(tabFromUrl);
+        if (tabFromUrl && VALID_TABS.includes(tabFromUrl)) {
+            const resolved = tabFromUrl === 'inventory' ? 'warehouse' : tabFromUrl;
+            if (resolved !== activeTab) {
+                setActiveTab(resolved);
+            }
         }
     }, [tabFromUrl]);
 
@@ -185,7 +188,7 @@ const ReportPage = () => {
                     <UniformDashboardPage />
                 )}
                 {activeTab === 'warehouse' && (
-                    <WarehouseDashboard />
+                    <InventoryDashboard />
                 )}
                 {activeTab === 'staff_ai' && (
                     <StaffWeeklyAiReportTab currentUser={user} />

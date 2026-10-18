@@ -4824,7 +4824,19 @@ exports.getDashboardStats = async (req, res) => {
                 select: {
                     id: true, itemName: true, size: true, qty: true, 
                     unitPrice: true, totalPrice: true, status: true,
-                    variantId: true, saleId: true
+                    variantId: true, saleId: true,
+                    variant: {
+                        select: {
+                            sellPrice: true,
+                            item: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    sellPrice: true
+                                }
+                            }
+                        }
+                    }
                 }
             }),
             prisma.$queryRaw`
@@ -4941,6 +4953,21 @@ exports.getDashboardStats = async (req, res) => {
             .slice(0, 8);
 
         // 5. Top Selling Items
+        // Pre-build price reference map from catalog and any retail sale items that have positive price
+        const knownPriceMap = new Map();
+        saleItems.forEach(item => {
+            const key = item.itemName;
+            if (item.unitPrice && item.unitPrice > 0 && !knownPriceMap.has(key)) {
+                knownPriceMap.set(key, item.unitPrice);
+            } else if (item.totalPrice && item.totalPrice > 0 && item.qty > 0 && !knownPriceMap.has(key)) {
+                knownPriceMap.set(key, item.totalPrice / item.qty);
+            } else if (item.variant?.sellPrice && item.variant.sellPrice > 0 && !knownPriceMap.has(key)) {
+                knownPriceMap.set(key, item.variant.sellPrice);
+            } else if (item.variant?.item?.sellPrice && item.variant.item.sellPrice > 0 && !knownPriceMap.has(key)) {
+                knownPriceMap.set(key, item.variant.item.sellPrice);
+            }
+        });
+
         const sellingMap = new Map();
         saleItems.forEach(item => {
             if (item.status !== 'BATAL') {
@@ -4950,12 +4977,36 @@ exports.getDashboardStats = async (req, res) => {
                 }
                 const rec = sellingMap.get(key);
                 rec.qty += item.qty;
-                rec.revenue += item.totalPrice || (item.unitPrice * item.qty);
+
+                // Priority for unit price determination:
+                // 1. Explicit unitPrice if > 0
+                // 2. Average price from totalPrice / qty if > 0
+                // 3. Variant sellPrice (size override)
+                // 4. Item sellPrice (catalog default)
+                // 5. Known price from other sales of this same item name
+                let resolvedUnitPrice = 0;
+                if (item.unitPrice && item.unitPrice > 0) {
+                    resolvedUnitPrice = item.unitPrice;
+                } else if (item.totalPrice && item.totalPrice > 0 && item.qty > 0) {
+                    resolvedUnitPrice = item.totalPrice / item.qty;
+                } else if (item.variant?.sellPrice && item.variant.sellPrice > 0) {
+                    resolvedUnitPrice = item.variant.sellPrice;
+                } else if (item.variant?.item?.sellPrice && item.variant.item.sellPrice > 0) {
+                    resolvedUnitPrice = item.variant.item.sellPrice;
+                } else if (knownPriceMap.has(key)) {
+                    resolvedUnitPrice = knownPriceMap.get(key);
+                }
+
+                const lineRevenue = (item.totalPrice && item.totalPrice > 0)
+                    ? item.totalPrice
+                    : (resolvedUnitPrice * (item.qty || 1));
+
+                rec.revenue += lineRevenue;
             }
         });
         const topSellingItems = Array.from(sellingMap.values())
             .sort((a, b) => b.qty - a.qty)
-            .slice(0, 5);
+            .slice(0, 8);
 
         // 6. Format Activity Feed
         const combinedActivity = [

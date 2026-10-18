@@ -86,15 +86,30 @@ export default function WeeklyPdfTab({
     const [aiMode, setAiMode] = useState('STAFF_NARRATIVE'); // 'STAFF_NARRATIVE' | 'WEEKLY_EXECUTIVE' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
     const [isEditingAi, setIsEditingAi] = useState(false);
 
-    // Compute or retrieve position-based summary without staff personal names
+    // Helper to identify and strictly exclude Kepala Bidang Sarana reports
+    const isKabidNameOrPos = (name = '', pos = '') => {
+        const n = (name || '').toLowerCase();
+        const p = (pos || '').toLowerCase();
+        return (
+            p.includes('kepala bidang') ||
+            p.includes('kabid') ||
+            n.includes('ravi kurnia') ||
+            (user?.name && n.includes(user.name.toLowerCase()) && (p.includes('kepala') || p.includes('kabid')))
+        );
+    };
+
+    // Compute or retrieve position-based summary without staff personal names (excluding Kabid)
     const positionSummaries = React.useMemo(() => {
         if (weeklyData?.positionSummary && weeklyData.positionSummary.length > 0) {
-            return weeklyData.positionSummary;
+            return weeklyData.positionSummary.filter(p => !isKabidNameOrPos('', p.position));
         }
         const posMap = {};
         (weeklyData?.dailyDivisionBreakdown || []).forEach(day => {
             (day.activities || []).forEach(act => {
                 const pos = act.position || 'Staf Sarana & Prasarana';
+                const staff = act.staffName || act.userName || '';
+                if (isKabidNameOrPos(staff, pos)) return;
+
                 if (!posMap[pos]) {
                     posMap[pos] = {
                         position: pos,
@@ -121,7 +136,64 @@ export default function WeeklyPdfTab({
             keyTasks: Array.from(p.keyTasks),
             categories: Array.from(p.categories)
         })).sort((a, b) => b.totalActivities - a.totalActivities);
-    }, [weeklyData]);
+    }, [weeklyData, user]);
+
+    // Compute or retrieve individual staff report points (strictly excluding Kabid Sarana)
+    const staffSummaries = React.useMemo(() => {
+        if (weeklyData?.staffSummary && weeklyData.staffSummary.length > 0) {
+            return weeklyData.staffSummary
+                .filter(s => !isKabidNameOrPos(s.staffName, s.position))
+                .sort((a, b) => a.staffName.localeCompare(b.staffName));
+        }
+
+        const sMap = {};
+        (weeklyData?.dailyDivisionBreakdown || []).forEach(day => {
+            (day.activities || []).forEach(act => {
+                const staffName = act.staffName || act.userName || 'Staf Sarana';
+                const pos = act.position || 'Staf Sarana & Prasarana';
+                if (isKabidNameOrPos(staffName, pos)) return;
+
+                if (!sMap[staffName]) {
+                    sMap[staffName] = {
+                        staffName,
+                        position: pos,
+                        points: [],
+                        totalActivities: 0,
+                        totalCompleted: 0,
+                        totalInProgress: 0,
+                        totalObstacles: 0
+                    };
+                }
+
+                if (act.activity && act.activity.trim() && !act.activity.includes('Dokumentasi Foto')) {
+                    sMap[staffName].totalActivities++;
+                    if (act.status === 'COMPLETED') sMap[staffName].totalCompleted++;
+                    else if (act.status === 'IN_PROGRESS') sMap[staffName].totalInProgress++;
+                    else if (act.status === 'OBSTACLE') sMap[staffName].totalObstacles++;
+
+                    sMap[staffName].points.push({
+                        date: day.date || day.dateShort || '',
+                        dateShort: day.dateShort || '',
+                        text: act.activity.trim(),
+                        status: act.status || 'COMPLETED',
+                        categoryTag: act.categoryTag || 'UMUM',
+                        obstacleNote: act.obstacleNote || ''
+                    });
+                }
+            });
+        });
+
+        return Object.values(sMap)
+            .filter(s => s.points.length > 0)
+            .sort((a, b) => a.staffName.localeCompare(b.staffName));
+    }, [weeklyData, user]);
+
+    // Filtered obstacle list excluding Kabid Sarana
+    const filteredObstacleList = React.useMemo(() => {
+        return (weeklyData?.obstacleList || []).filter(obs => 
+            !isKabidNameOrPos(obs.staffName, obs.position)
+        );
+    }, [weeklyData, user]);
 
     // Narrative generator fallback per staff position without percentages or completed/in-progress counts
     const getDefaultNarrativeForPosition = (pos) => {
@@ -180,6 +252,139 @@ export default function WeeklyPdfTab({
             }
         }
         window.print();
+    };
+
+    const handleExportDOC = () => {
+        if (!weeklyData) {
+            alert('Data laporan belum selesai dimuat.');
+            return;
+        }
+
+        const now = dayjs();
+        const periodStr = weeklyData?.period?.formattedPeriod || `${weeklyStartDate} s/d ${weeklyEndDate}`;
+
+        // Build Staff Points HTML
+        const staffPointsHtml = staffSummaries.map((staff, sIdx) => {
+            const pointsList = staff.points.map(pt => {
+                const dateBadge = pt.dateShort ? ` <span style="color:#64748b; font-size:9pt;">(${pt.dateShort})</span>` : '';
+                const catBadge = (pt.categoryTag && pt.categoryTag !== 'UMUM') ? ` <span style="color:#475569; font-size:8pt; background:#f1f5f9; padding:2px 4px;">[${pt.categoryTag}]</span>` : '';
+                const obsText = pt.obstacleNote ? `<br/><em style="color:#b91c1c; font-size:9pt; margin-left:14px;">Kendala: ${pt.obstacleNote}</em>` : '';
+                return `<li style="margin-bottom: 4px; font-size: 10pt; line-height: 1.4;">${pt.text}${dateBadge}${catBadge}${obsText}</li>`;
+            }).join('');
+
+            return `
+                <div style="margin-bottom: 14px; padding: 10px; border: 1px solid #e2e8f0; background-color: #f8fafc;">
+                    <div style="font-weight: bold; font-size: 10.5pt; color: #0f172a; margin-bottom: 6px;">
+                        ${sIdx + 1}. ${staff.staffName} <span style="font-size: 9pt; color: #4338ca; font-weight: normal; margin-left: 8px;">(${staff.position})</span>
+                    </div>
+                    <ul style="margin: 0; padding-left: 18px;">
+                        ${pointsList}
+                    </ul>
+                </div>
+            `;
+        }).join('');
+
+        // Build Obstacles HTML
+        const obstaclesHtml = filteredObstacleList.length > 0 ? `
+            <h4 style="font-size: 11pt; color: #1e293b; margin-top: 20px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">
+                IV. Catatan Kendala & Hambatan Operasional Lapangan
+            </h4>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 9.5pt;">
+                <thead>
+                    <tr style="background-color: #f1f5f9; text-align: left;">
+                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Tanggal</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Staf / Posisi</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Pekerjaan</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Uraian Kendala</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filteredObstacleList.map(obs => `
+                        <tr>
+                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px;">${obs.date || '-'}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px;">${obs.staffName || obs.position || '-'}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px;">${obs.activity || '-'}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px; color: #b91c1c;">${obs.obstacleNote || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        ` : '';
+
+        // Narasi HTML
+        let narasiHtml = '';
+        if (aiAnalysis) {
+            narasiHtml = `
+                <div style="margin-top: 8px; font-size: 10pt; line-height: 1.5; color: #1e293b;">
+                    ${aiAnalysis.split('\n').map(l => l.trim() ? `<p style="margin: 6px 0;">${l}</p>` : '').join('')}
+                </div>
+            `;
+        } else {
+            narasiHtml = positionSummaries.map(pos => `
+                <div style="margin-bottom: 12px;">
+                    <div style="font-weight: bold; font-size: 10.5pt; color: #0f172a;">${pos.position}</div>
+                    <p style="margin: 4px 0 8px 0; font-size: 10pt; line-height: 1.4; color: #334155; text-align: justify;">
+                        ${getDefaultNarrativeForPosition(pos)}
+                    </p>
+                </div>
+            `).join('');
+        }
+
+        const docContent = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset="utf-8">
+                <title>Laporan Mingguan Staf Sarana</title>
+                <style>
+                    body { font-family: Calibri, Arial, sans-serif; font-size: 10pt; color: #0f172a; margin: 20px; }
+                    h2 { font-size: 14pt; margin: 0; }
+                    h3 { font-size: 12pt; margin: 2px 0; }
+                    h4 { font-size: 11pt; }
+                </style>
+            </head>
+            <body>
+                <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 16px;">
+                    <h2 style="letter-spacing: 1px;">YAYASAN DAR EL IMAN</h2>
+                    <h3 style="letter-spacing: 2px; color: #1e1b4b;">BIDANG SARANA</h3>
+                    <div style="font-size: 9pt; color: #475569;">Jl. Gunung Juaro, Kel. Surau Gadang, Kec. Nanggalo, Kota Padang, Sumatera Barat</div>
+                </div>
+
+                <div style="text-align: center; margin-bottom: 16px;">
+                    <h4 style="text-decoration: underline; margin: 0; text-transform: uppercase;">LAPORAN KINERJA & AKTIVITAS MINGGUAN</h4>
+                    <div style="font-size: 9.5pt; color: #475569; font-weight: bold; margin-top: 2px;">Periode: ${periodStr}</div>
+                </div>
+
+                <h4 style="font-size: 11pt; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 16px;">
+                    I. Pengantar & Lingkup Laporan Kinerja
+                </h4>
+                <p style="font-size: 10pt; line-height: 1.5; text-align: justify; color: #334155;">
+                    Laporan ini menyajikan rangkuman narasi capaian kinerja operasional dan pemeliharaan fasilitas di lingkungan Yayasan Dar el Iman untuk periode ${periodStr}. Seluruh laporan disusun berdasarkan rekapitulasi penugasan per staf tanpa memuat format persentase capaian, guna memberikan gambaran deskriptif yang lugas dan berorientasi pada kesiapan sarana yayasan.
+                </p>
+
+                <h4 style="font-size: 11pt; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 20px;">
+                    II. Rangkuman Narasi Kinerja per Posisi Staf Bidang Sarana
+                </h4>
+                ${narasiHtml}
+
+                <h4 style="font-size: 11pt; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-top: 20px;">
+                    III. Rincian Poin Laporan Aktivitas Masing-Masing Staf
+                </h4>
+                ${staffPointsHtml || '<p style="color:#64748b;">Belum ada poin laporan staf pada periode ini.</p>'}
+
+                ${obstaclesHtml}
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob(['\ufeff', docContent], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Laporan_Staff_${weeklyStartDate}_sd_${weeklyEndDate}_${now.format('YYYYMMDD')}.doc`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     const hasAiSection = includeAiInPdf && Boolean(aiAnalysis);
@@ -263,6 +468,15 @@ export default function WeeklyPdfTab({
                                 title="Nomor Induk Yayasan (NIY) Kepala Bidang Sarana"
                             />
                         </div>
+                        <button
+                            onClick={handleExportDOC}
+                            disabled={loading}
+                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+                            title="Unduh Laporan Versi Microsoft Word (.doc)"
+                        >
+                            <FileText size={15} />
+                            <span>Cetak Laporan DOC</span>
+                        </button>
                         <button
                             onClick={handlePrintPdf}
                             disabled={loading || aiLoading}
@@ -479,22 +693,104 @@ export default function WeeklyPdfTab({
                     )}
                 </div>
 
-                {/* III. CATATAN KENDALA & HAMBATAN OPERASIONAL */}
-                {weeklyData?.obstacleList && weeklyData.obstacleList.length > 0 && (
+                {/* III. RINCIAN POIN LAPORAN AKTIVITAS MASING-MASING STAF */}
+                <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-indigo-600 print:bg-slate-800"></span>
+                            III. Rincian Poin Laporan Aktivitas Masing-Masing Staf
+                        </h5>
+                        <span className="text-[10px] font-bold text-slate-400 print:hidden">
+                            {staffSummaries.length} Staf Lapangan
+                        </span>
+                    </div>
+
+                    {(!staffSummaries || staffSummaries.length === 0) ? (
+                        <p className="text-xs text-slate-400 italic py-2">
+                            Belum ada poin laporan staf yang tercatat pada rentang tanggal ini.
+                        </p>
+                    ) : (
+                        <div className="space-y-4">
+                            {staffSummaries.map((staff, sIdx) => (
+                                <div
+                                    key={sIdx}
+                                    className="p-3.5 bg-slate-50/70 print:bg-transparent rounded-2xl border border-slate-200/80 print:border-l-2 print:border-slate-800 print:border-t-0 print:border-r-0 print:border-b-0 print:rounded-none print:p-0 print:pl-3.5 space-y-2 break-inside-avoid"
+                                >
+                                    <div className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-200/60 pb-1.5 print:border-b-0 print:pb-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-slate-900 tracking-tight">
+                                                {sIdx + 1}. {staff.staffName}
+                                            </span>
+                                            <span className="text-[9px] font-bold uppercase tracking-wider bg-indigo-50 print:bg-slate-100 text-indigo-700 print:text-slate-700 px-2 py-0.5 rounded-md border border-indigo-200/50 print:border-slate-200">
+                                                {staff.position}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500 font-mono">
+                                            {staff.points.length} Poin Laporan
+                                        </span>
+                                    </div>
+
+                                    <ul className="space-y-1.5 text-xs text-slate-700 pt-0.5">
+                                        {staff.points.map((pt, pIdx) => {
+                                            const isObstacle = pt.status === 'OBSTACLE';
+                                            return (
+                                                <li key={pIdx} className="flex items-start gap-2 leading-relaxed">
+                                                    <span className="text-indigo-600 print:text-slate-800 font-bold text-xs shrink-0 mt-0.5">
+                                                        •
+                                                    </span>
+                                                    <div className="flex-1 space-y-0.5">
+                                                        <div className="flex flex-wrap items-baseline gap-1.5">
+                                                            <span className="text-slate-900 font-medium text-[11.5px]">
+                                                                {pt.text}
+                                                            </span>
+                                                            {pt.dateShort && (
+                                                                <span className="text-[10px] text-slate-500 font-medium font-mono">
+                                                                    ({pt.dateShort})
+                                                                </span>
+                                                            )}
+                                                            {pt.categoryTag && pt.categoryTag !== 'UMUM' && (
+                                                                <span className="text-[9px] font-semibold text-slate-500 uppercase bg-slate-100 px-1.5 py-0.2 rounded print:text-slate-600">
+                                                                    {pt.categoryTag}
+                                                                </span>
+                                                            )}
+                                                            {isObstacle && (
+                                                                <span className="text-[9px] font-bold text-rose-600 uppercase">
+                                                                    [Kendala Lapangan]
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {pt.obstacleNote && (
+                                                            <p className="text-[10.5px] text-rose-700 print:text-slate-900 italic">
+                                                                Uraian Hambatan: {pt.obstacleNote}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* IV. CATATAN KENDALA & HAMBATAN OPERASIONAL */}
+                {filteredObstacleList && filteredObstacleList.length > 0 && (
                     <div className="space-y-2.5 break-inside-avoid pt-2">
                         <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-slate-800"></span>
-                            III. Catatan Kendala & Hambatan Operasional Lapangan
+                            IV. Catatan Kendala & Hambatan Operasional Lapangan
                         </h5>
                         <div className="space-y-2 text-xs">
-                            {weeklyData.obstacleList.map((obs, idx) => (
+                            {filteredObstacleList.map((obs, idx) => (
                                 <div
                                     key={idx}
                                     className="p-3 bg-slate-50/80 print:bg-transparent rounded-xl border border-slate-200 print:border-l-2 print:border-slate-400 print:border-t-0 print:border-r-0 print:border-b-0 print:rounded-none print:p-0 print:pl-3 space-y-1 break-inside-avoid"
                                 >
                                     <div className="flex items-center justify-between">
                                         <span className="font-bold text-slate-900">
-                                            {obs.position || 'Staf Sarana'}
+                                            {obs.staffName ? `${obs.staffName} (${obs.position || 'Staf Sarana'})` : (obs.position || 'Staf Sarana')}
                                         </span>
                                         <span className="text-[10px] text-slate-500 font-mono">
                                             {obs.date}
