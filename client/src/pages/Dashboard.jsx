@@ -13,7 +13,6 @@ import {
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
 import WeeklyAssetReport from '../components/WeeklyAssetReport';
-import AssetDateRangeReport from '../components/AssetDateRangeReport';
 
 /* ── jsPDF + autoTable CDN loader ── */
 function loadJsPDF() {
@@ -504,8 +503,6 @@ const Dashboard = () => {
                     <p className="text-slate-500 text-xs font-medium mt-0.5">
                         {activeTab === 'weekly'
                             ? 'Laporan pergerakan harian, mingguan, bulanan, dan audit fisik aset (Fokus kuantitas tanpa harga)'
-                            : activeTab === 'date_range'
-                                ? 'Laporan rentang tanggal: aset saat ini, pengadaan masuk & finalisasi, jenis barang dibeli, dan pemeliharaan Sarpras'
                             : (filterUnit !== 'all'
                                 ? `Menampilkan data akumulatif unit: ${data?.units?.find(u => u.id === parseInt(filterUnit))?.name || 'Unit Terpilih'}`
                                 : 'Ringkasan komprehensif aset, kondisi fisik, nilai buku/pasar, dan 5 modul operasional')}
@@ -595,29 +592,12 @@ const Dashboard = () => {
                             Kuantitas
                         </span>
                     </button>
-                    <button
-                        onClick={() => setActiveTab('date_range')}
-                        className={cn(
-                            "flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all relative",
-                            activeTab === 'date_range'
-                                ? "bg-white text-indigo-700 shadow-sm"
-                                : "text-slate-500 hover:text-slate-800"
-                        )}
-                    >
-                        <FileText size={16} className={activeTab === 'date_range' ? "text-indigo-600" : ""} />
-                        Laporan Rentang Tanggal
-                        <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 rounded-full">
-                            Pengadaan & Sarpras
-                        </span>
-                    </button>
                 </div>
             )}
 
             {/* TAB CONTENT */}
             {canAccessWeeklyReport && activeTab === 'weekly' ? (
                 <WeeklyAssetReport currentUser={currentUser} />
-            ) : canAccessWeeklyReport && activeTab === 'date_range' ? (
-                <AssetDateRangeReport currentUser={currentUser} />
             ) : (
                 <>
                     {/* 1. TOP 6 CORE METRICS (TOTAL ASET, BAIK, RUSAK RINGAN, RUSAK BERAT, NILAI BUKU, NILAI PASAR) */}

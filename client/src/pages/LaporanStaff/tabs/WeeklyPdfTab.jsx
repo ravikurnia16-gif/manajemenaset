@@ -83,7 +83,7 @@ export default function WeeklyPdfTab({
     const [aiLoading, setAiLoading] = useState(false);
     const [includeAiInPdf, setIncludeAiInPdf] = useState(true);
     const [includePhotosInPdf, setIncludePhotosInPdf] = useState(false);
-    const [aiMode, setAiMode] = useState('WEEKLY_EXECUTIVE'); // 'WEEKLY_EXECUTIVE' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
+    const [aiMode, setAiMode] = useState('STAFF_NARRATIVE'); // 'STAFF_NARRATIVE' | 'WEEKLY_EXECUTIVE' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
     const [isEditingAi, setIsEditingAi] = useState(false);
 
     // Compute or retrieve position-based summary without staff personal names
@@ -119,10 +119,21 @@ export default function WeeklyPdfTab({
         return Object.values(posMap).map(p => ({
             ...p,
             keyTasks: Array.from(p.keyTasks),
-            categories: Array.from(p.categories),
-            completionRate: p.totalActivities > 0 ? Math.round((p.totalCompleted / p.totalActivities) * 100) : 0
+            categories: Array.from(p.categories)
         })).sort((a, b) => b.totalActivities - a.totalActivities);
     }, [weeklyData]);
+
+    // Narrative generator fallback per staff position without percentages or completed/in-progress counts
+    const getDefaultNarrativeForPosition = (pos) => {
+        const tasks = pos.keyTasks || [];
+        const cats = (pos.categories && pos.categories.length > 0) ? pos.categories.join(', ') : 'sarana dan prasarana yayasan';
+        if (tasks.length === 0) {
+            return `Sepanjang periode laporan ini, ${pos.position} melaksanakan tugas rutin pemantauan fasilitas, kesiapsiagaan teknis harian, dan perawatan berkala guna mendukung kelancaran operasional di lingkungan Yayasan Dar el Iman.`;
+        }
+        const sampleTasks = tasks.slice(0, 4).join(', ');
+        const moreText = tasks.length > 4 ? ` serta penanganan agenda pemeliharaan teknis operasional pendukung lainnya` : '';
+        return `Selama periode laporan ini, ${pos.position} fokus menjalankan pemeliharaan dan pengawalan sarana di bidang ${cats}. Pekerjaan utama mencakup ${sampleTasks}${moreText}. Seluruh rangkaian penugasan diarahkan untuk memastikan fasilitas yayasan selalu dalam kondisi prima, aman, dan siap menunjang kelancaran program dakwah dan pendidikan Yayasan Dar el Iman.`;
+    };
 
     const handleGenerateAI = async () => {
         try {
@@ -156,9 +167,9 @@ export default function WeeklyPdfTab({
             alert('Data laporan mingguan belum selesai dimuat. Pastikan tanggal telah dipilih.');
             return;
         }
-        if (includeAiInPdf && !aiAnalysis) {
+        if (!aiAnalysis) {
             const confirmGen = window.confirm(
-                "Analisis AI belum digenerate. Apakah Anda ingin meng-generate Analisis AI terlebih dahulu sebelum mencetak dokumen PDF?"
+                "Rangkuman narasi AI belum digenerate. Apakah Anda ingin meng-generate Rangkuman Narasi Staf dengan AI terlebih dahulu sebelum mencetak dokumen PDF?"
             );
             if (confirmGen) {
                 const res = await handleGenerateAI();
@@ -284,6 +295,7 @@ export default function WeeklyPdfTab({
                                 onChange={(e) => setAiMode(e.target.value)}
                                 className="bg-transparent font-bold text-slate-700 text-xs outline-none cursor-pointer"
                             >
+                                <option value="STAFF_NARRATIVE">📝 Rangkuman Narasi per Posisi Staf (AI)</option>
                                 <option value="WEEKLY_EXECUTIVE">🎯 Ikhtisar Eksekutif & Strategis</option>
                                 <option value="TEAM_PERFORMANCE">📊 Evaluasi Produktivitas Tim</option>
                                 <option value="OBSTACLE_SOLUTIONS">⚠️ Solusi Kendala & Mitigasi</option>
@@ -299,7 +311,7 @@ export default function WeeklyPdfTab({
                                 onChange={(e) => setIncludeAiInPdf(e.target.checked)}
                                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span>Sertakan Analisis AI</span>
+                            <span>Gunakan Narasi AI (Gemini)</span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 select-none">
@@ -356,10 +368,17 @@ export default function WeeklyPdfTab({
                     <p className="text-xs font-bold text-slate-600">Periode: {weeklyData?.period?.formattedPeriod || `${weeklyStartDate} s/d ${weeklyEndDate}`}</p>
                 </div>
 
-                {/* I. EXECUTIVE SUMMARY */}
+                {/* I. PENGANTAR & LINGKUP LAPORAN KINERJA */}
                 <div className="space-y-2 break-inside-avoid">
-                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">I. Ringkasan Eksekutif Kinerja</h5>
-                    <div className="grid grid-cols-3 gap-3 text-center pt-2">
+                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-slate-800"></span>
+                        I. Pengantar & Lingkup Laporan Kinerja
+                    </h5>
+                    <p className="text-xs text-slate-700 leading-relaxed text-justify">
+                        Laporan ini menyajikan rangkuman narasi capaian kinerja operasional dan pemeliharaan fasilitas di lingkungan Yayasan Dar el Iman untuk periode {weeklyData?.period?.formattedPeriod || `${weeklyStartDate} s/d ${weeklyEndDate}`}. Seluruh laporan disusun berdasarkan rekapitulasi penugasan per posisi staf tanpa memuat format tabel dan persentase capaian, guna memberikan gambaran deskriptif yang lugas dan berorientasi pada kesiapan sarana yayasan.
+                    </p>
+                    {/* Ringkasan metrik hanya ditampilkan di layar preview, disembunyikan saat dicetak sesuai arahan pimpinan */}
+                    <div className="grid grid-cols-3 gap-3 text-center pt-1 print:hidden">
                         <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
                             <span className="text-[10px] font-bold text-slate-500 block uppercase">Pekerjaan Selesai</span>
                             <span className="text-xl font-black text-emerald-700">{weeklyData?.stats?.totalCompleted || 0}</span>
@@ -375,174 +394,121 @@ export default function WeeklyPdfTab({
                     </div>
                 </div>
 
-                {/* II. ANALISIS & EVALUASI STRATEGIS KINERJA (AI EXECUTIVE SUMMARY) */}
-                {hasAiSection && (
-                    <div className="space-y-3 pt-1 break-inside-avoid">
-                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-indigo-600 print:bg-slate-800"></span>
-                                II. Analisis & Evaluasi Strategis Kinerja (AI Executive Summary)
-                            </h5>
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded print:hidden flex items-center gap-1">
-                                <Sparkles size={11} className="text-amber-500" /> Analisis AI Aktif
-                            </span>
-                        </div>
-
-                        <div className="bg-slate-50/70 print:bg-transparent p-4 print:p-0 rounded-2xl border border-slate-200 print:border-none space-y-2">
-                            {isEditingAi ? (
-                                <div className="space-y-2 print:hidden">
-                                    <textarea
-                                        value={aiAnalysis}
-                                        onChange={(e) => setAiAnalysis(e.target.value)}
-                                        rows={10}
-                                        className="w-full p-3 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-sans"
-                                        placeholder="Ketik atau sesuaikan narasi analisis AI..."
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                        <button
-                                            onClick={() => setIsEditingAi(false)}
-                                            className="px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer"
-                                        >
-                                            <Check size={13} /> Selesai Mengedit
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <>
-                                    {renderFormattedAiText(aiAnalysis)}
-                                    <div className="pt-2 flex justify-end print:hidden">
-                                        <button
-                                            onClick={() => setIsEditingAi(true)}
-                                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
-                                        >
-                                            <Edit3 size={12} /> Sesuaikan Teks Analisis
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* III. RANGKUMAN KINERJA PER POSISI STAF */}
+                {/* II. RANGKUMAN NARASI KINERJA PER POSISI STAF (AI GENERATED) */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
                         <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-slate-800"></span>
-                            {hasAiSection ? 'III.' : 'II.'} Rangkuman Kinerja per Posisi Staf Bidang Sarana
+                            <span className="w-2 h-2 rounded-full bg-indigo-600 print:bg-slate-800"></span>
+                            II. Rangkuman Narasi Kinerja per Posisi Staf Bidang Sarana
                         </h5>
-                        <span className="text-[10px] text-slate-500 font-semibold italic">
-                            *Rangkuman pencapaian tugas berdasarkan bidang dan posisi staf
-                        </span>
+                        <div className="flex items-center gap-2 print:hidden">
+                            {aiAnalysis && (
+                                <button
+                                    onClick={() => setIsEditingAi(!isEditingAi)}
+                                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200"
+                                >
+                                    <Edit3 size={12} /> {isEditingAi ? 'Tutup Editor' : 'Sesuaikan Narasi AI'}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    {(!positionSummaries || positionSummaries.length === 0) ? (
-                        <p className="text-xs text-slate-400 italic py-2">Belum ada rangkuman kinerja posisi staf tercatat pada rentang tanggal ini.</p>
+                    {isEditingAi ? (
+                        <div className="space-y-2 print:hidden">
+                            <textarea
+                                value={aiAnalysis}
+                                onChange={(e) => setAiAnalysis(e.target.value)}
+                                rows={14}
+                                className="w-full p-3 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-sans"
+                                placeholder="Ketik atau sesuaikan narasi kinerja per posisi staf..."
+                            />
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    onClick={() => setIsEditingAi(false)}
+                                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer shadow-xs"
+                                >
+                                    <Check size={13} /> Selesai Mengedit Narasi
+                                </button>
+                            </div>
+                        </div>
+                    ) : (hasAiSection && aiAnalysis) ? (
+                        <div className="space-y-3 bg-slate-50/40 print:bg-transparent p-4 print:p-0 rounded-2xl border border-slate-200 print:border-none">
+                            {renderFormattedAiText(aiAnalysis)}
+                        </div>
                     ) : (
-                        <div className="space-y-3">
-                            <div className="overflow-hidden border border-slate-200 rounded-xl">
-                                <table className="w-full text-xs text-left border-collapse">
-                                    <thead className="bg-slate-100/80 font-bold border-b border-slate-200 text-slate-700 text-[11px]">
-                                        <tr>
-                                            <th className="p-2.5 w-10 text-center border-r border-slate-200">No</th>
-                                            <th className="p-2.5 w-48 border-r border-slate-200">Posisi / Jabatan</th>
-                                            <th className="p-2.5 border-r border-slate-200">Rangkuman Cakupan & Realisasi Pekerjaan</th>
-                                            <th className="p-2.5 w-16 text-center border-r border-slate-200 text-emerald-800">Selesai</th>
-                                            <th className="p-2.5 w-16 text-center border-r border-slate-200 text-amber-800">Proses</th>
-                                            <th className="p-2.5 w-16 text-center border-r border-slate-200 text-rose-800">Kendala</th>
-                                            <th className="p-2.5 w-20 text-center">Capaian</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {positionSummaries.map((pos, pIdx) => (
-                                            <tr key={pIdx} className="break-inside-avoid align-top hover:bg-slate-50/50">
-                                                <td className="p-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
-                                                    {pIdx + 1}
-                                                </td>
-                                                <td className="p-2.5 font-black text-slate-800 border-r border-slate-200">
-                                                    <div className="font-bold text-slate-900 text-xs">{pos.position}</div>
-                                                    {pos.categories && pos.categories.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {pos.categories.map((c, cIdx) => (
-                                                                <span key={cIdx} className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-600 border border-slate-200">
-                                                                    {c}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="p-2.5 border-r border-slate-200">
-                                                    {pos.keyTasks && pos.keyTasks.length > 0 ? (
-                                                        <ul className="space-y-1 text-[11px] leading-relaxed text-slate-700">
-                                                            {pos.keyTasks.slice(0, 5).map((task, tIdx) => (
-                                                                <li key={tIdx} className="flex items-start gap-1.5">
-                                                                    <span className="text-slate-400 font-bold">•</span>
-                                                                    <span>{task}</span>
-                                                                </li>
-                                                            ))}
-                                                            {pos.keyTasks.length > 5 && (
-                                                                <li className="text-[10px] text-slate-400 italic pl-3">
-                                                                    +{pos.keyTasks.length - 5} item pekerjaan operasional lainnya
-                                                                </li>
-                                                            )}
-                                                        </ul>
-                                                    ) : (
-                                                        <span className="text-slate-400 italic text-[11px]">- Menjalankan tugas pemeliharaan rutin -</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-2.5 text-center font-bold text-emerald-700 border-r border-slate-200">
-                                                    {pos.totalCompleted}
-                                                </td>
-                                                <td className="p-2.5 text-center font-bold text-amber-700 border-r border-slate-200">
-                                                    {pos.totalInProgress}
-                                                </td>
-                                                <td className="p-2.5 text-center font-bold text-rose-700 border-r border-slate-200">
-                                                    {pos.totalObstacles}
-                                                </td>
-                                                <td className="p-2.5 text-center">
-                                                    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-black ${
-                                                        pos.completionRate >= 80 ? 'bg-emerald-100 text-emerald-800' :
-                                                        pos.completionRate >= 50 ? 'bg-amber-100 text-amber-800' :
-                                                        'bg-slate-100 text-slate-700'
-                                                    }`}>
-                                                        {pos.completionRate}%
+                        <div className="space-y-4">
+                            {(!positionSummaries || positionSummaries.length === 0) ? (
+                                <p className="text-xs text-slate-400 italic py-2">Belum ada rangkuman kinerja posisi staf tercatat pada rentang tanggal ini.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {positionSummaries.map((pos, pIdx) => (
+                                        <div key={pIdx} className="space-y-1.5 break-inside-avoid border-l-2 border-slate-800 pl-3.5 py-0.5">
+                                            <div className="flex items-center justify-between">
+                                                <h6 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                                                    {pos.position}
+                                                </h6>
+                                                {pos.categories && pos.categories.length > 0 && (
+                                                    <span className="text-[9px] font-bold text-slate-500 uppercase bg-slate-100 px-1.5 py-0.5 rounded print:text-slate-600">
+                                                        {pos.categories.join(' • ')}
                                                     </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                                )}
+                                            </div>
+                                            <p className="text-xs leading-relaxed text-slate-700 text-justify">
+                                                {getDefaultNarrativeForPosition(pos)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-indigo-900 print:hidden">
+                                <div>
+                                    <span className="font-bold block">Tingkatkan Narasi dengan AI Gemini</span>
+                                    <span className="text-[11px] text-indigo-700">Narasi di atas merupakan ringkasan sistem. Klik tombol di kanan untuk menyusun narasi eksekutif AI yang lebih mengalir dan formal.</span>
+                                </div>
+                                <button
+                                    onClick={handleGenerateAI}
+                                    disabled={aiLoading || loading}
+                                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-1.5 cursor-pointer text-xs shrink-0 shadow-xs"
+                                >
+                                    {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} className="text-amber-300" />}
+                                    Hasilkan Narasi AI Sekarang
+                                </button>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* IV. REKAP KENDALA */}
+                {/* III. CATATAN KENDALA & HAMBATAN OPERASIONAL */}
                 {weeklyData?.obstacleList && weeklyData.obstacleList.length > 0 && (
-                    <div className="space-y-2 break-inside-avoid">
-                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
-                            {hasAiSection ? 'IV.' : 'III.'} Rekap Kendala / Hambatan Lapangan
+                    <div className="space-y-2.5 break-inside-avoid pt-2">
+                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-slate-800"></span>
+                            III. Catatan Kendala & Hambatan Operasional Lapangan
                         </h5>
-                        <table className="w-full text-xs text-left border border-slate-200">
-                            <thead className="bg-slate-50 font-bold border-b border-slate-200">
-                                <tr>
-                                    <th className="p-2 border-r">Tgl</th>
-                                    <th className="p-2 border-r">Posisi / Bidang Tugas</th>
-                                    <th className="p-2 border-r">Pekerjaan</th>
-                                    <th className="p-2">Uraian Kendala</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {weeklyData.obstacleList.map((obs, idx) => (
-                                    <tr key={idx}>
-                                        <td className="p-2 border-r whitespace-nowrap">{obs.date}</td>
-                                        <td className="p-2 border-r font-bold text-slate-800">{obs.position || 'Staf Sarpras'}</td>
-                                        <td className="p-2 border-r">{obs.activity}</td>
-                                        <td className="p-2 text-rose-700 font-medium">{obs.obstacleNote}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="space-y-2 text-xs">
+                            {weeklyData.obstacleList.map((obs, idx) => (
+                                <div
+                                    key={idx}
+                                    className="p-3 bg-slate-50/80 print:bg-transparent rounded-xl border border-slate-200 print:border-l-2 print:border-slate-400 print:border-t-0 print:border-r-0 print:border-b-0 print:rounded-none print:p-0 print:pl-3 space-y-1 break-inside-avoid"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-bold text-slate-900">
+                                            {obs.position || 'Staf Sarana'}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 font-mono">
+                                            {obs.date}
+                                        </span>
+                                    </div>
+                                    <p className="text-slate-700 text-[11px] leading-relaxed">
+                                        <span className="font-semibold text-slate-800">Pekerjaan Lapangan:</span> {obs.activity}
+                                    </p>
+                                    <p className="text-rose-700 print:text-slate-900 text-[11px] leading-relaxed italic">
+                                        <span className="font-semibold not-italic text-slate-800">Uraian Hambatan:</span> {obs.obstacleNote}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 
@@ -553,7 +519,7 @@ export default function WeeklyPdfTab({
                             <p className="text-xs font-medium text-slate-600">Padang, {dayjs().format('DD MMMM YYYY')}</p>
                             <p className="text-xs font-bold uppercase mt-0.5 text-slate-900">Kepala Bidang Sarana</p>
                         </div>
-                        
+
                         {/* TTE Digital Seal / Badge */}
                         <div className="p-3 my-2 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center gap-2.5 text-left shadow-2xs">
                             <div className="p-2 bg-emerald-100 rounded-lg text-emerald-700 shrink-0">

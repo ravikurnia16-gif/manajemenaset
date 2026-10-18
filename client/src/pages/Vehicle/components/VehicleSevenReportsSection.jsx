@@ -3,13 +3,15 @@ import {
     Car, Fuel, Bus, Wrench, DollarSign, Trophy, AlertTriangle, Clock,
     CheckCircle2, MapPin, User, Phone, ShieldAlert, Sparkles, Loader2,
     ChevronRight, Download, TrendingUp, BarChart3, Search, ArrowUpRight,
-    Activity, CheckSquare, FileText, X, Copy, Check, Info, Award
+    Activity, CheckSquare, FileText, X, Copy, Check, Info, Award,
+    Gauge, Camera
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     Cell, PieChart, Pie, Legend
 } from 'recharts';
 import api from '../../../lib/axios';
+import { getMediaUrl } from '../../../lib/media';
 
 const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#f97316'];
 
@@ -90,7 +92,9 @@ function loadJsPDF() {
 export default function VehicleSevenReportsSection({
     data,
     periodLabel,
-    onNavigateToReport
+    onNavigateToReport,
+    currentUser,
+    exportRef
 }) {
     const [activeSubTab, setActiveSubTab] = useState('TRIPS'); // 'TRIPS', 'FUEL', 'BUS_BOOKINGS', 'MAINTENANCE', 'BUS_OMSET', 'DRIVERS', 'VIOLATIONS'
     const [searchQuery, setSearchQuery] = useState('');
@@ -99,6 +103,8 @@ export default function VehicleSevenReportsSection({
     const [showAiModal, setShowAiModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [exportingPdf, setExportingPdf] = useState(false);
+    const [exportingDoc, setExportingDoc] = useState(false);
+    const [previewPhoto, setPreviewPhoto] = useState(null);
 
     // Datasets from backend
     const activeTrips = useMemo(() => data?.activeVehicleTripStats || [], [data]);
@@ -107,7 +113,14 @@ export default function VehicleSevenReportsSection({
     const completedMaint = useMemo(() => data?.completedMaintenanceStats || { totalCount: 0, totalCost: 0, byType: [], byVehicle: [], services: [] }, [data]);
     const busOmset = useMemo(() => data?.busOmsetStats || { totalRevenue: 0, bookingRevenue: 0, otherIncome: 0, totalExpenses: 0, fuelExpenses: 0, maintenanceExpenses: 0, unexpectedExpenses: 0, sisaOmset: 0, marginPercent: 0, busUnitsCount: 0 }, [data]);
     const topDrivers = useMemo(() => data?.topDrivers || [], [data]);
-    const violations = useMemo(() => data?.dateViolationsStats || { totalViolations: 0, overdueActiveCount: 0, lateReturnCount: 0, sanctionedCount: 0, violations: [], sanctionedUsers: [] }, [data]);
+    const violations = useMemo(() => data?.dateViolationsStats || {
+        totalViolations: 0,
+        discrepancyCount: 0,
+        totalDiscrepancyKm: 0,
+        sanctionedCount: 0,
+        discrepancies: [],
+        sanctionedUsers: []
+    }, [data]);
 
     // Handle Dedicated 7 Reports PDF Export
     const handleExportSevenReportsPDF = async () => {
@@ -171,7 +184,7 @@ export default function VehicleSevenReportsSection({
                     `${totBusBookings} Agenda`,
                     `${totMaintServices} Servis (Rp ${Math.round(totMaintCost).toLocaleString('id-ID')})`,
                     `Rp ${Math.round(sisaOmset).toLocaleString('id-ID')}`,
-                    `${totViolations} Kasus`
+                    `${totViolations} Kasus\n(${violations.discrepancyCount || 0} Diskrepansi, ${violations.sanctionedCount || 0} Sanksi)`
                 ]],
                 theme: 'grid',
                 headStyles: { fillColor: [79, 70, 229], fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
@@ -422,9 +435,9 @@ export default function VehicleSevenReportsSection({
                 margin: { left: 14, right: 14 }
             });
 
-            // LAPORAN 7: Pelanggaran Rentang Tanggal
+            // LAPORAN 7: AUDIT PELANGGARAN (1. DISKREPANSI & 2. AKUN DISANKSI)
             currY = doc.lastAutoTable.finalY + 8;
-            if (currY > pageH - 75) {
+            if (currY > pageH - 95) {
                 doc.addPage('landscape', 'a4');
                 currY = 20;
             }
@@ -432,92 +445,67 @@ export default function VehicleSevenReportsSection({
             doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
             doc.setTextColor(30, 41, 59);
-            doc.text(`7. AUDIT PENGGUNA YANG MELANGGAR RENTANG TANGGAL (Total: ${violations.totalViolations || 0} Kasus, Terkena Sanksi: ${violations.sanctionedCount || 0} Akun)`, 14, currY);
+            doc.text(`7. AUDIT PELANGGARAN: DISKREPANSI ODOMETER & AKUN KENA SANKSI (Total: ${violations.totalViolations || 0} Kasus)`, 14, currY);
 
-            const violRows = (violations.violations || []).slice(0, 15).map((v, i) => [
+            // Sub-tabel 7.1: Kejadian Diskrepansi Odometer
+            doc.setFontSize(8.5);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(225, 29, 72);
+            doc.text(`7.1 Kejadian Diskrepansi Odometer Kendaraan (${violations.discrepancyCount || 0} Insiden, Selisih +${(violations.totalDiscrepancyKm || 0).toLocaleString('id-ID')} KM Luar Sistem)`, 14, currY + 5);
+
+            const discRows = (violations.discrepancies || []).slice(0, 25).map((d, i) => [
                 i + 1,
-                v.userName || '-',
-                v.userUnit || '-',
-                `${v.vehicleName || '-'} (${v.vehiclePlate || '-'})`,
-                v.endDate ? new Date(v.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-',
-                v.actualEndTime ? new Date(v.actualEndTime).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sedang Berjalan (Overdue)',
-                v.lateDuration || '-',
-                v.isUserSanctioned ? '🔴 DIBEKUKAN (SANKSI)' : `Peringatan: ${v.warningCount || 0}`
+                d.date ? new Date(d.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-',
+                `${d.vehicleName || '-'} (${d.vehiclePlate || '-'})`,
+                `${d.userName || '-'} (${d.userUnit || '-'})`,
+                `${d.prevEndKm != null ? d.prevEndKm.toLocaleString('id-ID') + ' KM' : '-'}`,
+                `${d.currentStartKm != null ? d.currentStartKm.toLocaleString('id-ID') + ' KM' : '-'}`,
+                `+${d.discrepancyKm != null ? d.discrepancyKm.toLocaleString('id-ID') : 0} KM`,
+                d.destination || d.notes || '-'
             ]);
 
             doc.autoTable({
-                startY: currY + 3,
-                head: [['#', 'Peminjam', 'Unit Kerja', 'Kendaraan', 'Jadwal Seharusnya', 'Waktu Pengembalian', 'Durasi Telat', 'Status Sanksi']],
-                body: violRows.length > 0 ? violRows : [['-', 'Nihil pelanggaran waktu pengembalian kendaraan pada periode ini', '-', '-', '-', '-', '-', '-']],
+                startY: currY + 8,
+                head: [['#', 'Waktu Terdeteksi', 'Armada & Plat', 'Peminjam / Pelapor', 'KM Terakhir Sistem', 'KM Awal Input', 'Selisih (+KM)', 'Keterangan / Tujuan']],
+                body: discRows.length > 0 ? discRows : [['-', 'Nihil kejadian diskrepansi odometer kendaraan pada periode ini', '-', '-', '-', '-', '-', '-']],
                 theme: 'striped',
-                headStyles: { fillColor: [220, 38, 38], fontSize: 7.5, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 7 },
+                headStyles: { fillColor: [225, 29, 72], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.5 },
                 margin: { left: 14, right: 14 }
             });
 
-            // Tanda Tangan Pengesahan
-            let signY = doc.lastAutoTable.finalY + 10;
-            if (signY > pageH - 35) {
+            // Sub-tabel 7.2: Akun yang Kena Sanksi
+            currY = doc.lastAutoTable.finalY + 7;
+            if (currY > pageH - 55) {
                 doc.addPage('landscape', 'a4');
-                signY = 25;
+                currY = 20;
             }
 
             doc.setFontSize(8.5);
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor(51, 65, 85);
-
-            // Left: Mengetahui & Menyetujui (Digital TTE Kepala Bidang Sarana)
-            const signBoxW = 68;
-            const signBoxH = 24;
-            const box1X = 14;
-
-            doc.text('Mengetahui & Menyetujui,', 14 + (signBoxW / 2), signY, { align: 'center' });
             doc.setFont(undefined, 'bold');
-            doc.text('Kepala Bidang Sarana', 14 + (signBoxW / 2), signY + 4.5, { align: 'center' });
-
-            // TTE Box
-            doc.setFillColor(248, 250, 252);
-            doc.setDrawColor(203, 213, 225);
-            doc.setLineWidth(0.3);
-            doc.roundedRect(box1X, signY + 7, signBoxW, signBoxH, 2, 2, 'FD');
-
-            doc.setFillColor(16, 185, 129);
-            doc.roundedRect(box1X + 1.5, signY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(6.8);
-            doc.setTextColor(5, 150, 105);
-            doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', box1X + 6.5, signY + 12.5);
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(6.2);
-            doc.setTextColor(71, 85, 105);
-            doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', box1X + 6.5, signY + 16.5);
-            doc.text('Yayasan Dar el Iman Padang', box1X + 6.5, signY + 20);
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8.5);
             doc.setTextColor(15, 23, 42);
-            doc.text('Ravi Kurnia, S.T.', 14 + (signBoxW / 2), signY + 36, { align: 'center' });
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(71, 85, 105);
-            doc.text('Kepala Bidang Sarana', 14 + (signBoxW / 2), signY + 40, { align: 'center' });
+            doc.text(`7.2 Daftar Akun Pengguna yang Kena Sanksi Peminjaman (${violations.sanctionedCount || 0} Pengguna Terkena Sanksi)`, 14, currY);
 
-            // Right: Disusun
-            doc.setFontSize(8.5);
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor(51, 65, 85);
-            doc.text('Padang, ' + now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), pageW - 50, signY, { align: 'center' });
-            doc.text('Staf Pengelola Administrasi Armada,', pageW - 50, signY + 4.5, { align: 'center' });
-            doc.setFont(undefined, 'bold');
-            doc.text(`( ${currentUser?.name || 'Admin Operasional Armada'} )`, pageW - 50, signY + 36, { align: 'center' });
-            doc.setFont(undefined, 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(71, 85, 105);
-            doc.text('Staf Administrasi & Logistik Kendaraan', pageW - 50, signY + 40, { align: 'center' });
+            const sanctionedRows = (violations.sanctionedUsers || []).map((u, i) => [
+                i + 1,
+                u.name || '-',
+                `${u.unitName || u.unit?.name || 'Umum'} - ${u.position || 'Staff'}`,
+                u.phone || '-',
+                u.statusLabel || (u.sanctionProposedLift ? 'Menunggu Review' : 'Akun Dibekukan'),
+                u.sanctionLiftReason || 'Pelanggaran SOP Peminjaman Armada'
+            ]);
 
-            // Page Numbers
+            doc.autoTable({
+                startY: currY + 4,
+                head: [['#', 'Nama Pengguna', 'Unit Kerja & Jabatan', 'No. Kontak', 'Status Akun', 'Alasan / Uraian Sanksi']],
+                body: sanctionedRows.length > 0 ? sanctionedRows : [['-', 'Tidak ada akun pengguna yang sedang dikenakan sanksi peminjaman', '-', '-', '-', '-']],
+                theme: 'striped',
+                headStyles: { fillColor: [30, 41, 59], fontSize: 7, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 6.5 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Page Numbers (Tanpa Blok TTD Sesuai Ketentuan)
             const totalPages = doc.internal.getNumberOfPages();
             for (let i = 1; i <= totalPages; i++) {
                 doc.setPage(i);
@@ -532,7 +520,8 @@ export default function VehicleSevenReportsSection({
                 );
             }
 
-            doc.save(`Laporan_7_Indikator_Armada_${(periodLabel || 'Semua_Periode').replace(/[/ ]/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`);
+            const fileCleanPeriod = (periodLabel || 'Semua_Periode').replace(/[^a-zA-Z0-9]/g, '_');
+            doc.save(`Laporan_7_Indikator_Armada_${fileCleanPeriod}_${now.toISOString().slice(0, 10)}.pdf`);
         } catch (err) {
             console.error('PDF Export 7 Reports Error:', err);
             alert('Gagal mencetak PDF 7 Laporan: ' + err.message);
@@ -540,6 +529,432 @@ export default function VehicleSevenReportsSection({
             setExportingPdf(false);
         }
     };
+
+    // ==============================================================
+    // EKSPOR GABUNGAN 7 INDIKATOR KE FORMAT DOC (MICROSOFT WORD)
+    // ==============================================================
+    const handleExportSevenReportsDOC = () => {
+        try {
+            setExportingDoc(true);
+            const now = new Date();
+            const printDateStr = now.toLocaleDateString('id-ID', {
+                day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+
+            const totActiveUnits = activeTrips.length;
+            const totTrips = activeTrips.reduce((s, v) => s + (v.tripCount || 0), 0);
+            const totKm = activeTrips.reduce((s, v) => s + (v.totalKm || 0), 0);
+            const totFuelCost = activeFuels.reduce((s, v) => s + (v.fuelCost || 0), 0);
+            const totBusBookings = busBookings.total || 0;
+            const totMaintServices = completedMaint.totalCount || 0;
+            const totMaintCost = completedMaint.totalCost || 0;
+            const sisaOmset = busOmset.sisaOmset || 0;
+            const totViolations = violations.totalViolations || 0;
+
+            const renderKop = (titleText) => `
+                <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+                    <h2 style="margin: 0; font-size: 14pt; color: #1e293b; font-family: Calibri, Arial, sans-serif; text-transform: uppercase;">YAYASAN DAR EL IMAN</h2>
+                    <h3 style="margin: 2px 0; font-size: 11pt; color: #4338ca; font-family: Calibri, Arial, sans-serif; text-transform: uppercase;">BIDANG SARANA</h3>
+                    <h4 style="margin: 4px 0 2px 0; font-size: 11pt; color: #0f172a; font-family: Calibri, Arial, sans-serif;">${titleText}</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #64748b; font-family: Calibri, Arial, sans-serif;">
+                        Periode Data: <b>${periodLabel || 'Semua Periode'}</b> &nbsp;|&nbsp; Tanggal Cetak: <b>${printDateStr}</b> &nbsp;|&nbsp; Sistem: <b>Manajemen Aset & Armada</b>
+                    </p>
+                </div>
+            `;
+
+            // 1. Ringkasan Eksekutif
+            const summaryTableHtml = `
+                <table class="report-table" style="margin-bottom: 14px;">
+                    <thead>
+                        <tr style="background-color: #4338ca; color: #ffffff;">
+                            <th>Total Armada Aktif</th>
+                            <th>Total Perjalanan</th>
+                            <th>Total Biaya BBM</th>
+                            <th>Bookingan Bus</th>
+                            <th>Pemeliharaan Selesai</th>
+                            <th>Sisa Omset Bus</th>
+                            <th>Kasus Pelanggaran</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="font-weight: bold; text-align: center;">
+                            <td>${totActiveUnits} Unit</td>
+                            <td>${totTrips} Trip (${Math.round(totKm).toLocaleString('id-ID')} KM)</td>
+                            <td>Rp ${Math.round(totFuelCost).toLocaleString('id-ID')}</td>
+                            <td>${totBusBookings} Agenda</td>
+                            <td>${totMaintServices} Servis (Rp ${Math.round(totMaintCost).toLocaleString('id-ID')})</td>
+                            <td>Rp ${Math.round(sisaOmset).toLocaleString('id-ID')}</td>
+                            <td>${totViolations} Kasus (${violations.discrepancyCount || 0} Diskrepansi, ${violations.sanctionedCount || 0} Sanksi)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            // Indikator 1
+            const tripRowsHtml = activeTrips.map((v, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="font-bold">${v.name || '-'}</td>
+                    <td class="text-center">${v.plate || '-'}</td>
+                    <td class="text-center">${v.type || 'KENDARAAN'}</td>
+                    <td class="text-center">${v.tripCount || 0} Trip</td>
+                    <td class="text-right">${Math.round(v.totalKm || 0).toLocaleString('id-ID')} KM</td>
+                    <td class="text-center">${(v.utilization || 0).toFixed(0)}%</td>
+                    <td class="text-center font-bold" style="color: #059669;">AKTIF</td>
+                </tr>
+            `).join('');
+
+            // Indikator 2
+            const fuelRowsHtml = activeFuels.map((v, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="font-bold">${v.name || '-'}</td>
+                    <td class="text-center">${v.plate || '-'}</td>
+                    <td class="text-center">${v.type || 'KENDARAAN'}</td>
+                    <td class="text-right font-bold">Rp ${Math.round(v.fuelCost || 0).toLocaleString('id-ID')}</td>
+                    <td>${v.fuelCost > 0 ? 'Tercatat di Logbook/Struk' : 'Nihil Pengisian'}</td>
+                </tr>
+            `).join('');
+
+            // Indikator 3
+            const busRowsHtml = (busBookings.bookings || []).map((b, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="text-center">${new Date(b.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(b.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</td>
+                    <td class="font-bold">${b.vehicle?.name || '-'} (${b.vehicle?.plateNumber || '-'})</td>
+                    <td>${b.requesterName || b.user?.name || '-'} (${b.unit || b.user?.unit?.name || '-'})</td>
+                    <td>${b.destination || '-'}</td>
+                    <td>${b.driver?.name || 'Belum Ditugaskan'}</td>
+                    <td class="text-center">${b.passengerCount || 0} Org</td>
+                    <td class="text-center font-bold">${b.status}</td>
+                </tr>
+            `).join('');
+
+            // Indikator 4
+            const maintRowsHtml = (completedMaint.services || []).map((m, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="text-center">${m.serviceDate ? new Date(m.serviceDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
+                    <td class="font-bold">${m.vehicle?.name || '-'} (${m.vehicle?.plateNumber || '-'})</td>
+                    <td class="text-center">${m.serviceType || 'PERBAIKAN'}</td>
+                    <td>${m.workshopName || '-'}</td>
+                    <td>${(m.description || '-')}</td>
+                    <td class="text-right font-bold">Rp ${Math.round(m.cost || 0).toLocaleString('id-ID')}</td>
+                </tr>
+            `).join('');
+
+            // Indikator 5
+            const busFinancialRowsHtml = [
+                ['Total Pendapatan Sewa/Tagihan Bus', `Rp ${Math.round(busOmset.bookingRevenue || 0).toLocaleString('id-ID')}`, 'Realisasi tagihan booking bus yang disetujui/selesai'],
+                ['Total Pendapatan Lain-lain Bus', `Rp ${Math.round(busOmset.otherIncome || 0).toLocaleString('id-ID')}`, 'Pemasukan non-sewa dan sponsorship operasional bus'],
+                ['TOTAL OMSET / PENDAPATAN BUS', `Rp ${Math.round(busOmset.totalRevenue || 0).toLocaleString('id-ID')}`, 'Akumulasi seluruh pemasukan operasional bus'],
+                ['Beban Bahan Bakar (BBM) Bus', `Rp ${Math.round(busOmset.fuelExpenses || 0).toLocaleString('id-ID')}`, 'Total pengeluaran bensin & solar armada bus'],
+                ['Beban Pemeliharaan & Servis Bus', `Rp ${Math.round(busOmset.maintenanceExpenses || 0).toLocaleString('id-ID')}`, 'Total servis, ganti oli, suku cadang armada bus'],
+                ['Beban Operasional Tak Terduga Bus', `Rp ${Math.round(busOmset.unexpectedExpenses || 0).toLocaleString('id-ID')}`, 'Biaya tol, parkir, konsumsi, dan insidental bus'],
+                ['TOTAL PENGELUARAN OPERASIONAL BUS', `Rp ${Math.round(busOmset.totalExpenses || 0).toLocaleString('id-ID')}`, 'Akumulasi beban operasional armada bus'],
+                ['SISA OMSET BERSIH (NET SURPLUS)', `Rp ${Math.round(busOmset.sisaOmset || 0).toLocaleString('id-ID')}`, `Margin Laba: ${busOmset.marginPercent || 0}%`]
+            ].map(([k, v, desc]) => `
+                <tr>
+                    <td class="font-bold">${k}</td>
+                    <td class="text-right font-bold">${v}</td>
+                    <td>${desc}</td>
+                </tr>
+            `).join('');
+
+            // Indikator 6
+            const driverRowsHtml = topDrivers.map((d, i) => `
+                <tr>
+                    <td class="text-center font-bold">${i + 1}</td>
+                    <td class="font-bold">${d.name || '-'}</td>
+                    <td>${d.phone || '-'}</td>
+                    <td class="text-center">${d.totalTrips || 0} Trip</td>
+                    <td class="text-right">${Math.round(d.totalKm || 0).toLocaleString('id-ID')} KM</td>
+                    <td class="text-center">${d.violationCount || 0} Peringatan</td>
+                    <td class="text-center font-bold">${i === 0 ? 'Driver Teladan' : d.violationCount > 0 ? 'Dalam Pantauan' : 'Disiplin'}</td>
+                </tr>
+            `).join('');
+
+            // Indikator 7.1 Diskrepansi
+            const discRowsHtml = (violations.discrepancies || []).map((d, i) => `
+                <tr>
+                    <td class="text-center font-bold">${i + 1}</td>
+                    <td class="text-center">${d.date ? new Date(d.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                    <td class="font-bold">${d.vehicleName || '-'} (${d.vehiclePlate || '-'})</td>
+                    <td>${d.userName || '-'} (${d.userUnit || '-'})</td>
+                    <td class="text-right">${d.prevEndKm != null ? d.prevEndKm.toLocaleString('id-ID') : '-'} KM</td>
+                    <td class="text-right font-bold">${d.currentStartKm != null ? d.currentStartKm.toLocaleString('id-ID') : '-'} KM</td>
+                    <td class="text-center font-bold" style="color: #dc2626;">+${d.discrepancyKm != null ? d.discrepancyKm.toLocaleString('id-ID') : 0} KM</td>
+                    <td>${d.destination || d.notes || '-'}</td>
+                </tr>
+            `).join('');
+
+            // Indikator 7.2 Akun Sanksi
+            const sanctionedRowsHtml = (violations.sanctionedUsers || []).map((u, i) => `
+                <tr>
+                    <td class="text-center font-bold">${i + 1}</td>
+                    <td class="font-bold">${u.name || '-'}</td>
+                    <td>${u.unitName || u.unit?.name || 'Umum'} - ${u.position || 'Staff'}</td>
+                    <td class="text-center">${u.phone || '-'}</td>
+                    <td class="text-center font-bold" style="color: ${u.sanctionProposedLift ? '#d97706' : '#dc2626'};">${u.statusLabel || (u.sanctionProposedLift ? 'Menunggu Review' : 'Akun Dibekukan')}</td>
+                    <td>${u.sanctionLiftReason || 'Pelanggaran SOP Peminjaman Armada'}</td>
+                </tr>
+            `).join('');
+
+            const docHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office'
+                      xmlns:w='urn:schemas-microsoft-com:office:word'
+                      xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Laporan 7 Indikator Utama Operasional Armada</title>
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <w:WordDocument>
+                            <w:View>Print</w:View>
+                            <w:Zoom>100</w:Zoom>
+                            <w:DoNotOptimizeForBrowser/>
+                        </w:WordDocument>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        @page Section1 {
+                            size: 841.9pt 595.3pt;
+                            mso-page-orientation: landscape;
+                            margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                        }
+                        div.Section1 {
+                            page: Section1;
+                            font-family: 'Calibri', 'Arial', sans-serif;
+                            font-size: 9pt;
+                            color: #1e293b;
+                        }
+                        .page-break {
+                            page-break-before: always;
+                            mso-special-character: line-break;
+                        }
+                        .report-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-bottom: 14px;
+                            font-size: 8pt;
+                            font-family: 'Calibri', 'Arial', sans-serif;
+                        }
+                        .report-table th {
+                            border: 1px solid #cbd5e1;
+                            padding: 5px 7px;
+                            font-size: 8pt;
+                            font-weight: bold;
+                            text-align: center;
+                        }
+                        .report-table td {
+                            border: 1px solid #cbd5e1;
+                            padding: 4px 7px;
+                            color: #334155;
+                            font-size: 7.5pt;
+                        }
+                        .report-table tr:nth-child(even) td {
+                            background-color: #f8fafc;
+                        }
+                        .report-table tfoot td {
+                            background-color: #f1f5f9;
+                            font-weight: bold;
+                        }
+                        .text-center { text-align: center; }
+                        .text-right { text-align: right; }
+                        .font-bold { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <div class="Section1">
+                        ${renderKop('LAPORAN KHUSUS: 7 INDIKATOR UTAMA OPERASIONAL ARMADA')}
+                        ${summaryTableHtml}
+
+                        <h4 style="margin: 12px 0 6px 0; font-size: 10pt; color: #1e293b;">1. JUMLAH PERJALANAN MASING-MASING KENDARAAN (ARMADA AKTIF)</h4>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #4338ca; color: #ffffff;">
+                                    <th style="width: 30px;">#</th>
+                                    <th>Nama Kendaraan</th>
+                                    <th>Plat Nomor</th>
+                                    <th>Tipe</th>
+                                    <th>Jumlah Perjalanan</th>
+                                    <th>Total Jarak Tempuh</th>
+                                    <th>Tingkat Utilisasi</th>
+                                    <th>Status Armada</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tripRowsHtml || '<tr><td colspan="8" class="text-center">Tidak ada kendaraan aktif dalam periode ini</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <h4 style="margin: 16px 0 6px 0; font-size: 10pt; color: #1e293b;">2. REALISASI BIAYA BBM MASING-MASING KENDARAAN AKTIF SAJA</h4>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #0284c7; color: #ffffff;">
+                                    <th style="width: 30px;">#</th>
+                                    <th>Nama Kendaraan</th>
+                                    <th>Plat Nomor</th>
+                                    <th>Tipe Kendaraan</th>
+                                    <th>Total Biaya BBM (Rp)</th>
+                                    <th>Keterangan Logbook</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${fuelRowsHtml || '<tr><td colspan="6" class="text-center">Tidak ada transaksi BBM kendaraan aktif dalam periode ini</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <div class="page-break"></div>
+                        ${renderKop('LAPORAN KHUSUS: 7 INDIKATOR UTAMA OPERASIONAL ARMADA (LANJUTAN)')}
+
+                        <h4 style="margin: 12px 0 6px 0; font-size: 10pt; color: #1e293b;">3. REKAPITULASI AGENDA BOOKINGAN BUS OPERASIONAL (Total: ${busBookings.total || 0} Booking)</h4>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #9333ea; color: #ffffff;">
+                                    <th style="width: 30px;">#</th>
+                                    <th>Jadwal Keberangkatan</th>
+                                    <th>Armada Bus</th>
+                                    <th>Pemesan & Unit Kerja</th>
+                                    <th>Tujuan</th>
+                                    <th>Pengemudi</th>
+                                    <th>Penumpang</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${busRowsHtml || '<tr><td colspan="8" class="text-center">Tidak ada agenda bookingan bus pada periode ini</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <h4 style="margin: 16px 0 6px 0; font-size: 10pt; color: #1e293b;">4. REKAPITULASI PEMELIHARAAN YANG TELAH TERLAKSANA (Total: ${completedMaint.totalCount || 0} Kegiatan)</h4>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #f59e0b; color: #ffffff;">
+                                    <th style="width: 30px;">#</th>
+                                    <th>Tgl Selesai</th>
+                                    <th>Kendaraan</th>
+                                    <th>Jenis Perawatan</th>
+                                    <th>Bengkel Rekanan</th>
+                                    <th>Deskripsi Pekerjaan</th>
+                                    <th>Biaya Riil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${maintRowsHtml || '<tr><td colspan="7" class="text-center">Tidak ada pemeliharaan yang telah selesai dalam periode ini</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <div class="page-break"></div>
+                        ${renderKop('LAPORAN KHUSUS: 7 INDIKATOR UTAMA OPERASIONAL ARMADA (LANJUTAN)')}
+
+                        <h4 style="margin: 12px 0 6px 0; font-size: 10pt; color: #1e293b;">5. NERACA FINANSIAL OPERASIONAL & SISA OMSET BUS (NET SURPLUS)</h4>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #10b981; color: #ffffff;">
+                                    <th>Komponen Neraca Keuangan Bus</th>
+                                    <th>Realisasi Finansial (Rp)</th>
+                                    <th>Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${busFinancialRowsHtml}
+                            </tbody>
+                        </table>
+
+                        <h4 style="margin: 16px 0 6px 0; font-size: 10pt; color: #1e293b;">6. LEADERBOARD TOP DRIVER (PRODUKTIVITAS & DISIPLIN)</h4>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #d97706; color: #ffffff;">
+                                    <th style="width: 30px;">#</th>
+                                    <th>Nama Pengemudi</th>
+                                    <th>Nomor Kontak</th>
+                                    <th>Total Perjalanan</th>
+                                    <th>Jarak Tempuh</th>
+                                    <th>Catatan Pelanggaran</th>
+                                    <th>Status Kinerja</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${driverRowsHtml || '<tr><td colspan="7" class="text-center">Tidak ada penugasan supir dalam periode ini</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <h4 style="margin: 16px 0 4px 0; font-size: 10pt; color: #1e293b;">7. AUDIT PELANGGARAN: DISKREPANSI ODOMETER & AKUN KENA SANKSI (Total: ${violations.totalViolations || 0} Kasus)</h4>
+                        
+                        <h5 style="margin: 10px 0 4px 0; font-size: 8.5pt; color: #dc2626;">7.1 Riwayat Kejadian Diskrepansi Odometer Kendaraan (${violations.discrepancyCount || 0} Insiden, Selisih +${(violations.totalDiscrepancyKm || 0).toLocaleString('id-ID')} KM Luar Sistem)</h5>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #dc2626; color: #ffffff;">
+                                    <th style="width: 25px;">#</th>
+                                    <th>Waktu Terdeteksi</th>
+                                    <th>Armada & Plat</th>
+                                    <th>Peminjam / Pelapor</th>
+                                    <th>KM Terakhir Sistem</th>
+                                    <th>KM Awal Input</th>
+                                    <th>Selisih (+KM)</th>
+                                    <th>Catatan / Tujuan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${discRowsHtml || '<tr><td colspan="8" class="text-center">Nihil kejadian diskrepansi odometer kendaraan pada periode ini</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <h5 style="margin: 12px 0 4px 0; font-size: 8.5pt; color: #1e293b;">7.2 Daftar Akun Pengguna yang Kena Sanksi Peminjaman (${violations.sanctionedCount || 0} Pengguna Terkena Sanksi)</h5>
+                        <table class="report-table">
+                            <thead>
+                                <tr style="background-color: #1e293b; color: #ffffff;">
+                                    <th style="width: 25px;">#</th>
+                                    <th>Nama Pengguna</th>
+                                    <th>Unit Kerja & Jabatan</th>
+                                    <th>No. Kontak</th>
+                                    <th>Status Akun</th>
+                                    <th>Alasan / Uraian Sanksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sanctionedRowsHtml || '<tr><td colspan="6" class="text-center">Tidak ada akun pengguna yang sedang dikenakan sanksi peminjaman</td></tr>'}
+                            </tbody>
+                        </table>
+
+                        <!-- FOOTER RESMI (TANPA TTD) -->
+                        <div style="margin-top: 25px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 8pt; color: #94a3b8;">
+                            Dokumen Resmi Sistem Manajemen Aset & Armada Yayasan Dar El-Iman &bull; Dihasilkan Otomatis oleh Sistem
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob(['\ufeff', docHtml], {
+                type: 'application/msword;charset=utf-8'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const fileCleanPeriod = (periodLabel || 'Semua_Periode').replace(/[^a-zA-Z0-9]/g, '_');
+            a.download = `Laporan_7_Indikator_Armada_${fileCleanPeriod}_${now.toISOString().slice(0, 10)}.doc`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('DOC Export 7 Reports Error:', err);
+            alert('Gagal mengekspor DOC 7 Laporan: ' + err.message);
+        } finally {
+            setExportingDoc(false);
+        }
+    };
+
+    // Forward ref capabilities jika exportRef disediakan
+    if (exportRef) {
+        if (typeof exportRef === 'function') {
+            exportRef({ exportPDF: handleExportSevenReportsPDF, exportDOC: handleExportSevenReportsDOC });
+        } else if (exportRef.current !== undefined) {
+            exportRef.current = { exportPDF: handleExportSevenReportsPDF, exportDOC: handleExportSevenReportsDOC };
+        }
+    }
 
     // Handle AI generation
     const handleGenerateAI = async () => {
@@ -622,15 +1037,30 @@ export default function VehicleSevenReportsSection({
         return topDrivers.filter(d => d.name?.toLowerCase().includes(q) || d.unit?.toLowerCase().includes(q));
     }, [topDrivers, searchQuery]);
 
-    const filteredViolationsList = useMemo(() => {
-        const list = violations.violations || [];
+    const filteredDiscrepancies = useMemo(() => {
+        const list = violations.discrepancies || [];
         if (!searchQuery) return list;
         const q = searchQuery.toLowerCase();
-        return list.filter(v => 
-            v.userName?.toLowerCase().includes(q) ||
-            v.vehicleName?.toLowerCase().includes(q) ||
-            v.vehiclePlate?.toLowerCase().includes(q) ||
-            v.destination?.toLowerCase().includes(q)
+        return list.filter(d => 
+            (d.vehicleName || '').toLowerCase().includes(q) ||
+            (d.vehiclePlate || '').toLowerCase().includes(q) ||
+            (d.userName || '').toLowerCase().includes(q) ||
+            (d.userUnit || '').toLowerCase().includes(q) ||
+            (d.destination || '').toLowerCase().includes(q) ||
+            (d.notes || '').toLowerCase().includes(q)
+        );
+    }, [violations, searchQuery]);
+
+    const filteredSanctionedUsers = useMemo(() => {
+        const list = violations.sanctionedUsers || [];
+        if (!searchQuery) return list;
+        const q = searchQuery.toLowerCase();
+        return list.filter(u => 
+            (u.name || '').toLowerCase().includes(q) ||
+            (u.unitName || '').toLowerCase().includes(q) ||
+            (u.position || '').toLowerCase().includes(q) ||
+            (u.phone || '').toLowerCase().includes(q) ||
+            (u.sanctionLiftReason || '').toLowerCase().includes(q)
         );
     }, [violations, searchQuery]);
 
@@ -641,7 +1071,7 @@ export default function VehicleSevenReportsSection({
         { id: 'MAINTENANCE', label: '4. Pemeliharaan Terlaksana', icon: Wrench, count: `${completedMaint.totalCount || 0} Servis`, color: 'text-amber-600 bg-amber-50 border-amber-200' },
         { id: 'BUS_OMSET', label: '5. Sisa Omset Bus', icon: DollarSign, count: `Rp ${Math.round((busOmset.sisaOmset || 0) / 1000).toLocaleString('id-ID')}k`, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
         { id: 'DRIVERS', label: '6. Top Driver', icon: Trophy, count: `${topDrivers.length} Supir`, color: 'text-amber-600 bg-amber-50 border-amber-200' },
-        { id: 'VIOLATIONS', label: '7. Pelanggaran Jadwal', icon: ShieldAlert, count: `${violations.totalViolations || 0} Kasus`, color: 'text-rose-600 bg-rose-50 border-rose-200' },
+        { id: 'VIOLATIONS', label: '7. Diskrepansi & Akun Sanksi', icon: ShieldAlert, count: `${violations.totalViolations || 0} Kasus`, color: 'text-rose-600 bg-rose-50 border-rose-200' },
     ];
 
     return (
@@ -666,22 +1096,36 @@ export default function VehicleSevenReportsSection({
                 </div>
 
                 <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* 1. Ekspor PDF (7 Indikator) */}
                     <button
                         onClick={handleExportSevenReportsPDF}
-                        disabled={exportingPdf}
-                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-tight shadow-lg shadow-indigo-100 transition-all flex items-center gap-2 disabled:opacity-50"
-                        title="Unduh laporan 7 indikator dalam format PDF resmi"
+                        disabled={exportingPdf || exportingDoc}
+                        className="px-4 py-2.5 bg-gradient-to-r from-rose-600 via-rose-700 to-rose-800 hover:from-rose-700 hover:to-rose-900 text-white rounded-2xl text-xs font-black uppercase tracking-tight shadow-md shadow-rose-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                        title="Unduh laporan gabungan 7 indikator dalam format PDF resmi"
                     >
-                        {exportingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                        {exportingPdf ? 'Mengekspor PDF...' : 'Cetak PDF 7 Laporan'}
+                        {exportingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                        {exportingPdf ? 'Mengekspor PDF...' : 'Ekspor PDF (7 Indikator)'}
                     </button>
+
+                    {/* 2. Ekspor DOC (7 Indikator) */}
+                    <button
+                        onClick={handleExportSevenReportsDOC}
+                        disabled={exportingPdf || exportingDoc}
+                        className="px-4 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-700 to-indigo-800 hover:from-blue-700 hover:to-indigo-900 text-white rounded-2xl text-xs font-black uppercase tracking-tight shadow-md shadow-blue-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                        title="Unduh laporan gabungan 7 indikator dalam format Word / DOC"
+                    >
+                        {exportingDoc ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        {exportingDoc ? 'Mengekspor DOC...' : 'Ekspor DOC (7 Indikator)'}
+                    </button>
+
+                    {/* 3. Analisis AI */}
                     <button
                         onClick={handleGenerateAI}
                         disabled={aiLoading}
-                        className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white rounded-2xl text-xs font-black uppercase tracking-tight shadow-lg shadow-purple-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white rounded-2xl text-xs font-black uppercase tracking-tight shadow-md shadow-purple-200 transition-all flex items-center gap-2 disabled:opacity-50"
                     >
                         {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                        {aiLoading ? 'Menganalisis...' : 'Analisis AI Eksekutif (7 Laporan)'}
+                        {aiLoading ? 'Menganalisis...' : 'Analisis AI Eksekutif'}
                     </button>
                 </div>
             </div>
@@ -1450,122 +1894,267 @@ export default function VehicleSevenReportsSection({
             )}
 
             {/* =========================================================================
-                TAB 7: USER YANG MELANGGAR RENTANG TANGGAL
+                TAB 7: AUDIT PELANGGARAN (1. DISKREPANSI & 2. AKUN DISANKSI)
+                (Sesuai instruksi: BUKAN keterlambatan mulai atau pengembalian)
             ========================================================================= */}
             {activeSubTab === 'VIOLATIONS' && (
                 <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* 4 KPI Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200">
-                            <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block">Total Pelanggaran Jadwal</span>
+                            <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest block">Total Pelanggaran Operasional</span>
                             <span className="text-xl font-black text-rose-950 mt-1 block">
                                 {violations.totalViolations || 0} Kasus
                             </span>
-                            <span className="text-[10px] text-rose-600 font-bold">Melebihi tanggal selesai (endDate)</span>
+                            <span className="text-[10px] text-rose-600 font-bold">Diskrepansi &amp; Akun Disanksi</span>
                         </div>
                         <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
-                            <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest block">Selesai Terlambat</span>
+                            <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest block">Diskrepansi Odometer</span>
                             <span className="text-xl font-black text-amber-950 mt-1 block">
-                                {violations.lateReturnCount || 0} Kasus
+                                {violations.discrepancyCount || 0} Insiden
                             </span>
-                            <span className="text-[10px] text-amber-600 font-bold">Kembali melebihi jadwal</span>
+                            <span className="text-[10px] text-amber-600 font-bold">Selisih odometer &gt; 1 KM</span>
                         </div>
                         <div className="p-4 rounded-2xl bg-red-100/70 border border-red-300">
-                            <span className="text-[10px] font-black text-red-800 uppercase tracking-widest block">Sedang Overdue (Aktif)</span>
+                            <span className="text-[10px] font-black text-red-800 uppercase tracking-widest block">Total KM Luar Sistem</span>
                             <span className="text-xl font-black text-red-950 mt-1 block">
-                                {violations.overdueActiveCount || 0} Peminjam
+                                +{(violations.totalDiscrepancyKm || 0).toLocaleString('id-ID')} KM
                             </span>
-                            <span className="text-[10px] text-red-700 font-bold">Belum dikembalikan saat ini</span>
+                            <span className="text-[10px] text-red-700 font-bold">Akumulasi pemakaian tanpa sistem</span>
                         </div>
                         <div className="p-4 rounded-2xl bg-slate-900 text-white">
-                            <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block">Akun Dibekukan (Sanksi)</span>
+                            <span className="text-[10px] font-black text-red-400 uppercase tracking-widest block">Akun Kena Sanksi</span>
                             <span className="text-xl font-black text-white mt-1 block">
                                 {violations.sanctionedCount || 0} Pengguna
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold">Izin booking dicabut sementara</span>
+                            <span className="text-[10px] text-slate-400 font-bold">Hak booking dibekukan sementara</span>
                         </div>
                     </div>
 
-                    {/* Table Detail Pelanggaran Rentang Tanggal */}
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase text-[10px] tracking-wider">
-                                <tr>
-                                    <th className="py-3 px-4">Status Pelanggaran</th>
-                                    <th className="py-3 px-4">Peminjam Kendaraan</th>
-                                    <th className="py-3 px-4">Armada & Plat</th>
-                                    <th className="py-3 px-4">Tujuan / Keperluan</th>
-                                    <th className="py-3 px-4">Jadwal Seharusnya</th>
-                                    <th className="py-3 px-4">Waktu Pengembalian</th>
-                                    <th className="py-3 px-4 text-center">Durasi Keterlambatan</th>
-                                    <th className="py-3 px-4 text-center">Peringatan</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                                {filteredViolationsList.map((v, i) => {
-                                    const isOngoing = v.type === 'SEDANG_OVERDUE';
-                                    const sStr = new Date(v.startDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                                    const eStr = new Date(v.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                                    const actualStr = v.actualEndTime ? new Date(v.actualEndTime).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Belum Kembali';
+                    {/* Section 1: Tabel Diskrepansi Odometer */}
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <Gauge size={16} className="text-rose-600" />
+                                    1. Riwayat Kejadian Diskrepansi Odometer Kendaraan
+                                </h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Perbedaan odometer antara akhir perjalanan sebelumnya dengan awal perjalanan berikutnya (&gt; 1 KM).
+                                </p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 text-[10px] font-black w-fit">
+                                {filteredDiscrepancies.length} Kejadian Terdeteksi
+                            </span>
+                        </div>
 
-                                    return (
-                                        <tr key={v.id || i} className={`transition-colors ${isOngoing ? 'bg-red-50/40 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
-                                            <td className="py-3 px-4">
-                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${
-                                                    isOngoing ? 'bg-red-600 text-white animate-pulse' : 'bg-amber-100 text-amber-800'
-                                                }`}>
-                                                    <AlertTriangle size={11} /> {v.statusLabel}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4 font-black text-slate-900">
-                                                <div>{v.userName}</div>
-                                                <div className="text-[10px] text-slate-400 font-medium">{v.userUnit} • {v.userPosition}</div>
-                                                {v.userPhone && <div className="text-[10px] font-mono text-slate-400">📞 {v.userPhone}</div>}
-                                            </td>
-                                            <td className="py-3 px-4 font-bold text-slate-800">
-                                                <div>{v.vehicleName}</div>
-                                                <div className="text-[10px] font-mono text-slate-400">{v.vehiclePlate}</div>
-                                            </td>
-                                            <td className="py-3 px-4 max-w-xs truncate" title={`${v.destination} - ${v.purpose}`}>
-                                                <div className="font-bold text-slate-800 truncate">{v.destination}</div>
-                                                <div className="text-[10px] text-slate-400 truncate">{v.purpose}</div>
-                                            </td>
-                                            <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
-                                                <div>Mulai: {sStr}</div>
-                                                <div className="font-bold text-rose-600">Selesai: {eStr}</div>
-                                            </td>
-                                            <td className="py-3 px-4 font-mono text-[11px] font-bold">
-                                                {v.actualEndTime ? (
-                                                    <span className="text-slate-800">{actualStr}</span>
-                                                ) : (
-                                                    <span className="text-red-600 font-black underline">BELUM KEMBALI</span>
-                                                )}
-                                            </td>
-                                            <td className="py-3 px-4 text-center">
-                                                <span className={`px-2 py-0.5 rounded-md font-mono font-black text-[11px] ${
-                                                    isOngoing ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-amber-100 text-amber-800'
-                                                }`}>
-                                                    {v.lateDuration}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4 text-center font-mono text-slate-600">
-                                                {v.warningCount > 0 ? (
-                                                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">
-                                                        Ke-{v.warningCount}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-black uppercase text-[10px] tracking-wider">
+                                    <tr>
+                                        <th className="py-3 px-4 text-center w-10">#</th>
+                                        <th className="py-3 px-4">Waktu Terdeteksi</th>
+                                        <th className="py-3 px-4">Armada &amp; Plat</th>
+                                        <th className="py-3 px-4">Peminjam / Pelapor</th>
+                                        <th className="py-3 px-4 text-right">KM Sistem Terakhir</th>
+                                        <th className="py-3 px-4 text-right">KM Awal Input</th>
+                                        <th className="py-3 px-4 text-center">Selisih (+KM)</th>
+                                        <th className="py-3 px-4 text-center">Foto Bukti</th>
+                                        <th className="py-3 px-4">Tujuan / Catatan</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                                    {filteredDiscrepancies.map((d, i) => {
+                                        const dt = new Date(d.date);
+                                        return (
+                                            <tr key={d.id || i} className="hover:bg-rose-50/20 transition-colors">
+                                                <td className="py-3 px-4 text-center font-bold text-slate-400">
+                                                    {i + 1}
+                                                </td>
+                                                <td className="py-3 px-4 whitespace-nowrap">
+                                                    <div className="font-bold text-slate-900">
+                                                        {dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </div>
+                                                    <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                                                        <Clock size={10} />
+                                                        {dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="font-black text-slate-900 flex items-center gap-1.5">
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700">
+                                                            {d.vehicleType || 'Mobil'}
+                                                        </span>
+                                                        <span>{d.vehicleName}</span>
+                                                    </div>
+                                                    <div className="text-[10px] font-mono text-slate-500 font-bold mt-0.5">
+                                                        {d.vehiclePlate}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="font-bold text-slate-900">{d.userName}</div>
+                                                    <div className="text-[10px] text-slate-400 font-medium">
+                                                        {d.userUnit} &bull; {d.userPosition}
+                                                    </div>
+                                                    {d.userPhone && <div className="text-[10px] font-mono text-slate-400">📞 {d.userPhone}</div>}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono font-semibold text-slate-600">
+                                                    {d.prevEndKm != null ? d.prevEndKm.toLocaleString('id-ID') : '-'} KM
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono font-black text-slate-900">
+                                                    {d.currentStartKm != null ? d.currentStartKm.toLocaleString('id-ID') : '-'} KM
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                                        <AlertTriangle size={12} className="text-rose-600" />
+                                                        +{d.discrepancyKm != null ? d.discrepancyKm.toLocaleString('id-ID') : 0} KM
                                                     </span>
-                                                ) : '-'}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    {d.startPhoto ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPreviewPhoto({
+                                                                url: getMediaUrl(d.startPhoto),
+                                                                title: `${d.vehicleName} (${d.vehiclePlate})`,
+                                                                date: dt.toLocaleString('id-ID'),
+                                                                diff: d.discrepancyKm,
+                                                                user: d.userName
+                                                            })}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                                                            title="Lihat Foto Bukti Odometer"
+                                                        >
+                                                            <Camera size={12} />
+                                                            <span>Lihat Foto</span>
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 italic">Tanpa Foto</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 max-w-xs truncate" title={`${d.destination} - ${d.notes}`}>
+                                                    <div className="font-bold text-slate-800 truncate">{d.destination || '-'}</div>
+                                                    <div className="text-[10px] text-slate-400 truncate">{d.notes || d.purpose || '-'}</div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredDiscrepancies.length === 0 && (
+                                        <tr>
+                                            <td colSpan={9} className="py-8 text-center text-emerald-600 font-bold">
+                                                Alhamdulillah, tidak ada kejadian diskrepansi odometer kendaraan pada periode ini.
                                             </td>
                                         </tr>
-                                    );
-                                })}
-                                {filteredViolationsList.length === 0 && (
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Section 2: Tabel Akun yang Kena Sanksi */}
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                    <ShieldAlert size={16} className="text-slate-800" />
+                                    2. Daftar Akun Pengguna yang Sedang Terkena Sanksi Peminjaman
+                                </h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Pengguna yang hak akses peminjaman kendaraannya dibekukan akibat pelanggaran SOP atau sedang dalam peninjauan.
+                                </p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-full bg-slate-800 text-white text-[10px] font-black w-fit">
+                                {filteredSanctionedUsers.length} Akun Disanksi
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-black uppercase text-[10px] tracking-wider">
                                     <tr>
-                                        <td colSpan={8} className="py-8 text-center text-emerald-600 font-bold">
-                                            Alhamdulillah, tidak ada riwayat pelanggaran rentang tanggal peminjaman pada periode ini.
-                                        </td>
+                                        <th className="py-3 px-4 text-center w-10">#</th>
+                                        <th className="py-3 px-4">Nama Pengguna</th>
+                                        <th className="py-3 px-4">Unit Kerja &amp; Jabatan</th>
+                                        <th className="py-3 px-4">Kontak (HP)</th>
+                                        <th className="py-3 px-4 text-center">Status Sanksi</th>
+                                        <th className="py-3 px-4">Alasan / Catatan Peninjauan Sanksi</th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                                    {filteredSanctionedUsers.map((u, i) => (
+                                        <tr key={u.id || i} className="hover:bg-slate-50 transition-colors">
+                                            <td className="py-3 px-4 text-center font-bold text-slate-400">
+                                                {i + 1}
+                                            </td>
+                                            <td className="py-3 px-4 font-black text-slate-900">
+                                                {u.name}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <div className="text-slate-800 font-bold">{u.unitName || u.unit?.name || 'Umum'}</div>
+                                                <div className="text-[10px] text-slate-400">{u.position || 'Staff'}</div>
+                                            </td>
+                                            <td className="py-3 px-4 font-mono text-slate-600">
+                                                {u.phone ? `📞 ${u.phone}` : '-'}
+                                            </td>
+                                            <td className="py-3 px-4 text-center">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 ${
+                                                    u.sanctionProposedLift ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                                                }`}>
+                                                    <ShieldAlert size={11} /> {u.statusLabel || (u.sanctionProposedLift ? 'Menunggu Review' : 'Akun Dibekukan')}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600 font-medium">
+                                                {u.sanctionLiftReason || 'Pelanggaran SOP Peminjaman Armada Kendaraan'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredSanctionedUsers.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="py-8 text-center text-emerald-600 font-bold">
+                                                Alhamdulillah, tidak ada akun pengguna yang sedang dikenakan sanksi peminjaman.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Preview Foto Odometer */}
+            {previewPhoto && (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Camera size={18} className="text-rose-400" />
+                                <h4 className="text-sm font-black">Bukti Foto Odometer</h4>
+                            </div>
+                            <button
+                                onClick={() => setPreviewPhoto(null)}
+                                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div className="p-4 bg-slate-950 flex items-center justify-center min-h-[260px] max-h-[70vh] overflow-hidden">
+                            <img
+                                src={previewPhoto.url}
+                                alt={previewPhoto.title}
+                                className="max-w-full max-h-[65vh] object-contain rounded-xl"
+                            />
+                        </div>
+                        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+                            <div>
+                                <div className="font-bold text-slate-800">{previewPhoto.title}</div>
+                                <div className="text-[10px] text-slate-400">
+                                    {previewPhoto.date} &bull; Peminjam: {previewPhoto.user}
+                                </div>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                +{previewPhoto.diff} KM
+                            </span>
+                        </div>
                     </div>
                 </div>
             )}

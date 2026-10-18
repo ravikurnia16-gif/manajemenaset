@@ -1194,115 +1194,118 @@ exports.getVehicleDashboard = async (req, res) => {
             }));
 
         // =========================================================================
-        // 17. LAPORAN 7: USER YANG MELANGGAR RENTANG TANGGAL
+        // 17. LAPORAN 7: AUDIT PELANGGARAN (1. DISKREPANSI & 2. AKUN KENA SANKSI)
+        // (Sesuai arahan: BUKAN keterlambatan mulai atau pengembalian)
         // =========================================================================
-        const formatDuration = (minutes) => {
-            if (minutes < 60) return `${minutes} Menit`;
-            const hours = Math.floor(minutes / 60);
-            const mins = minutes % 60;
-            if (hours < 24) return `${hours} Jam ${mins > 0 ? mins + ' Menit' : ''}`.trim();
-            const days = Math.floor(hours / 24);
-            const remHours = hours % 24;
-            return `${days} Hari ${remHours > 0 ? remHours + ' Jam' : ''}`.trim();
-        };
-
-        const lateBookingWhere = {
-            status: 'COMPLETED',
-            tripEndTime: { not: null }
-        };
-        if (!isSummary) {
-            lateBookingWhere.OR = [
-                { tripEndTime: { gte: filterStart, lte: filterEnd } },
-                { startDate: { gte: filterStart, lte: filterEnd } }
-            ];
-        }
-        const completedBookingsForViolations = await prisma.vehicleBooking.findMany({
-            where: lateBookingWhere,
-            include: {
-                user: { select: { id: true, name: true, phone: true, position: true, isSanctioned: true, unit: { select: { name: true } } } },
-                vehicle: { select: { id: true, name: true, plateNumber: true } }
-            },
-            orderBy: { tripEndTime: 'desc' },
-            take: 100
-        });
-
-        const lateReturns = [];
-        completedBookingsForViolations.forEach(b => {
-            if (!b.endDate || !b.tripEndTime) return;
-            const diffMs = new Date(b.tripEndTime).getTime() - new Date(b.endDate).getTime();
-            const lateMins = Math.round(diffMs / 60000);
-            if (lateMins >= 15) { // 15 menit batas toleransi wajar
-                lateReturns.push({
-                    id: b.id,
-                    type: 'TERLAMBAT_KEMBALI',
-                    statusLabel: 'Selesai Terlambat',
-                    userName: b.user?.name || 'Tidak Diketahui',
-                    userPhone: b.user?.phone || '-',
-                    userUnit: b.user?.unit?.name || 'Umum',
-                    userPosition: b.user?.position || 'Staff',
-                    isUserSanctioned: !!b.user?.isSanctioned,
-                    vehicleName: b.vehicle?.name || '-',
-                    vehiclePlate: b.vehicle?.plateNumber || '-',
-                    destination: b.destination,
-                    purpose: b.purpose || '-',
-                    startDate: b.startDate,
-                    endDate: b.endDate,
-                    actualEndTime: b.tripEndTime,
-                    lateMinutes: lateMins,
-                    lateDuration: formatDuration(lateMins),
-                    warningCount: b.endWarningCount || 0,
-                    notes: b.tripNotes || null
-                });
-            }
-        });
-
-        const overdueActiveBookings = await prisma.vehicleBooking.findMany({
+        const allBookingsForDiscrepancy = await prisma.vehicleBooking.findMany({
             where: {
-                status: { in: ['APPROVED', 'BERLANGSUNG'] },
-                endDate: { lt: now }
+                status: { in: ['COMPLETED', 'BERLANGSUNG'] },
+                startKm: { not: null }
             },
             include: {
-                user: { select: { id: true, name: true, phone: true, position: true, isSanctioned: true, unit: { select: { name: true } } } },
-                vehicle: { select: { id: true, name: true, plateNumber: true } }
+                vehicle: { select: { id: true, name: true, plateNumber: true, type: true } },
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        position: true,
+                        unit: { select: { id: true, name: true } }
+                    }
+                },
+                driver: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true
+                    }
+                }
             },
-            orderBy: { endDate: 'asc' }
+            orderBy: [
+                { tripStartTime: 'asc' },
+                { startDate: 'asc' },
+                { id: 'asc' }
+            ]
         });
 
-        const overdueActive = overdueActiveBookings.map(b => {
-            const diffMs = now.getTime() - new Date(b.endDate).getTime();
-            const lateMins = Math.round(diffMs / 60000);
-            return {
-                id: b.id,
-                type: 'SEDANG_OVERDUE',
-                statusLabel: 'Belum Kembali (Overdue)',
-                userName: b.user?.name || 'Tidak Diketahui',
-                userPhone: b.user?.phone || '-',
-                userUnit: b.user?.unit?.name || 'Umum',
-                userPosition: b.user?.position || 'Staff',
-                isUserSanctioned: !!b.user?.isSanctioned,
-                vehicleName: b.vehicle?.name || '-',
-                vehiclePlate: b.vehicle?.plateNumber || '-',
-                destination: b.destination,
-                purpose: b.purpose || '-',
-                startDate: b.startDate,
-                endDate: b.endDate,
-                actualEndTime: null,
-                lateMinutes: lateMins,
-                lateDuration: `Lewat ${formatDuration(lateMins)}`,
-                warningCount: b.endWarningCount || 0,
-                notes: 'Sedang berjalan melewati batas jadwal pengembalian'
-            };
-        });
+        const vehicleBookingsMap = {};
+        for (const b of allBookingsForDiscrepancy) {
+            if (!vehicleBookingsMap[b.vehicleId]) {
+                vehicleBookingsMap[b.vehicleId] = [];
+            }
+            vehicleBookingsMap[b.vehicleId].push(b);
+        }
 
-        const allDateViolations = [...overdueActive, ...lateReturns].sort((a, b) => b.lateMinutes - a.lateMinutes);
+        const discrepancyLogs = [];
+        for (const [vIdStr, vBookings] of Object.entries(vehicleBookingsMap)) {
+            for (let i = 1; i < vBookings.length; i++) {
+                const b = vBookings[i];
+                const prevB = vBookings[i - 1];
+                if (prevB.endKm !== null && prevB.endKm !== undefined) {
+                    const diff = (b.startKm || 0) - prevB.endKm;
+                    if (diff > 1) { // Selisih > 1 KM di luar sistem
+                        const bDate = b.tripStartTime || b.startDate;
+                        let inPeriod = true;
+                        if (!isSummary) {
+                            const bTime = new Date(bDate).getTime();
+                            if (filterStart && bTime < new Date(filterStart).getTime()) inPeriod = false;
+                            if (filterEnd && bTime > new Date(filterEnd).getTime()) inPeriod = false;
+                        }
+                        if (inPeriod) {
+                            discrepancyLogs.push({
+                                id: `${b.id}-disc`,
+                                bookingId: b.id,
+                                date: bDate,
+                                vehicleId: b.vehicleId,
+                                vehicleName: b.vehicle?.name || '-',
+                                vehiclePlate: b.vehicle?.plateNumber || '-',
+                                vehicleType: b.vehicle?.type || 'Mobil',
+                                userName: b.user?.name || 'Sistem',
+                                userUnit: b.user?.unit?.name || 'Umum',
+                                userPhone: b.user?.phone || '-',
+                                userPosition: b.user?.position || 'Staff',
+                                driverName: b.driver?.name || b.driverName || b.user?.name || '-',
+                                prevEndKm: prevB.endKm,
+                                currentStartKm: b.startKm,
+                                discrepancyKm: diff,
+                                destination: b.destination || '-',
+                                purpose: b.purpose || '-',
+                                startPhoto: b.startPhoto || null,
+                                preTripNotes: b.preTripNotes || null,
+                                notes: b.preTripNotes || `Selisih Odometer +${diff} KM di luar sistem`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Urutkan diskrepansi dari yang paling baru
+        discrepancyLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // 2. Akun yang Kena Sanksi
+        const formattedSanctionedUsers = (sanctionedUsers || []).map(u => ({
+            id: u.id,
+            name: u.name || 'Pengguna',
+            phone: u.phone || '-',
+            position: u.position || 'Staff',
+            unitName: u.unit?.name || 'Umum',
+            statusLabel: u.sanctionProposedLift ? 'Menunggu Review Pencabutan' : 'Akun Dibekukan (Sanksi Aktif)',
+            sanctionProposedLift: !!u.sanctionProposedLift,
+            sanctionLiftReason: u.sanctionLiftReason || 'Pelanggaran SOP Peminjaman Armada Kendaraan'
+        }));
+
+        const totalDiscrepancyKm = discrepancyLogs.reduce((s, d) => s + (d.discrepancyKm || 0), 0);
 
         const dateViolationsStats = {
-            totalViolations: allDateViolations.length,
-            overdueActiveCount: overdueActive.length,
-            lateReturnCount: lateReturns.length,
-            sanctionedCount: sanctionedUsers.length,
-            violations: allDateViolations,
-            sanctionedUsers
+            totalViolations: discrepancyLogs.length + formattedSanctionedUsers.length,
+            discrepancyCount: discrepancyLogs.length,
+            totalDiscrepancyKm,
+            sanctionedCount: formattedSanctionedUsers.length,
+            discrepancies: discrepancyLogs,
+            sanctionedUsers: formattedSanctionedUsers,
+            // Fallback:
+            violations: discrepancyLogs
         };
 
         res.json({
@@ -1325,8 +1328,10 @@ exports.getVehicleDashboard = async (req, res) => {
                 totalBusRevenue: totalBusRevenue,
                 totalBusExpenses: totalBusExpenses,
                 busMarginPercent: busMarginPercent,
-                totalDateViolationsCount: allDateViolations.length,
-                sanctionedUsersCount: sanctionedUsers.length,
+                totalDateViolationsCount: dateViolationsStats.totalViolations,
+                sanctionedUsersCount: dateViolationsStats.sanctionedCount,
+                discrepancyCount: dateViolationsStats.discrepancyCount,
+                totalDiscrepancyKm: dateViolationsStats.totalDiscrepancyKm,
                 needingService: urgentActions.filter(a => a.type === 'SERVICE').length,
                 taxWarnings: urgentActions.filter(a => ['TAX', 'STNK', 'KIR'].includes(a.type)).length,
                 fleetCostPerKm: totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0,
@@ -1418,12 +1423,13 @@ exports.analyzeFleetWithAI = async (req, res) => {
         ).join('\n') || 'Belum ada data driver.';
 
         const violationsSummary = dateViolationsStats 
-            ? `Total Pelanggaran Rentang Tanggal: ${dateViolationsStats.totalViolations || 0} kasus (Terlambat Selesai: ${dateViolationsStats.lateReturnCount || 0}, Sedang Overdue: ${dateViolationsStats.overdueActiveCount || 0}, Akun Disanksi: ${dateViolationsStats.sanctionedCount || 0})\n` +
-              `Contoh Kasus:\n` +
-              (dateViolationsStats.violations || []).slice(0, 5).map(v => 
-                  `- ${v.userName} (${v.userUnit}): ${v.vehicleName} (${v.vehiclePlate}) -> ${v.statusLabel} (${v.lateDuration}) | Tujuan: ${v.destination}`
-              ).join('\n')
-            : 'Tidak ada pelanggaran jadwal.';
+            ? `Total Pelanggaran Operasional: ${dateViolationsStats.totalViolations || 0} kasus (Diskrepansi Odometer: ${dateViolationsStats.discrepancyCount || 0} insiden [+${dateViolationsStats.totalDiscrepancyKm || 0} KM di luar sistem], Akun Kena Sanksi: ${dateViolationsStats.sanctionedCount || 0} akun)\n` +
+              `Contoh Diskrepansi Odometer:\n` +
+              (dateViolationsStats.discrepancies || []).slice(0, 5).map(d => 
+                  `- ${d.vehicleName} (${d.vehiclePlate}): Selisih +${d.discrepancyKm} KM | Peminjam/Pelapor: ${d.userName} (${d.userUnit}) | Tanggal: ${new Date(d.date).toLocaleDateString('id-ID')}`
+              ).join('\n') +
+              (dateViolationsStats.sanctionedUsers?.length > 0 ? `\nAkun Kena Sanksi Peminjaman:\n` + dateViolationsStats.sanctionedUsers.slice(0, 5).map(u => `- ${u.name} (${u.unitName} - ${u.position}): ${u.statusLabel} | Alasan: ${u.sanctionLiftReason}`).join('\n') : '')
+            : 'Tidak ada kasus diskrepansi maupun sanksi akun.';
 
         const prompt = `
 Anda adalah Konsultan Senior Fleet Management & Audit Operasional Kendaraan untuk Bidang Sarana & Prasarana Yayasan Dar El-Iman.
@@ -1448,7 +1454,7 @@ ${busOmsetSummary}
 6. 🏆 TOP DRIVER (LEADERBOARD SUPIR):
 ${topDriversSummary}
 
-7. ⚠️ USER YANG MELANGGAR RENTANG TANGGAL PEMINJAMAN:
+7. ⚠️ AUDIT PELANGGARAN OPERASIONAL (1. DISKREPANSI ODOMETER & 2. AKUN KENA SANKSI):
 ${violationsSummary}
 
 INSTRUKSI:
@@ -1457,7 +1463,7 @@ Sajikan Analisis AI Komprehensif, Tajam, Berbasis Data, dan Bernada Eksekutif un
 2. 🚌 **Kinerja Operasional & Profitabilitas Bus**: Analisis volume bookingan bus dan kesehatan sisa omset bersih.
 3. 🛠️ **Audit Pemeliharaan & Kelaikan Teknis**: Penilaian realisasi servis kendaraan yang terlaksana dan efisiensi biaya bengkel.
 4. 🏆 **Apresiasi & Penilaian Top Driver**: Evaluasi produktivitas supir terbaik dan beban kerjanya.
-5. ⚖️ **Audit Disiplin & Pelanggaran Rentang Tanggal**: Evaluasi keterlambatan peminjaman, akar masalah, dan rekomendasi sanksi / SOP perpanjangan.
+5. ⚖️ **Audit Pelanggaran Operasional (Diskrepansi & Akun Disanksi)**: Evaluasi integritas catatan odometer, indikasi pemakaian tanpa sistem (+KM liar), serta status akun yang terkena pembekuan sanksi.
 6. 🎯 **Rekomendasi Strategis 30 Hari ke Depan**: 3-4 langkah aksi konkret untuk optimalisasi anggaran dan kepatuhan.
 
 Gunakan bahasa Indonesia yang profesional, formal, lugas, dan solutif.`;

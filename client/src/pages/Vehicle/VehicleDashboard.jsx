@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2, Sparkles, FileText, Bus, ArrowRight, ShieldAlert, CheckSquare, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2, Sparkles, FileText, Bus, ArrowRight, ArrowUpRight, ShieldAlert, CheckSquare, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell, PieChart, Pie } from 'recharts';
 import api from '../../lib/axios';
 import VehicleReportTab from './components/VehicleReportTab';
-import VehicleSevenReportsSection from './components/VehicleSevenReportsSection';
 
 /* ── jsPDF + autoTable CDN loader ── */
 function loadJsPDF() {
@@ -721,23 +721,23 @@ const VehicleDashboard = () => {
             doc.setFont(undefined, 'bold');
             doc.setTextColor(30, 41, 59);
             const dViol = data.dateViolationsStats || {};
-            doc.text(`7.6 AUDIT PENGGUNA MELANGGAR RENTANG TANGGAL (Total: ${dViol.totalViolations || 0} Kasus, Sanksi Aktif: ${dViol.sanctionedCount || 0} User)`, 14, violY);
+            doc.text(`7.6 AUDIT PELANGGARAN: DISKREPANSI ODOMETER & SANKSI (Total: ${dViol.totalViolations || 0} Kasus, Sanksi Aktif: ${dViol.sanctionedCount || 0} User)`, 14, violY);
 
-            const violRows = (dViol.violations || []).slice(0, 15).map((v, i) => [
+            const violRows = (dViol.discrepancies || []).slice(0, 15).map((d, i) => [
                 i + 1,
-                v.userName || '-',
-                v.unitName || '-',
-                `${v.vehicleName || '-'} (${v.plateNumber || '-'})`,
-                v.expectedEnd ? new Date(v.expectedEnd).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-',
-                v.actualEnd ? new Date(v.actualEnd).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Sedang Berlangsung (Overdue)',
-                v.lateDurationFormatted || '-',
-                v.isSanctioned ? '🔴 DIBEKUKAN (SANKSI)' : `Peringatan: ${v.warningCount || 0}`
+                d.userName || '-',
+                d.userUnit || '-',
+                `${d.vehicleName || '-'} (${d.vehiclePlate || '-'})`,
+                d.date ? new Date(d.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-',
+                `${d.currentStartKm != null ? d.currentStartKm.toLocaleString('id-ID') : '-'} KM`,
+                `+${d.discrepancyKm != null ? d.discrepancyKm.toLocaleString('id-ID') : 0} KM`,
+                d.destination || d.notes || '-'
             ]);
 
             doc.autoTable({
                 startY: violY + 3,
-                head: [['#', 'Peminjam', 'Unit Kerja', 'Kendaraan', 'Jadwal Seharusnya', 'Waktu Pengembalian', 'Durasi Telat', 'Status Sanksi']],
-                body: violRows.length > 0 ? violRows : [['-', 'Nihil pelanggaran rentang tanggal peminjaman pada periode ini', '-', '-', '-', '-', '-', '-']],
+                head: [['#', 'Peminjam / Pelapor', 'Unit Kerja', 'Kendaraan', 'Tanggal', 'KM Fisik Input', 'Selisih (+KM)', 'Keterangan']],
+                body: violRows.length > 0 ? violRows : [['-', 'Nihil kejadian diskrepansi odometer pada periode ini', '-', '-', '-', '-', '-', '-']],
                 theme: 'striped',
                 headStyles: { fillColor: [220, 38, 38], fontSize: 7, fontStyle: 'bold' },
                 bodyStyles: { fontSize: 6.8 },
@@ -1015,7 +1015,7 @@ const VehicleDashboard = () => {
                 )}
             </div>
 
-            {/* Tab Navigation: Dashboard vs 7 Laporan Utama & AI vs Laporan Armada */}
+            {/* Tab Navigation: Dashboard vs Laporan Armada */}
             <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-px">
                 <button
                     onClick={() => setActiveTab('dashboard')}
@@ -1026,19 +1026,6 @@ const VehicleDashboard = () => {
                     }`}
                 >
                     <Activity size={16} /> Dashboard & Monitoring
-                </button>
-                <button
-                    onClick={() => setActiveTab('seven_reports')}
-                    className={`flex items-center gap-2 px-6 py-3 font-bold text-xs uppercase tracking-wider border-b-2 transition-all shrink-0 ${
-                        activeTab === 'seven_reports'
-                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40 rounded-t-xl'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <BarChart3 size={16} /> 7 Laporan Utama & AI
-                    <span className="px-2 py-0.5 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-extrabold flex items-center gap-1 normal-case tracking-normal">
-                        <Sparkles size={10} /> Statistik & AI
-                    </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('reports')}
@@ -1056,15 +1043,7 @@ const VehicleDashboard = () => {
             </div>
 
             {/* Tab Content */}
-            {activeTab === 'seven_reports' ? (
-                <div className="space-y-6">
-                    <VehicleSevenReportsSection
-                        data={data}
-                        periodLabel={periodLabel}
-                        onNavigateToReport={navigateToReport}
-                    />
-                </div>
-            ) : activeTab === 'reports' ? (
+            {activeTab === 'reports' ? (
                 <VehicleReportTab 
                     dashboardData={data} 
                     availableMonths={data?.availableMonths || []} 
@@ -1078,12 +1057,33 @@ const VehicleDashboard = () => {
                 />
             ) : (
                 <>
-                    {/* 7 Laporan Utama & AI Section */}
-                    <VehicleSevenReportsSection
-                        data={data}
-                        periodLabel={periodLabel}
-                        onNavigateToReport={navigateToReport}
-                    />
+                    {/* Banner Navigasi ke 7 Laporan Utama di Menu Laporan Mingguan */}
+                    <div className="bg-gradient-to-r from-indigo-50 via-white to-emerald-50 border border-indigo-100 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                        <div className="flex items-center gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+                                <Sparkles size={20} className="text-amber-300" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-black text-slate-800 tracking-tight">
+                                        7 Laporan Utama Armada & Analisis AI Telah Dipindahkan
+                                    </h4>
+                                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Laporan Mingguan
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                    Rekap logbook perjalanan, BBM, reservasi bus, omset, pemeliharaan servis, kinerja driver, dan sanksi kini dipusatkan di Menu Laporan Mingguan Kepala Bidang.
+                                </p>
+                            </div>
+                        </div>
+                        <Link
+                            to="/laporan-aset-keuangan?tab=vehicle_seven"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black transition-all shadow-md shadow-indigo-200 shrink-0 whitespace-nowrap"
+                        >
+                            Buka 7 Laporan Utama <ArrowUpRight size={15} />
+                        </Link>
+                    </div>
 
                     {/* Banner Peringatan Pengguna Terkena Sanksi Perjalanan */}
                     {data?.sanctionedUsers && data.sanctionedUsers.length > 0 && (

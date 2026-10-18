@@ -409,9 +409,9 @@ const Sidebar = ({ isOpen = true }) => {
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
                     <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>
-                    {isAdmin && (
+                    {(isAdmin || isKabidSarpras) && (
                         <Link to="/laporan-aset-keuangan" className={navItemClass('/laporan-aset-keuangan')}>
-                            <FileSpreadsheet size={18} /> Laporan Rekap Aset
+                            <FileSpreadsheet size={18} /> Laporan Mingguan Kepala Bidang
                         </Link>
                     )}
                     {isAdmin && (

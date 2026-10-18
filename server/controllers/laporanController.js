@@ -1340,6 +1340,7 @@ exports.analyzeWithAI = async (req, res) => {
                         obstacles.push({
                             date: dateStr,
                             staff: staffName,
+                            position: staffPos,
                             activity: item.text,
                             obstacleNote: item.obstacleNote
                         });
@@ -1348,87 +1349,123 @@ exports.analyzeWithAI = async (req, res) => {
             });
         });
 
+        // Build position-based data mapping (strictly by position, masking staff personal names)
+        const positionGrouping = {};
+        activityList.forEach(a => {
+            const pos = a.position || 'Staf Sarana';
+            if (!positionGrouping[pos]) {
+                positionGrouping[pos] = {
+                    position: pos,
+                    categories: new Set(),
+                    tasks: [],
+                    obstacles: []
+                };
+            }
+            if (a.category) positionGrouping[pos].categories.add(a.category);
+            if (a.text) positionGrouping[pos].tasks.push(a.text);
+        });
+
+        obstacles.forEach(o => {
+            const pos = o.position || 'Staf Sarana';
+            if (positionGrouping[pos] && o.obstacleNote) {
+                positionGrouping[pos].obstacles.push(o.obstacleNote);
+            }
+        });
+
+        const positionSummaryText = Object.values(positionGrouping).map(p => {
+            const cats = Array.from(p.categories).join(', ') || 'Umum';
+            const sampleTasks = p.tasks.slice(0, 20).join('; ');
+            const obsInfo = p.obstacles.length > 0 ? `Catatan kendala: ${p.obstacles.slice(0, 3).join('; ')}` : 'Operasional lancar tanpa kendala kritis.';
+            return `### ${p.position}\n- Bidang Tugas: ${cats}\n- Realisasi Pekerjaan: ${sampleTasks}\n- Kondisi Lapangan: ${obsInfo}`;
+        }).join('\n\n');
+
         let prompt = '';
-        if (mode === 'WEEKLY_EXECUTIVE') {
+        if (mode === 'STAFF_NARRATIVE') {
+            prompt = `
+Anda adalah Asisten Eksekutif Kepala Bidang Sarana Yayasan Dar el-Iman Padang.
+Tugas Anda adalah menyusun "RANGKUMAN NARASI KINERJA PER POSISI STAF" dalam format NARASI RESMI (prosa deskriptif) untuk dicantumkan dalam Dokumen Laporan Kinerja Mingguan kepada Pimpinan Yayasan (Periode: ${formattedPeriod}).
+
+Berikut data aktivitas kerja lapangan per posisi staf:
+${positionSummaryText}
+
+INSTRUKSI DAN ATURAN WAJIB (SANGAT KETAT):
+1. JANGAN PERNAH MENGGUNAKAN FORMAT TABEL DALAM BENTUK APAPUN! Seluruh laporan wajib disajikan dalam bentuk narasi / paragraf deskriptif mengalir yang elegan dan terstruktur.
+2. JANGAN MEMUNCULKAN NAMA PRIBADI STAF! Sebutkan hanya POSISI / JABATAN staf (misal: "Staf Pemeliharaan Kelistrikan & AC", "Staf Sipil & Bangunan", "Staf Pengemudi & Operasional Armada", dll).
+3. TIDAK PERLU mencantumkan persentase capaian kinerja (DILARANG menampilkan angka persentase seperti 80%, 100%, dll).
+4. TIDAK PERLU mencantumkan angka jumlah pekerjaan selesai dan berapa pekerjaan yang diproses (DILARANG menampilkan metrik angka selesai / dalam proses).
+5. Untuk setiap posisi staf di atas, buatkan 1 (satu) sampai 2 (dua) paragraf narasi profesional yang merangkum:
+   - Fokus pekerjaan dan ruang lingkup pemeliharaan sarana yang ditangani selama periode laporan.
+   - Kontribusi nyata terhadap kesiapan dan kelayakan fasilitas dakwah, pendidikan, maupun operasional yayasan.
+   - Kesiapsiagaan serta penyelesaian hambatan lapangan secara umum bila ada.
+6. Format penulisan per posisi:
+   ### [Nama Posisi / Jabatan]
+   [Paragraf narasi deskriptif yang rapi, mengapresiasi kinerja staf, lugas, dan bernada eksekutif formal].
+7. Gunakan Bahasa Indonesia baku, santun, objektif, dan berwibawa tinggi sehingga sangat layak dipresentasikan kepada Dewan Pimpinan Yayasan.
+`;
+        } else if (mode === 'WEEKLY_EXECUTIVE') {
             prompt = `
 Anda adalah Asisten Eksekutif Senior & Konsultan Manajemen Fasilitas Yayasan Dar el-Iman / Bidang Sarana & Prasarana.
 Berikut data rekapitulasi kinerja & aktivitas kerja tim Sarpras untuk periode laporan (${formattedPeriod}):
 
-TOTAL PEKERJAAN TERCATAT: ${activityList.length} butir
-TOTAL KENDALA LAPANGAN: ${obstacles.length} butir
-
-DISTRIBUSI PEKERJAAN PER STAF:
-${Object.entries(staffTaskCount).map(([name, count]) => `- ${name}: ${count} butir pekerjaan`).join('\n')}
-
-RINCIAN PEKERJAAN TIM:
-${activityList.slice(0, 160).map(a => `- [${a.date} | ${a.category}] ${a.staff} (${a.position}): ${a.text} [Status: ${a.status}]`).join('\n')}
-${activityList.length > 160 ? `... dan ${activityList.length - 160} butir kegiatan lainnya.` : ''}
-
-REKAPITULASI KENDALA / HAMBATAN LAPANGAN:
-${obstacles.length > 0 ? obstacles.map((o, idx) => `${idx + 1}. [${o.date}] Staf: ${o.staff} | Pekerjaan: ${o.activity} | Kendala: ${o.obstacleNote}`).join('\n') : 'Alhamdulillah, tidak ada kendala signifikan yang dilaporkan (operasional berjalan lancar).'}
+RINGKASAN POSISI STAF LAPANGAN:
+${positionSummaryText}
 
 TUGAS ANDA:
 Buatkan "ANALISIS & EVALUASI STRATEGIS KINERJA BIDANG SARANA" resmi untuk dicantumkan dalam Dokumen Laporan Mingguan Kepala Bidang Sarana kepada Pimpinan Yayasan.
-Laporan harus memuat struktur sebagai berikut:
-1. 🎯 IKHTISAR CAPAIAN & PROGRES STRATEGIS:
-   Sintesis pekerjaan yang berhasil dituntaskan dan dampak operasionalnya bagi fasilitas yayasan.
-2. 📊 EVALUASI PRODUKTIVITAS & UTILISASI TIM:
-   Analisis efisiensi kerja tim, pembagian beban kerja antar staf, dan unit yang paling responsif.
-3. ⚠️ ANALISIS AKAR MASALAH KENDALA LAPANGAN & MITIGASI:
-   Evaluasi hambatan teknis/material di lapangan serta langkah penanganan cepat yang telah dan perlu dilakukan.
-4. 💡 REKOMENDASI KEBIJAKAN & ARAHAN TINDAK LANJUT UNTUK PIMPINAN:
-   3-4 poin rekomendasi strategis, alokasi anggaran, atau koordinasi lintas bidang demi kelancaran sarana prasarana yayasan.
+Laporan disajikan dalam bentuk NARASI RESMI TANPA TABEL, TANPA NAMA PRIBADI STAF, TANPA PERSENTASE CAPAIAN, DAN TANPA METRIK ANGKA SELESAI/PROSES.
 
-Gunakan bahasa Indonesia baku, lugas, elegan, bernada eksekutif formal, tanpa basa-basi, dan terstruktur rapi agar sangat layak dibaca oleh Pimpinan Yayasan.
+Laporan memuat struktur naratif berikut:
+1. 🎯 IKHTISAR CAPAIAN & PROGRES STRATEGIS FASILITAS:
+   Sintesis pekerjaan yang berhasil dituntaskan dan dampak operasionalnya bagi fasilitas dakwah dan pendidikan yayasan.
+2. 👥 RANGKUMAN NARASI KINERJA PER POSISI STAF:
+   Ulasan naratif per posisi/jabatan staf (tanpa nama pribadi, tanpa persentase angka) mengenai bidang tugas yang ditangani dan kontribusinya.
+3. ⚠️ EVALUASI PENANGANAN KENDALA LAPANGAN & MITIGASI:
+   Evaluasi hambatan teknis/material di lapangan serta langkah penanganan cepat yang dilakukan tim sarana.
+4. 💡 REKOMENDASI KEBIJAKAN & ARAHAN TINDAK LANJUT UNTUK PIMPINAN:
+   3-4 poin rekomendasi strategis alokasi anggaran dan pemeliharaan preventif demi kelancaran sarana yayasan.
+
+Gunakan bahasa Indonesia baku, lugas, elegan, bernada eksekutif formal, tanpa basa-basi, dan terstruktur rapi.
 `;
         } else if (mode === 'OBSTACLE_SOLUTIONS') {
             prompt = `
 Anda adalah Konsultan Ahli Manajemen Fasilitas & Sarana Prasarana Yayasan Dar el-Iman Padang.
 Berikut daftar kendala operasional lapangan yang dilaporkan tim selama periode (${formattedPeriod}):
 
-${obstacles.length === 0 ? 'Alhamdulillah, tidak ada kendala/masalah kritis yang dilaporkan pada periode ini.' : obstacles.map((o, idx) => `${idx + 1}. [${o.date}] Staf: ${o.staff} | Pekerjaan: ${o.activity} | Kendala: ${o.obstacleNote}`).join('\n')}
+${obstacles.length === 0 ? 'Alhamdulillah, tidak ada kendala/masalah kritis yang dilaporkan pada periode ini.' : obstacles.map((o, idx) => `${idx + 1}. [${o.date}] Posisi: ${o.position || 'Staf Sarana'} | Pekerjaan: ${o.activity} | Kendala: ${o.obstacleNote}`).join('\n')}
 
 TUGAS ANDA:
 Berikan analisis akar masalah, langkah mitigasi cepat, alokasi solusi praktis, dan rekomendasi arahan prioritas bagi Kepala Bidang Sarana (Ustadz Ravi Kurnia) untuk mengatasi kendala-kendala tersebut.
-Gunakan format poin yang tegas, profesional, dan solutif.
+Gunakan format narasi poin yang tegas, profesional, dan solutif tanpa tabel dan tanpa nama pribadi staf.
 `;
         } else if (mode === 'TEAM_PERFORMANCE') {
             prompt = `
 Anda adalah Asisten Eksekutif Evaluasi Kinerja untuk Kepala Bidang Sarana Yayasan Dar el-Iman Padang.
 Berikut data kontribusi kerja staf Sarpras selama periode (${formattedPeriod}):
 
-TOTAL PEKERJAAN TERCATAT: ${activityList.length} butir
-DISTRIBUSI PEKERJAAN PER STAF:
-${Object.entries(staffTaskCount).map(([name, count]) => `- ${name}: ${count} kegiatan tercatat`).join('\n')}
+${positionSummaryText}
 
 TUGAS ANDA:
-Buatkan "Evaluasi Produktivitas & Distribusi Beban Kerja Tim" untuk Kepala Bidang Sarana:
-1. 📊 Penilaian Keseimbangan & Beban Kerja (Apakah pembagian tugas antar staf sudah proporsional).
-2. 🌟 Staf Berkontribusi Paling Aktif & Catatan Khusus.
+Buatkan "Evaluasi Produktivitas & Distribusi Beban Kerja Tim Sarana" untuk Kepala Bidang Sarana dalam bentuk narasi tanpa tabel:
+1. 📊 Penilaian Keseimbangan & Beban Kerja Tim.
+2. 🌟 Posisi Staf yang Menghadapi Volume Penanganan Tertinggi & Catatan Kinerja.
 3. 💡 Saran Strategis untuk Peningkatan Efektivitas & Koordinasi Lapangan.
 
-Gunakan bahasa Indonesia formal, elegan, dan objektif.
+Gunakan bahasa Indonesia formal, elegan, objektif, tanpa tabel, tanpa nama pribadi staf, dan tanpa metrik persentase.
 `;
         } else {
             prompt = `
 Anda adalah Asisten Eksekutif Cerdas untuk Kepala Bidang Sarana Yayasan Dar el-Iman Padang.
-Berikut data laporan kinerja & aktivitas kerja tim Sarpras untuk periode (${formattedPeriod}):
+Berikut data laporan kinerja per posisi staf tim Sarpras untuk periode (${formattedPeriod}):
 
-TOTAL PEKERJAAN TERCATAT: ${activityList.length} butir
-TOTAL KENDALA LAPANGAN: ${obstacles.length} isu
-RINCIAN PEKERJAAN TIM:
-${activityList.slice(0, 150).map(a => `- [${a.date} | ${a.category}] ${a.staff} (${a.position}): ${a.text} [Status: ${a.status}]`).join('\n')}
-${activityList.length > 150 ? `... dan ${activityList.length - 150} butir kegiatan lainnya.` : ''}
-
-KENDALA UTAMA: ${obstacles.length > 0 ? obstacles.map(o => `[${o.date}] ${o.staff}: ${o.obstacleNote}`).join('; ') : 'Nihil (Operasional Lancar)'}
+${positionSummaryText}
 
 TUGAS ANDA:
-Buatkan "Ringkasan Eksekutif & Analitik AI Kinerja Tim Sarana" untuk periode ${formattedPeriod} yang memuat:
-1. 🎯 Capaian Utama & Progres Operasional (Highlight hasil kerja signifikan).
-2. 📊 Analisis Efisiensi & Produktivitas Tim.
-3. ⚠️ Isu/Hambatan Kritis & Rekomendasi Langkah Strategis untuk Kepala Bidang Sarana.
+Buatkan "Rangkuman Eksekutif & Narasi Kinerja Tim Sarana" untuk periode ${formattedPeriod} dalam bentuk teks narasi tanpa tabel, tanpa nama pribadi staf, dan tanpa persentase angka:
+1. 🎯 Capaian Utama & Progres Operasional Pemeliharaan Fasilitas.
+2. 👥 Rangkuman Narasi Kinerja Masing-Masing Posisi Staf.
+3. ⚠️ Isu/Hambatan Lapangan & Rekomendasi Solusi untuk Kepala Bidang Sarana.
 
-Gunakan bahasa Indonesia yang lugas, terstruktur rapi, dan bernilai eksekutif tinggi.
+Gunakan bahasa Indonesia baku, elegan, dan bernilai eksekutif tinggi.
 `;
         }
 
@@ -1437,32 +1474,13 @@ Gunakan bahasa Indonesia yang lugas, terstruktur rapi, dan bernilai eksekutif ti
             const aiResponse = await aiService.generateContentWithFallback(prompt);
             resultText = aiResponse?.response?.text() || '';
         } catch (aiErr) {
-            console.warn('[LaporanAI] Gemini AI error, generating programmatic fallback analysis:', aiErr.message);
-            const completedCount = activityList.filter(a => a.status === 'COMPLETED').length;
-            const inProgressCount = activityList.filter(a => a.status === 'IN_PROGRESS').length;
-            const activeStaffCount = Object.keys(staffTaskCount).length;
-            const topStaff = Object.entries(staffTaskCount).sort((a,b) => b[1] - a[1])[0];
-
-            resultText = `### Ringkasan Eksekutif & Analisis Kinerja Bidang Sarana
-**Periode: ${formattedPeriod}**
-
-1. **Ikhtisar Capaian & Produktivitas Operasional**
-   - Total pekerjaan yang tercatat pada periode ini berjumlah **${activityList.length} aktivitas**, di mana **${completedCount} pekerjaan telah selesai 100%** dan **${inProgressCount} pekerjaan sedang dalam proses tindak lanjut**.
-   - Tim operasional sarana menunjukkan mobilitas yang solid dengan **${activeStaffCount} personel aktif berkontribusi**. Kontribusi tertinggi tercatat atas nama **${topStaff ? `${topStaff[0]} (${topStaff[1]} aktivitas)` : 'Staf Sarana'}**.
-
-2. **Evaluasi Efisiensi & Pembagian Beban Kerja**
-   - Beban kerja operasional lapangan terdistribusi pada pemeliharaan rutin, perbaikan teknis listrik/air, serta pendampingan fasilitas lembaga.
-   - Koordinasi antarstaf terpantau berjalan kondusif dengan kecepatan penyelesaian tugas standar operasional.
-
-3. **Penanganan Kendala Lapangan**
-   - ${obstacles.length > 0 
-       ? `Tercatat **${obstacles.length} kendala lapangan** yang dilaporkan staf (terkait ketersediaan suku cadang, faktor cuaca, atau koordinasi teknis). Penanganan darurat telah diupayakan langsung di lokasi.` 
-       : 'Tidak tercatat kendala kritis di lapangan. Seluruh fasilitas pendukung beroperasi secara optimal.'}
-
-4. **Rekomendasi Tindak Lanjut untuk Pimpinan Yayasan**
-   - Memastikan ketersediaan stok material fast-moving (alat kelistrikan, fitting pipa, dan perlengkapan servis darurat) di gudang sarana.
-   - Menjadwalkan inspeksi preventif berkala pada gedung dan utilitas utama yayasan menjelang agenda besar mendatang.
-   - Memberikan apresiasi atas kedisiplinan dan kinerja staf lapangan yang konsisten menjaga kelaikan fasilitas yayasan.`;
+            console.warn('[LaporanAI] Gemini AI error, generating programmatic fallback narrative analysis:', aiErr.message);
+            resultText = Object.values(positionGrouping).map(p => {
+                const cats = Array.from(p.categories).join(', ') || 'sarana dan prasarana';
+                const sampleTasks = p.tasks.slice(0, 4).join(', ');
+                const moreText = p.tasks.length > 4 ? ` serta penanganan agenda pemeliharaan teknis pendukung lainnya` : '';
+                return `### ${p.position}\nSelama periode ${formattedPeriod}, ${p.position} fokus menjalankan pemeliharaan dan pengawalan sarana di bidang ${cats}. Pekerjaan yang dilaksanakan mencakup ${sampleTasks}${moreText}. Seluruh penugasan diarahkan untuk memastikan fasilitas yayasan selalu dalam kondisi prima, aman, dan siap menunjang kelancaran program dakwah dan pendidikan Yayasan Dar el Iman.`;
+            }).join('\n\n');
         }
 
         res.json({

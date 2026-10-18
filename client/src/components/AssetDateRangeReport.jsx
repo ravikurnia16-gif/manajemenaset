@@ -59,7 +59,8 @@ export default function AssetDateRangeReport({ currentUser }) {
 
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [exporting, setExporting] = useState(false);
+    const [exportingPdf, setExportingPdf] = useState(false);
+    const [exportingDoc, setExportingDoc] = useState(false);
     const [itemSearch, setItemSearch] = useState('');
     const [maintSearch, setMaintSearch] = useState('');
 
@@ -224,11 +225,11 @@ export default function AssetDateRangeReport({ currentUser }) {
     }, [maintenanceSummary.completedList]);
 
     // =========================================================================
-    // EXPORT PDF LAPORAN EKSEKUTIF (LANDSCAPE A4, RAPI, BERSIH, MUDAH DIBACA)
+    // EXPORT PDF LAPORAN EKSEKUTIF (LANDSCAPE A4, RAPI, BERSIH, TANPA TTD)
     // =========================================================================
     const handleExportPDF = async () => {
         if (!data) return;
-        setExporting(true);
+        setExportingPdf(true);
         try {
             const { jsPDF, autoTable } = await getJsPDF();
             const doc = new jsPDF('landscape', 'mm', 'a4');
@@ -279,7 +280,7 @@ export default function AssetDateRangeReport({ currentUser }) {
             // -------------------------------------------------------------
             // HALAMAN 1: BAGIAN 1 - JUMLAH ASET SAAT INI (MENYELURUH & PER UNIT)
             // -------------------------------------------------------------
-            applyHeader('LAPORAN EKSEKUTIF I: JUMLAH ASET SAAT INI (STATUS FISIK & DISTRIBUSI UNIT)');
+            applyHeader('LAPORAN MANAJEMEN ASET I: JUMLAH ASET SAAT INI (STATUS FISIK & DISTRIBUSI UNIT)');
 
             // Tabel 1A: Ringkasan Menyeluruh
             doc.setFontSize(9.5);
@@ -345,7 +346,7 @@ export default function AssetDateRangeReport({ currentUser }) {
             // HALAMAN 2: BAGIAN 2 - PENGADAAN (MASUK PER UNIT, FINALISASI & BARANG)
             // -------------------------------------------------------------
             doc.addPage();
-            applyHeader('LAPORAN EKSEKUTIF II: PENGADAAN (PENGAJUAN MASUK, FINALISASI & JENIS BARANG DIBELI)');
+            applyHeader('LAPORAN MANAJEMEN ASET II: PENGADAAN (PENGAJUAN MASUK, FINALISASI & JENIS BARANG DIBELI)');
 
             doc.setFontSize(9.5);
             doc.setFont(undefined, 'bold');
@@ -424,9 +425,10 @@ export default function AssetDateRangeReport({ currentUser }) {
 
             // -------------------------------------------------------------
             // HALAMAN 3: BAGIAN 3 - PEMELIHARAAN (KHUSUS TARGETDEPT SARPRAS)
+            // * CATATAN KHUSUS: TANPA TOTAL BIAYA & TANPA TTD *
             // -------------------------------------------------------------
             doc.addPage();
-            applyHeader('LAPORAN EKSEKUTIF III: PEMELIHARAAN SARANA & PRASARANA (KHUSUS TARGETDEPT SARPRAS)');
+            applyHeader('LAPORAN MANAJEMEN ASET III: PEMELIHARAAN SARANA & PRASARANA (KHUSUS TARGETDEPT SARPRAS)');
 
             doc.setFontSize(9.5);
             doc.setFont(undefined, 'bold');
@@ -440,26 +442,24 @@ export default function AssetDateRangeReport({ currentUser }) {
                 `${u.completedCount || 0}`,
                 `${u.inProgressCount || 0}`,
                 `${u.pendingCount || 0}`,
-                `${u.rejectedCount || 0}`,
-                `Rp ${(u.totalCost || 0).toLocaleString('id-ID')}`
+                `${u.rejectedCount || 0}`
             ]);
 
             callAutoTable({
                 startY: 41,
-                head: [['No', 'Satuan Kerja / Unit', 'Total Tiket Masuk', 'Selesai Dikerjakan', 'Sedang Diproses', 'Menunggu Persetujuan', 'Ditolak', 'Total Biaya']],
-                body: maintSubmittedRows.length > 0 ? maintSubmittedRows : [['-', 'Tidak ada pengajuan pemeliharaan Sarpras pada rentang tanggal ini', '0', '0', '0', '0', '0', 'Rp 0']],
+                head: [['No', 'Satuan Kerja / Unit', 'Total Tiket Masuk', 'Selesai Dikerjakan', 'Sedang Diproses', 'Menunggu Persetujuan', 'Ditolak']],
+                body: maintSubmittedRows.length > 0 ? maintSubmittedRows : [['-', 'Tidak ada pengajuan pemeliharaan Sarpras pada rentang tanggal ini', '0', '0', '0', '0', '0']],
                 theme: 'striped',
                 headStyles: { fillColor: [180, 83, 9], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
                 bodyStyles: { fontSize: 7.5, cellPadding: 2.5 },
                 columnStyles: {
-                    0: { halign: 'center', cellWidth: 10 },
-                    1: { halign: 'left', cellWidth: 80 },
-                    2: { halign: 'center', cellWidth: 32, fontStyle: 'bold' },
-                    3: { halign: 'center', cellWidth: 32, fontStyle: 'bold' },
-                    4: { halign: 'center', cellWidth: 30 },
-                    5: { halign: 'center', cellWidth: 36 },
-                    6: { halign: 'center', cellWidth: 20 },
-                    7: { halign: 'right', cellWidth: 29, fontStyle: 'bold' }
+                    0: { halign: 'center', cellWidth: 12 },
+                    1: { halign: 'left', cellWidth: 100 },
+                    2: { halign: 'center', cellWidth: 35, fontStyle: 'bold' },
+                    3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' },
+                    4: { halign: 'center', cellWidth: 32 },
+                    5: { halign: 'center', cellWidth: 32 },
+                    6: { halign: 'center', cellWidth: 23 }
                 }
             });
 
@@ -502,73 +502,7 @@ export default function AssetDateRangeReport({ currentUser }) {
             });
 
             // -------------------------------------------------------------
-            // BLOK PENGESAHAN / TANDA TANGAN (SIGNATURE BLOCK)
-            // -------------------------------------------------------------
-            const currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 140;
-            const signY = (currentY + 30 > pageH - 25) ? (doc.addPage(), applyHeader('PENGESAHAN LAPORAN EKSEKUTIF ASET'), 45) : currentY + 12;
-
-            doc.setFontSize(8.5);
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor(30, 41, 59);
-
-            const col1X = 40;
-            const col2X = pageW - 75;
-
-            // Left: Mengetahui / Mengesahkan (Digital TTE Kepala Bidang Sarana)
-            const signBoxW = 68;
-            const signBoxH = 24;
-            const box1X = col1X - (signBoxW / 2);
-
-            doc.setFontSize(8.5);
-            doc.setFont(undefined, 'normal');
-            doc.text('Mengetahui / Mengesahkan,', col1X, signY, { align: 'center' });
-            doc.setFont(undefined, 'bold');
-            doc.text('Kepala Bidang Sarana', col1X, signY + 4.5, { align: 'center' });
-
-            // TTE Box
-            doc.setFillColor(248, 250, 252);
-            doc.setDrawColor(203, 213, 225);
-            doc.setLineWidth(0.3);
-            doc.roundedRect(box1X, signY + 7, signBoxW, signBoxH, 2, 2, 'FD');
-
-            doc.setFillColor(16, 185, 129);
-            doc.roundedRect(box1X + 1.5, signY + 8.5, 3, signBoxH - 3, 1, 1, 'F');
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(6.8);
-            doc.setTextColor(5, 150, 105);
-            doc.text('DITANDATANGANI SECARA ELEKTRONIK (TTE)', box1X + 6.5, signY + 12.5);
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(6.2);
-            doc.setTextColor(71, 85, 105);
-            doc.text('Dokumen Sah & Terverifikasi Sistem E-Office', box1X + 6.5, signY + 16.5);
-            doc.text('Yayasan Dar el Iman Padang', box1X + 6.5, signY + 20);
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8.5);
-            doc.setTextColor(15, 23, 42);
-            doc.text('Ravi Kurnia, S.T.', col1X, signY + 36, { align: 'center' });
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(71, 85, 105);
-            doc.text('Kepala Bidang Sarana', col1X, signY + 40, { align: 'center' });
-
-            // Right: Disusun oleh
-            doc.setFontSize(8.5);
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor(30, 41, 59);
-            doc.text('Padang, ' + now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), col2X, signY, { align: 'center' });
-            doc.text('Disusun & Diverifikasi oleh,', col2X, signY + 4.5, { align: 'center' });
-            doc.setFont(undefined, 'bold');
-            doc.text(`( ${currentUser?.name || 'Administrator Aset'} )`, col2X, signY + 36, { align: 'center' });
-            doc.setFont(undefined, 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(71, 85, 105);
-            doc.text('Admin Aset & Sarpras', col2X, signY + 40, { align: 'center' });
-
-            // -------------------------------------------------------------
-            // NOMOR HALAMAN OTOMATIS (PAGE X OF Y)
+            // NOMOR HALAMAN OTOMATIS (PAGE X OF Y) - TANPA BLOK TTD
             // -------------------------------------------------------------
             const totalPages = doc.internal.getNumberOfPages();
             for (let p = 1; p <= totalPages; p++) {
@@ -586,12 +520,343 @@ export default function AssetDateRangeReport({ currentUser }) {
             // Simpan Dokumen
             const fileCleanStart = startDate.replace(/[^0-9]/g, '');
             const fileCleanEnd = endDate.replace(/[^0-9]/g, '');
-            doc.save(`Laporan_Aset_Pengadaan_Sarpras_${fileCleanStart}_sd_${fileCleanEnd}.pdf`);
+            doc.save(`Laporan_Manajemen_Aset_${fileCleanStart}_sd_${fileCleanEnd}.pdf`);
         } catch (err) {
             console.error('PDF Export Error:', err);
             alert('Gagal membuat PDF: ' + err.message);
         } finally {
-            setExporting(false);
+            setExportingPdf(false);
+        }
+    };
+
+    // =========================================================================
+    // EXPORT DOC (MICROSOFT WORD) LAPORAN EKSEKUTIF (LANDSCAPE, RAPI, TANPA TTD)
+    // =========================================================================
+    const handleExportDOC = () => {
+        if (!data) return;
+        setExportingDoc(true);
+        try {
+            const now = new Date();
+            const printDateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+            const fileCleanStart = startDate.replace(/[^0-9]/g, '');
+            const fileCleanEnd = endDate.replace(/[^0-9]/g, '');
+
+            const renderKop = (reportTitle) => `
+                <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+                    <h2 style="margin: 0; font-size: 14pt; color: #1e293b; font-family: Calibri, Arial, sans-serif; text-transform: uppercase;">YAYASAN DAR EL IMAN</h2>
+                    <h3 style="margin: 2px 0; font-size: 11pt; color: #4338ca; font-family: Calibri, Arial, sans-serif; text-transform: uppercase;">BIDANG SARANA</h3>
+                    <h4 style="margin: 4px 0 2px 0; font-size: 11pt; color: #0f172a; font-family: Calibri, Arial, sans-serif;">${reportTitle}</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 8.5pt; color: #64748b; font-family: Calibri, Arial, sans-serif;">
+                        Rentang Periode: <b>${periodLabel}</b> &nbsp;|&nbsp; Tanggal Cetak: <b>${printDateStr}</b> &nbsp;|&nbsp; Pencetak: <b>${currentUser?.name || 'Administrator'}</b>
+                    </p>
+                </div>
+            `;
+
+            // Bagian 1A: Ringkasan Menyeluruh
+            const table1AHtml = `
+                <h4 style="margin: 12px 0 6px 0; font-size: 10pt; color: #1e293b;">1. Total Aset Menyeluruh (Fisik Aktif & Kondisi Terkini)</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr style="background-color: #312e81; color: #ffffff;">
+                            <th>Total Fisik Aset Aktif</th>
+                            <th>Kondisi BAIK</th>
+                            <th>Kondisi RUSAK RINGAN</th>
+                            <th>Kondisi RUSAK BERAT</th>
+                            <th>Estimasi Total Nilai Aset</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="text-center font-bold">${(assetSummary.totalAssets || 0).toLocaleString('id-ID')} Unit</td>
+                            <td class="text-center font-bold">${(assetSummary.goodCount || 0).toLocaleString('id-ID')} Unit (${assetSummary.totalAssets > 0 ? Math.round((assetSummary.goodCount / assetSummary.totalAssets) * 100) : 0}%)</td>
+                            <td class="text-center font-bold">${(assetSummary.lightDamagedCount || 0).toLocaleString('id-ID')} Unit (${assetSummary.totalAssets > 0 ? Math.round((assetSummary.lightDamagedCount / assetSummary.totalAssets) * 100) : 0}%)</td>
+                            <td class="text-center font-bold">${(assetSummary.heavyDamagedCount || 0).toLocaleString('id-ID')} Unit (${assetSummary.totalAssets > 0 ? Math.round((assetSummary.heavyDamagedCount / assetSummary.totalAssets) * 100) : 0}%)</td>
+                            <td class="text-center font-bold">Rp ${(assetSummary.totalValue || 0).toLocaleString('id-ID')}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            // Bagian 1B: Total Aset per Unit
+            const unitRowsHtml = (assetSummary.assetsPerUnit || []).map((u, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="text-center">${u.unitCode || '-'}</td>
+                    <td>${u.unitName}</td>
+                    <td class="text-center font-bold">${(u.totalAssets || 0).toLocaleString('id-ID')} Unit</td>
+                    <td class="text-center">${(u.goodCount || 0).toLocaleString('id-ID')}</td>
+                    <td class="text-center">${(u.lightDamagedCount || 0).toLocaleString('id-ID')}</td>
+                    <td class="text-center">${(u.heavyDamagedCount || 0).toLocaleString('id-ID')}</td>
+                    <td class="text-right font-bold">Rp ${(u.totalValue || 0).toLocaleString('id-ID')}</td>
+                </tr>
+            `).join('');
+
+            const table1BHtml = `
+                <h4 style="margin: 16px 0 6px 0; font-size: 10pt; color: #1e293b;">2. Total Aset per Satuan Kerja / Unit</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr style="background-color: #1e293b; color: #ffffff;">
+                            <th style="width: 35px;">No</th>
+                            <th style="width: 65px;">Kode</th>
+                            <th>Nama Satuan Kerja / Unit</th>
+                            <th style="width: 85px;">Total Aset</th>
+                            <th style="width: 65px;">Baik</th>
+                            <th style="width: 70px;">R. Ringan</th>
+                            <th style="width: 70px;">R. Berat</th>
+                            <th style="width: 140px;">Total Nilai</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${unitRowsHtml || '<tr><td colspan="8" class="text-center">Tidak ada data aset terdaftar</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            // Bagian 2A: Pengadaan Masuk per Unit
+            const procSubmittedRowsHtml = (procurementSummary.submittedByUnit || []).map((u, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td>${u.unitName}</td>
+                    <td class="text-center font-bold">${u.totalSubmissions} Pengajuan</td>
+                    <td class="text-center">${u.pendingCount || 0}</td>
+                    <td class="text-center">${u.processCount || 0}</td>
+                    <td class="text-center font-bold">${u.completedCount || 0}</td>
+                    <td class="text-center">${u.rejectedCount || 0}</td>
+                    <td class="text-right font-bold">Rp ${(u.totalEstBudget || 0).toLocaleString('id-ID')}</td>
+                </tr>
+            `).join('');
+
+            const table2AHtml = `
+                <h4 style="margin: 12px 0 6px 0; font-size: 10pt; color: #1e293b;">1. Pengajuan Pengadaan Masuk per Unit</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr style="background-color: #0e7490; color: #ffffff;">
+                            <th style="width: 35px;">No</th>
+                            <th>Satuan Kerja / Unit</th>
+                            <th style="width: 95px;">Total Masuk</th>
+                            <th style="width: 75px;">Pending</th>
+                            <th style="width: 80px;">Disetujui</th>
+                            <th style="width: 80px;">Final BAST</th>
+                            <th style="width: 60px;">Ditolak</th>
+                            <th style="width: 130px;">Estimasi Anggaran</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${procSubmittedRowsHtml || '<tr><td colspan="8" class="text-center">Tidak ada pengajuan pengadaan pada rentang tanggal ini</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            // Bagian 2B: Jenis Barang Dibeli
+            const purchasedItemsRowsHtml = (procurementSummary.purchasedItems || []).map((item, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="text-center font-bold">${item.procurementCode || '-'}</td>
+                    <td class="font-bold">${item.name}</td>
+                    <td>${item.spec || item.brand || '-'}</td>
+                    <td class="text-center font-bold">${item.qty || 1} ${item.unit || 'Unit'}</td>
+                    <td>${item.unitName || '-'}</td>
+                    <td>${item.vendor || '-'}</td>
+                    <td class="text-right">Rp ${(item.price || 0).toLocaleString('id-ID')}</td>
+                    <td class="text-right font-bold">Rp ${(item.totalPrice || 0).toLocaleString('id-ID')}</td>
+                </tr>
+            `).join('');
+
+            const table2CHtml = `
+                <h4 style="margin: 16px 0 6px 0; font-size: 10pt; color: #1e293b;">2. Jenis Barang yang Dibeli / Direalisasikan dalam Rentang Tanggal</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr style="background-color: #1e293b; color: #ffffff;">
+                            <th style="width: 30px;">No</th>
+                            <th style="width: 90px;">Kode</th>
+                            <th>Nama Barang</th>
+                            <th>Spesifikasi / Merk</th>
+                            <th style="width: 70px;">Jumlah</th>
+                            <th>Unit Pemohon</th>
+                            <th>Vendor / Rekanan</th>
+                            <th style="width: 100px;">Harga Satuan</th>
+                            <th style="width: 110px;">Total Harga</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${purchasedItemsRowsHtml || '<tr><td colspan="9" class="text-center">Tidak ada data item barang yang dibeli pada rentang tanggal ini</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            // Bagian 3A: Pemeliharaan Sarpras Masuk per Unit (TANPA TOTAL BIAYA)
+            const maintSubmittedRowsHtml = (maintenanceSummary.submittedByUnit || []).map((u, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td>${u.unitName}</td>
+                    <td class="text-center font-bold">${u.totalRequests} Tiket</td>
+                    <td class="text-center font-bold">${u.completedCount || 0}</td>
+                    <td class="text-center">${u.inProgressCount || 0}</td>
+                    <td class="text-center">${u.pendingCount || 0}</td>
+                    <td class="text-center">${u.rejectedCount || 0}</td>
+                </tr>
+            `).join('');
+
+            const table3AHtml = `
+                <h4 style="margin: 12px 0 6px 0; font-size: 10pt; color: #1e293b;">1. Tiket Pemeliharaan Sarpras Masuk per Unit (Targetdept: Sarpras)</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr style="background-color: #b45309; color: #ffffff;">
+                            <th style="width: 35px;">No</th>
+                            <th>Satuan Kerja / Unit</th>
+                            <th style="width: 110px;">Total Tiket Masuk</th>
+                            <th style="width: 100px;">Selesai Dikerjakan</th>
+                            <th style="width: 95px;">Sedang Diproses</th>
+                            <th style="width: 95px;">Menunggu</th>
+                            <th style="width: 70px;">Ditolak</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${maintSubmittedRowsHtml || '<tr><td colspan="7" class="text-center">Tidak ada pengajuan pemeliharaan Sarpras pada rentang tanggal ini</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            // Bagian 3B: Rincian Pemeliharaan Selesai
+            const maintCompletedRowsHtml = (maintenanceSummary.completedList || []).map((m, i) => `
+                <tr>
+                    <td class="text-center">${i + 1}</td>
+                    <td class="text-center font-bold">${m.code}</td>
+                    <td class="text-center">${formatDateIndo(m.completionDate)}</td>
+                    <td>${m.unitName}</td>
+                    <td class="font-bold">${m.title}</td>
+                    <td>${m.actionTaken || '-'}</td>
+                    <td>${m.technician || '-'}</td>
+                    <td class="text-right font-bold">Rp ${(m.cost || 0).toLocaleString('id-ID')}</td>
+                </tr>
+            `).join('');
+
+            const table3BHtml = `
+                <h4 style="margin: 16px 0 6px 0; font-size: 10pt; color: #1e293b;">2. Rincian Pemeliharaan Sarpras yang Selesai Dikerjakan</h4>
+                <table class="report-table">
+                    <thead>
+                        <tr style="background-color: #1e293b; color: #ffffff;">
+                            <th style="width: 30px;">No</th>
+                            <th style="width: 80px;">Kode</th>
+                            <th style="width: 80px;">Tgl Selesai</th>
+                            <th>Unit Pemohon</th>
+                            <th>Judul Pemeliharaan</th>
+                            <th>Tindakan / Solusi Perbaikan</th>
+                            <th>Teknisi / Rekanan</th>
+                            <th style="width: 100px;">Biaya</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${maintCompletedRowsHtml || '<tr><td colspan="8" class="text-center">Tidak ada tiket servis Sarpras yang selesai pada rentang tanggal ini</td></tr>'}
+                    </tbody>
+                </table>
+            `;
+
+            // Full Word Document HTML Template (NO SIGNATURE BLOCK)
+            const docHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office'
+                      xmlns:w='urn:schemas-microsoft-com:office:word'
+                      xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Laporan Manajemen Aset (Pengadaan & Sarpras)</title>
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <w:WordDocument>
+                            <w:View>Print</w:View>
+                            <w:Zoom>100</w:Zoom>
+                            <w:DoNotOptimizeForBrowser/>
+                        </w:WordDocument>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        @page Section1 {
+                            size: 841.9pt 595.3pt;
+                            mso-page-orientation: landscape;
+                            margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+                        }
+                        div.Section1 {
+                            page: Section1;
+                            font-family: 'Calibri', 'Arial', sans-serif;
+                            font-size: 9.5pt;
+                            color: #1e293b;
+                        }
+                        .page-break {
+                            page-break-before: always;
+                            mso-special-character: line-break;
+                        }
+                        .report-table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-bottom: 12px;
+                            font-size: 8.5pt;
+                            font-family: 'Calibri', 'Arial', sans-serif;
+                        }
+                        .report-table th {
+                            border: 1px solid #cbd5e1;
+                            padding: 6px 8px;
+                            font-size: 8pt;
+                            font-weight: bold;
+                            text-align: center;
+                        }
+                        .report-table td {
+                            border: 1px solid #cbd5e1;
+                            padding: 5px 8px;
+                            color: #334155;
+                            font-size: 8pt;
+                        }
+                        .report-table tr:nth-child(even) td {
+                            background-color: #f8fafc;
+                        }
+                        .text-center { text-align: center; }
+                        .text-right { text-align: right; }
+                        .font-bold { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <div class="Section1">
+                        <!-- HALAMAN 1 -->
+                        ${renderKop('LAPORAN MANAJEMEN ASET I: JUMLAH ASET SAAT INI (STATUS FISIK & DISTRIBUSI UNIT)')}
+                        ${table1AHtml}
+                        ${table1BHtml}
+
+                        <!-- HALAMAN 2 -->
+                        <div class="page-break"></div>
+                        ${renderKop('LAPORAN MANAJEMEN ASET II: PENGADAAN (PENGAJUAN MASUK, FINALISASI & JENIS BARANG DIBELI)')}
+                        ${table2AHtml}
+                        ${table2CHtml}
+
+                        <!-- HALAMAN 3 -->
+                        <div class="page-break"></div>
+                        ${renderKop('LAPORAN MANAJEMEN ASET III: PEMELIHARAAN SARANA & PRASARANA (KHUSUS TARGETDEPT SARPRAS)')}
+                        ${table3AHtml}
+                        ${table3BHtml}
+
+                        <!-- FOOTER RESMI (TANPA TTD) -->
+                        <div style="margin-top: 25px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 8pt; color: #94a3b8;">
+                            Dokumen Resmi Sistem Manajemen Aset Yayasan Dar El-Iman &bull; Dihasilkan Otomatis oleh Sistem
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob(['\ufeff', docHtml], {
+                type: 'application/msword;charset=utf-8'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Laporan_Manajemen_Aset_${fileCleanStart}_sd_${fileCleanEnd}.doc`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('DOC Export Error:', err);
+            alert('Gagal membuat file DOC: ' + err.message);
+        } finally {
+            setExportingDoc(false);
         }
     };
 
@@ -640,10 +905,10 @@ export default function AssetDateRangeReport({ currentUser }) {
                             </span>
                             <div>
                                 <h2 className="text-lg font-black text-slate-800 tracking-tight">
-                                    Laporan Rentang Tanggal Eksekutif
+                                    Laporan Manajemen Aset (Pengadaan & Sarpras)
                                 </h2>
                                 <p className="text-xs text-slate-500 font-medium">
-                                    Audit aset saat ini, pengadaan per unit, barang dibeli, dan pemeliharaan Sarpras periode terpilih.
+                                    Audit fisik aset terkini, pengadaan per unit, rincian barang dibeli, dan rekap pemeliharaan Sarpras periode terpilih.
                                 </p>
                             </div>
                         </div>
@@ -659,13 +924,26 @@ export default function AssetDateRangeReport({ currentUser }) {
                             <RefreshCw size={16} className={cn(loading && "animate-spin text-indigo-600")} />
                         </button>
 
+                        {/* Pilihan 1: Ekspor PDF */}
                         <button
                             onClick={handleExportPDF}
-                            disabled={exporting || loading || !data}
-                            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white px-5 py-2.5 rounded-2xl text-xs font-black shadow-md shadow-indigo-200 transition-all disabled:opacity-50"
+                            disabled={exportingPdf || exportingDoc || loading || !data}
+                            className="flex items-center gap-2 bg-gradient-to-r from-rose-600 via-rose-700 to-rose-800 hover:from-rose-700 hover:to-rose-900 text-white px-4 py-2.5 rounded-2xl text-xs font-black shadow-md shadow-rose-200 transition-all disabled:opacity-50"
+                            title="Unduh Laporan Format PDF (Landscape)"
                         >
-                            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                            {exporting ? 'Menyiapkan PDF...' : 'Ekspor Laporan PDF'}
+                            {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+                            {exportingPdf ? 'Menyiapkan PDF...' : 'Ekspor PDF'}
+                        </button>
+
+                        {/* Pilihan 2: Ekspor DOC (Word) */}
+                        <button
+                            onClick={handleExportDOC}
+                            disabled={exportingPdf || exportingDoc || loading || !data}
+                            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-700 to-indigo-800 hover:from-blue-700 hover:to-indigo-900 text-white px-4 py-2.5 rounded-2xl text-xs font-black shadow-md shadow-blue-200 transition-all disabled:opacity-50"
+                            title="Unduh Laporan Format DOC / Microsoft Word (Landscape)"
+                        >
+                            {exportingDoc ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                            {exportingDoc ? 'Menyiapkan DOC...' : 'Ekspor DOC'}
                         </button>
                     </div>
                 </div>
@@ -821,8 +1099,12 @@ export default function AssetDateRangeReport({ currentUser }) {
                         Proses: <strong className="text-amber-600">{Math.max(0, (maintenanceSummary.totalSubmitted || 0) - (maintenanceSummary.totalCompleted || 0))}</strong>
                     </p>
                     <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400 font-medium">Biaya Servis Selesai</span>
-                        <span className="font-mono font-black text-amber-700">Rp {Math.round(totalMaintenanceCompletedCost).toLocaleString('id-ID')}</span>
+                        <span className="text-slate-400 font-medium">Status Penyelesaian</span>
+                        <span className="font-bold text-emerald-700">
+                            {maintenanceSummary.totalSubmitted > 0
+                                ? `${Math.round(((maintenanceSummary.totalCompleted || 0) / maintenanceSummary.totalSubmitted) * 100)}% Selesai`
+                                : '0%'}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -1338,7 +1620,6 @@ export default function AssetDateRangeReport({ currentUser }) {
                                         <th className="py-3 px-4 text-center text-amber-600">Sedang Dikerjakan</th>
                                         <th className="py-3 px-4 text-center text-slate-600">Menunggu</th>
                                         <th className="py-3 px-4 text-center text-rose-600">Ditolak</th>
-                                        <th className="py-3 px-4 text-right">Total Biaya Perbaikan</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -1363,14 +1644,11 @@ export default function AssetDateRangeReport({ currentUser }) {
                                             <td className="py-3 px-4 text-center font-mono font-bold text-rose-600">
                                                 {u.rejectedCount || 0}
                                             </td>
-                                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">
-                                                Rp {(u.totalCost || 0).toLocaleString('id-ID')}
-                                            </td>
                                         </tr>
                                     ))}
                                     {(!maintenanceSummary.submittedByUnit || maintenanceSummary.submittedByUnit.length === 0) && (
                                         <tr>
-                                            <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                                            <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
                                                 Alhamdulillah, tidak ada pengajuan pemeliharaan Sarpras yang masuk pada rentang tanggal ini.
                                             </td>
                                         </tr>
@@ -1387,9 +1665,6 @@ export default function AssetDateRangeReport({ currentUser }) {
                                             </td>
                                             <td colSpan={4} className="py-3 px-4 text-center text-emerald-700 font-mono">
                                                 Total Selesai: {maintenanceSummary.totalCompleted} Tiket
-                                            </td>
-                                            <td className="py-3 px-4 text-right text-sm font-mono text-slate-900">
-                                                Rp {Math.round(totalMaintenanceCompletedCost).toLocaleString('id-ID')}
                                             </td>
                                         </tr>
                                     </tfoot>
