@@ -931,7 +931,8 @@ exports.getWeeklySummary = async (req, res) => {
                                 text: textClean,
                                 status,
                                 categoryTag: item.categoryTag || 'UMUM',
-                                obstacleNote: item.obstacleNote || ''
+                                obstacleNote: item.obstacleNote || '',
+                                photos: photos.map(p => typeof p === 'string' ? p : p?.url).filter(Boolean)
                             });
                         }
 

@@ -82,7 +82,7 @@ export default function WeeklyPdfTab({
     const [aiAnalysis, setAiAnalysis] = useState('');
     const [aiLoading, setAiLoading] = useState(false);
     const [includeAiInPdf, setIncludeAiInPdf] = useState(true);
-    const [includePhotosInPdf, setIncludePhotosInPdf] = useState(false);
+    const [includePhotosInPdf, setIncludePhotosInPdf] = useState(true);
     const [aiMode, setAiMode] = useState('STAFF_NARRATIVE'); // 'STAFF_NARRATIVE' | 'WEEKLY_EXECUTIVE' | 'TEAM_PERFORMANCE' | 'OBSTACLE_SOLUTIONS'
     const [isEditingAi, setIsEditingAi] = useState(false);
 
@@ -177,7 +177,8 @@ export default function WeeklyPdfTab({
                         text: act.activity.trim(),
                         status: act.status || 'COMPLETED',
                         categoryTag: act.categoryTag || 'UMUM',
-                        obstacleNote: act.obstacleNote || ''
+                        obstacleNote: act.obstacleNote || '',
+                        photos: act.photos || []
                     });
                 }
             });
@@ -192,6 +193,13 @@ export default function WeeklyPdfTab({
     const filteredObstacleList = React.useMemo(() => {
         return (weeklyData?.obstacleList || []).filter(obs => 
             !isKabidNameOrPos(obs.staffName, obs.position)
+        );
+    }, [weeklyData, user]);
+
+    // Filtered documentation photos list excluding Kabid Sarana
+    const filteredPhotos = React.useMemo(() => {
+        return (weeklyData?.documentationPhotos || []).filter(doc => 
+            !isKabidNameOrPos(doc.staffName, doc.position)
         );
     }, [weeklyData, user]);
 
@@ -372,6 +380,36 @@ export default function WeeklyPdfTab({
                 ${staffPointsHtml || '<p style="color:#64748b;">Belum ada poin laporan staf pada periode ini.</p>'}
 
                 ${obstaclesHtml}
+
+                ${(includePhotosInPdf && filteredPhotos.length > 0) ? `
+                    <br clear="all" style="page-break-before:always" />
+                    <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-top: 24px; margin-bottom: 16px;">
+                        <div style="font-size: 10pt; font-weight: bold; color: #475569; text-transform: uppercase;">LAMPIRAN RESMI DOKUMENTASI LAPANGAN</div>
+                        <div style="font-size: 12pt; font-weight: bold; color: #0f172a; text-transform: uppercase;">FOTO BUKTI AKTIVITAS HARIAN STAF BIDANG SARANA</div>
+                        <div style="font-size: 9.5pt; color: #475569;">Periode: ${periodStr}</div>
+                    </div>
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 12px;">
+                        <tbody>
+                            ${filteredPhotos.reduce((rows, doc, idx) => {
+                                if (idx % 2 === 0) rows.push([doc]);
+                                else rows[rows.length - 1].push(doc);
+                                return rows;
+                            }, []).map(row => `
+                                <tr>
+                                    ${row.map(d => `
+                                        <td style="width: 50%; vertical-align: top; border: 1px solid #cbd5e1; padding: 8px; background: #f8fafc;">
+                                            <img src="${getMediaUrl(d.photoUrl)}" width="280" style="max-width: 100%; height: auto; display: block; margin: 0 auto 6px auto; border: 1px solid #e2e8f0;" />
+                                            <div style="font-size: 9pt; font-weight: bold; color: #0f172a;">${d.staffName ? `${d.staffName} (${d.position})` : d.position}</div>
+                                            <div style="font-size: 8.5pt; color: #475569; margin-top: 2px;">${d.dateShort} - ${d.activity}</div>
+                                            ${d.obstacleNote ? `<div style="font-size: 8pt; color: #b91c1c; margin-top: 2px;">Kendala: ${d.obstacleNote}</div>` : ''}
+                                        </td>
+                                    `).join('')}
+                                    ${row.length === 1 ? '<td style="width: 50%;"></td>' : ''}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                ` : ''}
             </body>
             </html>
         `;
@@ -432,6 +470,10 @@ export default function WeeklyPdfTab({
                     .break-inside-avoid {
                         page-break-inside: avoid !important;
                         break-inside: avoid !important;
+                    }
+                    .page-break-before, .break-before-page {
+                        page-break-before: always !important;
+                        break-before: page !important;
                     }
                     @page {
                         size: A4 portrait;
@@ -535,7 +577,7 @@ export default function WeeklyPdfTab({
                                 onChange={(e) => setIncludePhotosInPdf(e.target.checked)}
                                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span>Preview Foto Lapangan ({weeklyData?.documentationPhotos?.length || 0})</span>
+                            <span>Sertakan Foto Lapangan ({filteredPhotos.length})</span>
                         </label>
 
                         <button
@@ -764,6 +806,20 @@ export default function WeeklyPdfTab({
                                                                 Uraian Hambatan: {pt.obstacleNote}
                                                             </p>
                                                         )}
+                                                        {pt.photos && pt.photos.length > 0 && (
+                                                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                                                {pt.photos.map((ph, phIdx) => (
+                                                                    <img
+                                                                        key={phIdx}
+                                                                        src={getMediaUrl(ph)}
+                                                                        alt="Bukti foto"
+                                                                        className="w-12 h-12 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-105 transition print:w-14 print:h-14"
+                                                                        onClick={() => setLightboxPhoto(getMediaUrl(ph))}
+                                                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </li>
                                             );
@@ -847,36 +903,33 @@ export default function WeeklyPdfTab({
                 </div>
 
                 {/* ============================================================== */}
-                {/* PREVIEW FOTO DOKUMENTASI (HANYA DITAMPILKAN DI LAYAR BILA DIAKTIFKAN, DISEMBUNYIKAN SAAT DICETAK) */}
+                {/* LAMPIRAN DOKUMENTASI FOTO LAPANGAN (DISERTAKAN SAAT DICETAK PDF) */}
                 {/* ============================================================== */}
                 {includePhotosInPdf && (
-                    <div className="pt-10 mt-10 border-t-2 border-dashed border-slate-300 print:hidden no-print">
+                    <div className="pt-8 mt-8 border-t-2 border-slate-800 page-break-before break-before-page">
                         {/* KOP LAMPIRAN */}
                         <div className="text-center border-b-2 border-slate-800 pb-3 space-y-1">
-                            <h3 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">LAMPIRAN DOKUMENTASI LAPANGAN (PREVIEW WEB)</h3>
+                            <h3 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">LAMPIRAN RESMI DOKUMENTASI LAPANGAN</h3>
                             <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
                                 FOTO BUKTI AKTIVITAS HARIAN STAF BIDANG SARANA
                             </h4>
                             <p className="text-xs font-bold text-slate-600">
                                 Periode: {weeklyData?.period?.formattedPeriod || `${weeklyStartDate} s/d ${weeklyEndDate}`}
                             </p>
-                            <p className="text-[10px] text-amber-600 italic">
-                                *Halaman dokumentasi foto ini secara otomatis tidak disertakan dalam cetakan PDF resmi sesuai format ringkasan pimpinan.
-                            </p>
                         </div>
 
                         {/* DAFTAR FOTO DOKUMENTASI */}
-                        {weeklyData?.documentationPhotos && weeklyData.documentationPhotos.length > 0 ? (
+                        {filteredPhotos && filteredPhotos.length > 0 ? (
                             <div className="pt-6 space-y-4">
                                 <div className="flex items-center justify-between text-xs text-slate-500 pb-2 border-b border-slate-100">
-                                    <span className="font-bold">Total Foto Terlampir: {weeklyData.documentationPhotos.length} Foto Dokumentasi</span>
+                                    <span className="font-bold">Total Foto Terlampir: {filteredPhotos.length} Foto Dokumentasi</span>
                                     <span className="text-[10px] text-slate-400 italic">*Foto diunggah langsung oleh staf sarana saat pelaporan harian</span>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {weeklyData.documentationPhotos.map((doc, pIdx) => (
-                                        <div key={pIdx} className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 space-y-2 flex flex-col justify-between break-inside-avoid shadow-2xs">
-                                            <div className="w-full h-44 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                                <div className="grid grid-cols-2 md:grid-cols-3 print:grid-cols-2 gap-4">
+                                    {filteredPhotos.map((doc, pIdx) => (
+                                        <div key={pIdx} className="bg-slate-50 print:bg-white border border-slate-200 rounded-2xl p-2.5 space-y-2 flex flex-col justify-between break-inside-avoid shadow-2xs">
+                                            <div className="w-full h-44 print:h-40 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
                                                 <img
                                                     src={getMediaUrl(doc.photoUrl)}
                                                     alt={doc.activity}
@@ -890,22 +943,22 @@ export default function WeeklyPdfTab({
                                             </div>
                                             <div className="space-y-1 text-left">
                                                 <div className="flex items-center justify-between gap-1">
-                                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md print:border print:border-slate-300">
                                                         {doc.dateShort}
                                                     </span>
                                                     <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-600">
                                                         {doc.categoryTag}
                                                     </span>
                                                 </div>
-                                                <p className="text-xs font-black text-slate-800 line-clamp-1">
-                                                    {doc.position || doc.staffName}
+                                                <p className="text-xs font-black text-slate-900">
+                                                    {doc.staffName ? `${doc.staffName} (${doc.position})` : doc.position}
                                                 </p>
-                                                <p className="text-[11px] text-slate-600 font-medium line-clamp-2 leading-tight">
+                                                <p className="text-[11px] text-slate-700 font-medium leading-tight">
                                                     {doc.activity}
                                                 </p>
                                                 {doc.obstacleNote && (
-                                                    <p className="text-[10px] text-rose-600 font-bold bg-rose-50 p-1 rounded">
-                                                        ⚠️ {doc.obstacleNote}
+                                                    <p className="text-[10px] text-rose-700 print:text-slate-900 font-bold bg-rose-50 print:bg-slate-100 p-1 rounded">
+                                                        ⚠️ Kendala: {doc.obstacleNote}
                                                     </p>
                                                 )}
                                             </div>
