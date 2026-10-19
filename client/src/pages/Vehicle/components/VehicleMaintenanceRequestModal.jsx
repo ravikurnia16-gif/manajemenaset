@@ -4,17 +4,17 @@ import api from '../../../lib/axios';
 
 const ROUTINE_COMPONENTS_BY_TYPE = {
     MOTOR: [
-        'Oli Mesin', 'Busi', 'Filter Udara', 'Oli Gardan (Matic)', 'V-Belt (Matic)', 
+        'Oli Mesin', 'Busi', 'Filter Udara', 'Oli Gardan (Matic)', 'V-Belt (Matic)',
         'Roller (Matic)', 'Rantai & Gir', 'Kampas Rem', 'Minyak Rem', 'Ban', 'Aki', 'Tune Up'
     ],
     BUS: [
-        'Oli Mesin', 'Filter Oli', 'Oli Transmisi', 'Oli Gardan', 'Filter Udara', 'Filter AC', 
-        'Filter BBM / Solar', 'Kampas Rem', 'Minyak Rem', 'Ban', 'Spooring & Balancing', 
+        'Oli Mesin', 'Filter Oli', 'Oli Transmisi', 'Oli Gardan', 'Filter Udara', 'Filter AC',
+        'Filter BBM / Solar', 'Kampas Rem', 'Minyak Rem', 'Ban', 'Spooring & Balancing',
         'Aki', 'Air Radiator', 'Greasing / Pelumasan', 'Sistem Pneumatik', 'Tune Up'
     ],
     GENERAL: [
-        'Oli Mesin', 'Filter Oli', 'Oli Transmisi', 'Oli Gardan', 'Filter Udara', 'Filter AC', 
-        'Filter BBM', 'Kampas Rem', 'Ban (Rotasi/Ganti)', 'Spooring & Balancing', 'Aki', 
+        'Oli Mesin', 'Filter Oli', 'Oli Transmisi', 'Oli Gardan', 'Filter Udara', 'Filter AC',
+        'Filter BBM', 'Kampas Rem', 'Ban (Rotasi/Ganti)', 'Spooring & Balancing', 'Aki',
         'Air Radiator', 'Minyak Rem', 'Busi', 'Tune Up'
     ]
 };
@@ -26,19 +26,23 @@ function resolveCategory(vehicleType = '') {
     return 'GENERAL';
 }
 
-export default function VehicleMaintenanceRequestModal({ show, onClose, onSuccess, vehicles = [], currentUser }) {
+export default function VehicleMaintenanceRequestModal({
+    show, onClose, onSuccess, vehicles = [], currentUser,
+    initialCategory = 'ROUTINE', initialType = 'SERVICE_RUTIN'
+}) {
     const activeUser = currentUser || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {});
     const userPosition = (activeUser?.position || '').toLowerCase();
-    const isStaffKeuangan = 
+    const isStaffKeuangan =
         activeUser?.position === 'Staff Keuangan dan Administrasi' ||
         userPosition.includes('staff keuangan dan administrasi') ||
+        userPosition.includes('staf keuangan dan administrasi') ||
         userPosition.includes('keuangan dan administrasi') ||
-        userPosition.includes('staff keuangan');
+        userPosition.includes('keuangan & administrasi');
 
     const [localVehicles, setLocalVehicles] = useState(vehicles);
     const [selectedVehicleId, setSelectedVehicleId] = useState('');
-    const [category, setCategory] = useState('ROUTINE');
-    const [type, setType] = useState('SERVICE_RUTIN');
+    const [category, setCategory] = useState(initialCategory || 'ROUTINE');
+    const [type, setType] = useState(initialType || 'SERVICE_RUTIN');
     const [urgency, setUrgency] = useState('NORMAL');
     const [odometer, setOdometer] = useState('');
     const [estimatedCost, setEstimatedCost] = useState('');
@@ -55,6 +59,13 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
     const [isBudgetAvailable, setIsBudgetAvailable] = useState(true);
     const [budgetSource, setBudgetSource] = useState('Kas Operasional Kendaraan');
     const [budgetNote, setBudgetNote] = useState('');
+
+    useEffect(() => {
+        if (show) {
+            setCategory(initialCategory || 'ROUTINE');
+            setType(initialType || 'SERVICE_RUTIN');
+        }
+    }, [show, initialCategory, initialType]);
 
     useEffect(() => {
         if (vehicles && vehicles.length > 0) {
@@ -84,7 +95,7 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
         : ROUTINE_COMPONENTS_BY_TYPE.GENERAL;
 
     const toggleComponent = (name) => {
-        setSelectedComponents(prev => 
+        setSelectedComponents(prev =>
             prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]
         );
     };
@@ -138,7 +149,7 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
                     if (budgetNote) formData.append('budgetNote', budgetNote);
                 }
             }
-            
+
             // Format items
             const itemsData = selectedComponents.map(name => ({
                 name,
@@ -275,11 +286,10 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
                             <select
                                 value={urgency}
                                 onChange={(e) => setUrgency(e.target.value)}
-                                className={`w-full text-xs border rounded-xl px-3 py-2 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                    urgency === 'EMERGENCY' ? 'bg-rose-50 text-rose-700 border-rose-300' :
-                                    urgency === 'URGENT' ? 'bg-amber-50 text-amber-700 border-amber-300' :
-                                    'bg-slate-50 text-slate-800 border-slate-300'
-                                }`}
+                                className={`w-full text-xs border rounded-xl px-3 py-2 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 ${urgency === 'EMERGENCY' ? 'bg-rose-50 text-rose-700 border-rose-300' :
+                                        urgency === 'URGENT' ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                                            'bg-slate-50 text-slate-800 border-slate-300'
+                                    }`}
                             >
                                 <option value="NORMAL">Normal / Biasa</option>
                                 <option value="URGENT">Mendesak / Penting</option>
@@ -304,11 +314,10 @@ export default function VehicleMaintenanceRequestModal({ show, onClose, onSucces
                                         type="button"
                                         key={comp}
                                         onClick={() => toggleComponent(comp)}
-                                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                                            isSelected 
-                                                ? 'bg-blue-600 text-white shadow-xs' 
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${isSelected
+                                                ? 'bg-blue-600 text-white shadow-xs'
                                                 : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'
-                                        }`}
+                                            }`}
                                     >
                                         {isSelected && <Check size={12} />}
                                         <span>{comp}</span>

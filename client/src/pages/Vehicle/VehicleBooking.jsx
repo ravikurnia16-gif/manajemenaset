@@ -699,18 +699,18 @@ const VehicleBooking = () => {
                 return;
             }
             if (inputKm < currentOdometer) {
-                showToast(`KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini (${currentOdometer}).`, 'error');
+                showToast(`KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini.`, 'error');
                 return;
             }
 
             const diff = inputKm - currentOdometer;
             if (diff > 1 && !actionData.photo) {
-                showToast(`Terdeteksi selisih Odometer (${diff} KM). Anda WAJIB mengambil/mengunggah foto Odometer awal sebelum memulai perjalanan!`, 'error');
+                showToast(`Terdeteksi selisih Odometer. Anda WAJIB mengambil/mengunggah foto Odometer awal sebelum memulai perjalanan!`, 'error');
                 return;
             }
 
             if (diff > 750) {
-                if (!window.confirm(`Terdapat lonjakan odometer sebesar ${diff} km dari pencatatan terakhir (${currentOdometer} km). Apakah Anda yakin angka KM awal (${inputKm}) sudah benar?`)) {
+                if (!window.confirm(`Terdapat lonjakan odometer dari pencatatan terakhir. Apakah Anda yakin angka KM awal (${inputKm}) sudah benar?`)) {
                     return;
                 }
             }
@@ -2353,7 +2353,7 @@ const VehicleBooking = () => {
                                                         onClick={() => {
                                                             setActionData({ 
                                                                 ...actionData, 
-                                                                km: b.vehicle?.odometer || '',
+                                                                km: '',
                                                                 photo: null,
                                                                 photoPreview: null,
                                                                 preTripChecklist: {
@@ -2471,7 +2471,7 @@ const VehicleBooking = () => {
                                                                     onClick={() => {
                                                                         setActionData({ 
                                                                             ...actionData, 
-                                                                            km: b.vehicle?.odometer || '',
+                                                                            km: '',
                                                                             photo: null,
                                                                             photoPreview: null,
                                                                             preTripChecklist: {
@@ -4103,9 +4103,9 @@ const VehicleBooking = () => {
                                 <div className="space-y-4">
                                     {(() => {
                                         const currentOdometer = showActionModal.data.vehicle?.odometer || 0;
-                                        const inputKm = parseInt(actionData.km || 0);
-                                        const diff = inputKm - currentOdometer;
-                                        const isDiscrepancy = diff > 1;
+                                        const inputKm = actionData.km ? parseInt(actionData.km) : 0;
+                                        const diff = actionData.km ? (inputKm - currentOdometer) : 0;
+                                        const isDiscrepancy = Boolean(actionData.km && diff > 1);
 
                                         return (
                                             <>
@@ -4113,10 +4113,10 @@ const VehicleBooking = () => {
                                                     <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs space-y-1">
                                                         <div className="font-bold flex items-center gap-1.5 text-red-800">
                                                             <AlertCircle className="shrink-0 text-red-600" size={16} />
-                                                            Terdeteksi Selisih KM ({diff} KM)!
+                                                            Terdeteksi Selisih KM!
                                                         </div>
                                                         <p className="text-[11px] leading-relaxed">
-                                                            KM Awal yang diinput lebih besar dari record sistem ({currentOdometer} KM). Anda <b>WAJIB</b> melampirkan foto Odometer awal sebagai konfirmasi.
+                                                            KM Awal yang diinput terdeteksi memiliki perbedaan dari sistem. Anda <b>WAJIB</b> melampirkan foto Odometer awal sebagai konfirmasi.
                                                         </p>
                                                     </div>
                                                 ) : (

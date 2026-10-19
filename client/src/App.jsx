@@ -85,6 +85,7 @@ import VendorManagement from './pages/VendorManagement';
 import ReportPage from './pages/ReportPage';
 import LaporanStaff from './pages/LaporanStaff';
 import LaporanKabid from './pages/LaporanKabid';
+import KinerjaManajemen from './pages/KinerjaManajemen';
 import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
@@ -120,6 +121,28 @@ const LaporanRoute = ({ children }) => {
                     uPos.includes('kepala bidang sarana') ||
                     uPos.includes('kabid sarpras') ||
                     uPos.includes('admin aset');
+
+  if (!isAllowed) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Guard khusus Laporan Mingguan Kepala Bidang Sarana: HANYA position 'Kepala Bidang Sarana'
+const KabidSaranaOnlyRoute = ({ children }) => {
+  let currentUser = {};
+  try {
+    const stored = localStorage.getItem('user');
+    if (stored && stored !== 'undefined') {
+      currentUser = JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Error parsing user in KabidSaranaOnlyRoute', e);
+  }
+
+  const uPos = (currentUser?.position || '').toLowerCase();
+  const isAllowed = uPos.includes('kepala bidang sarana');
 
   if (!isAllowed) {
     return <Navigate to="/dashboard" replace />;
@@ -389,7 +412,22 @@ function App() {
               <LaporanStaff />
             </LaporanRoute>
           } />
-          <Route path="laporan-aset-keuangan" element={<ReportPage />} />
+          <Route path="laporan-aset-keuangan" element={
+            <KabidSaranaOnlyRoute>
+              <ReportPage />
+            </KabidSaranaOnlyRoute>
+          } />
+          {/* Menu Baru: Kinerja & Manajemen Strategis (PPP, PDCA, MBE, OKR) - Khusus Kepala Bidang Sarana */}
+          <Route path="kinerja-manajemen" element={
+            <KabidSaranaOnlyRoute>
+              <KinerjaManajemen />
+            </KabidSaranaOnlyRoute>
+          } />
+          <Route path="kinerja-manajemen/:tab" element={
+            <KabidSaranaOnlyRoute>
+              <KinerjaManajemen />
+            </KabidSaranaOnlyRoute>
+          } />
 
           {/* Module: E-Office */}
           <Route path="e-office" element={

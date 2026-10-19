@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
     FileSpreadsheet, Truck, Sparkles, Building2, CalendarRange,
-    Layers, Award, ShieldCheck, Shirt, Warehouse, Bot, Target
+    Layers, Award, ShieldCheck, Shirt, Warehouse, Bot, Target,
+    ShieldAlert, ArrowLeft
 } from 'lucide-react';
 import AssetDateRangeReport from '../components/AssetDateRangeReport';
 import VehicleWeeklySevenReportsTab from '../components/VehicleWeeklySevenReportsTab';
@@ -91,6 +92,7 @@ const ReportPage = () => {
         }
     }, [tabFromUrl]);
 
+    const navigate = useNavigate();
     let user = {};
     try {
         user = JSON.parse(localStorage.getItem('user')) || {};
@@ -98,14 +100,42 @@ const ReportPage = () => {
         console.error('Failed to parse user from localStorage', e);
     }
 
+    const userPos = (user?.position || '').toLowerCase();
+    const isKabidSaranaPosition = userPos.includes('kepala bidang sarana');
+
     const handleTabChange = (newTab) => {
         setActiveTab(newTab);
         setSearchParams(newTab === 'asset' ? {} : { tab: newTab });
     };
 
+    if (!isKabidSaranaPosition) {
+        return (
+            <div className="min-h-[65vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                <div className="w-20 h-20 bg-rose-50 border border-rose-200 text-rose-600 rounded-3xl flex items-center justify-center shadow-lg shadow-rose-500/10 mb-5">
+                    <ShieldAlert size={40} />
+                </div>
+                <span className="px-3 py-1 rounded-full text-[11px] font-black tracking-wider uppercase bg-rose-100 text-rose-700 border border-rose-200 mb-3">
+                    Akses Dibatasi
+                </span>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight mb-2">
+                    Laporan Mingguan Kepala Bidang Sarana
+                </h1>
+                <p className="text-sm text-slate-500 max-w-md font-medium leading-relaxed mb-6">
+                    Halaman ini dikhususkan secara eksklusif untuk pengguna dengan jabatan <strong>Kepala Bidang Sarana</strong>. Jabatan akun Anda saat ini: <span className="font-bold text-slate-700">{user?.position || 'Tidak Ditentukan'}</span>.
+                </p>
+                <button
+                    onClick={() => navigate('/dashboard')}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition-all shadow-md hover:shadow-lg cursor-pointer"
+                >
+                    <ArrowLeft size={16} /> Kembali ke Dashboard
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-            {/* Header Laporan Mingguan Kepala Bidang */}
+            {/* Header Laporan Mingguan Kepala Bidang Sarana */}
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-7 rounded-3xl shadow-xl relative overflow-hidden">
                 {/* Decorative background accent */}
                 <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -125,7 +155,7 @@ const ReportPage = () => {
                             </span>
                         </div>
                         <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-2.5">
-                            Laporan Mingguan Kepala Bidang
+                            Laporan Mingguan Kepala Bidang Sarana
                         </h1>
                         <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl font-medium leading-relaxed">
                             Pusat pengawasan dan rekapitulasi berkala 6 pilar sarana: Audit Aset (Pengadaan & Sarpras), 7 Laporan Utama Armada Kendaraan, Manajemen Seragam, Logistik Gudang, Rangkuman Kinerja Staf (Analisis AI), serta Perencanaan Kerja (Workplan).

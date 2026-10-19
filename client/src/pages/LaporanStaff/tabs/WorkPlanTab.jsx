@@ -108,6 +108,32 @@ export default function WorkPlanTab({
     const [exportStaffFilter, setExportStaffFilter] = useState('ALL');
     const [exportingPdf, setExportingPdf] = useState(false);
 
+    // Collapsible states per plan ID (buka/tutup per masing-masing judul rencana)
+    const [collapsedPlans, setCollapsedPlans] = useState({});
+
+    const togglePlanCollapse = (planId) => {
+        setCollapsedPlans(prev => ({
+            ...prev,
+            [planId]: !prev[planId]
+        }));
+    };
+
+    const handleCollapseAll = () => {
+        const next = {};
+        filteredPlans.forEach(p => {
+            next[p.id] = true;
+        });
+        setCollapsedPlans(next);
+    };
+
+    const handleExpandAll = () => {
+        const next = {};
+        filteredPlans.forEach(p => {
+            next[p.id] = false;
+        });
+        setCollapsedPlans(next);
+    };
+
     // Filtered plans for export based on date range and selected filters
     const plansForExport = useMemo(() => {
         return plans.filter(p => {
@@ -440,12 +466,13 @@ export default function WorkPlanTab({
         items: []
     });
 
-    // Modal state for 100% completion with photo proof & direct Daily Report sync
+    // Modal state for completion/progress (50% or 100%) with photo proof & direct Daily Report sync
     const [completionModal, setCompletionModal] = useState({
         isOpen: false,
         plan: null,
         item: null,
         itemIndex: null, // null for single-goal plan
+        targetPercentage: 100,
         photoFile: null,
         photoPreview: null,
         syncToDailyReport: true,
@@ -504,13 +531,17 @@ export default function WorkPlanTab({
         }
     };
 
-    // Open 100% Completion Modal
-    const handleOpenCompletionModal = (plan, item = null, itemIndex = null) => {
+    // Open Progress / Completion Modal (Supports 50% or 100%)
+    const handleOpenCompletionModal = (plan, item = null, itemIndex = null, targetPct = 100) => {
+        const initialPct = targetPct !== undefined && targetPct !== null
+            ? targetPct
+            : (item ? (item.percentage || 100) : (plan.metadata?.percentage || 100));
         setCompletionModal({
             isOpen: true,
             plan,
             item,
             itemIndex,
+            targetPercentage: initialPct > 0 ? initialPct : 50,
             photoFile: null,
             photoPreview: null,
             syncToDailyReport: true,
@@ -553,8 +584,12 @@ export default function WorkPlanTab({
 
     const handleSubmitCompletion = async (e) => {
         if (e) e.preventDefault();
-        const { plan, item, itemIndex, photoFile, syncToDailyReport, sessionPeriod } = completionModal;
+        const { plan, item, itemIndex, photoFile, syncToDailyReport, sessionPeriod, targetPercentage } = completionModal;
         if (!plan) return;
+
+        const targetPct = targetPercentage !== undefined ? targetPercentage : 100;
+        const isCompleted = targetPct === 100;
+        const status = isCompleted ? 'SELESAI' : (targetPct > 0 ? 'PROSES' : 'PENDING');
 
         try {
             setUploadingCompletion(true);
@@ -573,26 +608,30 @@ export default function WorkPlanTab({
                     }
                 } catch (uploadErr) {
                     console.error('Failed to upload proof photo:', uploadErr);
-                    if (!window.confirm('Gagal mengunggah foto bukti ke server. Tetap lanjutkan penyelesaian 100% tanpa bukti foto?')) {
+                    if (!window.confirm(`Gagal mengunggah foto bukti ke server. Tetap simpan progres ${targetPct}% tanpa bukti foto baru?`)) {
                         setUploadingCompletion(false);
                         return;
                     }
                 }
             }
 
-            // 2. Mark Plan or Sub-item as 100% SELESAI
+            // Existing photos fallback if no new upload
+            const existingPhotos = item?.photos || (item?.photo ? [{ url: item.photo }] : []) || plan.metadata?.photos || [];
+            const finalPhotos = uploadedPhotos.length > 0 ? uploadedPhotos : existingPhotos;
+
+            // 2. Mark Plan or Sub-item with target percentage & status
             const isSingleGoal = itemIndex === null;
             if (isSingleGoal) {
                 const extraMeta = {
-                    percentage: 100,
-                    status: 'SELESAI',
+                    percentage: targetPct,
+                    status: status,
                     ...(uploadedPhotos.length > 0 ? { photos: uploadedPhotos } : {})
                 };
                 await handleTogglePlanStatus(plan, extraMeta);
             } else {
                 const updates = {
-                    percentage: 100,
-                    status: 'SELESAI',
+                    percentage: targetPct,
+                    status: status,
                     ...(uploadedPhotos.length > 0 ? { photos: uploadedPhotos } : {})
                 };
                 await handleUpdatePlanItem(plan, itemIndex, updates);
@@ -600,7 +639,17 @@ export default function WorkPlanTab({
 
             // 3. Directly import into Laporan Harian if selected
             if (syncToDailyReport && onImportPlanItemToReport) {
-                onImportPlanItemToReport(plan, item, itemIndex, sessionPeriod, uploadedPhotos);
+                const updatedItem = item ? { ...item, percentage: targetPct, status, photos: finalPhotos } : null;
+                const updatedPlan = {
+                    ...plan,
+                    metadata: {
+                        ...plan.metadata,
+                        percentage: isSingleGoal ? targetPct : plan.metadata?.percentage,
+                        status: isSingleGoal ? status : plan.metadata?.status,
+                        ...(isSingleGoal && uploadedPhotos.length > 0 ? { photos: uploadedPhotos } : {})
+                    }
+                };
+                onImportPlanItemToReport(updatedPlan, updatedItem, itemIndex, sessionPeriod, uploadedPhotos);
             }
 
             // 4. Cleanup and close modal
@@ -610,14 +659,15 @@ export default function WorkPlanTab({
                 plan: null,
                 item: null,
                 itemIndex: null,
+                targetPercentage: 100,
                 photoFile: null,
                 photoPreview: null,
                 syncToDailyReport: true,
                 sessionPeriod: 'morning'
             });
         } catch (err) {
-            console.error('Error completing plan item:', err);
-            alert('Gagal menyimpan penyelesaian rencana kerja: ' + (err.response?.data?.error || err.message));
+            console.error('Error saving plan progress:', err);
+            alert('Gagal menyimpan progres rencana kerja: ' + (err.response?.data?.error || err.message));
         } finally {
             setUploadingCompletion(false);
         }
@@ -1030,6 +1080,33 @@ export default function WorkPlanTab({
                 </div>
             </div>
 
+            {/* Quick Collapse / Expand All Bar */}
+            {filteredPlans.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 text-xs text-slate-500">
+                    <span className="font-semibold text-[11px] text-slate-600">
+                        Menampilkan <strong className="text-violet-700 font-black">{filteredPlans.length}</strong> judul rencana kerja
+                    </span>
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                        <button
+                            type="button"
+                            onClick={handleCollapseAll}
+                            className="px-2.5 py-1 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                            title="Tutup rincian seluruh judul rencana kerja agar tampilan ringkas"
+                        >
+                            <ChevronDown size={13} className="text-slate-500" /> Tutup Semua Judul
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExpandAll}
+                            className="px-2.5 py-1 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                            title="Buka rincian seluruh judul rencana kerja"
+                        >
+                            <ChevronUp size={13} className="text-slate-500" /> Buka Semua Judul
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* 3. PLANS CARD LIST */}
             <div className="space-y-4">
                 {loadingPlans ? (
@@ -1084,11 +1161,14 @@ export default function WorkPlanTab({
 
                         const displayPosition = meta.position || plan.user?.position || plan.category || 'Staff Sarpras';
                         const planPriority = meta.priority || 'SEDANG';
+                        const isCollapsed = Boolean(collapsedPlans[plan.id]);
 
                         return (
                             <div 
                                 key={plan.id} 
-                                className={`bg-white p-5 sm:p-6 rounded-3xl border transition-all space-y-4 ${
+                                className={`bg-white rounded-3xl border transition-all ${
+                                    isCollapsed ? 'p-4 sm:p-5 space-y-2' : 'p-5 sm:p-6 space-y-4'
+                                } ${
                                     isOverdue 
                                         ? 'border-rose-200/90 shadow-xs ring-1 ring-rose-100' 
                                         : isDueToday 
@@ -1098,7 +1178,11 @@ export default function WorkPlanTab({
                             >
                                 {/* Plan Header */}
                                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                    <div className="space-y-1.5 flex-1 min-w-0">
+                                    <div 
+                                        onClick={() => togglePlanCollapse(plan.id)}
+                                        className="space-y-1.5 flex-1 min-w-0 cursor-pointer select-none group"
+                                        title={isCollapsed ? "Klik untuk membuka rincian rencana kerja ini" : "Klik untuk menutup rincian rencana kerja ini"}
+                                    >
                                         <div className="flex flex-wrap items-center gap-2">
                                             {/* Status Badge */}
                                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -1165,24 +1249,46 @@ export default function WorkPlanTab({
                                             )}
                                         </div>
 
-                                        <h3 className={`text-base font-black text-slate-800 ${isDone ? 'line-through text-slate-400' : ''}`}>
-                                            {meta.title || 'Rencana Kerja'}
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className={`text-base font-black text-slate-800 group-hover:text-violet-700 transition ${isDone ? 'line-through text-slate-400' : ''}`}>
+                                                {meta.title || 'Rencana Kerja'}
+                                            </h3>
+                                        </div>
 
-                                        {plan.content && (
+                                        {plan.content && !isCollapsed && (
                                             <p className="text-xs text-slate-500 font-medium line-clamp-2">
                                                 {plan.content}
                                             </p>
                                         )}
+
+                                        {/* Compact summary when collapsed */}
+                                        {isCollapsed && (
+                                            <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-100 text-violet-700'}`}>
+                                                    {avgPct}% {isDone ? 'Selesai' : 'Progres'}
+                                                </span>
+                                                {hasItems && (
+                                                    <span className="text-[11px] text-slate-500 font-medium">
+                                                        • {doneCount} dari {items.length} langkah tuntas
+                                                    </span>
+                                                )}
+                                                <span className="text-[11px] text-violet-600 font-bold flex items-center gap-0.5 ml-1">
+                                                    <ChevronDown size={13} /> Buka Rincian
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Action Buttons for Plan Owner / Kabid */}
-                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                    {/* Action Buttons for Plan Owner / Kabid + Collapse Button */}
+                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                                         {(isOwner || isKabid) && (
                                             <>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleOpenEditModal(plan)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenEditModal(plan);
+                                                    }}
                                                     className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition cursor-pointer"
                                                     title="Edit Rencana Kerja"
                                                 >
@@ -1190,7 +1296,8 @@ export default function WorkPlanTab({
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
                                                         if (window.confirm(`Yakin ingin menghapus rencana "${meta.title || 'Rencana Kerja'}"? Agenda kalender terkait juga akan dibersihkan.`)) {
                                                             handleDeletePlan(plan.id);
                                                         }
@@ -1202,11 +1309,31 @@ export default function WorkPlanTab({
                                                 </button>
                                             </>
                                         )}
+
+                                        {/* Toggle Collapse/Expand Button */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                togglePlanCollapse(plan.id);
+                                            }}
+                                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                                isCollapsed 
+                                                    ? 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200/70 shadow-2xs' 
+                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                                            }`}
+                                            title={isCollapsed ? "Buka rincian rencana kerja ini" : "Tutup rincian rencana kerja ini"}
+                                        >
+                                            <span className="text-[11px]">{isCollapsed ? 'Buka' : 'Tutup'}</span>
+                                            {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                        </button>
                                     </div>
                                 </div>
 
-                                {/* Plan Progress Bar */}
-                                <div className="space-y-1 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
+                                {!isCollapsed && (
+                                    <div className="space-y-4 pt-1 animate-in fade-in duration-200">
+                                        {/* Plan Progress Bar */}
+                                        <div className="space-y-1 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
                                     <div className="flex items-center justify-between text-xs font-bold">
                                         <span className="text-slate-600 flex items-center gap-1.5">
                                             <Target size={13} className="text-violet-600" />
@@ -1337,31 +1464,43 @@ export default function WorkPlanTab({
                                                         {/* Progress quick buttons & 1-click import */}
                                                         {(isOwner || isKabid) && (
                                                             <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-end md:self-auto">
-                                                                {/* Quick percentage adjustment */}
+                                                                {/* Quick percentage adjustment & Photo Upload */}
                                                                 <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
                                                                     {[0, 50, 100].map(pct => (
                                                                         <button
                                                                             key={pct}
                                                                             type="button"
                                                                             onClick={() => {
-                                                                                if (pct === 100 && itemPct !== 100) {
-                                                                                    handleOpenCompletionModal(plan, it, idx);
-                                                                                } else {
+                                                                                if (pct === 0) {
                                                                                     handleUpdatePlanItem(plan, idx, {
-                                                                                        percentage: pct,
-                                                                                        status: pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING')
+                                                                                        percentage: 0,
+                                                                                        status: 'PENDING'
                                                                                     });
+                                                                                } else {
+                                                                                    handleOpenCompletionModal(plan, it, idx, pct);
                                                                                 }
                                                                             }}
                                                                             className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                                                                                 itemPct === pct
-                                                                                    ? 'bg-violet-600 text-white shadow-2xs'
+                                                                                    ? pct === 100
+                                                                                        ? 'bg-emerald-600 text-white shadow-2xs'
+                                                                                        : pct === 50
+                                                                                            ? 'bg-amber-500 text-white shadow-2xs'
+                                                                                            : 'bg-slate-600 text-white shadow-2xs'
                                                                                     : 'text-slate-500 hover:bg-slate-100'
                                                                             }`}
                                                                         >
                                                                             {pct}%
                                                                         </button>
                                                                     ))}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenCompletionModal(plan, it, idx, itemPct || 50)}
+                                                                        className="p-1 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer"
+                                                                        title="Unggah / Perbarui Bukti Foto Pelaksanaan"
+                                                                    >
+                                                                        <Camera size={13} />
+                                                                    </button>
                                                                 </div>
 
                                                                 {/* 1-Click Import to Daily Report (Morning / Afternoon) */}
@@ -1419,14 +1558,53 @@ export default function WorkPlanTab({
 
                                         {(isOwner || isKabid) && (
                                             <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                                {/* Quick percentage adjustment & Photo Upload */}
+                                                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                                                    {[0, 50, 100].map(pct => {
+                                                        const currPct = plan.metadata?.percentage !== undefined ? plan.metadata.percentage : (isDone ? 100 : 0);
+                                                        return (
+                                                            <button
+                                                                key={pct}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (pct === 0) {
+                                                                        handleTogglePlanStatus && handleTogglePlanStatus(plan, { percentage: 0, status: 'PENDING' });
+                                                                    } else {
+                                                                        handleOpenCompletionModal(plan, null, null, pct);
+                                                                    }
+                                                                }}
+                                                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                                                    currPct === pct
+                                                                        ? pct === 100
+                                                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                                                            : pct === 50
+                                                                                ? 'bg-amber-500 text-white shadow-2xs'
+                                                                                : 'bg-slate-600 text-white shadow-2xs'
+                                                                        : 'text-slate-500 hover:bg-slate-100'
+                                                                }`}
+                                                            >
+                                                                {pct}%
+                                                            </button>
+                                                        );
+                                                    })}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenCompletionModal(plan, null, null, plan.metadata?.percentage || 50)}
+                                                        className="p-1 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition cursor-pointer"
+                                                        title="Unggah / Perbarui Bukti Foto Pelaksanaan"
+                                                    >
+                                                        <Camera size={13} />
+                                                    </button>
+                                                </div>
+
                                                 {/* Single Toggle Button */}
                                                 <button
                                                     type="button"
                                                     onClick={() => {
                                                         if (!isDone) {
-                                                            handleOpenCompletionModal(plan, null, null);
+                                                            handleOpenCompletionModal(plan, null, null, 100);
                                                         } else {
-                                                            handleTogglePlanStatus && handleTogglePlanStatus(plan);
+                                                            handleTogglePlanStatus && handleTogglePlanStatus(plan, { percentage: 0, status: 'PENDING' });
                                                         }
                                                     }}
                                                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
@@ -1441,7 +1619,7 @@ export default function WorkPlanTab({
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <CheckCircle2 size={13} /> Tandai Selesai 100%
+                                                            <CheckCircle2 size={13} /> Selesai 100%
                                                         </>
                                                     )}
                                                 </button>
@@ -1469,6 +1647,8 @@ export default function WorkPlanTab({
                                                 )}
                                             </div>
                                         )}
+                                    </div>
+                                )}
                                     </div>
                                 )}
                             </div>
@@ -1782,17 +1962,29 @@ export default function WorkPlanTab({
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
                     <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden flex flex-col my-8">
                         {/* Modal Header */}
-                        <div className="p-5 sm:p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white flex items-center justify-between">
+                        <div className={`p-5 sm:p-6 text-white flex items-center justify-between transition-colors ${
+                            completionModal.targetPercentage === 50
+                                ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700'
+                                : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700'
+                        }`}>
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shadow-inner">
-                                    <CheckCircle2 size={22} className="text-white" />
+                                    {completionModal.targetPercentage === 50 ? (
+                                        <Clock size={22} className="text-white" />
+                                    ) : (
+                                        <CheckCircle2 size={22} className="text-white" />
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className="text-base sm:text-lg font-black tracking-tight">
-                                        Selesaikan Target 100%
+                                        {completionModal.targetPercentage === 50
+                                            ? 'Update Progres 50% & Bukti Foto'
+                                            : 'Selesaikan Target 100%'}
                                     </h3>
-                                    <p className="text-emerald-100 text-xs font-medium">
-                                        Bukti foto pelaksanaan & hubungkan ke Laporan Harian
+                                    <p className="text-white/80 text-xs font-medium">
+                                        {completionModal.targetPercentage === 50
+                                            ? 'Unggah foto progres pelaksanaan (50%) & hubungkan ke Laporan Harian'
+                                            : 'Bukti foto penyelesaian & hubungkan ke Laporan Harian'}
                                     </p>
                                 </div>
                             </div>
@@ -1814,7 +2006,7 @@ export default function WorkPlanTab({
                             {/* Task Preview Card */}
                             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5">
                                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                                    <span>Target yang Diselesaikan</span>
+                                    <span>Target yang Dikerjakan</span>
                                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">
                                         {completionModal.plan?.metadata?.categoryTag || completionModal.plan?.category || 'UMUM'}
                                     </span>
@@ -1830,19 +2022,58 @@ export default function WorkPlanTab({
                                 )}
                             </div>
 
-                            {/* Photo Upload (Optional) */}
+                            {/* Target Progress Selector (50% or 100%) */}
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                        <Target size={14} className="text-violet-600" />
+                                        Capaian Progres Saat Ini
+                                    </label>
+                                    <span className="text-[10px] font-bold text-slate-400">
+                                        {completionModal.targetPercentage === 50 ? 'Sedang Dikerjakan' : 'Selesai Sepenuhnya'}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCompletionModal(prev => ({ ...prev, targetPercentage: 50 }))}
+                                        className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border ${
+                                            completionModal.targetPercentage === 50
+                                                ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <Clock size={15} />
+                                        <span>50% (Sedang Berjalan)</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCompletionModal(prev => ({ ...prev, targetPercentage: 100 }))}
+                                        className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border ${
+                                            completionModal.targetPercentage === 100
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <CheckCircle2 size={15} />
+                                        <span>100% (Selesai Tuntas)</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Photo Upload (Available for 50% & 100%) */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
                                         <Camera size={14} className="text-violet-600" />
-                                        Bukti Foto Pelaksanaan
+                                        Bukti Foto Pelaksanaan ({completionModal.targetPercentage || 50}%)
                                     </label>
                                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
                                         Opsional
                                     </span>
                                 </div>
                                 <p className="text-[11px] text-slate-400">
-                                    Sertakan foto bukti hasil kegiatan jika ada.
+                                    Sertakan foto dokumentasi/progres pengerjaan jika ada.
                                 </p>
 
                                 <input
@@ -1919,7 +2150,7 @@ export default function WorkPlanTab({
                                             Langsung masukkan ke Laporan Harian hari ini
                                         </span>
                                         <span className="text-[11px] text-violet-600 font-medium">
-                                            Kegiatan ini akan dicatat tuntas 100% beserta bukti foto di Laporan Harian Anda.
+                                            Kegiatan ini akan dicatat dengan progres {completionModal.targetPercentage || 50}% beserta bukti foto di Laporan Harian Anda.
                                         </span>
                                     </div>
                                 </label>
@@ -1973,12 +2204,21 @@ export default function WorkPlanTab({
                                 <button
                                     type="submit"
                                     disabled={uploadingCompletion}
-                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer disabled:opacity-50"
+                                    className={`px-5 py-2.5 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 ${
+                                        completionModal.targetPercentage === 50
+                                            ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                                    }`}
                                 >
                                     {uploadingCompletion ? (
                                         <>
                                             <Loader2 size={15} className="animate-spin" />
                                             <span>Menyimpan & Mengunggah...</span>
+                                        </>
+                                    ) : completionModal.targetPercentage === 50 ? (
+                                        <>
+                                            <Clock size={15} />
+                                            <span>Simpan Progres 50%</span>
                                         </>
                                     ) : (
                                         <>

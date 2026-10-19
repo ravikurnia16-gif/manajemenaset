@@ -86,6 +86,11 @@ const LaporanStaff = () => {
         return role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     }, [user]);
 
+    const isOnlyKabidSarana = useMemo(() => {
+        const pos = (user.position || '').toLowerCase();
+        return pos.includes('kepala bidang sarana');
+    }, [user.position]);
+
     const userDivision = useMemo(() => {
         const pos = (user.position || '').toLowerCase();
         const role = (user.role || '').toLowerCase();
@@ -506,7 +511,8 @@ const LaporanStaff = () => {
 
     const convertPlanItemToReport = (plan, item, itemIndex, period = 'morning', extraPhotos = []) => {
         const itemText = item ? (item.activity || item.text || '') : '';
-        const reportTitle = plan.metadata?.title || 'Rencana Kerja';
+        const rawTitle = (plan.metadata?.title || plan.content || 'Kegiatan').trim();
+        const cleanTitle = rawTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawTitle;
         const isSingleGoal = !item;
 
         const isDone = isSingleGoal
@@ -524,11 +530,17 @@ const LaporanStaff = () => {
             resolvedPhotos = plan.metadata.photos;
         }
 
+        const pct = isDone ? 100 : (isSingleGoal ? (plan.metadata?.percentage || 50) : (item?.percentage !== undefined ? item.percentage : 50));
+        const cleanItemText = itemText.trim();
+        const formattedText = cleanItemText
+            ? `${cleanTitle} : ${cleanItemText} (${pct}%)`
+            : `${cleanTitle} (${pct}%)`;
+
         const reportItem = {
-            text: isSingleGoal ? `[Rencana Kerja] ${reportTitle}` : `[Rencana: ${reportTitle}] ${itemText}`,
+            text: formattedText,
             categoryTag: plan.metadata?.categoryTag || plan.category || 'UMUM',
             status: isDone ? 'COMPLETED' : 'IN_PROGRESS',
-            progressPercentage: isDone ? 100 : (isSingleGoal ? (plan.metadata?.percentage || 50) : (item?.percentage !== undefined ? item.percentage : 50)),
+            progressPercentage: pct,
             sourceType: 'PLAN',
             sourceId: plan.id,
             planItemIndex: isSingleGoal ? undefined : itemIndex,
@@ -1226,16 +1238,18 @@ const LaporanStaff = () => {
                         >
                             <Calendar size={16} /> Matriks Kedisiplinan
                         </button>
-                        <button
-                            onClick={() => setActiveTab('weekly-pdf')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'weekly-pdf'
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 ring-2 ring-indigo-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <Printer size={16} /> Laporan Mingguan Kabid (PDF)
-                        </button>
+                        {isOnlyKabidSarana && (
+                            <button
+                                onClick={() => setActiveTab('weekly-pdf')}
+                                className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'weekly-pdf'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 ring-2 ring-indigo-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <Printer size={16} /> Laporan Mingguan Kabid (PDF)
+                            </button>
+                        )}
                         <button
                             onClick={() => setActiveTab('penugasan')}
                             className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
@@ -1487,7 +1501,7 @@ const LaporanStaff = () => {
                     )}
 
                     {/* TAB: LAPORAN MINGGUAN KABID (PDF) */}
-                    {isKabid && activeTab === 'weekly-pdf' && (
+                    {isOnlyKabidSarana && activeTab === 'weekly-pdf' && (
                         <WeeklyPdfTab
                             weeklyData={weeklyData}
                             weeklyStartDate={weeklyStartDate}

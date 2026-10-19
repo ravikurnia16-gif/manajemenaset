@@ -113,7 +113,7 @@ export default function AiAnalysisModal({
                             <span className="text-[11px] text-slate-400">Mengevaluasi pembagian beban kerja, efisiensi tugas, dan solusi kendala...</span>
                         </div>
                     ) : (
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 whitespace-pre-line font-medium leading-relaxed shadow-2xs">
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 whitespace-pre-line font-medium leading-relaxed shadow-2xs text-justify">
                             {aiAnalysisResult}
                         </div>
                     )}

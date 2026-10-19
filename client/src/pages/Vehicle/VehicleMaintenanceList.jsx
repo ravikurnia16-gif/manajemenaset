@@ -23,12 +23,17 @@ const VehicleMaintenanceList = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedVehicleId, setSelectedVehicleId] = useState('');
-    const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'maintenance'
-    const [requestStatusFilter, setRequestStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'REJECTED'
+    const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'damage' | 'maintenance'
+    const [requestStatusFilter, setRequestStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
+    const [damageStatusFilter, setDamageStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
     const [previewPhoto, setPreviewPhoto] = useState(null); // photo lightbox modal
 
     // Modal state
-    const [showRequestModal, setShowRequestModal] = useState(false);
+    const [requestModalConfig, setRequestModalConfig] = useState({
+        show: false,
+        category: 'ROUTINE',
+        type: 'SERVICE_RUTIN'
+    });
     const [reviewModalRequest, setReviewModalRequest] = useState(null);
     const [completeModalRequest, setCompleteModalRequest] = useState(null);
     const [spkModalService, setSpkModalService] = useState(null);
@@ -107,13 +112,18 @@ const VehicleMaintenanceList = () => {
             type === 'perbaikan' ||
             desc.includes('kerusakan') ||
             desc.includes('insiden') ||
-            desc.includes('[laporan')
+            desc.includes('kendala') ||
+            desc.includes('[laporan') ||
+            !!l.complaintPhoto
         );
     };
 
-    // Pengajuan Pemeliharaan (Termasuk pengajuan perbaikan/kerusakan, servis rutin, maupun temuan ceklis/insiden)
+    // Laporan Kerusakan Khusus (Semua insiden / perbaikan darurat)
+    const damageLogs = logs.filter(isDamageReport);
+
+    // Pengajuan Pemeliharaan Rutin (Alur servis berkala)
     const requestLogs = logs.filter(l => {
-        return (
+        const inRequestFlow = (
             (l.code && l.code.startsWith('PK/')) ||
             l.status === 'PENDING' || 
             l.status === 'APPROVED' || 
@@ -121,6 +131,7 @@ const VehicleMaintenanceList = () => {
             l.status === 'REJECTED' ||
             (l.requesterId && l.status !== 'COMPLETED')
         );
+        return inRequestFlow && !isDamageReport(l);
     });
 
     // Riwayat Servis Selesai (COMPLETED routine / scheduled services)
@@ -128,20 +139,32 @@ const VehicleMaintenanceList = () => {
         !l.status || l.status === 'COMPLETED'
     );
 
-    // Badge Counters
-    const damageRequestsCount = requestLogs.filter(isDamageReport).length;
+    // Badge Counters Tab Pengajuan Rutin
     const pendingRequestsCount = requestLogs.filter(l => l.status === 'PENDING').length;
     const approvedRequestsCount = requestLogs.filter(l => l.status === 'APPROVED').length;
     const inProgressRequestsCount = requestLogs.filter(l => l.status === 'IN_PROGRESS').length;
 
-    // Filter per tab yang sedang aktif (Alur Pengajuan atau Riwayat Servis Selesai)
-    const currentTabLogs = activeTab === 'requests'
-        ? requestLogs.filter(l => {
+    // Badge Counters Tab Laporan Kerusakan
+    const damagePendingCount = damageLogs.filter(l => l.status === 'PENDING').length;
+    const damageApprovedCount = damageLogs.filter(l => l.status === 'APPROVED').length;
+    const damageInProgressCount = damageLogs.filter(l => l.status === 'IN_PROGRESS').length;
+    const damageCompletedCount = damageLogs.filter(l => l.status === 'COMPLETED').length;
+
+    // Filter per tab yang sedang aktif
+    let currentTabLogs = [];
+    if (activeTab === 'requests') {
+        currentTabLogs = requestLogs.filter(l => {
             if (requestStatusFilter === 'ALL') return true;
-            if (requestStatusFilter === 'KERUSAKAN') return isDamageReport(l);
             return l.status === requestStatusFilter;
-        })
-        : maintenanceLogs;
+        });
+    } else if (activeTab === 'damage') {
+        currentTabLogs = damageLogs.filter(l => {
+            if (damageStatusFilter === 'ALL') return true;
+            return l.status === damageStatusFilter;
+        });
+    } else {
+        currentTabLogs = maintenanceLogs;
+    }
 
     const uniqueVehicles = vehicles.length > 0 
         ? vehicles 
@@ -166,7 +189,24 @@ const VehicleMaintenanceList = () => {
         let exportData = [];
         let sheetTitle = 'Pemeliharaan_Kendaraan';
 
-        if (activeTab === 'requests') {
+        if (activeTab === 'damage') {
+            sheetTitle = 'Laporan_Kerusakan_Kendaraan';
+            exportData = filteredLogs.map((log, index) => ({
+                'No': index + 1,
+                'Kode Laporan': log.code || '-',
+                'Tanggal': new Date(log.date).toLocaleDateString('id-ID'),
+                'Kendaraan': log.vehicle?.name || 'Tanpa Nama',
+                'Plat Nomor': log.vehicle?.plateNumber || '-',
+                'Pelapor': log.requester?.name || '-',
+                'Tingkat Urgensi': log.urgency || 'NORMAL',
+                'Status': log.status || 'PENDING',
+                'No. SPK': log.spkNumber || '-',
+                'Estimasi Biaya (Rp)': log.estimatedCost || 0,
+                'Biaya Aktual (Rp)': log.cost || 0,
+                'Bengkel': log.workshop || '-',
+                'Deskripsi Kerusakan / Kendala': log.description || '-'
+            }));
+        } else if (activeTab === 'requests') {
             sheetTitle = 'Pengajuan_Servis_Kendaraan';
             exportData = filteredLogs.map((log, index) => ({
                 'No': index + 1,
@@ -282,23 +322,33 @@ const VehicleMaintenanceList = () => {
                         <span>Pemeliharaan & Servis Kendaraan</span>
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Alur pengajuan servis berkala armada langsung dari PIC atau Staff Kendaraan, penerbitan SPK Bengkel resmi, dan kontrol riwayat perawatan.
+                        Monitoring servis berkala armada, penanganan laporan kerusakan & insiden darurat, penerbitan SPK Bengkel resmi, serta arsip riwayat perawatan.
                     </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-                    {/* Tombol Ajukan Servis - Alur Baru */}
+                    {/* Tombol Lapor Kerusakan */}
                     <button
-                        onClick={() => setShowRequestModal(true)}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/25 transition-all text-xs sm:text-sm cursor-pointer"
+                        onClick={() => setRequestModalConfig({ show: true, category: 'NON_ROUTINE', type: 'PERBAIKAN' })}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 to-red-600 text-white px-4 py-2.5 rounded-xl font-bold hover:from-rose-700 hover:to-red-700 shadow-md shadow-rose-500/25 transition-all text-xs sm:text-sm cursor-pointer"
+                        title="Laporkan kendala, insiden, atau kerusakan armada untuk perbaikan darurat/bengkel"
                     >
-                        <Plus size={18} /> <span>+ Ajukan Pemeliharaan</span>
+                        <AlertTriangle size={16} /> <span>+ Lapor Kerusakan</span>
+                    </button>
+
+                    {/* Tombol Ajukan Servis Rutin */}
+                    <button
+                        onClick={() => setRequestModalConfig({ show: true, category: 'ROUTINE', type: 'SERVICE_RUTIN' })}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/25 transition-all text-xs sm:text-sm cursor-pointer"
+                        title="Pengajuan servis berkala, ganti oli, dan tune-up armada"
+                    >
+                        <Plus size={16} /> <span>+ Ajukan Servis</span>
                     </button>
 
                     {/* Tombol Health Monitor */}
                     <button
                         onClick={() => navigate('/kendaraan/pemeliharaan/reminder')}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition-all text-xs sm:text-sm cursor-pointer"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3.5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 transition-all text-xs sm:text-sm cursor-pointer"
                         title="Monitoring kesehatan komponen rutin dan jadwal servis berkala"
                     >
                         <span>🩺 Health Monitor</span>
@@ -307,7 +357,7 @@ const VehicleMaintenanceList = () => {
                     {/* Tombol Ekspor */}
                     <button
                         onClick={handleExport}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold transition-all text-xs sm:text-sm cursor-pointer"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs sm:text-sm cursor-pointer"
                         title="Ekspor daftar ke file Microsoft Excel"
                     >
                         <Download size={16} /> <span>Excel</span>
@@ -324,9 +374,9 @@ const VehicleMaintenanceList = () => {
                 </div>
             </div>
 
-            {/* TAB NAVIGATION: 2 Tab (Alur Pengajuan Servis, Riwayat Servis Selesai) */}
+            {/* TAB NAVIGATION: 3 Tab (Alur Pengajuan Servis, Laporan Kerusakan, Riwayat Servis Selesai) */}
             <div className="bg-white rounded-2xl border border-slate-100 p-1.5 shadow-sm flex flex-wrap gap-2">
-                {/* TAB 1: PENGAJUAN PEMELIHARAAN (ALUR KERJA) */}
+                {/* TAB 1: PENGAJUAN PEMELIHARAAN (ALUR KERJA SERVIS RUTIN) */}
                 <button
                     onClick={() => setActiveTab('requests')}
                     className={`flex-1 sm:flex-initial flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
@@ -337,14 +387,13 @@ const VehicleMaintenanceList = () => {
                 >
                     <FileText size={16} />
                     <span>Alur Pengajuan Servis</span>
-                    {pendingRequestsCount > 0 && (
+                    {pendingRequestsCount > 0 ? (
                         <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold animate-pulse ${
                             activeTab === 'requests' ? 'bg-amber-400 text-slate-900' : 'bg-amber-500 text-white'
                         }`} title={`${pendingRequestsCount} pengajuan menunggu persetujuan Kabid`}>
                             {pendingRequestsCount} Perlu Review
                         </span>
-                    )}
-                    {pendingRequestsCount === 0 && (
+                    ) : (
                         <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
                             activeTab === 'requests' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                         }`}>
@@ -353,7 +402,33 @@ const VehicleMaintenanceList = () => {
                     )}
                 </button>
 
-                {/* TAB 2: RIWAYAT SERVIS SELESAI */}
+                {/* TAB 2: LAPORAN KERUSAKAN (DEDICATED TAB) */}
+                <button
+                    onClick={() => setActiveTab('damage')}
+                    className={`flex-1 sm:flex-initial flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                        activeTab === 'damage'
+                            ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                >
+                    <AlertTriangle size={16} className={activeTab === 'damage' ? 'text-white' : 'text-rose-500'} />
+                    <span>Laporan Kerusakan</span>
+                    {damagePendingCount > 0 ? (
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold animate-pulse ${
+                            activeTab === 'damage' ? 'bg-white text-rose-700' : 'bg-rose-500 text-white'
+                        }`} title={`${damagePendingCount} laporan kerusakan menunggu review`}>
+                            {damagePendingCount} Perlu Review
+                        </span>
+                    ) : (
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                            activeTab === 'damage' ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                            {damageLogs.length}
+                        </span>
+                    )}
+                </button>
+
+                {/* TAB 3: RIWAYAT SERVIS SELESAI */}
                 <button
                     onClick={() => setActiveTab('maintenance')}
                     className={`flex-1 sm:flex-initial flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
@@ -372,13 +447,12 @@ const VehicleMaintenanceList = () => {
                 </button>
             </div>
 
-            {/* Filter Status Khusus Tab Pengajuan */}
+            {/* Filter Status Khusus Tab Pengajuan Rutin */}
             {activeTab === 'requests' && (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                     <span className="text-xs font-bold text-slate-500 mr-1">Status Pengajuan:</span>
                     {[
                         { key: 'ALL', label: 'Semua Status' },
-                        { key: 'KERUSAKAN', label: '🚨 Laporan Kerusakan', count: damageRequestsCount, dot: 'bg-rose-500' },
                         { key: 'PENDING', label: 'Menunggu Review', count: pendingRequestsCount, dot: 'bg-amber-500' },
                         { key: 'APPROVED', label: 'Disetujui / Siap Servis', count: approvedRequestsCount, dot: 'bg-blue-500' },
                         { key: 'IN_PROGRESS', label: 'Sedang di Bengkel', count: inProgressRequestsCount, dot: 'bg-purple-500' },
@@ -408,6 +482,41 @@ const VehicleMaintenanceList = () => {
                 </div>
             )}
 
+            {/* Filter Status Khusus Tab Laporan Kerusakan */}
+            {activeTab === 'damage' && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span className="text-xs font-bold text-slate-500 mr-1">Status Kerusakan:</span>
+                    {[
+                        { key: 'ALL', label: 'Semua Laporan' },
+                        { key: 'PENDING', label: 'Menunggu Review', count: damagePendingCount, dot: 'bg-amber-500' },
+                        { key: 'APPROVED', label: 'Disetujui / Siap Bengkel', count: damageApprovedCount, dot: 'bg-blue-500' },
+                        { key: 'IN_PROGRESS', label: 'Dalam Pengerjaan', count: damageInProgressCount, dot: 'bg-purple-500' },
+                        { key: 'COMPLETED', label: 'Perbaikan Selesai', count: damageCompletedCount, dot: 'bg-emerald-500' },
+                        { key: 'REJECTED', label: 'Ditolak' }
+                    ].map(f => (
+                        <button
+                            key={f.key}
+                            onClick={() => setDamageStatusFilter(f.key)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                                damageStatusFilter === f.key
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            {f.dot && <span className={`w-2 h-2 rounded-full ${f.dot}`} />}
+                            <span>{f.label}</span>
+                            {f.count !== undefined && f.count > 0 && (
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                    damageStatusFilter === f.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                    {f.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Filter & Search Bar */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
@@ -415,7 +524,9 @@ const VehicleMaintenanceList = () => {
                     <input
                         type="text"
                         placeholder={
-                            activeTab === 'requests' 
+                            activeTab === 'damage'
+                                ? 'Cari laporan kerusakan, armada, pelapor, no SPK...'
+                                : activeTab === 'requests' 
                                 ? 'Cari kode pengajuan, SPK, armada, pemohon, bengkel...' 
                                 : 'Cari armada, jenis servis, atau deskripsi...'
                         }
@@ -444,16 +555,16 @@ const VehicleMaintenanceList = () => {
             ) : filteredLogs.length > 0 ? (
                 <div className="space-y-4">
                     {/* ══════════════════════════════════════════════════════
-                        TAB 1: DAFTAR ALUR PENGAJUAN PEMELIHARAAN (DESKTOP TABLE)
+                        TAB 1 & 2: DAFTAR ALUR PENGAJUAN SERVIS & LAPORAN KERUSAKAN (DESKTOP TABLE)
                        ══════════════════════════════════════════════════════ */}
-                    {activeTab === 'requests' && (
+                    {(activeTab === 'requests' || activeTab === 'damage') && (
                         <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                                        <th className="px-5 py-4">Kode & Tanggal</th>
+                                        <th className="px-5 py-4">{activeTab === 'damage' ? 'Kode & Tanggal Lapor' : 'Kode & Tanggal'}</th>
                                         <th className="px-5 py-4">Armada Kendaraan</th>
-                                        <th className="px-5 py-4">Pemohon & Kebutuhan</th>
+                                        <th className="px-5 py-4">{activeTab === 'damage' ? 'Pelapor & Detail Kerusakan' : 'Pemohon & Kebutuhan'}</th>
                                         <th className="px-5 py-4">Bengkel & Estimasi</th>
                                         <th className="px-5 py-4 text-center">Status Alur</th>
                                         <th className="px-5 py-4 text-center">Aksi / Tindak Lanjut</th>
@@ -505,7 +616,7 @@ const VehicleMaintenanceList = () => {
                                                 <td className="px-5 py-4 max-w-sm">
                                                     <div className="space-y-1.5">
                                                         <div className="flex items-center gap-1.5 text-xs">
-                                                            <span className="font-bold text-slate-800">👤 {log.requester?.name || 'Staff Kendaraan'}</span>
+                                                            <span className="font-bold text-slate-800">👤 {log.requester?.name || (activeTab === 'damage' ? 'Pelapor Armada' : 'Staff Kendaraan')}</span>
                                                             {log.requester?.position && (
                                                                 <span className="text-[10px] text-slate-400">({log.requester.position})</span>
                                                             )}
@@ -786,7 +897,7 @@ const VehicleMaintenanceList = () => {
                     <div className="grid grid-cols-1 gap-4 lg:hidden">
                         {filteredLogs.map(log => {
                             const photoUrl = getLogPhoto(log);
-                            const isReq = activeTab === 'requests';
+                            const isReq = activeTab === 'requests' || activeTab === 'damage';
 
                             return (
                                 <div key={log.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -834,11 +945,11 @@ const VehicleMaintenanceList = () => {
                                     {/* Deskripsi & Bukti Foto */}
                                     <div className="space-y-2">
                                         <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">
-                                            {isReq ? 'Keluhan / Kebutuhan Servis' : 'Deskripsi Servis'}
+                                            {activeTab === 'damage' ? 'Detail Kerusakan / Kendala' : isReq ? 'Keluhan / Kebutuhan Servis' : 'Deskripsi Servis'}
                                         </span>
                                         {isReq && log.requester?.name && (
                                             <div className="text-[11px] font-bold text-slate-600">
-                                                Pemohon: <span className="text-slate-800">{log.requester.name}</span>
+                                                {activeTab === 'damage' ? 'Pelapor:' : 'Pemohon:'} <span className="text-slate-800">{log.requester.name}</span>
                                             </div>
                                         )}
                                         <div className="text-xs text-slate-700 font-medium leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
@@ -926,17 +1037,23 @@ const VehicleMaintenanceList = () => {
                 </div>
             ) : (
                 <div className="bg-white p-16 rounded-2xl border border-dashed border-slate-200 text-center">
-                    {activeTab === 'requests' ? (
+                    {activeTab === 'damage' ? (
+                        <>
+                            <AlertTriangle size={54} className="mx-auto text-rose-300 mb-3" />
+                            <h3 className="text-slate-700 font-bold text-base">Tidak ada laporan kerusakan</h3>
+                            <p className="text-slate-400 text-xs mt-1">Belum ada kendala atau kerusakan armada yang dilaporkan. Klik "+ Lapor Kerusakan" jika ada armada yang bermasalah.</p>
+                        </>
+                    ) : activeTab === 'requests' ? (
                         <>
                             <FileText size={54} className="mx-auto text-blue-300 mb-3" />
-                            <h3 className="text-slate-700 font-bold text-base">Tidak ada pengajuan pemeliharaan</h3>
-                            <p className="text-slate-400 text-xs mt-1">Staff kendaraan dapat mengajukan servis armada melalui tombol "+ Ajukan Pemeliharaan".</p>
+                            <h3 className="text-slate-700 font-bold text-base">Tidak ada pengajuan servis rutin</h3>
+                            <p className="text-slate-400 text-xs mt-1">Staff kendaraan dapat mengajukan servis armada berkala melalui tombol "+ Ajukan Servis".</p>
                         </>
                     ) : (
                         <>
                             <Wrench size={54} className="mx-auto text-slate-300 mb-3" />
-                            <h3 className="text-slate-600 font-bold text-base">Belum ada riwayat pemeliharaan</h3>
-                            <p className="text-slate-400 text-xs mt-1">Klik "+ Ajukan Pemeliharaan" atau "+ Catat Langsung" untuk mencatat perawatan armada.</p>
+                            <h3 className="text-slate-600 font-bold text-base">Belum ada riwayat pemeliharaan selesai</h3>
+                            <p className="text-slate-400 text-xs mt-1">Servis yang telah diselesaikan akan tercatat di sini.</p>
                         </>
                     )}
                 </div>
@@ -946,13 +1063,20 @@ const VehicleMaintenanceList = () => {
                 MODAL 1: FORM PENGAJUAN PEMELIHARAAN (STAFF KENDARAAN)
                ══════════════════════════════════════════════════════ */}
             <VehicleMaintenanceRequestModal
-                show={showRequestModal}
-                onClose={() => setShowRequestModal(false)}
+                show={requestModalConfig.show}
+                initialCategory={requestModalConfig.category}
+                initialType={requestModalConfig.type}
+                onClose={() => setRequestModalConfig(prev => ({ ...prev, show: false }))}
                 vehicles={vehicles}
                 currentUser={currentUser}
                 onSuccess={() => {
                     fetchLogs();
-                    setActiveTab('requests');
+                    if (requestModalConfig.category === 'NON_ROUTINE') {
+                        setActiveTab('damage');
+                    } else {
+                        setActiveTab('requests');
+                    }
+                    setRequestModalConfig(prev => ({ ...prev, show: false }));
                 }}
             />
 

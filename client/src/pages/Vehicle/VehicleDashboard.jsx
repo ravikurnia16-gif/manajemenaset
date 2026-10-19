@@ -60,6 +60,15 @@ const VehicleDashboard = () => {
     const [reportCategory, setReportCategory] = useState('PERFORMANCE');
     const dashboardRef = useRef(null);
 
+    const isKabidSarana = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user') || '{}');
+            return (u.position || '').toLowerCase().includes('kepala bidang sarana');
+        } catch (e) {
+            return false;
+        }
+    }, []);
+
     const periodLabel = useMemo(() => {
         if (filter.startDate && filter.endDate) {
             const sStr = new Date(filter.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -1057,33 +1066,35 @@ const VehicleDashboard = () => {
                 />
             ) : (
                 <>
-                    {/* Banner Navigasi ke 7 Laporan Utama di Menu Laporan Mingguan */}
-                    <div className="bg-gradient-to-r from-indigo-50 via-white to-emerald-50 border border-indigo-100 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-                        <div className="flex items-center gap-3.5">
-                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
-                                <Sparkles size={20} className="text-amber-300" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h4 className="text-sm font-black text-slate-800 tracking-tight">
-                                        7 Laporan Utama Armada & Analisis AI Telah Dipindahkan
-                                    </h4>
-                                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                        Laporan Mingguan
-                                    </span>
+                    {/* Banner Navigasi ke 7 Laporan Utama di Menu Laporan Mingguan (Khusus Kepala Bidang Sarana) */}
+                    {isKabidSarana && (
+                        <div className="bg-gradient-to-r from-indigo-50 via-white to-emerald-50 border border-indigo-100 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+                                    <Sparkles size={20} className="text-amber-300" />
                                 </div>
-                                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                    Rekap logbook perjalanan, BBM, reservasi bus, omset, pemeliharaan servis, kinerja driver, dan sanksi kini dipusatkan di Menu Laporan Mingguan Kepala Bidang.
-                                </p>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-sm font-black text-slate-800 tracking-tight">
+                                            7 Laporan Utama Armada & Analisis AI Telah Dipindahkan
+                                        </h4>
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            Laporan Mingguan
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                        Rekap logbook perjalanan, BBM, reservasi bus, omset, pemeliharaan servis, kinerja driver, dan sanksi kini dipusatkan di Menu Laporan Mingguan Kepala Bidang Sarana.
+                                    </p>
+                                </div>
                             </div>
+                            <Link
+                                to="/laporan-aset-keuangan?tab=vehicle_seven"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black transition-all shadow-md shadow-indigo-200 shrink-0 whitespace-nowrap"
+                            >
+                                Buka 7 Laporan Utama <ArrowUpRight size={15} />
+                            </Link>
                         </div>
-                        <Link
-                            to="/laporan-aset-keuangan?tab=vehicle_seven"
-                            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black transition-all shadow-md shadow-indigo-200 shrink-0 whitespace-nowrap"
-                        >
-                            Buka 7 Laporan Utama <ArrowUpRight size={15} />
-                        </Link>
-                    </div>
+                    )}
 
                     {/* Banner Peringatan Pengguna Terkena Sanksi Perjalanan */}
                     {data?.sanctionedUsers && data.sanctionedUsers.length > 0 && (

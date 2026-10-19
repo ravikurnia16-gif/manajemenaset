@@ -664,8 +664,9 @@ const DailyReportFormTab = ({
                                         }
 
                                         return pendingPlanEntries.map(({ plan, it, idx }, entryIdx) => {
-                                            const planTitle = plan.metadata?.title || 'Rencana Kerja';
-                                            const activityText = it ? it.activity : planTitle;
+                                            const rawPlanTitle = (plan.metadata?.title || plan.content || 'Kegiatan').trim();
+                                            const planTitle = rawPlanTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawPlanTitle;
+                                            const activityText = it ? (it.activity || it.text || '') : planTitle;
                                             const pct = it ? (it.percentage || 0) : (plan.metadata?.percentage || 0);
 
                                             return (

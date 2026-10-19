@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, Target, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -88,6 +88,7 @@ const Sidebar = ({ isOpen = true }) => {
         'staff it'
     ];
     const pos = (user?.position || '').toLowerCase();
+    const isOnlyKabidSaranaPosition = pos.includes('kepala bidang sarana');
     const role = user?.role || '';
     const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => pos.includes(kw));
 
@@ -379,6 +380,16 @@ const Sidebar = ({ isOpen = true }) => {
                     </Link>
                 )}
 
+                {/* 4.1. Menu Baru: Manajemen Kinerja & Strategis (PPP, PDCA, MBE, OKR) - Khusus Kepala Bidang Sarana */}
+                {isOnlyKabidSaranaPosition && (
+                    <Link to="/kinerja-manajemen" className={navItemClass('/kinerja-manajemen')}>
+                        <Target size={18} />
+                        <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
+                            Kinerja & Strategis (OKR)
+                        </span>
+                    </Link>
+                )}
+
 
 
                 {/* 5. E-Office (Document Management) */}
@@ -409,9 +420,9 @@ const Sidebar = ({ isOpen = true }) => {
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
                     <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>
-                    {(isAdmin || isKabidSarpras) && (
+                    {isOnlyKabidSaranaPosition && (
                         <Link to="/laporan-aset-keuangan" className={navItemClass('/laporan-aset-keuangan')}>
-                            <FileSpreadsheet size={18} /> Laporan Mingguan Kepala Bidang
+                            <FileSpreadsheet size={18} /> Laporan Mingguan Kepala Bidang Sarana
                         </Link>
                     )}
                     {isAdmin && (

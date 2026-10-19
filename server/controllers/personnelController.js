@@ -270,7 +270,12 @@ const syncPlanToDailyReport = async (userId, planId, planTitle, categoryTag, ite
                 const pct = it.percentage !== undefined ? it.percentage : (it.status === 'SELESAI' ? 100 : 0);
                 const isCompleted = pct === 100 || it.status === 'SELESAI';
                 const pointStatus = isCompleted ? 'COMPLETED' : (pct > 0 ? 'IN_PROGRESS' : 'PENDING');
-                const activityText = `[Rencana: ${planTitle}] ${it.activity || it.text || ''}`;
+                const rawTitle = (planTitle || '').trim();
+                const cleanTitle = rawTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawTitle;
+                const cleanItemText = (it.activity || it.text || '').trim();
+                const activityText = cleanItemText
+                    ? `${cleanTitle} : ${cleanItemText} (${pct}%)`
+                    : `${cleanTitle} (${pct}%)`;
 
                 await upsertPointToDailyReport(userId, dailyReport, {
                     text: activityText,
@@ -301,7 +306,9 @@ const syncPlanToDailyReport = async (userId, planId, planTitle, categoryTag, ite
             const pct = singlePercentage !== undefined ? singlePercentage : (singleStatus === 'SELESAI' ? 100 : 0);
             const isCompleted = pct === 100 || singleStatus === 'SELESAI';
             const pointStatus = isCompleted ? 'COMPLETED' : (pct > 0 ? 'IN_PROGRESS' : 'PENDING');
-            const activityText = `[Rencana Kerja] ${planTitle}`;
+            const rawTitle = (planTitle || '').trim();
+            const cleanTitle = rawTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawTitle;
+            const activityText = `${cleanTitle} (${pct}%)`;
 
             await upsertPointToDailyReport(userId, dailyReport, {
                 text: activityText,

@@ -21,7 +21,7 @@ const renderFormattedAiText = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
     return (
-        <div className="space-y-2 text-xs leading-relaxed text-slate-800">
+        <div className="space-y-2 text-xs leading-relaxed text-slate-800 text-justify">
             {lines.map((line, idx) => {
                 const trimmed = line.trim();
                 if (!trimmed) return <div key={idx} className="h-1" />;
@@ -30,7 +30,7 @@ const renderFormattedAiText = (text) => {
                 if (trimmed.startsWith('### ') || trimmed.startsWith('## ') || trimmed.startsWith('# ')) {
                     const cleanTitle = trimmed.replace(/^#+\s*/, '');
                     return (
-                        <h6 key={idx} className="font-black text-slate-900 text-xs tracking-wide uppercase pt-2.5 border-b border-slate-200 pb-1">
+                        <h6 key={idx} className="font-black text-slate-900 text-xs tracking-wide uppercase pt-2.5 border-b border-slate-200 pb-1 text-left">
                             {cleanTitle}
                         </h6>
                     );
@@ -40,9 +40,9 @@ const renderFormattedAiText = (text) => {
                 if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
                     const content = trimmed.substring(2);
                     return (
-                        <div key={idx} className="flex items-start gap-2 pl-2">
-                            <span className="text-indigo-600 font-bold mt-0.5">•</span>
-                            <span dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(content) }} />
+                        <div key={idx} className="flex items-start gap-2 pl-2 text-justify">
+                            <span className="text-indigo-600 font-bold mt-0.5 shrink-0">•</span>
+                            <span className="text-justify leading-relaxed flex-1" dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(content) }} />
                         </div>
                     );
                 }
@@ -51,15 +51,15 @@ const renderFormattedAiText = (text) => {
                 const matchNum = trimmed.match(/^(\d+\.)\s*(.*)/);
                 if (matchNum) {
                     return (
-                        <div key={idx} className="flex items-start gap-2 pl-2">
-                            <span className="text-indigo-700 font-black font-mono text-[11px] mt-0.5">{matchNum[1]}</span>
-                            <span dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(matchNum[2]) }} />
+                        <div key={idx} className="flex items-start gap-2 pl-2 text-justify">
+                            <span className="text-indigo-700 font-black font-mono text-[11px] mt-0.5 shrink-0">{matchNum[1]}</span>
+                            <span className="text-justify leading-relaxed flex-1" dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(matchNum[2]) }} />
                         </div>
                     );
                 }
 
                 return (
-                    <p key={idx} dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(trimmed) }} />
+                    <p key={idx} className="text-justify leading-relaxed" dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(trimmed) }} />
                 );
             })}
         </div>
@@ -191,14 +191,14 @@ export default function WeeklyPdfTab({
 
     // Filtered obstacle list excluding Kabid Sarana
     const filteredObstacleList = React.useMemo(() => {
-        return (weeklyData?.obstacleList || []).filter(obs => 
+        return (weeklyData?.obstacleList || []).filter(obs =>
             !isKabidNameOrPos(obs.staffName, obs.position)
         );
     }, [weeklyData, user]);
 
     // Filtered documentation photos list excluding Kabid Sarana
     const filteredPhotos = React.useMemo(() => {
-        return (weeklyData?.documentationPhotos || []).filter(doc => 
+        return (weeklyData?.documentationPhotos || []).filter(doc =>
             !isKabidNameOrPos(doc.staffName, doc.position)
         );
     }, [weeklyData, user]);
@@ -277,7 +277,7 @@ export default function WeeklyPdfTab({
                 const dateBadge = pt.dateShort ? ` <span style="color:#64748b; font-size:9pt;">(${pt.dateShort})</span>` : '';
                 const catBadge = (pt.categoryTag && pt.categoryTag !== 'UMUM') ? ` <span style="color:#475569; font-size:8pt; background:#f1f5f9; padding:2px 4px;">[${pt.categoryTag}]</span>` : '';
                 const obsText = pt.obstacleNote ? `<br/><em style="color:#b91c1c; font-size:9pt; margin-left:14px;">Kendala: ${pt.obstacleNote}</em>` : '';
-                return `<li style="margin-bottom: 4px; font-size: 10pt; line-height: 1.4;">${pt.text}${dateBadge}${catBadge}${obsText}</li>`;
+                return `<li style="margin-bottom: 4px; font-size: 10pt; line-height: 1.4; text-align: justify;">${pt.text}${dateBadge}${catBadge}${obsText}</li>`;
             }).join('');
 
             return `
@@ -323,8 +323,8 @@ export default function WeeklyPdfTab({
         let narasiHtml = '';
         if (aiAnalysis) {
             narasiHtml = `
-                <div style="margin-top: 8px; font-size: 10pt; line-height: 1.5; color: #1e293b;">
-                    ${aiAnalysis.split('\n').map(l => l.trim() ? `<p style="margin: 6px 0;">${l}</p>` : '').join('')}
+                <div style="margin-top: 8px; font-size: 10pt; line-height: 1.5; color: #1e293b; text-align: justify;">
+                    ${aiAnalysis.split('\n').map(l => l.trim() ? `<p style="margin: 6px 0; text-align: justify;">${l}</p>` : '').join('')}
                 </div>
             `;
         } else {
@@ -391,10 +391,10 @@ export default function WeeklyPdfTab({
                     <table style="width: 100%; border-collapse: separate; border-spacing: 12px;">
                         <tbody>
                             ${filteredPhotos.reduce((rows, doc, idx) => {
-                                if (idx % 2 === 0) rows.push([doc]);
-                                else rows[rows.length - 1].push(doc);
-                                return rows;
-                            }, []).map(row => `
+            if (idx % 2 === 0) rows.push([doc]);
+            else rows[rows.length - 1].push(doc);
+            return rows;
+        }, []).map(row => `
                                 <tr>
                                     ${row.map(d => `
                                         <td style="width: 50%; vertical-align: top; border: 1px solid #cbd5e1; padding: 8px; background: #f8fafc;">
@@ -456,6 +456,23 @@ export default function WeeklyPdfTab({
                         display: block !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
+                    }
+                    /* Rata kiri dan kanan untuk teks laporan di mode cetak/PDF */
+                    #weekly-pdf-sheet p,
+                    #weekly-pdf-sheet li,
+                    #weekly-pdf-sheet .text-justify {
+                        text-align: justify !important;
+                        text-justify: inter-word !important;
+                    }
+                    #weekly-pdf-sheet h1, #weekly-pdf-sheet h2, #weekly-pdf-sheet h3,
+                    #weekly-pdf-sheet h4, #weekly-pdf-sheet h5, #weekly-pdf-sheet h6 {
+                        text-align: left !important;
+                    }
+                    #weekly-pdf-sheet .text-center, #weekly-pdf-sheet .text-center * {
+                        text-align: center !important;
+                    }
+                    #weekly-pdf-sheet .text-right, #weekly-pdf-sheet .text-right * {
+                        text-align: right !important;
                     }
                     .no-print, .print-hidden, header, nav, aside, footer {
                         display: none !important;
@@ -688,7 +705,7 @@ export default function WeeklyPdfTab({
                             </div>
                         </div>
                     ) : (hasAiSection && aiAnalysis) ? (
-                        <div className="space-y-3 bg-slate-50/40 print:bg-transparent p-4 print:p-0 rounded-2xl border border-slate-200 print:border-none">
+                        <div className="space-y-3 bg-slate-50/40 print:bg-transparent p-4 print:p-0 rounded-2xl border border-slate-200 print:border-none text-justify">
                             {renderFormattedAiText(aiAnalysis)}
                         </div>
                     ) : (
@@ -776,13 +793,13 @@ export default function WeeklyPdfTab({
                                         {staff.points.map((pt, pIdx) => {
                                             const isObstacle = pt.status === 'OBSTACLE';
                                             return (
-                                                <li key={pIdx} className="flex items-start gap-2 leading-relaxed">
+                                                <li key={pIdx} className="flex items-start gap-2 leading-relaxed text-justify">
                                                     <span className="text-indigo-600 print:text-slate-800 font-bold text-xs shrink-0 mt-0.5">
                                                         •
                                                     </span>
-                                                    <div className="flex-1 space-y-0.5">
-                                                        <div className="flex flex-wrap items-baseline gap-1.5">
-                                                            <span className="text-slate-900 font-medium text-[11.5px]">
+                                                    <div className="flex-1 space-y-0.5 text-justify">
+                                                        <div className="flex flex-wrap items-baseline gap-1.5 text-justify">
+                                                            <span className="text-slate-900 font-medium text-[11.5px] text-justify">
                                                                 {pt.text}
                                                             </span>
                                                             {pt.dateShort && (
@@ -802,7 +819,7 @@ export default function WeeklyPdfTab({
                                                             )}
                                                         </div>
                                                         {pt.obstacleNote && (
-                                                            <p className="text-[10.5px] text-rose-700 print:text-slate-900 italic">
+                                                            <p className="text-[10.5px] text-rose-700 print:text-slate-900 italic text-justify">
                                                                 Uraian Hambatan: {pt.obstacleNote}
                                                             </p>
                                                         )}
@@ -852,10 +869,10 @@ export default function WeeklyPdfTab({
                                             {obs.date}
                                         </span>
                                     </div>
-                                    <p className="text-slate-700 text-[11px] leading-relaxed">
+                                    <p className="text-slate-700 text-[11px] leading-relaxed text-justify">
                                         <span className="font-semibold text-slate-800">Pekerjaan Lapangan:</span> {obs.activity}
                                     </p>
-                                    <p className="text-rose-700 print:text-slate-900 text-[11px] leading-relaxed italic">
+                                    <p className="text-rose-700 print:text-slate-900 text-[11px] leading-relaxed italic text-justify">
                                         <span className="font-semibold not-italic text-slate-800">Uraian Hambatan:</span> {obs.obstacleNote}
                                     </p>
                                 </div>
