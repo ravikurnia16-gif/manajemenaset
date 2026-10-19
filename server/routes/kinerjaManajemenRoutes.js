@@ -34,4 +34,15 @@ router.get('/weekly-pdca', kinerjaController.getWeeklyPdca);
 router.get('/okr', kinerjaController.getOkrDashboard);
 router.post('/okr', kinerjaController.saveOkr);
 
+// 5. Rencana & Penugasan Staf
+router.get('/staff-plans', kinerjaController.getStaffPlansAndAssignments);
+router.post('/plans', kinerjaController.saveStaffPlan);
+router.put('/plans/:id', kinerjaController.saveStaffPlan);
+router.put('/plans/:id/item', kinerjaController.updatePlanItemStatus);
+router.delete('/plans/:id', kinerjaController.deleteStaffPlan);
+router.post('/assign', kinerjaController.createAssignmentFromPlan);
+
+// 6. Input Laporan Harian Terpadu PPP
+router.post('/daily-report', kinerjaController.saveDailyReportFromPpp);
+
 module.exports = router;

@@ -253,7 +253,7 @@ exports.getReports = async (req, res) => {
  */
 exports.updateMyReport = async (req, res) => {
     try {
-        const { category, targetDate, manualPoints } = req.body;
+        const { category, targetDate, manualPoints, tomorrowPlans } = req.body;
         const userId = parseInt(req.user.id, 10);
         
         // Selalu gunakan zona waktu Waktu Indonesia Barat (WIB / Asia/Jakarta)
@@ -340,10 +340,20 @@ exports.updateMyReport = async (req, res) => {
                 summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text || 'Dokumentasi Foto'} [${p.status}]${obs}`);
             });
         }
+        if (Array.isArray(tomorrowPlans) && tomorrowPlans.length > 0) {
+            summaryLines.push('[RENCANA BESOK]');
+            tomorrowPlans.forEach((tp, idx) => {
+                if (tp.title) summaryLines.push(`${idx + 1}. [${tp.categoryTag || 'UMUM'}] ${tp.title}`);
+            });
+        }
         const autoContent = summaryLines.join('\n');
 
         // Simpan pada tengah hari (12:00:00 WIB) agar aman dari pergeseran batas hari UTC vs WIB
         const normalizedDate = reportDate.hour(12).minute(0).second(0).toDate();
+
+        const mergedTomorrowPlans = tomorrowPlans !== undefined 
+            ? (Array.isArray(tomorrowPlans) ? tomorrowPlans : []) 
+            : (existingMetadata.tomorrowPlans || []);
 
         if (report) {
             report = await prisma.personnelReport.update({
@@ -355,6 +365,7 @@ exports.updateMyReport = async (req, res) => {
                     metadata: {
                         ...existingMetadata,
                         manualPoints: formattedPoints,
+                        tomorrowPlans: mergedTomorrowPlans,
                         lastSubmittedAt: new Date().toISOString()
                     }
                 }
@@ -368,6 +379,7 @@ exports.updateMyReport = async (req, res) => {
                     content: autoContent, 
                     metadata: {
                         manualPoints: formattedPoints,
+                        tomorrowPlans: mergedTomorrowPlans,
                         lastSubmittedAt: new Date().toISOString()
                     },
                     date: normalizedDate

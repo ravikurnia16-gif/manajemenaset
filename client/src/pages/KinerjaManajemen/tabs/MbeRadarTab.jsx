@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
     AlertTriangle, Clock, CheckCircle2, AlertCircle, 
-    ArrowRight, MessageCircle, Wrench, Car, UserCheck, 
+    ArrowRight, Wrench, Car, UserCheck, 
     ShieldAlert, ExternalLink, Calendar, ChevronRight 
 } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -140,9 +140,6 @@ const MbeRadarTab = ({ radarData, loading, onRefresh }) => {
                         <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
                             {overdueAssignments.map((task) => {
                                 const daysOverdue = Math.max(1, dayjs().diff(dayjs(task.dueDate), 'day'));
-                                const cleanPhone = (task.assignee?.phone || '').replace(/[^0-9]/g, '');
-                                const waUrl = cleanPhone ? `https://wa.me/${cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(`Halo ${task.assignee?.name}, terkait penugasan "${task.title}" yang melewati batas waktu...`)}` : null;
-
                                 return (
                                     <div key={task.id} className="p-3.5 bg-rose-50/40 border border-rose-100 rounded-2xl space-y-2 hover:bg-rose-50/70 transition-colors">
                                         <div className="flex items-start justify-between gap-2">
@@ -160,17 +157,6 @@ const MbeRadarTab = ({ radarData, loading, onRefresh }) => {
                                                     PJ: <b>{task.assignee?.name}</b> ({task.assignee?.position || 'Staff'})
                                                 </p>
                                             </div>
-                                            {waUrl && (
-                                                <a 
-                                                    href={waUrl} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="p-1.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors shrink-0"
-                                                    title="Hubungi Penanggung Jawab via WhatsApp"
-                                                >
-                                                    <MessageCircle size={15} />
-                                                </a>
-                                            )}
                                         </div>
 
                                         <div className="space-y-1 pt-1">

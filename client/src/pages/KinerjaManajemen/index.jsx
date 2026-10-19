@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     Target, AlertTriangle, Calendar, Layers, 
     Clock, CheckCircle2, RefreshCw, Award, 
-    TrendingUp, ShieldCheck, X 
+    TrendingUp, ShieldCheck, X, Plus, FileText, 
+    Users, CheckSquare 
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -13,6 +14,12 @@ import MbeRadarTab from './tabs/MbeRadarTab';
 import DailyPppTab from './tabs/DailyPppTab';
 import WeeklyPdcaTab from './tabs/WeeklyPdcaTab';
 import OkrDashboardTab from './tabs/OkrDashboardTab';
+import StaffPlansTab from './tabs/StaffPlansTab';
+
+// Modals
+import AssignmentModal from './modals/AssignmentModal';
+import PlanModal from './modals/PlanModal';
+import DailyReportPppModal from './modals/DailyReportPppModal';
 
 dayjs.locale('id');
 
@@ -31,7 +38,7 @@ const KinerjaManajemen = () => {
     const pos = (currentUser?.position || '').toLowerCase();
     const isKabidSarana = pos.includes('kepala bidang sarana') || currentUser?.role === 'KABID_SARPRAS' || currentUser?.role === 'SUPER_ADMIN';
 
-    // Tabs: MBE, PPP, PDCA, OKR
+    // Tabs: MBE, PPP, PDCA, PLANS, OKR
     const [activeTab, setActiveTab] = useState('MBE');
 
     // States for MBE Radar
@@ -52,6 +59,20 @@ const KinerjaManajemen = () => {
     // States for OKR
     const [okrData, setOkrData] = useState(null);
     const [loadingOkr, setLoadingOkr] = useState(false);
+
+    // States for Staff Plans & Assignments
+    const [staffList, setStaffList] = useState([]);
+    const [staffPlansData, setStaffPlansData] = useState([]);
+    const [loadingStaffPlans, setLoadingStaffPlans] = useState(false);
+
+    // Modals state
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [selectedStaffForAssign, setSelectedStaffForAssign] = useState(null);
+    const [initialDataForAssign, setInitialDataForAssign] = useState(null);
+    const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+    const [selectedStaffForPlan, setSelectedStaffForPlan] = useState(null);
+    const [initialDataForPlan, setInitialDataForPlan] = useState(null);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
     // Lightbox modal for photo preview
     const [lightboxPhoto, setLightboxPhoto] = useState(null);
@@ -117,6 +138,31 @@ const KinerjaManajemen = () => {
         }
     };
 
+    const fetchStaffPlans = async () => {
+        try {
+            setLoadingStaffPlans(true);
+            const res = await api.get('/kinerja-manajemen/staff-plans');
+            if (res.data.success) {
+                setStaffPlansData(res.data.staff || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch staff plans:', err);
+        } finally {
+            setLoadingStaffPlans(false);
+        }
+    };
+
+    const fetchStaffList = async () => {
+        try {
+            const res = await api.get('/personnel/staff');
+            if (res.data.success || res.data.staff) {
+                setStaffList(res.data.staff || []);
+            }
+        } catch (e) {
+            console.error('Error fetching staff list:', e);
+        }
+    };
+
     const handleSaveOkr = async (updatedOkrs) => {
         try {
             const res = await api.post('/kinerja-manajemen/okr', { okrs: updatedOkrs });
@@ -130,6 +176,18 @@ const KinerjaManajemen = () => {
         }
     };
 
+    const handleOpenAssignModal = (staff = null, initialData = null) => {
+        setSelectedStaffForAssign(staff);
+        setInitialDataForAssign(initialData);
+        setIsAssignModalOpen(true);
+    };
+
+    const handleOpenPlanModal = (staff = null, initialPlan = null) => {
+        setSelectedStaffForPlan(staff);
+        setInitialDataForPlan(initialPlan);
+        setIsPlanModalOpen(true);
+    };
+
     // Auto-fetch on tab change or parameter change
     useEffect(() => {
         if (activeTab === 'MBE') {
@@ -138,14 +196,18 @@ const KinerjaManajemen = () => {
             fetchDailyPpp();
         } else if (activeTab === 'PDCA') {
             fetchWeeklyPdca();
+        } else if (activeTab === 'PLANS') {
+            fetchStaffPlans();
         } else if (activeTab === 'OKR') {
             fetchOkrDashboard();
         }
     }, [activeTab, selectedDate, pdcaStartDate, pdcaEndDate]);
 
-    // Also fetch radar summary initially to show notification count badge
+    // Initial setup
     useEffect(() => {
         fetchMbeRadar();
+        fetchStaffList();
+        fetchStaffPlans();
     }, []);
 
     // Total Exception Count for badge
@@ -177,33 +239,60 @@ const KinerjaManajemen = () => {
                         </div>
                     </div>
                     <p className="text-xs text-slate-500 font-medium max-w-2xl">
-                        Pusat kendali evaluasi mutu operasional terintegrasi menggunakan metode <b>PPP</b> (Harian), <b>PDCA</b> (Mingguan), <b>MBE</b> (Radar Pengecualian), dan <b>OKR</b> (Sasaran Strategis).
+                        Pusat kendali evaluasi operasional terintegrasi: <b>PPP</b> (Harian), <b>PDCA</b> (Mingguan), <b>MBE</b> (Radar Pengecualian), dan <b>OKR</b> (Sasaran Strategis).
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* Quick Action Buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={() => handleOpenPlanModal()}
+                        className="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        title="Buat Rencana Kerja Staf"
+                    >
+                        <Target size={14} /> + Rencana Staf
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleOpenAssignModal()}
+                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                    >
+                        <Plus size={14} /> Beri Penugasan
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setIsReportModalOpen(true)}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                    >
+                        <FileText size={14} /> Input Laporan Harian
+                    </button>
+
                     <button
                         type="button"
                         onClick={() => {
                             if (activeTab === 'MBE') fetchMbeRadar();
                             else if (activeTab === 'PPP') fetchDailyPpp();
                             else if (activeTab === 'PDCA') fetchWeeklyPdca();
+                            else if (activeTab === 'PLANS') fetchStaffPlans();
                             else if (activeTab === 'OKR') fetchOkrDashboard();
                         }}
-                        className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                        className="p-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl text-slate-600 transition-all shadow-2xs active:scale-95 cursor-pointer"
+                        title="Segarkan Data"
                     >
-                        <RefreshCw size={13} />
-                        <span>Segarkan Data</span>
+                        <RefreshCw size={15} />
                     </button>
                 </div>
             </div>
 
-            {/* TAB NAVIGATOR */}
+            {/* TAB NAVIGATOR (5 TABS) */}
             <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 overflow-x-auto">
                 <button
                     type="button"
                     onClick={() => setActiveTab('MBE')}
-                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
+                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         activeTab === 'MBE'
                             ? 'bg-white text-rose-700 shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -221,7 +310,7 @@ const KinerjaManajemen = () => {
                 <button
                     type="button"
                     onClick={() => setActiveTab('PPP')}
-                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
+                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         activeTab === 'PPP'
                             ? 'bg-white text-blue-700 shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -234,20 +323,33 @@ const KinerjaManajemen = () => {
                 <button
                     type="button"
                     onClick={() => setActiveTab('PDCA')}
-                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
+                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         activeTab === 'PDCA'
                             ? 'bg-white text-indigo-700 shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
                     <Layers size={15} className={activeTab === 'PDCA' ? 'text-indigo-600' : 'text-slate-400'} />
-                    <span>🔄 Mingguan (Siklus PDCA)</span>
+                    <span>🔄 Mingguan (PDCA)</span>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('PLANS')}
+                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'PLANS'
+                            ? 'bg-white text-indigo-700 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                    <Users size={15} className={activeTab === 'PLANS' ? 'text-indigo-600' : 'text-slate-400'} />
+                    <span>📋 Rencana & Penugasan Staf</span>
                 </button>
 
                 <button
                     type="button"
                     onClick={() => setActiveTab('OKR')}
-                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
+                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         activeTab === 'OKR'
                             ? 'bg-white text-emerald-700 shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -273,6 +375,7 @@ const KinerjaManajemen = () => {
                     setSelectedDate={setSelectedDate}
                     pppData={pppData}
                     loading={loadingPpp}
+                    staffList={staffList}
                     onRefresh={fetchDailyPpp}
                     setLightboxPhoto={setLightboxPhoto}
                 />
@@ -290,6 +393,16 @@ const KinerjaManajemen = () => {
                 />
             )}
 
+            {activeTab === 'PLANS' && (
+                <StaffPlansTab
+                    staffPlansData={staffPlansData}
+                    loading={loadingStaffPlans}
+                    onOpenAssignModal={handleOpenAssignModal}
+                    onOpenPlanModal={handleOpenPlanModal}
+                    onRefresh={fetchStaffPlans}
+                />
+            )}
+
             {activeTab === 'OKR' && (
                 <OkrDashboardTab 
                     okrData={okrData}
@@ -298,6 +411,48 @@ const KinerjaManajemen = () => {
                     onRefresh={fetchOkrDashboard}
                 />
             )}
+
+            {/* MODAL 1: Berikan Penugasan Resmi (Bisa dari Plan Staf) */}
+            <AssignmentModal
+                isOpen={isAssignModalOpen}
+                onClose={() => setIsAssignModalOpen(false)}
+                onSuccess={() => {
+                    fetchStaffPlans();
+                    fetchMbeRadar();
+                    fetchWeeklyPdca();
+                }}
+                staffList={staffList}
+                initialStaff={selectedStaffForAssign}
+                initialData={initialDataForAssign}
+            />
+
+            {/* MODAL 2: Input Laporan Harian Terpadu (PPP) */}
+            <DailyReportPppModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                onSuccess={() => {
+                    fetchDailyPpp();
+                    fetchMbeRadar();
+                    fetchWeeklyPdca();
+                    fetchStaffPlans();
+                }}
+                staffList={staffList}
+                staffPlansData={staffPlansData}
+            />
+
+            {/* MODAL 3: Buat / Edit Rencana Kerja Staf */}
+            <PlanModal
+                isOpen={isPlanModalOpen}
+                onClose={() => setIsPlanModalOpen(false)}
+                onSuccess={() => {
+                    fetchStaffPlans();
+                    fetchDailyPpp();
+                    fetchWeeklyPdca();
+                }}
+                staffList={staffList}
+                initialStaff={selectedStaffForPlan}
+                initialPlan={initialDataForPlan}
+            />
 
             {/* LIGHTBOX MODAL FOR IMAGES */}
             {lightboxPhoto && (

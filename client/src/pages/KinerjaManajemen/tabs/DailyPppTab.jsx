@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
     Calendar, CheckCircle2, Clock, AlertTriangle, 
     Layers, ChevronLeft, ChevronRight, Eye, Wrench, 
@@ -14,10 +14,11 @@ const DailyPppTab = ({
     setSelectedDate, 
     pppData, 
     loading, 
+    staffList = [],
     onRefresh,
     setLightboxPhoto 
 }) => {
-    const [filterCategory, setFilterCategory] = useState('ALL');
+    const [filterStaff, setFilterStaff] = useState('ALL');
     const [filterWorkType, setFilterWorkType] = useState('ALL'); // ALL, PLANNED, INCIDENTAL
 
     if (loading) {
@@ -32,9 +33,36 @@ const DailyPppTab = ({
     const { summary, ppp = {} } = pppData || {};
     const { progress = [], plans = [], problems = [] } = ppp;
 
-    // Filter Helper
+    // Available Staff: dari props staffList (role ADMIN_ASET) atau diekstrak dari butir kegiatan
+    const availableStaff = useMemo(() => {
+        if (Array.isArray(staffList) && staffList.length > 0) {
+            return staffList;
+        }
+        const map = new Map();
+        [...(progress || []), ...(plans || []), ...(problems || [])].forEach(it => {
+            if (it.user && it.user.name) {
+                const key = it.user.id || it.user.name;
+                if (!map.has(key)) {
+                    map.set(key, { 
+                        id: it.user.id || it.user.name, 
+                        name: it.user.name, 
+                        position: it.user.position || 'Staff' 
+                    });
+                }
+            }
+        });
+        return Array.from(map.values());
+    }, [staffList, progress, plans, problems]);
+
+    // Filter Helper: menyaring berdasarkan staf (role Admin_Aset) dan tipe kerja
     const filterItem = (item) => {
-        if (filterCategory !== 'ALL' && item.categoryTag !== filterCategory) return false;
+        if (filterStaff !== 'ALL') {
+            const target = String(filterStaff).toLowerCase();
+            const userIdMatch = item.userId && String(item.userId) === target;
+            const userObjIdMatch = item.user?.id && String(item.user.id) === target;
+            const userNameMatch = item.user?.name && String(item.user.name).toLowerCase() === target;
+            if (!userIdMatch && !userObjIdMatch && !userNameMatch) return false;
+        }
         if (filterWorkType === 'PLANNED' && !item.isPlanned) return false;
         if (filterWorkType === 'INCIDENTAL' && item.isPlanned) return false;
         return true;
@@ -43,6 +71,13 @@ const DailyPppTab = ({
     const filteredProgress = progress.filter(filterItem);
     const filteredPlans = plans.filter(filterItem);
     const filteredProblems = problems.filter(filterItem);
+
+    // Dynamic metrics calculation based on active filter
+    const isFiltered = filterStaff !== 'ALL' || filterWorkType !== 'ALL';
+    const filteredTotal = filteredProgress.length + filteredPlans.length;
+    const filteredPlannedCount = filteredProgress.filter(i => i.isPlanned).length + filteredPlans.filter(i => i.isPlanned).length;
+    const filteredPlannedRatio = filteredTotal > 0 ? Math.round((filteredPlannedCount / filteredTotal) * 100) : 100;
+    const filteredUnplannedRatio = 100 - filteredPlannedRatio;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -79,7 +114,7 @@ const DailyPppTab = ({
                         <button
                             type="button"
                             onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}
-                            className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+                            className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors cursor-pointer"
                         >
                             Hari Ini
                         </button>
@@ -97,17 +132,16 @@ const DailyPppTab = ({
                             <option value="INCIDENTAL">⚡ Mendadak / Insidental</option>
                         </select>
                         <select
-                            value={filterCategory}
-                            onChange={(e) => setFilterCategory(e.target.value)}
-                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                            value={filterStaff}
+                            onChange={(e) => setFilterStaff(e.target.value)}
+                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[220px]"
                         >
-                            <option value="ALL">Semua Divisi / Tag</option>
-                            <option value="ASET">ASET</option>
-                            <option value="TEKNISI">TEKNISI</option>
-                            <option value="KENDARAAN">KENDARAAN</option>
-                            <option value="RUMGA">RUMGA</option>
-                            <option value="KEUANGAN">KEUANGAN</option>
-                            <option value="UMUM">UMUM</option>
+                            <option value="ALL">Semua Staf (Admin Aset)</option>
+                            {availableStaff.map((st) => (
+                                <option key={st.id || st.name} value={st.id || st.name}>
+                                    {st.name} {st.position ? `(${st.position})` : ''}
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>
@@ -117,7 +151,9 @@ const DailyPppTab = ({
                     <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">Progress (Tuntas)</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
-                            <span className="text-xl font-black text-emerald-950">{summary?.totalCompleted || 0}</span>
+                            <span className="text-xl font-black text-emerald-950">
+                                {isFiltered ? filteredProgress.length : (summary?.totalCompleted || filteredProgress.length)}
+                            </span>
                             <span className="text-[10px] text-emerald-700 font-bold">Pekerjaan</span>
                         </div>
                     </div>
@@ -125,7 +161,9 @@ const DailyPppTab = ({
                     <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-2xl">
                         <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">Plans (On Progress)</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
-                            <span className="text-xl font-black text-amber-950">{summary?.totalInProgress || 0}</span>
+                            <span className="text-xl font-black text-amber-950">
+                                {isFiltered ? filteredPlans.length : (summary?.totalInProgress || filteredPlans.length)}
+                            </span>
                             <span className="text-[10px] text-amber-700 font-bold">Pekerjaan</span>
                         </div>
                     </div>
@@ -133,7 +171,9 @@ const DailyPppTab = ({
                     <div className="p-3 bg-rose-50/70 border border-rose-100 rounded-2xl">
                         <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 block">Problems (Kendala)</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
-                            <span className="text-xl font-black text-rose-950">{summary?.totalProblems || 0}</span>
+                            <span className="text-xl font-black text-rose-950">
+                                {isFiltered ? filteredProblems.length : (summary?.totalProblems || filteredProblems.length)}
+                            </span>
                             <span className="text-[10px] text-rose-700 font-bold">Hambatan</span>
                         </div>
                     </div>
@@ -141,8 +181,12 @@ const DailyPppTab = ({
                     <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-2xl">
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 block">Rasio Terencana</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
-                            <span className="text-xl font-black text-blue-950">{summary?.plannedRatio || 100}%</span>
-                            <span className="text-[10px] text-blue-700 font-bold">({summary?.unplannedRatio || 0}% Insidental)</span>
+                            <span className="text-xl font-black text-blue-950">
+                                {isFiltered ? filteredPlannedRatio : (summary?.plannedRatio || 100)}%
+                            </span>
+                            <span className="text-[10px] text-blue-700 font-bold">
+                                ({isFiltered ? filteredUnplannedRatio : (summary?.unplannedRatio || 0)}% Insidental)
+                            </span>
                         </div>
                     </div>
                 </div>

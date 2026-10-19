@@ -345,6 +345,7 @@ exports.getDailyPpp = async (req, res) => {
                 const baseItem = {
                     source: 'STAFF_REPORT',
                     reportId: rep.id,
+                    userId: rep.userId,
                     user: rep.user,
                     categoryTag: p.categoryTag || rep.category || 'UMUM',
                     title: p.text || 'Dokumentasi Kegiatan',
@@ -376,6 +377,27 @@ exports.getDailyPpp = async (req, res) => {
                     });
                 }
             });
+
+            // Tambahkan Rencana Kerja Besok (Tomorrow's Plans) dari Laporan Staf
+            if (rep.metadata?.tomorrowPlans && Array.isArray(rep.metadata.tomorrowPlans)) {
+                rep.metadata.tomorrowPlans.forEach(tp => {
+                    if (tp.title && tp.title.trim()) {
+                        planItems.push({
+                            source: 'STAFF_REPORT',
+                            reportId: rep.id,
+                            userId: rep.userId,
+                            user: rep.user,
+                            categoryTag: tp.categoryTag || rep.category || 'UMUM',
+                            title: `[Plan Besok] ${tp.title.trim()}`,
+                            targetDate: 'Hari Kerja Berikutnya',
+                            isPlanned: true,
+                            progressPercentage: 0,
+                            photos: [],
+                            status: 'IN_PROGRESS'
+                        });
+                    }
+                });
+            }
         });
 
         // Tambahkan Tiket Pemeliharaan yang tuntas ke Progress
@@ -383,7 +405,8 @@ exports.getDailyPpp = async (req, res) => {
             progressItems.push({
                 source: 'MAINTENANCE',
                 sourceId: m.id,
-                user: { name: m.technician || 'Tim Teknisi Sarpras' },
+                userId: m.userId || null,
+                user: m.user || { id: m.userId, name: m.technician || 'Tim Teknisi Sarpras' },
                 categoryTag: 'PEMELIHARAAN',
                 title: `[Perbaikan ${m.type === 'ASSET' ? 'Aset' : 'Fasilitas'}] ${m.title}`,
                 output: m.actionTaken || m.completionNote || 'Perbaikan selesai dan berfungsi normal.',
@@ -399,6 +422,7 @@ exports.getDailyPpp = async (req, res) => {
             progressItems.push({
                 source: 'ASSIGNMENT',
                 sourceId: a.id,
+                userId: a.assigneeId,
                 user: a.assignee,
                 categoryTag: a.category || 'PENUGASAN',
                 title: `[Penugasan] ${a.title}`,
@@ -415,6 +439,7 @@ exports.getDailyPpp = async (req, res) => {
             planItems.push({
                 source: 'ASSIGNMENT',
                 sourceId: a.id,
+                userId: a.assigneeId,
                 user: a.assignee,
                 categoryTag: a.category || 'PENUGASAN',
                 title: `[Penugasan Aktif] ${a.title}`,
@@ -778,5 +803,484 @@ exports.saveOkr = async (req, res) => {
     } catch (error) {
         console.error('Error saving OKR:', error);
         return res.status(500).json({ success: false, error: 'Gagal menyimpan konfigurasi OKR.' });
+    }
+};
+
+/**
+ * GET /api/kinerja-manajemen/staff-plans
+ * Mengambil seluruh staf sarpras beserta daftar rencana kerja (Plans) dan penugasan aktif masing-masing
+ */
+exports.getStaffPlansAndAssignments = async (req, res) => {
+    try {
+        const sarprasKeywords = [
+            'manajemen aset',
+            'gudang dan logistik',
+            'kendaraan',
+            'teknisi aset',
+            'teknisi',
+            'keuangan dan administrasi',
+            'admin aset',
+            'sarana dan prasarana'
+        ];
+
+        // 1. Ambil seluruh staf Sarpras
+        const staffList = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'ADMIN_ASET' },
+                    ...sarprasKeywords.map(kw => ({ position: { contains: kw } }))
+                ],
+                NOT: [
+                    { role: 'KABID_SARPRAS' },
+                    { position: { contains: 'Kepala Bidang' } }
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                position: true,
+                role: true,
+                phone: true
+            },
+            orderBy: { name: 'asc' }
+        });
+
+        // 2. Ambil seluruh Rencana Kerja aktif (Weekly Reports with isPlan: true)
+        const allPlanReports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY'
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+        const activePlans = allPlanReports.filter(r => r.metadata && r.metadata.isPlan);
+
+        // 3. Ambil seluruh Penugasan Aktif
+        const allAssignments = await prisma.personnelAssignment.findMany({
+            where: {
+                status: { notIn: ['CANCELLED'] }
+            },
+            orderBy: { dueDate: 'asc' }
+        });
+
+        // 4. Petakan data per staf
+        const staffData = staffList.map(st => {
+            const myPlans = activePlans.filter(p => p.userId === st.id).map(p => {
+                const meta = p.metadata || {};
+                const items = Array.isArray(meta.items) ? meta.items : [];
+                const doneCount = items.filter(it => it.percentage === 100 || it.status === 'SELESAI').length;
+                const avgPct = items.length > 0 
+                    ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) 
+                    : (meta.percentage || (meta.status === 'SELESAI' ? 100 : 0));
+
+                return {
+                    id: p.id,
+                    userId: p.userId,
+                    title: meta.title || 'Rencana Kerja',
+                    categoryTag: meta.categoryTag || p.category || 'UMUM',
+                    startDate: meta.startDate || p.date,
+                    endDate: meta.endDate || null,
+                    priority: meta.priority || 'SEDANG',
+                    status: meta.status || (avgPct === 100 ? 'SELESAI' : 'PENDING'),
+                    assigned: !!meta.assigned,
+                    assignmentId: meta.assignmentId || null,
+                    items,
+                    avgPct,
+                    isDone: avgPct === 100,
+                    content: p.content,
+                    createdAt: p.createdAt
+                };
+            });
+
+            const myAssignments = allAssignments.filter(a => a.assigneeId === st.id).map(a => ({
+                id: a.id,
+                title: a.title,
+                description: a.description,
+                category: a.category,
+                priority: a.priority,
+                status: a.status,
+                dueDate: a.dueDate,
+                progressPercentage: a.progressPercentage || 0,
+                isOverdue: a.status !== 'COMPLETED' && a.dueDate && new Date(a.dueDate) < new Date(),
+                notes: a.notes || null,
+                isFromPlan: !!(a.notes && a.notes.includes('Ditugaskan dari Rencana Kerja')),
+                createdAt: a.createdAt
+            }));
+
+            return {
+                ...st,
+                plans: myPlans,
+                assignments: myAssignments,
+                stats: {
+                    totalPlans: myPlans.length,
+                    activePlansCount: myPlans.filter(p => !p.isDone).length,
+                    totalAssignments: myAssignments.length,
+                    activeAssignmentsCount: myAssignments.filter(a => a.status !== 'COMPLETED').length,
+                    overdueAssignmentsCount: myAssignments.filter(a => a.isOverdue).length
+                }
+            };
+        });
+
+        return res.json({
+            success: true,
+            totalStaff: staffList.length,
+            staff: staffData
+        });
+    } catch (error) {
+        console.error('Error in getStaffPlansAndAssignments:', error);
+        return res.status(500).json({ success: false, error: 'Gagal memuat rencana dan penugasan staf.' });
+    }
+};
+
+/**
+ * POST /api/kinerja-manajemen/assign
+ * Memberikan penugasan resmi dari Kabid langsung ke staf (bisa bersumber dari butir Plan staf)
+ */
+exports.createAssignmentFromPlan = async (req, res) => {
+    try {
+        const { assigneeId, title, description, category, priority, dueDate, planId, planItemIndex } = req.body;
+        const assignerId = parseInt(req.user.id, 10);
+
+        if (!assigneeId || !title) {
+            return res.status(400).json({ success: false, error: 'Staf penerima tugas dan judul tugas wajib diisi.' });
+        }
+
+        const assignment = await prisma.personnelAssignment.create({
+            data: {
+                assignerId,
+                assigneeId: parseInt(assigneeId, 10),
+                title: title.trim(),
+                description: description || '',
+                category: category || 'UMUM',
+                priority: priority || 'MEDIUM',
+                dueDate: dueDate ? new Date(dueDate) : null,
+                startDate: new Date(),
+                status: 'PENDING',
+                progressPercentage: 0,
+                notes: planId ? `Ditugaskan dari Rencana Kerja ID: ${planId}` : null
+            },
+            include: {
+                assignee: { select: { id: true, name: true, phone: true } }
+            }
+        });
+
+        // Jika bersumber dari Rencana Kerja (Plan), tandai item pada Plan tersebut
+        if (planId) {
+            try {
+                const planReport = await prisma.personnelReport.findUnique({
+                    where: { id: parseInt(planId, 10) }
+                });
+                if (planReport && planReport.metadata) {
+                    const meta = { ...planReport.metadata };
+                    const items = Array.isArray(meta.items) ? [...meta.items] : [];
+                    if (planItemIndex !== null && planItemIndex !== undefined && items[planItemIndex]) {
+                        items[planItemIndex] = {
+                            ...items[planItemIndex],
+                            assigned: true,
+                            assignmentId: assignment.id,
+                            assignedAt: new Date().toISOString()
+                        };
+                        meta.items = items;
+                    } else {
+                        meta.assigned = true;
+                        meta.assignmentId = assignment.id;
+                        meta.assignedAt = new Date().toISOString();
+                    }
+                    await prisma.personnelReport.update({
+                        where: { id: planReport.id },
+                        data: { metadata: meta }
+                    });
+                }
+            } catch (errPlan) {
+                console.error('Failed to link plan item to assignment:', errPlan);
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: `Penugasan resmi berhasil diberikan kepada ${assignment.assignee?.name || 'staf'}.`,
+            assignment
+        });
+    } catch (error) {
+        console.error('Error in createAssignmentFromPlan:', error);
+        return res.status(500).json({ success: false, error: 'Gagal membuat penugasan.' });
+    }
+};
+
+/**
+ * POST /api/kinerja-manajemen/plans
+ * PUT /api/kinerja-manajemen/plans/:id
+ * Membuat atau memperbarui Rencana Kerja staf langsung
+ */
+exports.saveStaffPlan = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId, title, category, priority, startDate, endDate, items = [], notes = '' } = req.body;
+        const targetUserId = userId ? parseInt(userId, 10) : parseInt(req.user.id, 10);
+
+        if (!title || !targetUserId) {
+            return res.status(400).json({ success: false, error: 'Staf penanggung jawab dan judul rencana wajib diisi.' });
+        }
+
+        const validCategories = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
+        const resolvedCat = validCategories.includes(category) ? category : 'UMUM';
+
+        const user = await prisma.user.findUnique({
+            where: { id: targetUserId },
+            select: { position: true, name: true }
+        });
+
+        const formattedItems = Array.isArray(items) ? items.map(it => ({
+            activity: it.activity || it.text || it.title || '',
+            targetDate: it.targetDate || '',
+            status: it.status || 'PENDING',
+            percentage: it.percentage !== undefined ? parseInt(it.percentage, 10) : 0,
+            assigned: !!it.assigned,
+            assignmentId: it.assignmentId || null
+        })) : [];
+
+        const avgPercentage = formattedItems.length > 0 
+            ? Math.round(formattedItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / formattedItems.length) 
+            : 0;
+        const isDone = avgPercentage === 100 || (formattedItems.length > 0 && formattedItems.every(i => i.status === 'SELESAI' || i.percentage === 100));
+
+        const payload = {
+            type: 'WEEKLY',
+            category: resolvedCat,
+            content: notes || `Rencana Kerja: ${title.trim()}`,
+            date: startDate ? new Date(startDate) : new Date(),
+            metadata: {
+                isPlan: true,
+                title: title.trim(),
+                position: user?.position || 'Staff',
+                categoryTag: resolvedCat,
+                priority: priority || 'SEDANG',
+                startDate: startDate || dayjs().format('YYYY-MM-DD'),
+                endDate: endDate || null,
+                status: isDone ? 'SELESAI' : 'PENDING',
+                percentage: avgPercentage,
+                items: formattedItems,
+                lastUpdatedBy: req.user?.name || 'Kepala Bidang Sarana'
+            }
+        };
+
+        let resultPlan;
+        const planId = id || req.body.id;
+        if (planId) {
+            resultPlan = await prisma.personnelReport.update({
+                where: { id: parseInt(planId, 10) },
+                data: payload
+            });
+        } else {
+            resultPlan = await prisma.personnelReport.create({
+                data: {
+                    userId: targetUserId,
+                    ...payload
+                }
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: planId ? 'Rencana kerja staf berhasil diperbarui.' : 'Rencana kerja staf berhasil dibuat.',
+            plan: resultPlan
+        });
+    } catch (error) {
+        console.error('Error in saveStaffPlan:', error);
+        return res.status(500).json({ success: false, error: 'Gagal menyimpan rencana kerja staf.' });
+    }
+};
+
+/**
+ * DELETE /api/kinerja-manajemen/plans/:id
+ * Menghapus Rencana Kerja staf
+ */
+exports.deleteStaffPlan = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.personnelReport.delete({
+            where: { id: parseInt(id, 10) }
+        });
+        return res.json({ success: true, message: 'Rencana kerja berhasil dihapus.' });
+    } catch (error) {
+        console.error('Error in deleteStaffPlan:', error);
+        return res.status(500).json({ success: false, error: 'Gagal menghapus rencana kerja.' });
+    }
+};
+
+/**
+ * PUT /api/kinerja-manajemen/plans/:id/item
+ * Memperbarui progres atau status butir kegiatan rencana kerja
+ */
+exports.updatePlanItemStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { itemIndex, percentage, status } = req.body;
+
+        const plan = await prisma.personnelReport.findUnique({
+            where: { id: parseInt(id, 10) }
+        });
+        if (!plan || !plan.metadata) {
+            return res.status(404).json({ success: false, error: 'Rencana kerja tidak ditemukan.' });
+        }
+
+        const meta = { ...plan.metadata };
+        const items = Array.isArray(meta.items) ? [...meta.items] : [];
+        if (itemIndex !== undefined && items[itemIndex]) {
+            items[itemIndex] = {
+                ...items[itemIndex],
+                ...(percentage !== undefined ? { percentage: parseInt(percentage, 10) } : {}),
+                ...(status ? { status } : {})
+            };
+            meta.items = items;
+            const avg = Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length);
+            meta.percentage = avg;
+            meta.status = avg === 100 ? 'SELESAI' : 'PENDING';
+        }
+
+        const updated = await prisma.personnelReport.update({
+            where: { id: plan.id },
+            data: { metadata: meta }
+        });
+
+        return res.json({ success: true, message: 'Progres butir rencana berhasil diperbarui.', plan: updated });
+    } catch (error) {
+        console.error('Error in updatePlanItemStatus:', error);
+        return res.status(500).json({ success: false, error: 'Gagal memperbarui butir rencana.' });
+    }
+};
+
+/**
+ * POST /api/kinerja-manajemen/daily-report
+ * Menyimpan Laporan Harian (PPP) terpadu langsung dari Menu Baru
+ */
+exports.saveDailyReportFromPpp = async (req, res) => {
+    try {
+        const { userId, date, category, completedItems = [], inProgressItems = [], obstacleItems = [], tomorrowPlans = [] } = req.body;
+        const targetUserId = userId ? parseInt(userId, 10) : parseInt(req.user.id, 10);
+
+        let reportDate = date ? dayjs.tz(date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
+        const dateStart = reportDate.startOf('day').toDate();
+        const dateEnd = reportDate.endOf('day').toDate();
+
+        // Cari laporan existing
+        const existingReports = await prisma.personnelReport.findMany({
+            where: {
+                userId: targetUserId,
+                type: 'DAILY',
+                NOT: { content: 'SETORAN_HAFALAN' },
+                date: { gte: dateStart, lte: dateEnd }
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        let report = existingReports[0] || null;
+
+        // Petakan butir completed (A), inProgress (B), obstacle (C) ke format manualPoints
+        const morningPoints = [];
+        const afternoonPoints = [];
+
+        // Gabungkan butir ke morning/afternoon agar kompatibel penuh dengan sistem lama
+        const mapCompleted = (it) => ({
+            text: it.title || it.text || 'Tugas Selesai',
+            categoryTag: it.categoryTag || category || 'UMUM',
+            status: 'COMPLETED',
+            output: it.output || '',
+            progressPercentage: 100,
+            photos: Array.isArray(it.photos) ? it.photos : [],
+            sourceType: it.sourceType || null,
+            sourceId: it.sourceId || null,
+            isRoutine: !!it.isRoutine,
+            updatedAt: new Date().toISOString()
+        });
+
+        const mapProgress = (it) => ({
+            text: it.title || it.text || 'Tugas On Progress',
+            categoryTag: it.categoryTag || category || 'UMUM',
+            status: 'IN_PROGRESS',
+            targetDate: it.targetDate || '',
+            progressPercentage: it.progressPercentage !== undefined ? parseInt(it.progressPercentage) : 50,
+            photos: Array.isArray(it.photos) ? it.photos : [],
+            sourceType: it.sourceType || null,
+            sourceId: it.sourceId || null,
+            isRoutine: !!it.isRoutine,
+            updatedAt: new Date().toISOString()
+        });
+
+        completedItems.forEach(it => morningPoints.push(mapCompleted(it)));
+        inProgressItems.forEach(it => afternoonPoints.push(mapProgress(it)));
+
+        // Jika ada kendala, sematkan di butir
+        if (obstacleItems && obstacleItems.length > 0) {
+            obstacleItems.forEach(obs => {
+                morningPoints.push({
+                    text: obs.title || obs.activityText || 'Kendala Lapangan',
+                    categoryTag: obs.categoryTag || category || 'UMUM',
+                    status: 'OBSTACLE',
+                    obstacleNote: obs.obstacleNote || '',
+                    actionPlan: obs.actionPlan || '',
+                    photos: Array.isArray(obs.photos) ? obs.photos : [],
+                    updatedAt: new Date().toISOString()
+                });
+            });
+        }
+
+        const formattedPoints = {
+            morning: morningPoints.length > 0 ? morningPoints : [{ text: 'Pekerjaan Harian', status: 'COMPLETED' }],
+            afternoon: afternoonPoints
+        };
+
+        // Buat ringkasan teks otomatis
+        const summaryLines = [
+            `[LAPORAN HARIAN PPP]`,
+            `A. Tugas Selesai: ${completedItems.length} butir`,
+            `B. Dalam Proses: ${inProgressItems.length} butir`,
+            `C. Kendala: ${obstacleItems.length > 0 ? obstacleItems.map(o => o.obstacleNote).join('; ') : 'Nihil'}`,
+            `D. Rencana Besok: ${tomorrowPlans.length > 0 ? tomorrowPlans.map(t => t.title).join('; ') : 'Sesuai SOP / Rutinitas'}`
+        ];
+        const autoContent = summaryLines.join('\n');
+
+        const normalizedDate = reportDate.hour(12).minute(0).second(0).toDate();
+
+        if (report) {
+            report = await prisma.personnelReport.update({
+                where: { id: report.id },
+                data: {
+                    content: autoContent,
+                    category: category || report.category || 'UMUM',
+                    date: normalizedDate,
+                    metadata: {
+                        ...(typeof report.metadata === 'object' && report.metadata !== null ? report.metadata : {}),
+                        manualPoints: formattedPoints,
+                        tomorrowPlans: Array.isArray(tomorrowPlans) ? tomorrowPlans : [],
+                        lastSubmittedAt: new Date().toISOString()
+                    }
+                }
+            });
+        } else {
+            report = await prisma.personnelReport.create({
+                data: {
+                    userId: targetUserId,
+                    type: 'DAILY',
+                    category: category || 'UMUM',
+                    content: autoContent,
+                    metadata: {
+                        manualPoints: formattedPoints,
+                        tomorrowPlans: Array.isArray(tomorrowPlans) ? tomorrowPlans : [],
+                        lastSubmittedAt: new Date().toISOString()
+                    },
+                    date: normalizedDate
+                }
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Laporan harian berhasil disimpan.',
+            report
+        });
+    } catch (error) {
+        console.error('Error in saveDailyReportFromPpp:', error);
+        return res.status(500).json({ success: false, error: 'Gagal menyimpan laporan harian.' });
     }
 };
