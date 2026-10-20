@@ -249,9 +249,9 @@ const KinerjaManajemen = () => {
                         type="button"
                         onClick={() => handleOpenPlanModal()}
                         className="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                        title="Buat Rencana Kerja Staf"
+                        title="Buat Rencana Kerja untuk Diri Sendiri atau Staf"
                     >
-                        <Target size={14} /> + Rencana Staf
+                        <Target size={14} /> + Buat Rencana Kerja
                     </button>
 
                     <button
@@ -266,6 +266,7 @@ const KinerjaManajemen = () => {
                         type="button"
                         onClick={() => setIsReportModalOpen(true)}
                         className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        title="Input Laporan Harian Kegiatan (Sesi Pagi & Siang)"
                     >
                         <FileText size={14} /> Input Laporan Harian
                     </button>

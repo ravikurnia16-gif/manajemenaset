@@ -1109,8 +1109,11 @@ export default function WorkPlanTab({
                             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
                         >
                             <option value="ALL">Semua Staf Sarana</option>
-                            {staffList.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
+                            {user?.id && (
+                                <option value={user.id}>👑 Rencana Saya ({user.name || 'Kepala Bidang Sarana'})</option>
+                            )}
+                            {staffList.filter(s => s.id !== user?.id).map(s => (
+                                <option key={s.id} value={s.id}>{s.name} ({s.position || 'Staff'})</option>
                             ))}
                         </select>
                     )}

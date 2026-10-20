@@ -18,6 +18,14 @@ const isSarprasUnit = async (unitId) => {
     return unit && (unit.name.toLowerCase().includes('sarana dan prasarana') || unit.name.toLowerCase().includes('sarpras'));
 };
 
+// Helper to check if user has role or position as Kepala Bidang Sarana / Sarpras
+const isKabidSarana = (user) => {
+    if (!user) return false;
+    const role = user.role || '';
+    const pos = (user.position || '').toLowerCase();
+    return role === 'KABID_SARPRAS' || role === 'KEPALA_BIDANG' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+};
+
 // Helper to sync personnel plan to SarprasCalendarEvent
 const syncPlanToCalendar = async (report, user) => {
     try {
@@ -343,7 +351,7 @@ exports.updateReport = async (req, res) => {
             return res.status(404).json({ error: 'Data tidak ditemukan' });
         }
 
-        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role)) {
+        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(user.role) && !isKabidSarana(user)) {
             return res.status(403).json({ error: 'Akses ditolak. Anda hanya dapat mengedit rencana Anda sendiri.' });
         }
 
@@ -410,7 +418,7 @@ exports.deleteReport = async (req, res) => {
             return res.status(404).json({ error: 'Data tidak ditemukan' });
         }
 
-        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role)) {
+        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KEPALA_BIDANG', 'KABID_SARPRAS'].includes(user.role) && !isKabidSarana(user)) {
             return res.status(403).json({ error: 'Akses ditolak. Anda hanya dapat menghapus rencana/laporan Anda sendiri.' });
         }
 
@@ -469,8 +477,12 @@ exports.createReport = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
-            return res.status(403).json({ error: 'Akses ditolak. Hanya unit Sarana dan Prasarana atau Admin Global yang dapat mengisi laporan.' });
+        const isAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(user.role) ||
+            isKabidSarana(user) ||
+            await isSarprasUnit(user.unitId);
+
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya unit Sarana dan Prasarana, Kepala Bidang Sarana, atau Admin Global yang dapat mengisi laporan.' });
         }
 
         const report = await prisma.personnelReport.create({
@@ -549,7 +561,11 @@ exports.getReports = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+        const isAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(user.role) ||
+            isKabidSarana(user) ||
+            await isSarprasUnit(user.unitId);
+
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -564,10 +580,12 @@ exports.getReports = async (req, res) => {
         }
 
         // Access Control: 
-        // - SUPER_ADMIN, KEPALA_BIDANG, and ADMIN_ASET (within Sarpras) can see all reports or filter by staff.
+        // - SUPER_ADMIN, KEPALA_BIDANG, KABID_SARPRAS, and ADMIN_ASET (within Sarpras) can see all reports or filter by staff.
         // - All other roles see ONLY their own.
         const canSeeAll = user.role === 'SUPER_ADMIN' ||
             user.role === 'KEPALA_BIDANG' ||
+            user.role === 'KABID_SARPRAS' ||
+            isKabidSarana(user) ||
             (user.role === 'ADMIN_ASET' && await isSarprasUnit(user.unitId));
 
         if (canSeeAll) {
@@ -747,14 +765,18 @@ exports.getAssignments = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+        const isAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(user.role) ||
+            isKabidSarana(user) ||
+            await isSarprasUnit(user.unitId);
+
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
         const where = {};
 
         // Role-based visibility
-        const canSeeAllAssignments = ['SUPER_ADMIN', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role);
+        const canSeeAllAssignments = ['SUPER_ADMIN', 'BIDANG_IT', 'KEPALA_BIDANG', 'KABID_SARPRAS'].includes(user.role) || isKabidSarana(user);
 
         if (!canSeeAllAssignments) {
             where.OR = [
@@ -847,7 +869,8 @@ exports.updateAssignmentStatus = async (req, res) => {
 
         if (assignment.assigneeId !== user.id &&
             assignment.assignerId !== user.id &&
-            !['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user.role)) {
+            !['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG', 'KABID_SARPRAS'].includes(user.role) &&
+            !isKabidSarana(user)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -1029,32 +1052,7 @@ exports.updateAssignmentStatus = async (req, res) => {
     }
 };
 
-// Help to get staff list for assignment dropdown
-exports.getStaffSarpras = async (req, res) => {
-    try {
-        // No strict role check here, because all users need to see staff list 
-        // to pick a driver for vehicle booking.
 
-        const staff = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { position: { contains: 'Sarana dan Prasarana' } },
-                    { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Gudang dan Logistik' } },
-                    { position: { contains: 'Teknisi' } },
-                    { position: { contains: 'Keuangan dan Administrasi' } },
-                    { position: { contains: 'Kendaraan' } }
-                ]
-            },
-            orderBy: { name: 'asc' },
-            select: { id: true, name: true, position: true }
-        });
-
-        res.json(staff);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
 
 // --- DRIVER MANAGEMENT ---
 
@@ -3047,18 +3045,22 @@ exports.getStaffSarpras = async (req, res) => {
             'teknisi',
             'keuangan dan administrasi',
             'admin aset',
-            'sarana dan prasarana'
+            'sarana dan prasarana',
+            'kepala bidang sarana'
         ];
 
         const staff = await prisma.user.findMany({
             where: {
                 OR: [
                     { role: 'ADMIN_ASET' },
+                    { role: 'KABID_SARPRAS' },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Kabid Sarpras' } },
                     ...sarprasKeywords.map(kw => ({ position: { contains: kw } }))
                 ],
                 NOT: [
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } },
+                    { position: { contains: 'Kepala Bidang Pembangunan' } },
+                    { position: { contains: 'Kepala Bidang Pendidikan' } },
                     { position: { equals: 'Staff Keuangan' } },
                     { position: { equals: 'Staff Keuangan / Sopir' } }
                 ]
@@ -3073,7 +3075,7 @@ exports.getStaffSarpras = async (req, res) => {
             },
             orderBy: { name: 'asc' }
         });
-        res.json({ success: true, staff });
+        res.json({ success: true, staff, data: staff });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

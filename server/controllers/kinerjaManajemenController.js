@@ -892,16 +892,19 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
             'sarana dan prasarana'
         ];
 
-        // 1. Ambil seluruh staf Sarpras
+        // 1. Ambil seluruh staf Sarpras & Kepala Bidang Sarana
         const staffList = await prisma.user.findMany({
             where: {
                 OR: [
                     { role: 'ADMIN_ASET' },
+                    { role: 'KABID_SARPRAS' },
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Kabid Sarpras' } },
                     ...sarprasKeywords.map(kw => ({ position: { contains: kw } }))
                 ],
                 NOT: [
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang' } }
+                    { position: { contains: 'Kepala Bidang Pembangunan' } },
+                    { position: { contains: 'Kepala Bidang Pendidikan' } }
                 ]
             },
             select: {

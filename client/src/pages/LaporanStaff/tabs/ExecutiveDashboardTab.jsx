@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { 
     CheckCircle2, AlertCircle, FileText, Camera, Sparkles, TrendingUp, 
-    Wrench, AlertTriangle, Send, Award, User, Loader2, BellRing, Bell 
+    Wrench, AlertTriangle, Send, Award, User, Loader2, BellRing, Bell, Target 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -26,7 +26,8 @@ const ExecutiveDashboardTab = ({
     handleRemindStaff,
     remindingStaff,
     setLightboxPhoto,
-    fetchDashboardAnalytics
+    fetchDashboardAnalytics,
+    setActiveTab
 }) => {
     // Category chart data
     const categoryPieData = useMemo(() => {
@@ -40,6 +41,41 @@ const ExecutiveDashboardTab = ({
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Quick Action Card for Kepala Bidang Sarana */}
+            {setActiveTab && (
+                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700 text-white p-4 sm:p-5 rounded-3xl shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                            <Sparkles size={22} className="text-white" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm sm:text-base font-black">
+                                Pelaporan & Perencanaan Kepala Bidang Sarana
+                            </h4>
+                            <p className="text-xs text-blue-100">
+                                Sebagai Kepala Bidang Sarana, Anda dapat menyusun rencana kerja strategis (Pekanan/Project) dan mengisi laporan kegiatan harian (Sesi Pagi & Siang).
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('laporan')}
+                            className="px-3.5 py-2 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-2xl text-xs transition-all shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
+                        >
+                            <FileText size={15} /> Tulis Laporan Harian Saya
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('perencanaan')}
+                            className="px-3.5 py-2 bg-indigo-900/60 hover:bg-indigo-900 text-white font-bold rounded-2xl text-xs transition-all border border-white/20 shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
+                        >
+                            <Target size={15} /> Susun Rencana Kerja Saya
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">

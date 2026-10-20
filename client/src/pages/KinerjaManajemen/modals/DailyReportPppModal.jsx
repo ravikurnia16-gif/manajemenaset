@@ -51,14 +51,14 @@ const DailyReportPppModal = ({
     useEffect(() => {
         if (!isOpen) return;
 
-        if (!isManager && currentUser?.id) {
-            setSelectedStaffId(String(currentUser.id));
-        } else if (!selectedStaffId && staffList.length > 0) {
-            // Jika manager, pilih staf yang login jika ada dalam list, atau staf pertama
-            const mySelf = staffList.find(s => s.id === currentUser?.id);
-            setSelectedStaffId(mySelf ? String(mySelf.id) : String(staffList[0].id));
+        if (!selectedStaffId) {
+            if (currentUser?.id) {
+                setSelectedStaffId(String(currentUser.id));
+            } else if (staffList.length > 0) {
+                setSelectedStaffId(String(staffList[0].id));
+            }
         }
-    }, [isOpen, staffList, currentUser?.id, isManager]);
+    }, [isOpen, staffList, currentUser?.id, selectedStaffId]);
 
     // Reset pulled items map when staff changes
     useEffect(() => {
@@ -241,8 +241,13 @@ const DailyReportPppModal = ({
                                     onChange={(e) => setSelectedStaffId(e.target.value)}
                                     className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
                                 >
-                                    {staffList.map((st) => (
-                                        <option key={st.id} value={st.id}>
+                                    {currentUser?.id && (
+                                        <option value={String(currentUser.id)}>
+                                            👑 {currentUser.name || 'Saya Sendiri'} ({currentUser.position || 'Kepala Bidang Sarana'})
+                                        </option>
+                                    )}
+                                    {staffList.filter(st => st.id !== currentUser?.id).map((st) => (
+                                        <option key={st.id} value={String(st.id)}>
                                             {st.name} ({st.position || 'Staff'})
                                         </option>
                                     ))}

@@ -14,6 +14,7 @@ const PlanModal = ({
     initialStaff = null, 
     initialPlan = null 
 }) => {
+    const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
     const [userId, setUserId] = useState('');
     const [title, setTitle] = useState('');
     const [planType, setPlanType] = useState('WEEKLY'); // 'WEEKLY' | 'PROJECT'
@@ -53,7 +54,7 @@ const PlanModal = ({
                     projectItemIndex: it.projectItemIndex !== undefined ? it.projectItemIndex : null
                 })));
             } else {
-                setUserId(initialStaff ? initialStaff.id : (staffList[0]?.id || ''));
+                setUserId(initialStaff ? initialStaff.id : (currentUser?.id || staffList[0]?.id || ''));
                 setTitle('');
                 setPlanType('WEEKLY');
                 setCategory('UMUM');
@@ -214,8 +215,13 @@ const PlanModal = ({
                             required
                             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 outline-none focus:border-violet-500 cursor-pointer"
                         >
-                            <option value="" disabled>-- Pilih Staf Sarpras --</option>
-                            {staffList.map((st) => (
+                            <option value="" disabled>-- Pilih Penanggung Jawab Rencana --</option>
+                            {currentUser?.id && (
+                                <option value={currentUser.id}>
+                                    👑 {currentUser.name || 'Saya Sendiri'} ({currentUser.position || 'Kepala Bidang Sarana'})
+                                </option>
+                            )}
+                            {staffList.filter(st => st.id !== currentUser?.id).map((st) => (
                                 <option key={st.id} value={st.id}>
                                     {st.name} ({st.position || 'Staff'})
                                 </option>

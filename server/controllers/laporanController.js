@@ -46,7 +46,7 @@ const isKabid = (user) => {
     if (!user) return false;
     const role = user.role || '';
     const pos = (user.position || '').toLowerCase();
-    return role === 'KABID_SARPRAS' || role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || role === 'BIDANG_IT' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    return role === 'KABID_SARPRAS' || role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || role === 'BIDANG_IT' || role === 'KEPALA_BIDANG' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
 };
 
 /**
@@ -183,11 +183,12 @@ exports.getReports = async (req, res) => {
             }
         }
 
-        // For Kabid, filter staff matching STAFF_USER_WHERE and exclude auto logs; for Non-Kabid always keep own report
+        // For Kabid, filter staff matching staff keywords AND keep Kepala Bidang Sarana reports / own report; exclude auto logs
         let reports = Object.values(userReportsMap).filter(r => {
-            if (!isUserKabid && r.userId === reqUserId) return true;
-            const isStaff = r.user?.role === 'ADMIN_ASET' || SARPRAS_KEYWORDS.some(kw => (r.user?.position || '').toLowerCase().includes(kw));
-            if (!isStaff) return false;
+            const pos = (r.user?.position || '').toLowerCase();
+            const isKabidUser = r.user?.role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+            const isStaff = r.user?.role === 'ADMIN_ASET' || isKabidUser || SARPRAS_KEYWORDS.some(kw => pos.includes(kw));
+            if (!isStaff && r.userId !== reqUserId) return false;
             const hasManual = isReportSubmitted(r);
             const hasRealManualContent = r.content && !r.content.includes('(Otomatis)');
             return hasManual || hasRealManualContent;

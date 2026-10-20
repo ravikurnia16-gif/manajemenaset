@@ -83,13 +83,14 @@ const LaporanStaff = () => {
     const isKabid = useMemo(() => {
         const role = user.role || '';
         const pos = (user.position || '').toLowerCase();
-        return role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+        return role === 'KABID_SARPRAS' || role === 'KEPALA_BIDANG' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     }, [user]);
 
     const isOnlyKabidSarana = useMemo(() => {
+        const role = user.role || '';
         const pos = (user.position || '').toLowerCase();
-        return pos.includes('kepala bidang sarana');
-    }, [user.position]);
+        return pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras') || role === 'KABID_SARPRAS';
+    }, [user.position, user.role]);
 
     const userDivision = useMemo(() => {
         const pos = (user.position || '').toLowerCase();
@@ -1465,6 +1466,7 @@ const LaporanStaff = () => {
                             remindingStaff={remindingStaff}
                             setLightboxPhoto={setLightboxPhoto}
                             fetchDashboardAnalytics={fetchDashboardAnalytics}
+                            setActiveTab={setActiveTab}
                         />
                     )}
 
