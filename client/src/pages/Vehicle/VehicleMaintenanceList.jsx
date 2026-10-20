@@ -19,8 +19,10 @@ import VehicleServiceSPKModal from './components/VehicleServiceSPKModal';
 const VehicleMaintenanceList = () => {
     const navigate = useNavigate();
     const [logs, setLogs] = useState([]);
+    const [tripIncidents, setTripIncidents] = useState([]);
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingIncidents, setLoadingIncidents] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedVehicleId, setSelectedVehicleId] = useState('');
     const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'damage' | 'maintenance'
@@ -32,7 +34,12 @@ const VehicleMaintenanceList = () => {
     const [requestModalConfig, setRequestModalConfig] = useState({
         show: false,
         category: 'ROUTINE',
-        type: 'SERVICE_RUTIN'
+        type: 'SERVICE_RUTIN',
+        vehicleId: '',
+        description: '',
+        odometer: '',
+        photo: null,
+        bookingId: null
     });
     const [reviewModalRequest, setReviewModalRequest] = useState(null);
     const [completeModalRequest, setCompleteModalRequest] = useState(null);
@@ -51,6 +58,7 @@ const VehicleMaintenanceList = () => {
 
     useEffect(() => {
         fetchLogs();
+        fetchTripIncidents();
         fetchVehicles();
     }, []);
 
@@ -62,6 +70,18 @@ const VehicleMaintenanceList = () => {
             console.error('Failed to fetch maintenance logs:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchTripIncidents = async () => {
+        try {
+            setLoadingIncidents(true);
+            const res = await api.get('/vehicles/incidents');
+            setTripIncidents(Array.isArray(res.data) ? res.data : []);
+        } catch (error) {
+            console.error('Failed to fetch trip incidents:', error);
+        } finally {
+            setLoadingIncidents(false);
         }
     };
 
@@ -79,6 +99,7 @@ const VehicleMaintenanceList = () => {
         try {
             await api.delete(`/vehicles/maintenance/${id}`);
             fetchLogs();
+            fetchTripIncidents();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menghapus log');
         }
@@ -90,6 +111,7 @@ const VehicleMaintenanceList = () => {
         try {
             await api.put(`/vehicles/maintenance/${log.id}/start-progress`, { workshop: log.workshop });
             fetchLogs();
+            fetchTripIncidents();
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal mengubah status pengerjaan');
         }
@@ -101,68 +123,58 @@ const VehicleMaintenanceList = () => {
         return log.proofFile || log.complaintPhoto || log.photo || null;
     };
 
-    // Helper cek apakah sebuah record adalah laporan kerusakan / insiden
-    const isDamageReport = (l) => {
-        if (!l) return false;
-        const desc = (l.description || '').toLowerCase();
-        const type = (l.type || '').toLowerCase();
-        const cat = (l.category || '').toLowerCase();
-        return (
-            cat === 'non_routine' ||
-            type === 'perbaikan' ||
-            desc.includes('kerusakan') ||
-            desc.includes('insiden') ||
-            desc.includes('kendala') ||
-            desc.includes('[laporan') ||
-            !!l.complaintPhoto
-        );
+    // Handler Tindak Lanjut Insiden Perjalanan ke Alur Servis / Bengkel
+    const handleFollowUpIncident = (inc) => {
+        setRequestModalConfig({
+            show: true,
+            category: 'NON_ROUTINE',
+            type: 'PERBAIKAN',
+            vehicleId: inc.vehicleId,
+            description: `[Tindak Lanjut Insiden #${inc.id}] Rute: ${inc.destination || '-'}. Catatan Sopir (${inc.driverName}): ${inc.incidentNotes || '-'}`,
+            odometer: inc.endKm || '',
+            photo: inc.incidentPhoto || null,
+            bookingId: inc.id
+        });
     };
 
-    // Laporan Kerusakan Khusus (Semua insiden / perbaikan darurat)
-    const damageLogs = logs.filter(isDamageReport);
-
-    // Pengajuan Pemeliharaan Rutin (Alur servis berkala)
+    // TAB 1: Alur Pengajuan Pemeliharaan & Servis Kendaraan (Semua pengajuan aktif di alur kerja)
     const requestLogs = logs.filter(l => {
-        const inRequestFlow = (
-            (l.code && l.code.startsWith('PK/')) ||
+        return (
             l.status === 'PENDING' || 
             l.status === 'APPROVED' || 
             l.status === 'IN_PROGRESS' || 
             l.status === 'REJECTED' ||
-            (l.requesterId && l.status !== 'COMPLETED')
+            (l.code && l.code.startsWith('PK/') && l.status !== 'COMPLETED')
         );
-        return inRequestFlow && !isDamageReport(l);
     });
 
-    // Riwayat Servis Selesai (COMPLETED routine / scheduled services)
+    // TAB 2: Laporan Kerusakan Murni dari Laporan Pemakaian Kendaraan (Trip End Report hasIncident)
+    const damageLogs = tripIncidents;
+
+    // TAB 3: Riwayat Servis Selesai (COMPLETED routine / scheduled services)
     const maintenanceLogs = logs.filter(l => 
         !l.status || l.status === 'COMPLETED'
     );
 
-    // Badge Counters Tab Pengajuan Rutin
+    // Badge Counters Tab Pengajuan Servis (Tab 1)
     const pendingRequestsCount = requestLogs.filter(l => l.status === 'PENDING').length;
     const approvedRequestsCount = requestLogs.filter(l => l.status === 'APPROVED').length;
     const inProgressRequestsCount = requestLogs.filter(l => l.status === 'IN_PROGRESS').length;
 
-    // Badge Counters Tab Laporan Kerusakan
-    const damagePendingCount = damageLogs.filter(l => l.status === 'PENDING').length;
-    const damageApprovedCount = damageLogs.filter(l => l.status === 'APPROVED').length;
-    const damageInProgressCount = damageLogs.filter(l => l.status === 'IN_PROGRESS').length;
-    const damageCompletedCount = damageLogs.filter(l => l.status === 'COMPLETED').length;
+    // Badge Counters Tab Laporan Kerusakan (Tab 2)
+    const damagePendingCount = damageLogs.filter(inc => !inc.isFollowedUp || inc.service?.status === 'PENDING').length;
+    const damageApprovedCount = damageLogs.filter(inc => inc.isFollowedUp && inc.service?.status === 'APPROVED').length;
+    const damageInProgressCount = damageLogs.filter(inc => inc.isFollowedUp && inc.service?.status === 'IN_PROGRESS').length;
+    const damageCompletedCount = damageLogs.filter(inc => inc.isFollowedUp && inc.service?.status === 'COMPLETED').length;
 
-    // Filter per tab yang sedang aktif
+    // Filter Tab 1 (Pengajuan) & Tab 3 (Riwayat Selesai)
     let currentTabLogs = [];
     if (activeTab === 'requests') {
         currentTabLogs = requestLogs.filter(l => {
             if (requestStatusFilter === 'ALL') return true;
             return l.status === requestStatusFilter;
         });
-    } else if (activeTab === 'damage') {
-        currentTabLogs = damageLogs.filter(l => {
-            if (damageStatusFilter === 'ALL') return true;
-            return l.status === damageStatusFilter;
-        });
-    } else {
+    } else if (activeTab === 'maintenance') {
         currentTabLogs = maintenanceLogs;
     }
 
@@ -185,26 +197,59 @@ const VehicleMaintenanceList = () => {
         );
     });
 
+    // Filter Khusus Tab 2: Laporan Kerusakan dari Pemakaian Kendaraan
+    const filteredDamageLogs = damageLogs.filter(inc => {
+        if (selectedVehicleId && inc.vehicleId !== parseInt(selectedVehicleId)) return false;
+
+        if (damageStatusFilter === 'PENDING') {
+            if (inc.isFollowedUp && inc.service?.status !== 'PENDING') return false;
+        } else if (damageStatusFilter === 'APPROVED') {
+            if (!inc.isFollowedUp || inc.service?.status !== 'APPROVED') return false;
+        } else if (damageStatusFilter === 'IN_PROGRESS') {
+            if (!inc.isFollowedUp || inc.service?.status !== 'IN_PROGRESS') return false;
+        } else if (damageStatusFilter === 'COMPLETED') {
+            if (!inc.isFollowedUp || inc.service?.status !== 'COMPLETED') return false;
+        } else if (damageStatusFilter === 'REJECTED') {
+            if (!inc.isFollowedUp || inc.service?.status !== 'REJECTED') return false;
+        }
+
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        const matchVehicle = (inc.vehicle?.name && inc.vehicle.name.toLowerCase().includes(term)) ||
+                             (inc.vehicle?.plateNumber && inc.vehicle.plateNumber.toLowerCase().includes(term));
+        const matchDriver = (inc.driverName && inc.driverName.toLowerCase().includes(term)) ||
+                            (inc.user?.name && inc.user.name.toLowerCase().includes(term));
+        const matchDest = (inc.destination && inc.destination.toLowerCase().includes(term));
+        const matchNotes = (inc.incidentNotes && inc.incidentNotes.toLowerCase().includes(term));
+        const matchService = inc.service && (
+            (inc.service.code && inc.service.code.toLowerCase().includes(term)) ||
+            (inc.service.spkNumber && inc.service.spkNumber.toLowerCase().includes(term))
+        );
+        return matchVehicle || matchDriver || matchDest || matchNotes || matchService;
+    });
+
     const handleExport = () => {
         let exportData = [];
         let sheetTitle = 'Pemeliharaan_Kendaraan';
 
         if (activeTab === 'damage') {
-            sheetTitle = 'Laporan_Kerusakan_Kendaraan';
-            exportData = filteredLogs.map((log, index) => ({
+            sheetTitle = 'Laporan_Kerusakan_Pemakaian_Kendaraan';
+            exportData = filteredDamageLogs.map((inc, index) => ({
                 'No': index + 1,
-                'Kode Laporan': log.code || '-',
-                'Tanggal': new Date(log.date).toLocaleDateString('id-ID'),
-                'Kendaraan': log.vehicle?.name || 'Tanpa Nama',
-                'Plat Nomor': log.vehicle?.plateNumber || '-',
-                'Pelapor': log.requester?.name || '-',
-                'Tingkat Urgensi': log.urgency || 'NORMAL',
-                'Status': log.status || 'PENDING',
-                'No. SPK': log.spkNumber || '-',
-                'Estimasi Biaya (Rp)': log.estimatedCost || 0,
-                'Biaya Aktual (Rp)': log.cost || 0,
-                'Bengkel': log.workshop || '-',
-                'Deskripsi Kerusakan / Kendala': log.description || '-'
+                'ID Insiden': `#TRIP-${inc.id}`,
+                'Waktu Selesai Jalan': inc.createdAt ? new Date(inc.createdAt).toLocaleString('id-ID') : '-',
+                'Kendaraan': inc.vehicle?.name || 'Tanpa Nama',
+                'Plat Nomor': inc.vehicle?.plateNumber || '-',
+                'Pengemudi / Sopir': inc.driverName || '-',
+                'Peminjam': inc.user?.name || '-',
+                'Tujuan / Rute': inc.destination || '-',
+                'KM Awal': inc.startKm || '-',
+                'KM Akhir': inc.endKm || '-',
+                'Jarak Tempuh (km)': inc.totalDistance || '-',
+                'Kronologi / Kerusakan': inc.incidentNotes || '-',
+                'Status Tindak Lanjut': inc.isFollowedUp ? (inc.service?.status || 'SUDAH DIAJUKAN SERVIS') : 'BELUM DITINDAKLANJUTI',
+                'Kode Tiket Servis': inc.service?.code || '-',
+                'No. SPK': inc.service?.spkNumber || '-'
             }));
         } else if (activeTab === 'requests') {
             sheetTitle = 'Pengajuan_Servis_Kendaraan';
@@ -329,7 +374,16 @@ const VehicleMaintenanceList = () => {
                 <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
                     {/* Tombol Lapor Kerusakan */}
                     <button
-                        onClick={() => setRequestModalConfig({ show: true, category: 'NON_ROUTINE', type: 'PERBAIKAN' })}
+                        onClick={() => setRequestModalConfig({
+                            show: true,
+                            category: 'NON_ROUTINE',
+                            type: 'PERBAIKAN',
+                            vehicleId: '',
+                            description: '',
+                            odometer: '',
+                            photo: null,
+                            bookingId: null
+                        })}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 to-red-600 text-white px-4 py-2.5 rounded-xl font-bold hover:from-rose-700 hover:to-red-700 shadow-md shadow-rose-500/25 transition-all text-xs sm:text-sm cursor-pointer"
                         title="Laporkan kendala, insiden, atau kerusakan armada untuk perbaikan darurat/bengkel"
                     >
@@ -338,7 +392,16 @@ const VehicleMaintenanceList = () => {
 
                     {/* Tombol Ajukan Servis Rutin */}
                     <button
-                        onClick={() => setRequestModalConfig({ show: true, category: 'ROUTINE', type: 'SERVICE_RUTIN' })}
+                        onClick={() => setRequestModalConfig({
+                            show: true,
+                            category: 'ROUTINE',
+                            type: 'SERVICE_RUTIN',
+                            vehicleId: '',
+                            description: '',
+                            odometer: '',
+                            photo: null,
+                            bookingId: null
+                        })}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/25 transition-all text-xs sm:text-sm cursor-pointer"
                         title="Pengajuan servis berkala, ganti oli, dan tune-up armada"
                     >
@@ -552,19 +615,353 @@ const VehicleMaintenanceList = () => {
                 <div className="flex justify-center py-20 bg-white rounded-2xl border border-slate-100">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                 </div>
+            ) : activeTab === 'damage' ? (
+                /* ══════════════════════════════════════════════════════
+                   TAB 2: LAPORAN KERUSAKAN MURNI DARI LAPORAN PEMAKAIAN KENDARAAN (TRIP END REPORT)
+                   ══════════════════════════════════════════════════════ */
+                filteredDamageLogs.length > 0 ? (
+                    <div className="space-y-4">
+                        {/* Desktop Table (Tab 2) */}
+                        <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-rose-50/50 border-b border-rose-100 text-[11px] font-extrabold text-rose-800 uppercase tracking-wider">
+                                        <th className="px-5 py-4">ID & Waktu Insiden</th>
+                                        <th className="px-5 py-4">Armada Kendaraan</th>
+                                        <th className="px-5 py-4">Pengemudi & Rute Perjalanan</th>
+                                        <th className="px-5 py-4">Kronologi & Foto Kerusakan</th>
+                                        <th className="px-5 py-4 text-center">Status Servis</th>
+                                        <th className="px-5 py-4 text-center">Tindak Lanjut</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredDamageLogs.map(inc => {
+                                        const hasService = inc.isFollowedUp && inc.service;
+                                        const photoUrl = inc.incidentPhoto ? getMediaUrl(inc.incidentPhoto) : null;
+                                        const isPending = hasService && inc.service.status === 'PENDING';
+                                        const isApproved = hasService && inc.service.status === 'APPROVED';
+                                        const isInProgress = hasService && inc.service.status === 'IN_PROGRESS';
+                                        const isCompleted = hasService && inc.service.status === 'COMPLETED';
+
+                                        return (
+                                            <tr key={inc.id} className="hover:bg-slate-50/70 transition-colors group text-sm font-medium text-slate-600">
+                                                {/* ID & Waktu */}
+                                                <td className="px-5 py-4 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="font-mono font-bold text-xs text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md w-fit border border-rose-200">
+                                                            #TRIP-{inc.id}
+                                                        </span>
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                                            <Calendar size={12} className="text-slate-400" />
+                                                            {new Date(inc.createdAt || inc.tripEndTime).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        </div>
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 w-fit">
+                                                            🚨 Insiden Perjalanan
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Armada Kendaraan */}
+                                                <td className="px-5 py-4">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-slate-900 text-sm">{inc.vehicle?.name || 'Armada'}</span>
+                                                        <span className="text-[11px] font-mono font-bold text-slate-500 uppercase">{inc.vehicle?.plateNumber}</span>
+                                                        <div className="text-[11px] text-slate-500 mt-1 flex flex-col gap-0.5">
+                                                            <span>KM Akhir: <b className="text-slate-700 font-mono">{inc.endKm?.toLocaleString() || '-'}</b></span>
+                                                            {inc.totalDistance && (
+                                                                <span className="text-blue-600 font-semibold text-[10px]">Jarak Tempuh: {inc.totalDistance.toLocaleString()} km</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Pengemudi & Rute */}
+                                                <td className="px-5 py-4 max-w-xs">
+                                                    <div className="space-y-1">
+                                                        <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                                            <span>👤 Sopir: {inc.driverName}</span>
+                                                        </div>
+                                                        {inc.user?.name && inc.user.name !== inc.driverName && (
+                                                            <div className="text-[11px] text-slate-500">
+                                                                Peminjam: {inc.user.name}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-xs text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100 mt-1">
+                                                            <span className="font-bold text-slate-700">Tujuan:</span> {inc.destination || '-'}
+                                                            {inc.purpose && <div className="text-[10px] text-slate-400 truncate mt-0.5">Keperluan: {inc.purpose}</div>}
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Kronologi & Foto Kerusakan */}
+                                                <td className="px-5 py-4 max-w-sm">
+                                                    <div className="space-y-1.5">
+                                                        <p className="text-xs text-slate-700 font-medium leading-relaxed bg-rose-50/60 p-2 rounded-xl border border-rose-100">
+                                                            {inc.incidentNotes || 'Kerusakan saat perjalanan'}
+                                                        </p>
+                                                        {photoUrl && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setPreviewPhoto(photoUrl)}
+                                                                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 cursor-pointer transition hover:bg-rose-100"
+                                                                title="Lihat foto bukti kerusakan di jalan"
+                                                            >
+                                                                <Image size={12} /> Foto Kerusakan
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+
+                                                {/* Status Servis */}
+                                                <td className="px-5 py-4 text-center">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        {hasService ? (
+                                                            <>
+                                                                {renderStatusBadge(inc.service.status)}
+                                                                <span className="font-mono font-bold text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 mt-0.5">
+                                                                    {inc.service.code || `ID-#${inc.service.id}`}
+                                                                </span>
+                                                                {inc.service.spkNumber && (
+                                                                    <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                                                                        {inc.service.spkNumber}
+                                                                    </span>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                <AlertCircle size={12} className="text-amber-500" />
+                                                                Belum Ada Tiket
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+
+                                                {/* Aksi Tindak Lanjut */}
+                                                <td className="px-5 py-4 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-1.5">
+                                                        {!hasService ? (
+                                                            <button
+                                                                onClick={() => handleFollowUpIncident(inc)}
+                                                                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-rose-500/20 transition cursor-pointer"
+                                                                title="Terbitkan pengajuan servis bengkel untuk insiden ini"
+                                                            >
+                                                                <Wrench size={13} /> + Tindak Lanjut Servis
+                                                            </button>
+                                                        ) : (
+                                                            <>
+                                                                {isPending && (
+                                                                    isKabidSarana ? (
+                                                                        <button
+                                                                            onClick={() => setReviewModalRequest(inc.service)}
+                                                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-500/20 transition cursor-pointer"
+                                                                        >
+                                                                            <ShieldCheck size={14} /> Review & TTE
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 font-medium">
+                                                                            Menunggu Kabid
+                                                                        </span>
+                                                                    )
+                                                                )}
+                                                                {isApproved && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => setSpkModalService(inc.service)}
+                                                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                                                                        >
+                                                                            <Printer size={13} /> Cetak SPK
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleStartProgress(inc.service)}
+                                                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                                                                        >
+                                                                            <Wrench size={13} /> Masuk Bengkel
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                                {isInProgress && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => setCompleteModalRequest(inc.service)}
+                                                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                                                                        >
+                                                                            <CheckCircle2 size={14} /> Selesaikan Servis
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setSpkModalService(inc.service)}
+                                                                            className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg text-xs font-medium transition cursor-pointer"
+                                                                        >
+                                                                            <Printer size={12} /> SPK
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                                {isCompleted && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        {inc.service.spkNumber && (
+                                                                            <button
+                                                                                onClick={() => setSpkModalService(inc.service)}
+                                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
+                                                                                title="Cetak SPK Kendaraan"
+                                                                            >
+                                                                                <Printer size={16} />
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            onClick={() => navigate(`/kendaraan/pemeliharaan/view/${inc.service.id}`)}
+                                                                            className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                                                                            title="Lihat Rincian Lengkap"
+                                                                        >
+                                                                            <Eye size={16} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Mobile Cards (Tab 2) */}
+                        <div className="grid grid-cols-1 gap-4 lg:hidden">
+                            {filteredDamageLogs.map(inc => {
+                                const hasService = inc.isFollowedUp && inc.service;
+                                const photoUrl = inc.incidentPhoto ? getMediaUrl(inc.incidentPhoto) : null;
+
+                                return (
+                                    <div key={inc.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <div className="flex flex-col">
+                                                <span className="font-mono text-xs font-bold text-rose-600">#TRIP-{inc.id}</span>
+                                                <span className="font-bold text-slate-800 text-base">{inc.vehicle?.name || 'Tanpa Nama'}</span>
+                                                <span className="text-xs uppercase font-mono text-slate-400 tracking-wider">{inc.vehicle?.plateNumber}</span>
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 mt-1 w-fit">
+                                                    🚨 Insiden Perjalanan
+                                                </span>
+                                            </div>
+                                            <div>
+                                                {hasService ? (
+                                                    renderStatusBadge(inc.service.status)
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                                        Belum Ada Tiket
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50 text-xs">
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-bold">Sopir / Peminjam</span>
+                                                <div className="font-semibold text-slate-800">{inc.driverName}</div>
+                                                {inc.destination && <div className="text-[11px] text-slate-500">Rute: {inc.destination}</div>}
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-bold">KM Perjalanan</span>
+                                                <div className="font-semibold text-slate-800">{inc.endKm ? `${inc.endKm.toLocaleString()} km` : '-'}</div>
+                                                {inc.totalDistance && <div className="text-[10px] text-blue-600 font-bold">Jarak: {inc.totalDistance} km</div>}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <span className="text-[10px] text-slate-400 uppercase font-bold">Kronologi Insiden</span>
+                                            <div className="text-xs text-slate-700 font-medium bg-rose-50/60 p-2.5 rounded-xl border border-rose-100">
+                                                {inc.incidentNotes || 'Kerusakan kendaraan saat perjalanan'}
+                                            </div>
+                                            {photoUrl && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPreviewPhoto(photoUrl)}
+                                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 cursor-pointer"
+                                                >
+                                                    <Image size={13} /> Foto Kerusakan
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="pt-2 border-t border-slate-50">
+                                            {!hasService ? (
+                                                <button
+                                                    onClick={() => handleFollowUpIncident(inc)}
+                                                    className="w-full py-2.5 bg-gradient-to-r from-rose-600 to-red-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                                >
+                                                    <Wrench size={14} /> + Tindak Lanjut ke Servis
+                                                </button>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {inc.service.status === 'PENDING' && isKabidSarana && (
+                                                        <button
+                                                            onClick={() => setReviewModalRequest(inc.service)}
+                                                            className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                                                        >
+                                                            <ShieldCheck size={14} /> Review & TTE
+                                                        </button>
+                                                    )}
+                                                    {inc.service.status === 'APPROVED' && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => setSpkModalService(inc.service)}
+                                                                className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                                                            >
+                                                                <Printer size={13} /> Cetak SPK
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleStartProgress(inc.service)}
+                                                                className="flex-1 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                                                            >
+                                                                <Wrench size={13} /> Ke Bengkel
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {inc.service.status === 'IN_PROGRESS' && (
+                                                        <button
+                                                            onClick={() => setCompleteModalRequest(inc.service)}
+                                                            className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                                                        >
+                                                            <CheckCircle2 size={14} /> Selesaikan Servis
+                                                        </button>
+                                                    )}
+                                                    {inc.service.status === 'COMPLETED' && (
+                                                        <button
+                                                            onClick={() => navigate(`/kendaraan/pemeliharaan/view/${inc.service.id}`)}
+                                                            className="flex-1 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                                                        >
+                                                            <Eye size={14} /> Lihat Rincian
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-white p-16 rounded-2xl border border-dashed border-slate-200 text-center">
+                        <AlertTriangle size={54} className="mx-auto text-rose-300 mb-3" />
+                        <h3 className="text-slate-700 font-bold text-base">Tidak ada laporan kerusakan perjalanan</h3>
+                        <p className="text-slate-400 text-xs mt-1">Belum ada kendala atau kerusakan yang dilaporkan saat pengembalian armada pemakaian jalan.</p>
+                    </div>
+                )
             ) : filteredLogs.length > 0 ? (
+                /* ══════════════════════════════════════════════════════
+                   TAB 1 & TAB 3: PENGAJUAN SERVIS & RIWAYAT SERVIS SELESAI
+                   ══════════════════════════════════════════════════════ */
                 <div className="space-y-4">
-                    {/* ══════════════════════════════════════════════════════
-                        TAB 1 & 2: DAFTAR ALUR PENGAJUAN SERVIS & LAPORAN KERUSAKAN (DESKTOP TABLE)
-                       ══════════════════════════════════════════════════════ */}
-                    {(activeTab === 'requests' || activeTab === 'damage') && (
+                    {/* TAB 1: DAFTAR ALUR PENGAJUAN SERVIS (DESKTOP TABLE) */}
+                    {activeTab === 'requests' && (
                         <div className="hidden lg:block bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                                        <th className="px-5 py-4">{activeTab === 'damage' ? 'Kode & Tanggal Lapor' : 'Kode & Tanggal'}</th>
+                                        <th className="px-5 py-4">Kode & Tanggal</th>
                                         <th className="px-5 py-4">Armada Kendaraan</th>
-                                        <th className="px-5 py-4">{activeTab === 'damage' ? 'Pelapor & Detail Kerusakan' : 'Pemohon & Kebutuhan'}</th>
+                                        <th className="px-5 py-4">Pemohon & Kebutuhan</th>
                                         <th className="px-5 py-4">Bengkel & Estimasi</th>
                                         <th className="px-5 py-4 text-center">Status Alur</th>
                                         <th className="px-5 py-4 text-center">Aksi / Tindak Lanjut</th>
@@ -592,9 +989,13 @@ const VehicleMaintenanceList = () => {
                                                         </div>
                                                         <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                                             {renderUrgencyBadge(log.urgency)}
-                                                            {isDamageReport(log) && (
-                                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 shadow-2xs">
-                                                                    🚨 Laporan Kerusakan
+                                                            {log.category === 'NON_ROUTINE' ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded-md border border-orange-200 shadow-2xs">
+                                                                    🔧 Perbaikan
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200 shadow-2xs">
+                                                                    🔄 Servis Rutin
                                                                 </span>
                                                             )}
                                                         </div>
@@ -616,7 +1017,7 @@ const VehicleMaintenanceList = () => {
                                                 <td className="px-5 py-4 max-w-sm">
                                                     <div className="space-y-1.5">
                                                         <div className="flex items-center gap-1.5 text-xs">
-                                                            <span className="font-bold text-slate-800">👤 {log.requester?.name || (activeTab === 'damage' ? 'Pelapor Armada' : 'Staff Kendaraan')}</span>
+                                                            <span className="font-bold text-slate-800">👤 {log.requester?.name || 'Staff Kendaraan'}</span>
                                                             {log.requester?.position && (
                                                                 <span className="text-[10px] text-slate-400">({log.requester.position})</span>
                                                             )}
@@ -810,9 +1211,7 @@ const VehicleMaintenanceList = () => {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════
-                        TAB 2: RIWAYAT SERVIS SELESAI (DESKTOP TABLE)
-                       ══════════════════════════════════════════════════════ */}
+                    {/* TAB 3: RIWAYAT SERVIS SELESAI (DESKTOP TABLE) */}
                     {activeTab === 'maintenance' && (
                         <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                             <table className="w-full text-left border-collapse">
@@ -891,13 +1290,11 @@ const VehicleMaintenanceList = () => {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════
-                        MOBILE CARDS (SEMUA TAB)
-                       ══════════════════════════════════════════════════════ */}
+                    {/* MOBILE CARDS (TAB 1 & TAB 3) */}
                     <div className="grid grid-cols-1 gap-4 lg:hidden">
                         {filteredLogs.map(log => {
                             const photoUrl = getLogPhoto(log);
-                            const isReq = activeTab === 'requests' || activeTab === 'damage';
+                            const isReq = activeTab === 'requests';
 
                             return (
                                 <div key={log.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -908,11 +1305,6 @@ const VehicleMaintenanceList = () => {
                                             )}
                                             <span className="font-bold text-slate-800 text-base">{log.vehicle?.name || 'Tanpa Nama'}</span>
                                             <span className="text-xs uppercase font-mono text-slate-400 tracking-wider">{log.vehicle?.plateNumber}</span>
-                                            {isDamageReport(log) && (
-                                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 shadow-2xs mt-1 w-fit">
-                                                    🚨 Laporan Kerusakan
-                                                </span>
-                                            )}
                                         </div>
                                         <div>
                                             {isReq ? (
@@ -945,11 +1337,11 @@ const VehicleMaintenanceList = () => {
                                     {/* Deskripsi & Bukti Foto */}
                                     <div className="space-y-2">
                                         <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">
-                                            {activeTab === 'damage' ? 'Detail Kerusakan / Kendala' : isReq ? 'Keluhan / Kebutuhan Servis' : 'Deskripsi Servis'}
+                                            {isReq ? 'Keluhan / Kebutuhan Servis' : 'Deskripsi Servis'}
                                         </span>
                                         {isReq && log.requester?.name && (
                                             <div className="text-[11px] font-bold text-slate-600">
-                                                {activeTab === 'damage' ? 'Pelapor:' : 'Pemohon:'} <span className="text-slate-800">{log.requester.name}</span>
+                                                Pemohon: <span className="text-slate-800">{log.requester.name}</span>
                                             </div>
                                         )}
                                         <div className="text-xs text-slate-700 font-medium leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
@@ -1037,17 +1429,11 @@ const VehicleMaintenanceList = () => {
                 </div>
             ) : (
                 <div className="bg-white p-16 rounded-2xl border border-dashed border-slate-200 text-center">
-                    {activeTab === 'damage' ? (
-                        <>
-                            <AlertTriangle size={54} className="mx-auto text-rose-300 mb-3" />
-                            <h3 className="text-slate-700 font-bold text-base">Tidak ada laporan kerusakan</h3>
-                            <p className="text-slate-400 text-xs mt-1">Belum ada kendala atau kerusakan armada yang dilaporkan. Klik "+ Lapor Kerusakan" jika ada armada yang bermasalah.</p>
-                        </>
-                    ) : activeTab === 'requests' ? (
+                    {activeTab === 'requests' ? (
                         <>
                             <FileText size={54} className="mx-auto text-blue-300 mb-3" />
-                            <h3 className="text-slate-700 font-bold text-base">Tidak ada pengajuan servis rutin</h3>
-                            <p className="text-slate-400 text-xs mt-1">Staff kendaraan dapat mengajukan servis armada berkala melalui tombol "+ Ajukan Servis".</p>
+                            <h3 className="text-slate-700 font-bold text-base">Tidak ada pengajuan servis</h3>
+                            <p className="text-slate-400 text-xs mt-1">Staff kendaraan dapat mengajukan servis armada melalui tombol "+ Ajukan Servis".</p>
                         </>
                     ) : (
                         <>
@@ -1066,17 +1452,41 @@ const VehicleMaintenanceList = () => {
                 show={requestModalConfig.show}
                 initialCategory={requestModalConfig.category}
                 initialType={requestModalConfig.type}
-                onClose={() => setRequestModalConfig(prev => ({ ...prev, show: false }))}
+                initialVehicleId={requestModalConfig.vehicleId}
+                initialDescription={requestModalConfig.description}
+                initialOdometer={requestModalConfig.odometer}
+                initialPhoto={requestModalConfig.photo}
+                bookingId={requestModalConfig.bookingId}
+                onClose={() => setRequestModalConfig({
+                    show: false,
+                    category: 'ROUTINE',
+                    type: 'SERVICE_RUTIN',
+                    vehicleId: '',
+                    description: '',
+                    odometer: '',
+                    photo: null,
+                    bookingId: null
+                })}
                 vehicles={vehicles}
                 currentUser={currentUser}
                 onSuccess={() => {
                     fetchLogs();
-                    if (requestModalConfig.category === 'NON_ROUTINE') {
+                    fetchTripIncidents();
+                    if (requestModalConfig.bookingId || requestModalConfig.category === 'NON_ROUTINE') {
                         setActiveTab('damage');
                     } else {
                         setActiveTab('requests');
                     }
-                    setRequestModalConfig(prev => ({ ...prev, show: false }));
+                    setRequestModalConfig({
+                        show: false,
+                        category: 'ROUTINE',
+                        type: 'SERVICE_RUTIN',
+                        vehicleId: '',
+                        description: '',
+                        odometer: '',
+                        photo: null,
+                        bookingId: null
+                    });
                 }}
             />
 
@@ -1090,6 +1500,7 @@ const VehicleMaintenanceList = () => {
                 onClose={() => setReviewModalRequest(null)}
                 onSuccess={() => {
                     fetchLogs();
+                    fetchTripIncidents();
                     setReviewModalRequest(null);
                 }}
             />
@@ -1103,6 +1514,7 @@ const VehicleMaintenanceList = () => {
                 onClose={() => setCompleteModalRequest(null)}
                 onSuccess={() => {
                     fetchLogs();
+                    fetchTripIncidents();
                     setCompleteModalRequest(null);
                 }}
             />

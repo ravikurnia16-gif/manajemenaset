@@ -334,25 +334,32 @@ exports.getDailyPpp = async (req, res) => {
 
         // Parsing Laporan Staf
         reports.forEach(rep => {
-            const pts = rep.metadata?.manualPoints;
+            let meta = rep.metadata;
+            if (typeof meta === 'string') {
+                try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+            }
+            if (!meta || typeof meta !== 'object') meta = {};
+
+            const pts = meta.manualPoints || {};
             const allPts = [
-                ...(pts?.morning || pts?.morningPoints || []),
-                ...(pts?.afternoon || pts?.afternoonPoints || [])
+                ...(Array.isArray(pts.morning) ? pts.morning : Array.isArray(pts.morningPoints) ? pts.morningPoints : []),
+                ...(Array.isArray(pts.afternoon) ? pts.afternoon : Array.isArray(pts.afternoonPoints) ? pts.afternoonPoints : [])
             ];
 
             allPts.forEach(p => {
-                const isRoutineOrPlan = p.sourceType === 'PLAN' || p.sourceType === 'ASSIGNMENT' || p.isRoutine;
+                if (!p || typeof p !== 'object') return;
+                const isRoutineOrPlan = p.sourceType === 'PLAN' || p.sourceType === 'ASSIGNMENT' || !!p.isRoutine;
                 const baseItem = {
                     source: 'STAFF_REPORT',
                     reportId: rep.id,
                     userId: rep.userId,
-                    user: rep.user,
+                    user: rep.user || { id: rep.userId, name: 'Staff' },
                     categoryTag: p.categoryTag || rep.category || 'UMUM',
                     title: p.text || 'Dokumentasi Kegiatan',
                     isPlanned: isRoutineOrPlan,
-                    progressPercentage: p.progressPercentage || (p.status === 'COMPLETED' ? 100 : 50),
-                    photos: p.photos || [],
-                    status: p.status
+                    progressPercentage: typeof p.progressPercentage === 'number' ? p.progressPercentage : (p.status === 'COMPLETED' ? 100 : 50),
+                    photos: Array.isArray(p.photos) ? p.photos.filter(Boolean) : [],
+                    status: p.status || (p.text ? 'COMPLETED' : 'IN_PROGRESS')
                 };
 
                 if (p.status === 'COMPLETED' || (!p.status && p.text)) {
@@ -368,7 +375,7 @@ exports.getDailyPpp = async (req, res) => {
                     });
                 }
 
-                if (p.status === 'OBSTACLE' || (p.obstacleNote && p.obstacleNote.trim().length > 0)) {
+                if (p.status === 'OBSTACLE' || (typeof p.obstacleNote === 'string' && p.obstacleNote.trim().length > 0)) {
                     problemItems.push({
                         ...baseItem,
                         obstacleNote: p.obstacleNote || 'Kendala lapangan',
@@ -379,16 +386,16 @@ exports.getDailyPpp = async (req, res) => {
             });
 
             // Tambahkan Rencana Kerja Besok (Tomorrow's Plans) dari Laporan Staf
-            if (rep.metadata?.tomorrowPlans && Array.isArray(rep.metadata.tomorrowPlans)) {
-                rep.metadata.tomorrowPlans.forEach(tp => {
-                    if (tp.title && tp.title.trim()) {
+            if (Array.isArray(meta.tomorrowPlans)) {
+                meta.tomorrowPlans.forEach(tp => {
+                    if (tp && typeof tp === 'object' && tp.title && String(tp.title).trim()) {
                         planItems.push({
                             source: 'STAFF_REPORT',
                             reportId: rep.id,
                             userId: rep.userId,
-                            user: rep.user,
+                            user: rep.user || { id: rep.userId, name: 'Staff' },
                             categoryTag: tp.categoryTag || rep.category || 'UMUM',
-                            title: `[Plan Besok] ${tp.title.trim()}`,
+                            title: `[Plan Besok] ${String(tp.title).trim()}`,
                             targetDate: 'Hari Kerja Berikutnya',
                             isPlanned: true,
                             progressPercentage: 0,
@@ -408,11 +415,11 @@ exports.getDailyPpp = async (req, res) => {
                 userId: m.userId || null,
                 user: m.user || { id: m.userId, name: m.technician || 'Tim Teknisi Sarpras' },
                 categoryTag: 'PEMELIHARAAN',
-                title: `[Perbaikan ${m.type === 'ASSET' ? 'Aset' : 'Fasilitas'}] ${m.title}`,
+                title: `[Perbaikan ${m.type === 'ASSET' ? 'Aset' : 'Fasilitas'}] ${m.title || 'Pemeliharaan'}`,
                 output: m.actionTaken || m.completionNote || 'Perbaikan selesai dan berfungsi normal.',
                 isPlanned: m.category === 'ROUTINE',
                 progressPercentage: 100,
-                photos: m.media && Array.isArray(m.media) ? m.media.map(med => med.url || med) : (m.photo ? [m.photo] : []),
+                photos: m.media && Array.isArray(m.media) ? m.media.map(med => med.url || med).filter(Boolean) : (m.photo ? [m.photo] : []),
                 status: 'COMPLETED'
             });
         });
@@ -423,9 +430,9 @@ exports.getDailyPpp = async (req, res) => {
                 source: 'ASSIGNMENT',
                 sourceId: a.id,
                 userId: a.assigneeId,
-                user: a.assignee,
+                user: a.assignee || { id: a.assigneeId, name: 'Staf Terkait' },
                 categoryTag: a.category || 'PENUGASAN',
-                title: `[Penugasan] ${a.title}`,
+                title: `[Penugasan] ${a.title || 'Penugasan Staf'}`,
                 output: a.notes || 'Penugasan berhasil diselesaikan.',
                 isPlanned: true,
                 progressPercentage: 100,
@@ -440,12 +447,12 @@ exports.getDailyPpp = async (req, res) => {
                 source: 'ASSIGNMENT',
                 sourceId: a.id,
                 userId: a.assigneeId,
-                user: a.assignee,
+                user: a.assignee || { id: a.assigneeId, name: 'Staf Terkait' },
                 categoryTag: a.category || 'PENUGASAN',
-                title: `[Penugasan Aktif] ${a.title}`,
+                title: `[Penugasan Aktif] ${a.title || 'Penugasan Staf'}`,
                 targetDate: a.dueDate ? dayjs(a.dueDate).format('DD MMM YYYY, HH:mm') : 'Sesuai Jadwal',
                 isPlanned: true,
-                progressPercentage: a.progressPercentage || 0,
+                progressPercentage: typeof a.progressPercentage === 'number' ? a.progressPercentage : 0,
                 photos: [],
                 status: 'IN_PROGRESS'
             });

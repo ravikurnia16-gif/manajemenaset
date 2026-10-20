@@ -28,7 +28,9 @@ function resolveCategory(vehicleType = '') {
 
 export default function VehicleMaintenanceRequestModal({
     show, onClose, onSuccess, vehicles = [], currentUser,
-    initialCategory = 'ROUTINE', initialType = 'SERVICE_RUTIN'
+    initialCategory = 'ROUTINE', initialType = 'SERVICE_RUTIN',
+    initialVehicleId = '', initialDescription = '', initialPhoto = null,
+    initialOdometer = '', bookingId = null
 }) {
     const activeUser = currentUser || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {});
     const userPosition = (activeUser?.position || '').toLowerCase();
@@ -40,18 +42,18 @@ export default function VehicleMaintenanceRequestModal({
         userPosition.includes('keuangan & administrasi');
 
     const [localVehicles, setLocalVehicles] = useState(vehicles);
-    const [selectedVehicleId, setSelectedVehicleId] = useState('');
+    const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId ? String(initialVehicleId) : '');
     const [category, setCategory] = useState(initialCategory || 'ROUTINE');
     const [type, setType] = useState(initialType || 'SERVICE_RUTIN');
     const [urgency, setUrgency] = useState('NORMAL');
-    const [odometer, setOdometer] = useState('');
+    const [odometer, setOdometer] = useState(initialOdometer ? String(initialOdometer) : '');
     const [estimatedCost, setEstimatedCost] = useState('');
     const [workshop, setWorkshop] = useState('');
-    const [description, setDescription] = useState('');
+    const [description, setDescription] = useState(initialDescription || '');
     const [selectedComponents, setSelectedComponents] = useState([]);
     const [customComponent, setCustomComponent] = useState('');
     const [photoFile, setPhotoFile] = useState(null);
-    const [photoPreview, setPhotoPreview] = useState(null);
+    const [photoPreview, setPhotoPreview] = useState(initialPhoto || null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
 
@@ -64,8 +66,12 @@ export default function VehicleMaintenanceRequestModal({
         if (show) {
             setCategory(initialCategory || 'ROUTINE');
             setType(initialType || 'SERVICE_RUTIN');
+            if (initialVehicleId) setSelectedVehicleId(String(initialVehicleId));
+            if (initialDescription) setDescription(initialDescription);
+            if (initialOdometer) setOdometer(String(initialOdometer));
+            if (initialPhoto) setPhotoPreview(initialPhoto);
         }
-    }, [show, initialCategory, initialType]);
+    }, [show, initialCategory, initialType, initialVehicleId, initialDescription, initialOdometer, initialPhoto]);
 
     useEffect(() => {
         if (vehicles && vehicles.length > 0) {
@@ -160,6 +166,12 @@ export default function VehicleMaintenanceRequestModal({
 
             if (photoFile) {
                 formData.append('complaintPhoto', photoFile);
+            } else if (initialPhoto) {
+                formData.append('complaintPhoto', initialPhoto);
+            }
+
+            if (bookingId) {
+                formData.append('bookingId', bookingId);
             }
 
             const res = await api.post('/vehicles/maintenance/request', formData, {

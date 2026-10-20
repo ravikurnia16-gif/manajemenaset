@@ -48,43 +48,8 @@ exports.getAllMaintenanceLogs = async (req, res) => {
             }
         }
 
-        // Sinkronisasi otomatis: jika ada insiden di jalan (hasIncident) yang belum memiliki tiket servis
-        try {
-            const orphanIncidents = await prisma.vehicleBooking.findMany({
-                where: {
-                    hasIncident: true,
-                    maintenanceId: null
-                },
-                include: { vehicle: true, driver: true, user: true }
-            });
-
-            for (const b of orphanIncidents) {
-                const incidentCode = `PK/INS/${b.id.toString().padStart(4, '0')}`;
-                const newService = await prisma.vehicleService.create({
-                    data: {
-                        code: incidentCode,
-                        vehicleId: b.vehicleId,
-                        date: b.tripEndTime || b.endDate || new Date(),
-                        category: 'NON_ROUTINE',
-                        type: 'PERBAIKAN',
-                        description: `[LAPORAN INSIDEN JALAN] ${b.incidentNotes || 'Kerusakan kendaraan saat perjalanan'}`,
-                        cost: 0,
-                        odometer: b.endKm || null,
-                        status: 'PENDING',
-                        urgency: 'URGENT',
-                        complaintPhoto: b.incidentPhoto || null,
-                        proofFile: b.incidentPhoto || null,
-                        requesterId: b.driverId || b.userId || userId
-                    }
-                });
-                await prisma.vehicleBooking.update({
-                    where: { id: b.id },
-                    data: { maintenanceId: newService.id }
-                });
-            }
-        } catch (syncErr) {
-            console.error('[Sync Orphan Incidents Error]:', syncErr.message);
-        }
+        // Catatan: Laporan kerusakan insiden perjalanan dikelola murni dari riwayat pemakaian (VehicleBooking)
+        // melalui endpoint /api/vehicles/incidents agar tidak bercampur dengan pengajuan servis rutin.
 
         // Sinkronisasi otomatis: jika ada ceklis dengan status PERLU PERBAIKAN yang belum memiliki tiket servis
         try {
@@ -521,6 +486,18 @@ exports.createMaintenanceRequest = async (req, res) => {
                 requester: { select: { id: true, name: true, username: true, position: true, phone: true } }
             }
         });
+
+        // Jika diajukan sebagai tindak lanjut insiden perjalanan, tautkan maintenanceId ke booking
+        if (req.body.bookingId) {
+            try {
+                await prisma.vehicleBooking.update({
+                    where: { id: parseInt(req.body.bookingId) },
+                    data: { maintenanceId: serviceRequest.id }
+                });
+            } catch (bErr) {
+                console.error('[Link Booking Maintenance Error]:', bErr.message);
+            }
+        }
 
         // Kirim notifikasi WhatsApp ke Kepala Bidang Sarana & Staff Keuangan dan Administrasi
         (async () => {
@@ -1205,3 +1182,66 @@ exports.checkHybridReminderNotifications = async () => {
 // Legacy aliases
 exports.checkMaintenanceNotifications = exports.checkHybridReminderNotifications;
 exports.checkKmServiceNotifications = exports.checkHybridReminderNotifications;
+
+/**
+ * GET /api/vehicles/incidents
+ * Mengambil seluruh laporan kerusakan / insiden murni dari Laporan Pemakaian Kendaraan (VehicleBooking hasIncident)
+ */
+exports.getVehicleTripIncidents = async (req, res) => {
+    try {
+        const incidents = await prisma.vehicleBooking.findMany({
+            where: {
+                hasIncident: true
+            },
+            include: {
+                vehicle: true,
+                user: { select: { id: true, name: true, phone: true, position: true, role: true } },
+                driver: { select: { id: true, name: true, phone: true, position: true } }
+            },
+            orderBy: { tripEndTime: 'desc' }
+        });
+
+        // Ambil data service yang terhubung jika sudah ditindaklanjuti
+        const serviceIds = incidents.map(i => i.maintenanceId).filter(Boolean);
+        let linkedServices = [];
+        if (serviceIds.length > 0) {
+            linkedServices = await prisma.vehicleService.findMany({
+                where: { id: { in: serviceIds } },
+                include: {
+                    approvedBy: { select: { id: true, name: true } }
+                }
+            });
+        }
+        const serviceMap = new Map(linkedServices.map(s => [s.id, s]));
+
+        const results = incidents.map(inc => ({
+            id: inc.id,
+            bookingId: inc.id,
+            vehicleId: inc.vehicleId,
+            vehicle: inc.vehicle,
+            user: inc.user,
+            driver: inc.driver,
+            driverName: inc.driver?.name || inc.driverName || inc.user?.name || 'Sopir',
+            destination: inc.destination,
+            purpose: inc.purpose,
+            startDate: inc.startDate,
+            endDate: inc.endDate,
+            tripStartTime: inc.tripStartTime,
+            tripEndTime: inc.tripEndTime,
+            startKm: inc.startKm,
+            endKm: inc.endKm,
+            totalDistance: (inc.endKm && inc.startKm && inc.endKm >= inc.startKm) ? (inc.endKm - inc.startKm) : null,
+            incidentNotes: inc.incidentNotes || inc.tripNotes || 'Kerusakan kendaraan saat pemakaian jalan',
+            incidentPhoto: inc.incidentPhoto,
+            maintenanceId: inc.maintenanceId,
+            service: inc.maintenanceId ? serviceMap.get(inc.maintenanceId) || null : null,
+            isFollowedUp: !!inc.maintenanceId,
+            createdAt: inc.tripEndTime || inc.updatedAt || inc.createdAt
+        }));
+
+        res.json(results);
+    } catch (error) {
+        console.error('[getVehicleTripIncidents Error]:', error);
+        res.status(500).json({ error: error.message });
+    }
+};

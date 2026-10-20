@@ -2,82 +2,166 @@ import React, { useState, useMemo } from 'react';
 import { 
     Calendar, CheckCircle2, Clock, AlertTriangle, 
     Layers, ChevronLeft, ChevronRight, Eye, Wrench, 
-    FileText, User, Camera, Sparkles, Filter 
+    FileText, User, Camera, Sparkles, Filter, RotateCw 
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
+import { getMediaUrl } from '../../../lib/media';
 
 dayjs.locale('id');
 
+// Helper to safely render text without throwing "Objects are not valid as a React child"
+const renderSafeText = (val, fallback = '') => {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === 'string' || typeof val === 'number') return String(val);
+    if (typeof val === 'boolean') return val ? 'Ya' : 'Tidak';
+    if (typeof val === 'object') {
+        if (typeof val.text === 'string') return val.text;
+        if (typeof val.note === 'string') return val.note;
+        if (typeof val.title === 'string') return val.title;
+        if (typeof val.output === 'string') return val.output;
+        if (typeof val.name === 'string') return val.name;
+        if (typeof val.label === 'string') return val.label;
+        try {
+            return JSON.stringify(val);
+        } catch {
+            return fallback;
+        }
+    }
+    return String(val);
+};
+
+// Helper to resolve media URL safely from string or object
+const getPhotoSrc = (ph) => {
+    if (!ph) return null;
+    let raw = null;
+    if (typeof ph === 'string') {
+        raw = ph;
+    } else if (typeof ph === 'object') {
+        raw = ph.url || ph.path || ph.uri || null;
+    }
+    return raw ? getMediaUrl(raw) : null;
+};
+
+// Helper to extract staff display name safely
+const getStaffDisplayName = (user, fallback = 'Staf') => {
+    if (!user) return fallback;
+    if (typeof user === 'string') return user;
+    if (typeof user === 'object') {
+        return user.name || user.fullName || user.username || fallback;
+    }
+    return fallback;
+};
+
+// Helper to extract photos array safely from item
+const extractSafePhotos = (photos) => {
+    if (!photos) return [];
+    if (Array.isArray(photos)) {
+        return photos.map(getPhotoSrc).filter(Boolean);
+    }
+    if (typeof photos === 'string') {
+        try {
+            const parsed = JSON.parse(photos);
+            if (Array.isArray(parsed)) {
+                return parsed.map(getPhotoSrc).filter(Boolean);
+            }
+        } catch {
+            const resolved = getPhotoSrc(photos);
+            return resolved ? [resolved] : [];
+        }
+    }
+    return [];
+};
+
 const DailyPppTab = ({ 
-    selectedDate, 
-    setSelectedDate, 
-    pppData, 
-    loading, 
+    selectedDate = dayjs().format('YYYY-MM-DD'), 
+    setSelectedDate = () => {}, 
+    pppData = null, 
+    loading = false, 
     staffList = [],
-    onRefresh,
-    setLightboxPhoto 
+    onRefresh = () => {},
+    setLightboxPhoto = () => {}
 }) => {
     const [filterStaff, setFilterStaff] = useState('ALL');
     const [filterWorkType, setFilterWorkType] = useState('ALL'); // ALL, PLANNED, INCIDENTAL
 
-    if (loading) {
-        return (
-            <div className="py-16 text-center space-y-3">
-                <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-sm font-bold text-slate-500">Memuat papan operasional harian (PPP)...</p>
-            </div>
-        );
-    }
+    // Safe extraction of summary and ppp collections
+    const summary = pppData?.summary || {};
+    const ppp = pppData?.ppp || {};
+    const progress = Array.isArray(ppp.progress) ? ppp.progress : [];
+    const plans = Array.isArray(ppp.plans) ? ppp.plans : [];
+    const problems = Array.isArray(ppp.problems) ? ppp.problems : [];
 
-    const { summary, ppp = {} } = pppData || {};
-    const { progress = [], plans = [], problems = [] } = ppp;
-
-    // Available Staff: dari props staffList (role ADMIN_ASET) atau diekstrak dari butir kegiatan
+    // Safe available staff computation
     const availableStaff = useMemo(() => {
         if (Array.isArray(staffList) && staffList.length > 0) {
-            return staffList;
+            return staffList.filter(Boolean);
         }
         const map = new Map();
-        [...(progress || []), ...(plans || []), ...(problems || [])].forEach(it => {
-            if (it.user && it.user.name) {
-                const key = it.user.id || it.user.name;
-                if (!map.has(key)) {
-                    map.set(key, { 
-                        id: it.user.id || it.user.name, 
-                        name: it.user.name, 
-                        position: it.user.position || 'Staff' 
-                    });
-                }
+        [...progress, ...plans, ...problems].forEach(it => {
+            if (!it || !it.user) return;
+            const u = it.user;
+            const uId = u.id || it.userId || (typeof u === 'string' ? u : u.name);
+            const uName = getStaffDisplayName(u, 'Staf');
+            if (uId && !map.has(String(uId))) {
+                map.set(String(uId), { 
+                    id: String(uId), 
+                    name: uName, 
+                    position: typeof u === 'object' && u.position ? u.position : 'Staff' 
+                });
             }
         });
         return Array.from(map.values());
     }, [staffList, progress, plans, problems]);
 
-    // Filter Helper: menyaring berdasarkan staf (role Admin_Aset) dan tipe kerja
+    // Safe filtering logic
     const filterItem = (item) => {
+        if (!item || typeof item !== 'object') return false;
+
         if (filterStaff !== 'ALL') {
-            const target = String(filterStaff).toLowerCase();
-            const userIdMatch = item.userId && String(item.userId) === target;
-            const userObjIdMatch = item.user?.id && String(item.user.id) === target;
-            const userNameMatch = item.user?.name && String(item.user.name).toLowerCase() === target;
-            if (!userIdMatch && !userObjIdMatch && !userNameMatch) return false;
+            const target = String(filterStaff).toLowerCase().trim();
+            const uId = item.userId ? String(item.userId).toLowerCase().trim() : null;
+            const uObjId = item.user?.id ? String(item.user.id).toLowerCase().trim() : null;
+            const uName = getStaffDisplayName(item.user, '').toLowerCase().trim();
+
+            const isMatch = (uId && uId === target) || 
+                            (uObjId && uObjId === target) || 
+                            (uName && uName === target);
+
+            if (!isMatch) return false;
         }
+
         if (filterWorkType === 'PLANNED' && !item.isPlanned) return false;
         if (filterWorkType === 'INCIDENTAL' && item.isPlanned) return false;
         return true;
     };
 
-    const filteredProgress = progress.filter(filterItem);
-    const filteredPlans = plans.filter(filterItem);
-    const filteredProblems = problems.filter(filterItem);
+    const filteredProgress = useMemo(() => progress.filter(filterItem), [progress, filterStaff, filterWorkType]);
+    const filteredPlans = useMemo(() => plans.filter(filterItem), [plans, filterStaff, filterWorkType]);
+    const filteredProblems = useMemo(() => problems.filter(filterItem), [problems, filterStaff, filterWorkType]);
 
-    // Dynamic metrics calculation based on active filter
+    // Safe metric ratios calculation
     const isFiltered = filterStaff !== 'ALL' || filterWorkType !== 'ALL';
     const filteredTotal = filteredProgress.length + filteredPlans.length;
-    const filteredPlannedCount = filteredProgress.filter(i => i.isPlanned).length + filteredPlans.filter(i => i.isPlanned).length;
+    const filteredPlannedCount = filteredProgress.filter(i => i && i.isPlanned).length + 
+                                 filteredPlans.filter(i => i && i.isPlanned).length;
     const filteredPlannedRatio = filteredTotal > 0 ? Math.round((filteredPlannedCount / filteredTotal) * 100) : 100;
     const filteredUnplannedRatio = 100 - filteredPlannedRatio;
+
+    // Safe date helpers
+    const safeDate = dayjs(selectedDate).isValid() ? dayjs(selectedDate) : dayjs();
+
+    if (loading) {
+        return (
+            <div className="py-20 text-center space-y-4 bg-white rounded-3xl border border-slate-100 shadow-sm animate-pulse">
+                <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="space-y-1">
+                    <p className="text-sm font-black text-slate-700">Memuat Papan Operasional Harian (PPP)...</p>
+                    <p className="text-xs text-slate-400">Sinkronisasi aktivitas Progress, Plans, dan Problems</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -85,10 +169,10 @@ const DailyPppTab = ({
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     {/* Date Navigation */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <button
                             type="button"
-                            onClick={() => setSelectedDate(dayjs(selectedDate).subtract(1, 'day').format('YYYY-MM-DD'))}
+                            onClick={() => setSelectedDate(safeDate.subtract(1, 'day').format('YYYY-MM-DD'))}
                             className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors cursor-pointer"
                             title="Hari Sebelumnya"
                         >
@@ -98,14 +182,14 @@ const DailyPppTab = ({
                             <Calendar size={18} className="text-blue-600" />
                             <input
                                 type="date"
-                                value={selectedDate}
+                                value={selectedDate || dayjs().format('YYYY-MM-DD')}
                                 onChange={(e) => setSelectedDate(e.target.value)}
                                 className="bg-transparent text-sm font-black text-slate-800 outline-none cursor-pointer"
                             />
                         </div>
                         <button
                             type="button"
-                            onClick={() => setSelectedDate(dayjs(selectedDate).add(1, 'day').format('YYYY-MM-DD'))}
+                            onClick={() => setSelectedDate(safeDate.add(1, 'day').format('YYYY-MM-DD'))}
                             className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors cursor-pointer"
                             title="Hari Berikutnya"
                         >
@@ -118,9 +202,17 @@ const DailyPppTab = ({
                         >
                             Hari Ini
                         </button>
+                        <button
+                            type="button"
+                            onClick={onRefresh}
+                            className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors cursor-pointer"
+                            title="Segarkan Data"
+                        >
+                            <RotateCw size={16} />
+                        </button>
                     </div>
 
-                    {/* Filter Pills */}
+                    {/* Filter Dropdowns */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <select
                             value={filterWorkType}
@@ -134,14 +226,18 @@ const DailyPppTab = ({
                         <select
                             value={filterStaff}
                             onChange={(e) => setFilterStaff(e.target.value)}
-                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[220px]"
+                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[240px]"
                         >
                             <option value="ALL">Semua Staf (Admin Aset)</option>
-                            {availableStaff.map((st) => (
-                                <option key={st.id || st.name} value={st.id || st.name}>
-                                    {st.name} {st.position ? `(${st.position})` : ''}
-                                </option>
-                            ))}
+                            {availableStaff.map((st, idx) => {
+                                const sId = st?.id || st?.userId || st?.name || `staff-${idx}`;
+                                const sName = st?.name || st?.fullName || 'Staf';
+                                return (
+                                    <option key={sId} value={sId}>
+                                        {sName} {st?.position ? `(${st.position})` : ''}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
                 </div>
@@ -152,7 +248,7 @@ const DailyPppTab = ({
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">Progress (Tuntas)</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
                             <span className="text-xl font-black text-emerald-950">
-                                {isFiltered ? filteredProgress.length : (summary?.totalCompleted || filteredProgress.length)}
+                                {isFiltered ? filteredProgress.length : (summary?.totalCompleted ?? filteredProgress.length)}
                             </span>
                             <span className="text-[10px] text-emerald-700 font-bold">Pekerjaan</span>
                         </div>
@@ -162,7 +258,7 @@ const DailyPppTab = ({
                         <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">Plans (On Progress)</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
                             <span className="text-xl font-black text-amber-950">
-                                {isFiltered ? filteredPlans.length : (summary?.totalInProgress || filteredPlans.length)}
+                                {isFiltered ? filteredPlans.length : (summary?.totalInProgress ?? filteredPlans.length)}
                             </span>
                             <span className="text-[10px] text-amber-700 font-bold">Pekerjaan</span>
                         </div>
@@ -172,7 +268,7 @@ const DailyPppTab = ({
                         <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 block">Problems (Kendala)</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
                             <span className="text-xl font-black text-rose-950">
-                                {isFiltered ? filteredProblems.length : (summary?.totalProblems || filteredProblems.length)}
+                                {isFiltered ? filteredProblems.length : (summary?.totalProblems ?? filteredProblems.length)}
                             </span>
                             <span className="text-[10px] text-rose-700 font-bold">Hambatan</span>
                         </div>
@@ -182,10 +278,10 @@ const DailyPppTab = ({
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 block">Rasio Terencana</span>
                         <div className="flex items-baseline gap-1.5 pt-0.5">
                             <span className="text-xl font-black text-blue-950">
-                                {isFiltered ? filteredPlannedRatio : (summary?.plannedRatio || 100)}%
+                                {isFiltered ? filteredPlannedRatio : (summary?.plannedRatio ?? 100)}%
                             </span>
                             <span className="text-[10px] text-blue-700 font-bold">
-                                ({isFiltered ? filteredUnplannedRatio : (summary?.unplannedRatio || 0)}% Insidental)
+                                ({isFiltered ? filteredUnplannedRatio : (summary?.unplannedRatio ?? 0)}% Insidental)
                             </span>
                         </div>
                     </div>
@@ -213,53 +309,59 @@ const DailyPppTab = ({
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {filteredProgress.map((item, idx) => (
-                                <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs space-y-2.5 hover:border-emerald-200 transition-colors">
-                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-black uppercase">
-                                                {item.categoryTag}
+                            {filteredProgress.map((item, idx) => {
+                                const photos = extractSafePhotos(item.photos);
+                                const staffName = getStaffDisplayName(item.user);
+                                return (
+                                    <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs space-y-2.5 hover:border-emerald-200 transition-colors">
+                                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-black uppercase">
+                                                    {renderSafeText(item.categoryTag, 'UMUM')}
+                                                </span>
+                                                {item.isPlanned ? (
+                                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-bold" title="Berasal dari perencanaan / penugasan">
+                                                        📌 Terencana
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[9px] font-bold" title="Pekerjaan mendadak / insidental lapangan">
+                                                        ⚡ Insidental
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                PJ: <b>{staffName}</b>
                                             </span>
-                                            {item.isPlanned ? (
-                                                <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-bold" title="Berasal dari perencanaan / penugasan">
-                                                    📌 Terencana
-                                                </span>
-                                            ) : (
-                                                <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[9px] font-bold" title="Pekerjaan mendadak / insidental lapangan">
-                                                    ⚡ Insidental
-                                                </span>
-                                            )}
                                         </div>
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                            PJ: <b>{item.user?.name}</b>
-                                        </span>
+
+                                        <h4 className="text-xs font-bold text-slate-800 leading-snug">
+                                            {renderSafeText(item.title, 'Aktivitas Operasional')}
+                                        </h4>
+
+                                        {item.output && (
+                                            <div className="p-2.5 bg-slate-50 rounded-xl text-xs text-slate-700 border border-slate-100">
+                                                <span className="font-bold text-emerald-700 block text-[10px] uppercase">Wujud Hasil / Output:</span>
+                                                <p className="font-medium pt-0.5">{renderSafeText(item.output)}</p>
+                                            </div>
+                                        )}
+
+                                        {/* Photos Preview */}
+                                        {photos.length > 0 && (
+                                            <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                                                {photos.map((src, pIdx) => (
+                                                    <img
+                                                        key={pIdx}
+                                                        src={src}
+                                                        alt="Bukti Selesai"
+                                                        onClick={() => setLightboxPhoto && setLightboxPhoto(src)}
+                                                        className="w-11 h-11 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-
-                                    <h4 className="text-xs font-bold text-slate-800 leading-snug">{item.title}</h4>
-
-                                    {item.output && (
-                                        <div className="p-2.5 bg-slate-50 rounded-xl text-xs text-slate-700 border border-slate-100">
-                                            <span className="font-bold text-emerald-700 block text-[10px] uppercase">Wujud Hasil / Output:</span>
-                                            <p className="font-medium pt-0.5">{item.output}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Photos */}
-                                    {item.photos && item.photos.length > 0 && (
-                                        <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
-                                            {item.photos.map((ph, pIdx) => (
-                                                <img
-                                                    key={pIdx}
-                                                    src={typeof ph === 'string' ? ph : ph.url}
-                                                    alt="Bukti Selesai"
-                                                    onClick={() => setLightboxPhoto && setLightboxPhoto(typeof ph === 'string' ? ph : ph.url)}
-                                                    className="w-11 h-11 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -282,44 +384,50 @@ const DailyPppTab = ({
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {filteredPlans.map((item, idx) => (
-                                <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs space-y-2.5 hover:border-amber-200 transition-colors">
-                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase">
-                                                {item.categoryTag}
+                            {filteredPlans.map((item, idx) => {
+                                const staffName = getStaffDisplayName(item.user);
+                                const progressPct = Math.min(100, Math.max(0, Number(item.progressPercentage) || 50));
+                                return (
+                                    <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs space-y-2.5 hover:border-amber-200 transition-colors">
+                                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase">
+                                                    {renderSafeText(item.categoryTag, 'UMUM')}
+                                                </span>
+                                                {item.isPlanned ? (
+                                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-bold">
+                                                        📌 Terencana
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[9px] font-bold">
+                                                        ⚡ Insidental
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                PJ: <b>{staffName}</b>
                                             </span>
-                                            {item.isPlanned ? (
-                                                <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-bold">
-                                                    📌 Terencana
-                                                </span>
-                                            ) : (
-                                                <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[9px] font-bold">
-                                                    ⚡ Insidental
-                                                </span>
-                                            )}
                                         </div>
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                            PJ: <b>{item.user?.name}</b>
-                                        </span>
-                                    </div>
 
-                                    <h4 className="text-xs font-bold text-slate-800 leading-snug">{item.title}</h4>
+                                        <h4 className="text-xs font-bold text-slate-800 leading-snug">
+                                            {renderSafeText(item.title, 'Rencana Pekerjaan')}
+                                        </h4>
 
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
-                                            <span>Target Selesai: {item.targetDate}</span>
-                                            <span>{item.progressPercentage || 50}%</span>
-                                        </div>
-                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-amber-500 rounded-full" 
-                                                style={{ width: `${item.progressPercentage || 50}%` }} 
-                                            />
+                                        <div className="space-y-1">
+                                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
+                                                <span>Target Selesai: {renderSafeText(item.targetDate, 'Sesuai Jadwal')}</span>
+                                                <span>{progressPct}%</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-amber-500 rounded-full transition-all" 
+                                                    style={{ width: `${progressPct}%` }} 
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -344,34 +452,41 @@ const DailyPppTab = ({
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {filteredProblems.map((item, idx) => (
-                                <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs space-y-2.5 hover:border-rose-200 transition-colors">
-                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                        <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 text-[10px] font-black uppercase">
-                                            {item.categoryTag}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                            PJ: <b>{item.user?.name}</b>
-                                        </span>
-                                    </div>
-
-                                    <h4 className="text-xs font-medium text-slate-700 leading-snug">
-                                        <span className="font-bold text-slate-900">Aktivitas:</span> {item.title}
-                                    </h4>
-
-                                    <div className="p-2.5 bg-rose-50/70 border border-rose-100 rounded-xl space-y-1">
-                                        <span className="text-[10px] font-black uppercase text-rose-800 block">Uraian Hambatan:</span>
-                                        <p className="text-xs font-bold text-rose-900">{item.obstacleNote}</p>
-                                    </div>
-
-                                    {item.actionPlan && (
-                                        <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl space-y-0.5">
-                                            <span className="text-[10px] font-black uppercase text-blue-800 block">Tindak Lanjut / Butuh Arahan:</span>
-                                            <p className="text-xs font-semibold text-blue-900">{item.actionPlan}</p>
+                            {filteredProblems.map((item, idx) => {
+                                const staffName = getStaffDisplayName(item.user);
+                                return (
+                                    <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs space-y-2.5 hover:border-rose-200 transition-colors">
+                                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                            <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 text-[10px] font-black uppercase">
+                                                {renderSafeText(item.categoryTag, 'KENDALA')}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                PJ: <b>{staffName}</b>
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+
+                                        <h4 className="text-xs font-medium text-slate-700 leading-snug">
+                                            <span className="font-bold text-slate-900">Aktivitas:</span> {renderSafeText(item.title, 'Aktivitas Terkait')}
+                                        </h4>
+
+                                        <div className="p-2.5 bg-rose-50/70 border border-rose-100 rounded-xl space-y-1">
+                                            <span className="text-[10px] font-black uppercase text-rose-800 block">Uraian Hambatan:</span>
+                                            <p className="text-xs font-bold text-rose-900">
+                                                {renderSafeText(item.obstacleNote, 'Kendala teknis lapangan')}
+                                            </p>
+                                        </div>
+
+                                        {item.actionPlan && (
+                                            <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl space-y-0.5">
+                                                <span className="text-[10px] font-black uppercase text-blue-800 block">Tindak Lanjut / Butuh Arahan:</span>
+                                                <p className="text-xs font-semibold text-blue-900">
+                                                    {renderSafeText(item.actionPlan)}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

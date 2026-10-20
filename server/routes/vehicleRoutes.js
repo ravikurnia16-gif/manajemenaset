@@ -39,6 +39,7 @@ router.get('/test/debug-maintenance', async (req, res) => {
 // Maintenance Routes
 const maintenanceCtrl = require('../controllers/vehicleMaintenanceController');
 router.get('/maintenance/all', verifyToken, maintenanceCtrl.getAllMaintenanceLogs);
+router.get('/incidents', verifyToken, maintenanceCtrl.getVehicleTripIncidents);
 router.get('/maintenance/:id', verifyToken, maintenanceCtrl.getMaintenanceLogById);
 router.post('/maintenance', verifyToken, maintenanceCtrl.createMaintenanceLog);
 router.post('/maintenance/request', verifyToken, handleUpload('complaintPhoto', 'vehicles'), maintenanceCtrl.createMaintenanceRequest);
