@@ -143,6 +143,9 @@ const LaporanStaff = () => {
     const [personalStats, setPersonalStats] = useState(null);
     const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState(null);
     const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+    const [hasCarriedOver, setHasCarriedOver] = useState(false);
+    const [userProjects, setUserProjects] = useState([]);
+    const [userWeeklyPlans, setUserWeeklyPlans] = useState([]);
     const [showTemplateAccordion, setShowTemplateAccordion] = useState(false);
     const [showAllTemplates, setShowAllTemplates] = useState(false);
     const [showMissedDates, setShowMissedDates] = useState(false);
@@ -322,6 +325,9 @@ const LaporanStaff = () => {
                 params: { date: targetDateToLoad }
             });
             if (res.data.success) {
+                if (res.data.userProjects) setUserProjects(res.data.userProjects);
+                if (res.data.userWeeklyPlans) setUserWeeklyPlans(res.data.userWeeklyPlans);
+
                 const rep = res.data.myReport;
                 const pts = rep?.metadata?.manualPoints;
                 if (pts && (pts.morning?.length > 0 || pts.afternoon?.length > 0 || pts.morningPoints?.length > 0 || pts.afternoonPoints?.length > 0)) {
@@ -330,6 +336,7 @@ const LaporanStaff = () => {
                     setMorningPoints(m.length > 0 ? m : [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                     setAfternoonPoints(a.length > 0 ? a : [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                     setHasRestoredDraft(false);
+                    setHasCarriedOver(false);
                     currentLoadedDateRef.current = targetDateToLoad;
                 } else {
                     const draftKey = `draft_laporan_${user.id || 'default'}_${targetDateToLoad}`;
@@ -341,6 +348,7 @@ const LaporanStaff = () => {
                                 setMorningPoints(parsed.morning || [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                                 setAfternoonPoints(parsed.afternoon || [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
                                 setHasRestoredDraft(true);
+                                setHasCarriedOver(false);
                                 currentLoadedDateRef.current = targetDateToLoad;
                                 return;
                             }
@@ -348,8 +356,17 @@ const LaporanStaff = () => {
                             console.error('Failed to parse draft', e);
                         }
                     }
-                    setMorningPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                    setAfternoonPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+
+                    // Auto Carry-Over dari Laporan Rencana Kemarin
+                    if (Array.isArray(res.data.suggestedFromYesterday) && res.data.suggestedFromYesterday.length > 0) {
+                        setMorningPoints(res.data.suggestedFromYesterday);
+                        setAfternoonPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                        setHasCarriedOver(true);
+                    } else {
+                        setMorningPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                        setAfternoonPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                        setHasCarriedOver(false);
+                    }
                     setHasRestoredDraft(false);
                     currentLoadedDateRef.current = targetDateToLoad;
                 }
@@ -536,14 +553,17 @@ const LaporanStaff = () => {
             ? `${cleanTitle} : ${cleanItemText} (${pct}%)`
             : `${cleanTitle} (${pct}%)`;
 
+        const isProject = !!plan.metadata?.isProject || plan.metadata?.planType === 'PROJECT';
         const reportItem = {
             text: formattedText,
             categoryTag: plan.metadata?.categoryTag || plan.category || 'UMUM',
             status: isDone ? 'COMPLETED' : 'IN_PROGRESS',
             progressPercentage: pct,
-            sourceType: 'PLAN',
+            sourceType: isProject ? 'PROJECT' : 'PLAN',
             sourceId: plan.id,
             planItemIndex: isSingleGoal ? undefined : itemIndex,
+            projectId: item?.projectId || (isProject ? plan.id : null),
+            projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
             obstacleNote: '',
             isRoutine: false,
             photos: resolvedPhotos
@@ -777,6 +797,9 @@ const LaporanStaff = () => {
             const validCategories = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
             const resolvedCat = validCategories.includes(formData.category) ? formData.category : 'UMUM';
 
+            const isPrj = !!formData.isProject || formData.planType === 'PROJECT';
+            const resolvedPlanType = isPrj ? 'PROJECT' : 'WEEKLY';
+
             const payload = {
                 type: 'WEEKLY',
                 category: resolvedCat,
@@ -784,6 +807,9 @@ const LaporanStaff = () => {
                 date: formData.startDate || dayjs().format('YYYY-MM-DD'),
                 metadata: {
                     isPlan: true,
+                    isProject: isPrj,
+                    planType: resolvedPlanType,
+                    projectId: formData.projectId || null,
                     title: formData.title,
                     position: formData.position || userPos,
                     categoryTag: formData.category || userDivision || 'UMUM',
@@ -796,7 +822,10 @@ const LaporanStaff = () => {
                         activity: it.activity,
                         targetDate: it.targetDate || '',
                         status: it.status || 'PENDING',
-                        percentage: it.percentage !== undefined ? it.percentage : 0
+                        percentage: it.percentage !== undefined ? it.percentage : 0,
+                        projectId: it.projectId || formData.projectId || null,
+                        projectItemIndex: it.projectItemIndex !== undefined ? it.projectItemIndex : null,
+                        isFromProject: !!it.isFromProject
                     })) : []
                 }
             };
@@ -1368,6 +1397,48 @@ const LaporanStaff = () => {
                 </div>
             )}
 
+            {/* CARRIED OVER FROM YESTERDAY BANNER */}
+            {hasCarriedOver && activeTab === 'laporan' && (
+                <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-800 flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center gap-2 font-bold">
+                        <Sparkles size={16} className="text-emerald-600 shrink-0" />
+                        <span>⚡ Butir rencana dari laporan kemarin sore otomatis dimuat ke agenda kerja hari ini (status: ⏳ Dalam Proses).</span>
+                    </div>
+                    <button
+                        onClick={() => setHasCarriedOver(false)}
+                        className="text-emerald-600 hover:text-emerald-800 text-xs font-bold shrink-0 ml-2 cursor-pointer"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
+            {/* FRIDAY WEEKLY PLAN AGENDA BANNER */}
+            {[5, 6, 0].includes(dayjs().day()) && (
+                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                            <Calendar className="text-white" size={20} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black tracking-wide flex items-center gap-1.5">
+                                📢 Agenda Hari Jumat: Susun Rencana Kerja Pekan Depan
+                            </h4>
+                            <p className="text-xs text-blue-100">
+                                Sebelum mengakhiri pekan kerja, susun Rencana Kerja untuk periode {dayjs().add(1, 'week').startOf('isoWeek').format('DD MMM')} - {dayjs().add(1, 'week').startOf('isoWeek').add(4, 'day').format('DD MMM YYYY')}. Anda dapat menarik butir dari Project yang aktif atau kegiatan operasional lainnya.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('plans')}
+                        className="px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-xl text-xs shrink-0 transition-all shadow-xs cursor-pointer active:scale-95 text-center"
+                    >
+                        ➕ Susun Rencana Pekan Depan
+                    </button>
+                </div>
+            )}
+
             {/* TAB CONTENT */}
             {loading && !dashboardData && !reportsFeed.length && !morningPoints[0]?.text ? (
                 <div className="h-72 flex flex-col items-center justify-center gap-3 bg-white rounded-3xl border border-slate-100 shadow-sm">
@@ -1484,6 +1555,8 @@ const LaporanStaff = () => {
                             assignments={assignments}
                             convertTaskToReport={convertTaskToReport}
                             plans={plans}
+                            userProjects={userProjects}
+                            userWeeklyPlans={userWeeklyPlans}
                             convertPlanItemToReport={convertPlanItemToReport}
                             applyRoutine={applyRoutine}
                         />
@@ -1542,6 +1615,7 @@ const LaporanStaff = () => {
                     {activeTab === 'perencanaan' && (
                         <WorkPlanTab
                             plans={plans}
+                            userProjects={userProjects}
                             loadingPlans={loadingPlans}
                             fetchPlans={fetchPlans}
                             isKabid={isKabid}

@@ -44,6 +44,7 @@ const DailyReportPppModal = ({
 
     // Tracking item rencana/penugasan yang sudah ditarik { [itemKey]: 'COMPLETED' | 'IN_PROGRESS' | 'OBSTACLE' | 'TOMORROW' }
     const [pulledMap, setPulledMap] = useState({});
+    const [pppDrawerFilter, setPppDrawerFilter] = useState('ALL'); // 'ALL' | 'WEEKLY' | 'PROJECT' | 'ASSIGNMENT'
     const [saving, setSaving] = useState(false);
 
     // Otomatis tentukan Staf Pelapor
@@ -76,6 +77,10 @@ const DailyReportPppModal = ({
         const itemKey = subItemIndex !== null ? `${type}-${item.id}-step-${subItemIndex}` : `${type}-${item.id}`;
         const titleText = subItemTitle ? `${item.title}: ${subItemTitle}` : (item.title || item.name || '');
         const sourceId = item.id;
+        const isProject = !!item.isProject || item.planType === 'PROJECT' || item.metadata?.isProject || item.metadata?.planType === 'PROJECT';
+        const subItem = subItemIndex !== null && Array.isArray(item.items) ? item.items[subItemIndex] : null;
+        const linkedProjectId = subItem?.projectId || (isProject ? item.id : null);
+        const linkedProjectItemIndex = subItem?.projectItemIndex !== undefined ? subItem.projectItemIndex : (isProject ? subItemIndex : null);
 
         // Tandai status tarikan
         setPulledMap(prev => ({ ...prev, [itemKey]: targetPillar }));
@@ -91,9 +96,11 @@ const DailyReportPppModal = ({
                         output: 'Tuntas dilaksanakan sesuai target jadwal.',
                         categoryTag: 'UMUM',
                         isPlanned: true,
-                        sourceType: type,
+                        sourceType: isProject ? 'PROJECT' : type,
                         sourceId,
                         planItemIndex: subItemIndex,
+                        projectId: linkedProjectId,
+                        projectItemIndex: linkedProjectItemIndex,
                         planRefId: itemKey
                     }
                 ];
@@ -110,16 +117,18 @@ const DailyReportPppModal = ({
                         targetDate: 'Hari kerja berikutnya',
                         categoryTag: 'UMUM',
                         isPlanned: true,
-                        sourceType: type,
+                        sourceType: isProject ? 'PROJECT' : type,
                         sourceId,
                         planItemIndex: subItemIndex,
+                        projectId: linkedProjectId,
+                        projectItemIndex: linkedProjectItemIndex,
                         planRefId: itemKey
                     }
                 ];
             });
         } else if (targetPillar === 'OBSTACLE') {
             setHasObstacle(true);
-            const obstaclePrefix = `[Kendala ${type === 'ASSIGNMENT' ? 'Penugasan' : 'Rencana'}] ${titleText}: `;
+            const obstaclePrefix = `[Kendala ${type === 'ASSIGNMENT' ? 'Penugasan' : (isProject ? 'Project' : 'Rencana')}] ${titleText}: `;
             setObstacleNote(prev => prev ? `${prev}\n${obstaclePrefix}` : obstaclePrefix);
         } else if (targetPillar === 'TOMORROW') {
             setTomorrowPlans(prev => {
@@ -131,9 +140,11 @@ const DailyReportPppModal = ({
                         title: titleText,
                         categoryTag: 'UMUM',
                         priority: item.priority || 'SEDANG',
-                        sourceType: type,
+                        sourceType: isProject ? 'PROJECT' : type,
                         sourceId,
                         planItemIndex: subItemIndex,
+                        projectId: linkedProjectId,
+                        projectItemIndex: linkedProjectItemIndex,
                         planRefId: itemKey
                     }
                 ];
@@ -258,7 +269,7 @@ const DailyReportPppModal = ({
 
                     {/* 1. KOTAK UTAMA: TARIK DARI RENCANA KERJA & PENUGASAN AKTIF */}
                     <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-200/80 space-y-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="space-y-0.5">
                                 <span className="text-xs font-black uppercase text-blue-900 tracking-wider flex items-center gap-1.5">
                                     <Sparkles size={14} className="text-blue-600" /> 1. Tarik dari Rencana Kerja / Penugasan Aktif
@@ -266,6 +277,46 @@ const DailyReportPppModal = ({
                                 <p className="text-[11px] text-blue-700 font-medium">
                                     Klik tombol status pada setiap rencana untuk melaporkan progresnya hari ini:
                                 </p>
+                            </div>
+
+                            {/* Filter Segmented Controls */}
+                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-blue-200 text-[10px] font-bold">
+                                <button
+                                    type="button"
+                                    onClick={() => setPppDrawerFilter('ALL')}
+                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                        pppDrawerFilter === 'ALL' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    Semua
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPppDrawerFilter('WEEKLY')}
+                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                        pppDrawerFilter === 'WEEKLY' ? 'bg-violet-600 text-white shadow-2xs font-black' : 'text-violet-700 hover:text-violet-900'
+                                    }`}
+                                >
+                                    📋 Pekanan
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPppDrawerFilter('PROJECT')}
+                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                        pppDrawerFilter === 'PROJECT' ? 'bg-emerald-600 text-white shadow-2xs font-black' : 'text-emerald-700 hover:text-emerald-900'
+                                    }`}
+                                >
+                                    📁 Project
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPppDrawerFilter('ASSIGNMENT')}
+                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                        pppDrawerFilter === 'ASSIGNMENT' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-blue-700 hover:text-blue-900'
+                                    }`}
+                                >
+                                    🎯 Tugas
+                                </button>
                             </div>
                         </div>
 
@@ -278,7 +329,7 @@ const DailyReportPppModal = ({
                         ) : (
                             <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
                                 {/* Penugasan Langsung dari Pimpinan (Merupakan Rencana User) */}
-                                {activeStaffAssignments.map(a => {
+                                {(pppDrawerFilter === 'ALL' || pppDrawerFilter === 'ASSIGNMENT') && activeStaffAssignments.map(a => {
                                     const itemKey = `ASSIGNMENT-${a.id}`;
                                     const pulledStatus = pulledMap[itemKey];
                                     let assignItems = [];
@@ -412,37 +463,58 @@ const DailyReportPppModal = ({
                                     );
                                 })}
 
-                                {/* Rencana Kerja Staf (Termasuk Rencana Besok yang dibuat kemarin) */}
-                                {activeStaffPlans.map(p => {
-                                    const itemKey = `PLAN-${p.id}`;
-                                    const pulledStatus = pulledMap[itemKey];
-                                    return (
-                                        <div 
-                                            key={itemKey} 
-                                            className={`p-2.5 rounded-xl border transition-all space-y-2 ${
-                                                pulledStatus 
-                                                    ? 'bg-blue-100/60 border-blue-300' 
-                                                    : 'bg-white border-blue-200 hover:border-blue-400 shadow-2xs'
-                                            }`}
-                                        >
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                <div className="space-y-0.5">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className="px-1.5 py-0.5 rounded bg-purple-600 text-white text-[9px] font-black uppercase">
-                                                            {p.isDailyPlan ? 'Rencana Harian' : 'Rencana Kerja Staf'}
-                                                        </span>
-                                                        {pulledStatus && (
-                                                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black flex items-center gap-0.5">
-                                                                <CheckCheck size={10} /> Ditarik: {
-                                                                    pulledStatus === 'COMPLETED' ? 'Selesai 100%' :
-                                                                    pulledStatus === 'IN_PROGRESS' ? 'Dalam Proses' :
-                                                                    pulledStatus === 'OBSTACLE' ? 'Kendala' : 'Rencana Besok'
-                                                                }
-                                                            </span>
-                                                        )}
+                                {/* Rencana Kerja Staf (Termasuk Rencana Besok yang dibuat kemarin & Project) */}
+                                {activeStaffPlans
+                                    .filter(p => {
+                                        const isProject = !!p.isProject || p.planType === 'PROJECT' || p.metadata?.isProject || p.metadata?.planType === 'PROJECT';
+                                        if (pppDrawerFilter === 'WEEKLY' && isProject) return false;
+                                        if (pppDrawerFilter === 'PROJECT' && !isProject) return false;
+                                        if (pppDrawerFilter === 'ASSIGNMENT') return false;
+                                        return true;
+                                    })
+                                    .map(p => {
+                                        const isProject = !!p.isProject || p.planType === 'PROJECT' || p.metadata?.isProject || p.metadata?.planType === 'PROJECT';
+                                        const itemKey = `PLAN-${p.id}`;
+                                        const pulledStatus = pulledMap[itemKey];
+                                        return (
+                                            <div 
+                                                key={itemKey} 
+                                                className={`p-2.5 rounded-xl border transition-all space-y-2 ${
+                                                    pulledStatus 
+                                                        ? 'bg-blue-100/60 border-blue-300' 
+                                                        : isProject
+                                                            ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-300 shadow-2xs'
+                                                            : 'bg-white border-blue-200 hover:border-blue-400 shadow-2xs'
+                                                }`}
+                                            >
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                    <div className="space-y-0.5">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {isProject ? (
+                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[9px] font-black uppercase">
+                                                                    📁 Project (Master Plan)
+                                                                </span>
+                                                            ) : p.isDailyPlan ? (
+                                                                <span className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[9px] font-black uppercase">
+                                                                    ⚡ Rencana Harian
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-1.5 py-0.5 rounded bg-purple-600 text-white text-[9px] font-black uppercase">
+                                                                    📋 Rencana Pekanan
+                                                                </span>
+                                                            )}
+                                                            {pulledStatus && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black flex items-center gap-0.5">
+                                                                    <CheckCheck size={10} /> Ditarik: {
+                                                                        pulledStatus === 'COMPLETED' ? 'Selesai 100%' :
+                                                                        pulledStatus === 'IN_PROGRESS' ? 'Dalam Proses' :
+                                                                        pulledStatus === 'OBSTACLE' ? 'Kendala' : 'Rencana Besok'
+                                                                    }
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <h5 className="text-xs font-bold text-slate-800">{p.title}</h5>
                                                     </div>
-                                                    <h5 className="text-xs font-bold text-slate-800">{p.title}</h5>
-                                                </div>
 
                                                 <div className="flex items-center gap-1 shrink-0 flex-wrap">
                                                     <button
@@ -495,6 +567,11 @@ const DailyReportPppModal = ({
                                                                 <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1.5 bg-white rounded-lg border border-slate-200/80 text-xs">
                                                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                                                         <span className="text-slate-400 font-bold text-[10px] shrink-0">#{sIdx + 1}</span>
+                                                                        {sub.projectId && (
+                                                                            <span className="px-1 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-bold shrink-0">
+                                                                                🔗 Project
+                                                                            </span>
+                                                                        )}
                                                                         <span className="font-semibold text-slate-700 truncate">{subTitle}</span>
                                                                         {subPulled && (
                                                                             <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black shrink-0">

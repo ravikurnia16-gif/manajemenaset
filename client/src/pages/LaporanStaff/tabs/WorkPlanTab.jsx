@@ -5,7 +5,7 @@ import {
     Zap, Check, RotateCcw, FileText, AlertCircle, CalendarDays,
     BarChart3, Layers, ArrowRight, CheckSquare, Square, Flame,
     ShieldAlert, Camera, Image as ImageIcon, X, Upload, Loader2,
-    Eye, Download, FileSpreadsheet, Printer
+    Eye, Download, FileSpreadsheet, Printer, FolderGit2, Briefcase
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import jsPDF from 'jspdf';
@@ -78,6 +78,7 @@ const getUserCategory = (pos = '', division = 'UMUM') => {
 
 export default function WorkPlanTab({
     plans = [],
+    userProjects = [],
     loadingPlans = false,
     fetchPlans,
     isKabid = false,
@@ -96,7 +97,9 @@ export default function WorkPlanTab({
     const [filterCategory, setFilterCategory] = useState('ALL');
     const [filterStatus, setFilterStatus] = useState('ACTIVE'); // 'ALL' | 'ACTIVE' | 'DONE'
     const [filterPriority, setFilterPriority] = useState('ALL'); // 'ALL' | 'TINGGI' | 'SEDANG' | 'RENDAH'
+    const [filterPlanType, setFilterPlanType] = useState('ALL'); // 'ALL' | 'WEEKLY' | 'PROJECT'
     const [selectedStaffFilter, setSelectedStaffFilter] = useState('ALL');
+    const [showProjectPicker, setShowProjectPicker] = useState(false);
 
     // Export Modal States
     const [showExportModal, setShowExportModal] = useState(false);
@@ -678,6 +681,8 @@ export default function WorkPlanTab({
         setEditingPlan(null);
         setPlanForm({
             title: '',
+            planType: 'WEEKLY',
+            isProject: false,
             position: user.position || '',
             category: getUserCategory(user.position, userDivision),
             priority: 'SEDANG',
@@ -693,17 +698,22 @@ export default function WorkPlanTab({
     const handleOpenEditModal = (plan) => {
         setEditingPlan(plan);
         const meta = plan.metadata || {};
+        const isProj = !!meta.isProject || meta.planType === 'PROJECT';
         const planItems = Array.isArray(meta.items) && meta.items.length > 0 
             ? meta.items.map(it => ({
                 activity: it.activity || it.text || '',
                 targetDate: it.targetDate ? dayjs(it.targetDate).format('YYYY-MM-DD') : '',
                 status: it.status || 'PENDING',
-                percentage: it.percentage !== undefined ? it.percentage : 0
+                percentage: it.percentage !== undefined ? it.percentage : 0,
+                projectId: it.projectId || null,
+                projectItemIndex: it.projectItemIndex !== undefined ? it.projectItemIndex : null
             }))
             : [];
 
         setPlanForm({
             title: meta.title || '',
+            planType: isProj ? 'PROJECT' : 'WEEKLY',
+            isProject: isProj,
             position: meta.position || plan.user?.position || user.position || '',
             category: plan.category || getUserCategory(user.position, userDivision),
             priority: meta.priority || 'SEDANG',
@@ -823,9 +833,12 @@ export default function WorkPlanTab({
             return;
         }
 
+        const isProject = planForm.planType === 'PROJECT';
         const success = await handleCreateOrUpdatePlan({
             id: editingPlan?.id,
             ...planForm,
+            planType: planForm.planType || 'WEEKLY',
+            isProject,
             items: validItems
         });
 
@@ -848,6 +861,11 @@ export default function WorkPlanTab({
             } else {
                 isDone = meta.status === 'SELESAI' || meta.percentage === 100;
             }
+
+            // Plan Type filter (WEEKLY vs PROJECT)
+            const isProject = !!meta.isProject || meta.planType === 'PROJECT';
+            if (filterPlanType === 'WEEKLY' && isProject) return false;
+            if (filterPlanType === 'PROJECT' && !isProject) return false;
 
             // Status filter
             if (filterStatus === 'ACTIVE' && isDone) return false;
@@ -878,7 +896,7 @@ export default function WorkPlanTab({
 
             return true;
         });
-    }, [plans, filterStatus, filterPriority, filterCategory, selectedStaffFilter, searchQuery, isKabid]);
+    }, [plans, filterStatus, filterPriority, filterCategory, filterPlanType, selectedStaffFilter, searchQuery, isKabid]);
 
     // Statistics
     const stats = useMemo(() => {
@@ -1025,6 +1043,37 @@ export default function WorkPlanTab({
                             }`}
                         >
                             Selesai ({stats.done})
+                        </button>
+                    </div>
+
+                    {/* Plan Type Tabs */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                        <button
+                            type="button"
+                            onClick={() => setFilterPlanType('ALL')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                filterPlanType === 'ALL' ? 'bg-white text-slate-800 shadow-2xs font-black' : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            Semua Tipe
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFilterPlanType('WEEKLY')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                filterPlanType === 'WEEKLY' ? 'bg-violet-600 text-white shadow-2xs font-black' : 'text-violet-700 hover:text-violet-900'
+                            }`}
+                        >
+                            <span>📋 Pekanan</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFilterPlanType('PROJECT')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                filterPlanType === 'PROJECT' ? 'bg-emerald-600 text-white shadow-2xs font-black' : 'text-emerald-700 hover:text-emerald-900'
+                            }`}
+                        >
+                            <span>📁 Project</span>
                         </button>
                     </div>
 
@@ -1184,6 +1233,17 @@ export default function WorkPlanTab({
                                         title={isCollapsed ? "Klik untuk membuka rincian rencana kerja ini" : "Klik untuk menutup rincian rencana kerja ini"}
                                     >
                                         <div className="flex flex-wrap items-center gap-2">
+                                            {/* Type Badge: Project vs Weekly */}
+                                            {meta.isProject || meta.planType === 'PROJECT' ? (
+                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white flex items-center gap-1 shadow-2xs">
+                                                    📁 Rencana Umum (Project)
+                                                </span>
+                                            ) : (
+                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-600 text-white flex items-center gap-1 shadow-2xs">
+                                                    📋 Rencana Pekanan
+                                                </span>
+                                            )}
+
                                             {/* Status Badge */}
                                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                                 isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-100 text-violet-700'
@@ -1686,6 +1746,48 @@ export default function WorkPlanTab({
                         </div>
 
                         <form onSubmit={onSubmitPlanForm} className="space-y-4">
+                            {/* Pilihan Tipe Rencana: Pekanan vs Project */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                                    Tipe Perencanaan Kerja
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPlanForm({ ...planForm, planType: 'WEEKLY' })}
+                                        className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                            planForm.planType !== 'PROJECT'
+                                                ? 'bg-violet-50/80 border-violet-400 ring-2 ring-violet-500/20 shadow-2xs'
+                                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <span className="text-xs font-black text-violet-700">📋 Rencana Pekanan</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 leading-tight">
+                                            Target mingguan operasional / disusun tiap Jumat
+                                        </p>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setPlanForm({ ...planForm, planType: 'PROJECT' })}
+                                        className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                            planForm.planType === 'PROJECT'
+                                                ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-2xs'
+                                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <span className="text-xs font-black text-emerald-700">📁 Rencana Umum (Project)</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 leading-tight">
+                                            Master plan inisiatif besar ber-milestone bertahap
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* 1. Judul Rencana */}
                             <div>
                                 <div className="flex items-center justify-between mb-1 gap-2">
@@ -1834,7 +1936,7 @@ export default function WorkPlanTab({
 
                             {/* 3. Point-Point Langkah Rencana (Opsional) */}
                             <div className="space-y-2 pt-1 border-t border-slate-100">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
                                     <div>
                                         <label className="text-xs font-bold text-slate-700 block">
                                             2. Point-Point Langkah Rencana
@@ -1843,13 +1945,25 @@ export default function WorkPlanTab({
                                             Opsional. Tanggal estimasi langkah dibatasi maksimal tanggal estimasi judul.
                                         </p>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={handleAddItemField}
-                                        className="px-3 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                                    >
-                                        <Plus size={13} /> Tambah Langkah
-                                    </button>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        {planForm.planType !== 'PROJECT' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowProjectPicker(true)}
+                                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95"
+                                                title="Tarik butir langkah dari Master Project yang aktif"
+                                            >
+                                                <FolderGit2 size={13} /> Tarik dari Project
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleAddItemField}
+                                            className="px-3 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95"
+                                        >
+                                            <Plus size={13} /> Tambah Langkah
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {planForm.items.length === 0 ? (
@@ -1858,7 +1972,7 @@ export default function WorkPlanTab({
                                             Belum ada point langkah ditambahkan (Rencana Mandiri).
                                         </p>
                                         <p className="text-[11px] text-slate-400">
-                                            Gunakan tombol <span className="font-bold text-violet-600">"✨ AI Rinci Langkah Otomatis"</span> atau klik <span className="font-bold text-violet-600">"+ Tambah Langkah"</span> di atas.
+                                            Gunakan tombol <span className="font-bold text-violet-600">"✨ AI Rinci Langkah Otomatis"</span>, <span className="font-bold text-emerald-600">"📁 Tarik dari Project"</span>, atau klik <span className="font-bold text-violet-600">"+ Tambah Langkah"</span> di atas.
                                         </p>
                                     </div>
                                 ) : (
@@ -1869,6 +1983,11 @@ export default function WorkPlanTab({
                                                     <span className="w-5 text-center text-xs font-black text-violet-600 shrink-0">
                                                         {idx + 1}.
                                                     </span>
+                                                    {it.projectId && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[9px] font-bold shrink-0 flex items-center gap-0.5" title="Terhubung ke Project Induk">
+                                                            🔗 Project Induk
+                                                        </span>
+                                                    )}
                                                     <input
                                                         type="text"
                                                         required
@@ -1953,6 +2072,136 @@ export default function WorkPlanTab({
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 4.1 MODAL: TARIK LANGKAH DARI MASTER PROJECT */}
+            {showProjectPicker && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                    <FolderGit2 size={18} />
+                                </span>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800">Tarik dari Master Project</h4>
+                                    <p className="text-[10px] text-slate-400">Pilih milestone / butir langkah dari project aktif untuk dijadikan target pekan ini</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowProjectPicker(false)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                            {(() => {
+                                const activeProjectsList = (userProjects && userProjects.length > 0)
+                                    ? userProjects
+                                    : plans.filter(p => p.metadata?.isProject || p.metadata?.planType === 'PROJECT');
+
+                                if (activeProjectsList.length === 0) {
+                                    return (
+                                        <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                            Belum ada Master Project aktif. Anda dapat membuat Project baru dengan memilih tipe "📁 Rencana Umum (Project)".
+                                        </div>
+                                    );
+                                }
+
+                                return activeProjectsList.map(proj => {
+                                    const meta = proj.metadata || {};
+                                    const steps = Array.isArray(meta.items) ? meta.items : [];
+                                    const rawTitle = (meta.title || proj.content || 'Project').trim();
+                                    const cleanTitle = rawTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawTitle;
+
+                                    return (
+                                        <div key={proj.id} className="p-3 bg-emerald-50/40 border border-emerald-200/80 rounded-2xl space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <h5 className="text-xs font-black text-emerald-900">{cleanTitle}</h5>
+                                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                                    {meta.percentage || 0}%
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-1.5 pt-1">
+                                                {steps.length === 0 ? (
+                                                    <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-emerald-100 text-xs">
+                                                        <span className="text-slate-700 font-medium">{cleanTitle}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setPlanForm(prev => ({
+                                                                    ...prev,
+                                                                    items: [
+                                                                        ...prev.items,
+                                                                        {
+                                                                            activity: cleanTitle,
+                                                                            targetDate: prev.endDate || dayjs().add(7, 'day').format('YYYY-MM-DD'),
+                                                                            status: 'PENDING',
+                                                                            percentage: meta.percentage || 0,
+                                                                            projectId: proj.id,
+                                                                            projectItemIndex: null
+                                                                        }
+                                                                    ]
+                                                                }));
+                                                                setShowProjectPicker(false);
+                                                            }}
+                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition cursor-pointer active:scale-95"
+                                                        >
+                                                            + Tarik ke Pekanan
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    steps.map((st, stIdx) => {
+                                                        const isStepDone = st.status === 'SELESAI' || (st.percentage || 0) === 100;
+                                                        const stepText = st.activity || st.text || `Langkah ${stIdx + 1}`;
+                                                        return (
+                                                            <div key={stIdx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-emerald-100 text-xs gap-2">
+                                                                <div className="min-w-0">
+                                                                    <p className={`text-slate-800 font-semibold truncate ${isStepDone ? 'line-through text-slate-400' : ''}`}>
+                                                                        {stIdx + 1}. {stepText}
+                                                                    </p>
+                                                                    <span className="text-[10px] text-slate-400">Progres: {st.percentage || 0}%</span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isStepDone}
+                                                                    onClick={() => {
+                                                                        setPlanForm(prev => ({
+                                                                            ...prev,
+                                                                            items: [
+                                                                                ...prev.items,
+                                                                                {
+                                                                                    activity: `${cleanTitle}: ${stepText}`,
+                                                                                    targetDate: st.targetDate ? dayjs(st.targetDate).format('YYYY-MM-DD') : (prev.endDate || dayjs().add(7, 'day').format('YYYY-MM-DD')),
+                                                                                    status: 'PENDING',
+                                                                                    percentage: st.percentage || 0,
+                                                                                    projectId: proj.id,
+                                                                                    projectItemIndex: stIdx
+                                                                                }
+                                                                            ]
+                                                                        }));
+                                                                        setShowProjectPicker(false);
+                                                                    }}
+                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition cursor-pointer disabled:opacity-40 shrink-0 active:scale-95"
+                                                                >
+                                                                    + Tarik ke Pekanan
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
+                        </div>
                     </div>
                 </div>
             )}

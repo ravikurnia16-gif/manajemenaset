@@ -250,6 +250,57 @@ exports.getMbeRadar = async (req, res) => {
             });
         });
 
+        // 6. Friday Weekly Planning Check: Cek apakah hari ini Jumat s.d. Minggu
+        // Jika iya, deteksi staf yang belum membuat rencana kerja untuk pekan depan
+        const nowWib = dayjs().tz('Asia/Jakarta');
+        const dayOfWeek = nowWib.day(); // 5 = Jumat, 6 = Sabtu, 0 = Minggu
+        const isFridayWeekend = [5, 6, 0].includes(dayOfWeek);
+        const fridayMissingPlans = [];
+
+        if (isFridayWeekend) {
+            try {
+                const nextMonday = nowWib.add(1, 'week').startOf('isoWeek').toDate();
+                const nextFriday = nowWib.add(1, 'week').startOf('isoWeek').add(4, 'day').endOf('day').toDate();
+
+                const nextWeekPlans = await prisma.personnelReport.findMany({
+                    where: {
+                        type: 'WEEKLY',
+                        date: { gte: nowWib.startOf('day').toDate() }
+                    }
+                });
+
+                const userIdsWithNextWeekPlan = new Set();
+                nextWeekPlans.forEach(p => {
+                    let m = p.metadata;
+                    if (typeof m === 'string') {
+                        try { m = JSON.parse(m); } catch (e) { m = {}; }
+                    }
+                    if (m && m.isPlan && m.planType !== 'PROJECT') {
+                        userIdsWithNextWeekPlan.add(p.userId);
+                    }
+                });
+
+                const allStaff = await prisma.user.findMany({
+                    where: STAFF_USER_WHERE,
+                    select: { id: true, name: true, position: true, phone: true }
+                });
+
+                allStaff.forEach(st => {
+                    if (!userIdsWithNextWeekPlan.has(st.id)) {
+                        fridayMissingPlans.push({
+                            userId: st.id,
+                            name: st.name,
+                            position: st.position,
+                            phone: st.phone,
+                            missingPeriod: `${dayjs(nextMonday).format('DD MMM')} - ${dayjs(nextFriday).format('DD MMM YYYY')}`
+                        });
+                    }
+                });
+            } catch (errFri) {
+                console.error('Error checking friday missing plans in radar:', errFri);
+            }
+        }
+
         // Total Exception Count
         const totalExceptions = 
             overdueAssignments.length + 
@@ -257,7 +308,8 @@ exports.getMbeRadar = async (req, res) => {
             criticalMaintenance.length + 
             overdueVehicleReminders.length + 
             pendingVehicleServices.length + 
-            unresolvedObstacles.length;
+            unresolvedObstacles.length +
+            fridayMissingPlans.length;
 
         return res.json({
             success: true,
@@ -268,7 +320,8 @@ exports.getMbeRadar = async (req, res) => {
                 criticalMaintenance,
                 overdueVehicleReminders: mappedOverdueReminders,
                 pendingVehicleServices,
-                unresolvedObstacles: unresolvedObstacles.slice(0, 15)
+                unresolvedObstacles: unresolvedObstacles.slice(0, 15),
+                fridayMissingPlans
             }
         });
     } catch (error) {
@@ -889,16 +942,20 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
         });
 
         // 4. Petakan data per staf
+        const allActiveProjects = [];
+        const allActiveWeeklyPlans = [];
+
         const staffData = staffList.map(st => {
-            const myWeeklyPlans = activePlans.filter(p => p.userId === st.id).map(p => {
+            const myAllPlans = activePlans.filter(p => p.userId === st.id).map(p => {
                 const meta = p.metadata || {};
                 const items = Array.isArray(meta.items) ? meta.items : [];
                 const doneCount = items.filter(it => it.percentage === 100 || it.status === 'SELESAI').length;
                 const avgPct = items.length > 0 
                     ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) 
                     : (meta.percentage || (meta.status === 'SELESAI' ? 100 : 0));
+                const isProject = !!meta.isProject || meta.planType === 'PROJECT';
 
-                return {
+                const planObj = {
                     id: p.id,
                     userId: p.userId,
                     title: meta.title || 'Rencana Kerja',
@@ -909,13 +966,27 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
                     status: meta.status || (avgPct === 100 ? 'SELESAI' : 'PENDING'),
                     assigned: !!meta.assigned,
                     assignmentId: meta.assignmentId || null,
+                    projectId: meta.projectId || null,
+                    isProject,
+                    planType: meta.planType || (isProject ? 'PROJECT' : 'WEEKLY'),
                     items,
                     avgPct,
                     isDone: avgPct === 100,
                     content: p.content,
                     createdAt: p.createdAt
                 };
+
+                if (isProject) {
+                    allActiveProjects.push(planObj);
+                } else {
+                    allActiveWeeklyPlans.push(planObj);
+                }
+
+                return planObj;
             });
+
+            const myProjects = myAllPlans.filter(p => p.isProject);
+            const myWeeklyPlansOnly = myAllPlans.filter(p => !p.isProject);
 
             // Ekstrak Rencana Besok (Tomorrow's Plan) dari Laporan Harian staf
             const myDailyTomorrowPlans = [];
@@ -945,7 +1016,7 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
                     });
                 });
 
-            const myPlans = [...myWeeklyPlans, ...myDailyTomorrowPlans];
+            const myPlans = [...myAllPlans, ...myDailyTomorrowPlans];
 
             const myAssignments = allAssignments.filter(a => a.assigneeId === st.id).map(a => ({
                 id: a.id,
@@ -965,10 +1036,14 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
             return {
                 ...st,
                 plans: myPlans,
+                projects: myProjects,
+                weeklyPlans: myWeeklyPlansOnly,
                 assignments: myAssignments,
                 stats: {
                     totalPlans: myPlans.length,
                     activePlansCount: myPlans.filter(p => !p.isDone).length,
+                    totalProjects: myProjects.length,
+                    activeProjectsCount: myProjects.filter(p => !p.isDone).length,
                     totalAssignments: myAssignments.length,
                     activeAssignmentsCount: myAssignments.filter(a => a.status !== 'COMPLETED').length,
                     overdueAssignmentsCount: myAssignments.filter(a => a.isOverdue).length
@@ -979,7 +1054,9 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
         return res.json({
             success: true,
             totalStaff: staffList.length,
-            staff: staffData
+            staff: staffData,
+            projects: allActiveProjects,
+            weeklyPlans: allActiveWeeklyPlans
         });
     } catch (error) {
         console.error('Error in getStaffPlansAndAssignments:', error);
@@ -1070,7 +1147,7 @@ exports.createAssignmentFromPlan = async (req, res) => {
 exports.saveStaffPlan = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, title, category, priority, startDate, endDate, items = [], notes = '' } = req.body;
+        const { userId, title, category, priority, startDate, endDate, items = [], notes = '', planType, isProject, projectId } = req.body;
         const targetUserId = userId ? parseInt(userId, 10) : parseInt(req.user.id, 10);
 
         if (!title || !targetUserId) {
@@ -1079,6 +1156,8 @@ exports.saveStaffPlan = async (req, res) => {
 
         const validCategories = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
         const resolvedCat = validCategories.includes(category) ? category : 'UMUM';
+        const isProjectFlag = !!isProject || planType === 'PROJECT';
+        const resolvedPlanType = isProjectFlag ? 'PROJECT' : 'WEEKLY';
 
         const user = await prisma.user.findUnique({
             where: { id: targetUserId },
@@ -1091,7 +1170,10 @@ exports.saveStaffPlan = async (req, res) => {
             status: it.status || 'PENDING',
             percentage: it.percentage !== undefined ? parseInt(it.percentage, 10) : 0,
             assigned: !!it.assigned,
-            assignmentId: it.assignmentId || null
+            assignmentId: it.assignmentId || null,
+            projectId: it.projectId || projectId || null,
+            projectItemIndex: it.projectItemIndex !== undefined && it.projectItemIndex !== null ? parseInt(it.projectItemIndex, 10) : null,
+            isFromProject: !!it.isFromProject
         })) : [];
 
         const avgPercentage = formattedItems.length > 0 
@@ -1102,10 +1184,13 @@ exports.saveStaffPlan = async (req, res) => {
         const payload = {
             type: 'WEEKLY',
             category: resolvedCat,
-            content: notes || `Rencana Kerja: ${title.trim()}`,
+            content: notes || `${isProjectFlag ? 'Rencana Umum (Project)' : 'Rencana Kerja'}: ${title.trim()}`,
             date: startDate ? new Date(startDate) : new Date(),
             metadata: {
                 isPlan: true,
+                isProject: isProjectFlag,
+                planType: resolvedPlanType,
+                projectId: projectId || null,
                 title: title.trim(),
                 position: user?.position || 'Staff',
                 categoryTag: resolvedCat,
@@ -1298,7 +1383,7 @@ exports.saveDailyReportFromPpp = async (req, res) => {
             }
 
             // Sinkronisasi 2 arah ke Rencana Kerja Staf (Plan & Sub-item Langkah)
-            if (it.sourceType === 'PLAN' && it.sourceId) {
+            if ((it.sourceType === 'PLAN' || it.sourceType === 'WEEKLY_PLAN') && it.sourceId) {
                 try {
                     const planId = parseInt(it.sourceId);
                     if (!isNaN(planId)) {
@@ -1309,12 +1394,17 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
                             }
                             let pItems = Array.isArray(meta.items) ? [...meta.items] : [];
+                            let linkedPrjId = null;
+                            let linkedPrjItemIdx = null;
+
                             if (it.planItemIndex !== undefined && it.planItemIndex !== null && pItems[it.planItemIndex]) {
                                 pItems[it.planItemIndex] = {
                                     ...pItems[it.planItemIndex],
                                     percentage: 100,
                                     status: 'SELESAI'
                                 };
+                                linkedPrjId = pItems[it.planItemIndex].projectId || meta.projectId || null;
+                                linkedPrjItemIdx = pItems[it.planItemIndex].projectItemIndex !== undefined ? pItems[it.planItemIndex].projectItemIndex : null;
                             }
                             const avgPct = pItems.length > 0 
                                 ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
@@ -1331,10 +1421,63 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                     }
                                 }
                             });
+
+                            // Upward Chain Sync to Project
+                            if (linkedPrjId) {
+                                try {
+                                    const prj = await prisma.personnelReport.findUnique({ where: { id: parseInt(linkedPrjId) } });
+                                    if (prj && prj.metadata) {
+                                        const prjMeta = { ...prj.metadata };
+                                        const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                                        if (linkedPrjItemIdx !== null && prjItems[linkedPrjItemIdx]) {
+                                            prjItems[linkedPrjItemIdx].percentage = 100;
+                                            prjItems[linkedPrjItemIdx].status = 'SELESAI';
+                                        }
+                                        const prjAvg = prjItems.length > 0
+                                            ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
+                                            : 100;
+                                        prjMeta.items = prjItems;
+                                        prjMeta.percentage = prjAvg;
+                                        prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                                        await prisma.personnelReport.update({
+                                            where: { id: prj.id },
+                                            data: { metadata: prjMeta }
+                                        });
+                                    }
+                                } catch (eUp) {
+                                    console.error('Error upward syncing to project in PPP:', eUp.message);
+                                }
+                            }
                         }
                     }
                 } catch (e) {
                     console.error('Failed to sync plan progress:', e.message);
+                }
+            } else if (it.sourceType === 'PROJECT' && it.sourceId) {
+                // Direct Project sync
+                try {
+                    const prjId = parseInt(it.sourceId);
+                    const prj = await prisma.personnelReport.findUnique({ where: { id: prjId } });
+                    if (prj && prj.metadata) {
+                        const prjMeta = { ...prj.metadata };
+                        const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                        if (it.planItemIndex !== undefined && it.planItemIndex !== null && prjItems[it.planItemIndex]) {
+                            prjItems[it.planItemIndex].percentage = 100;
+                            prjItems[it.planItemIndex].status = 'SELESAI';
+                        }
+                        const prjAvg = prjItems.length > 0
+                            ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
+                            : 100;
+                        prjMeta.items = prjItems;
+                        prjMeta.percentage = prjAvg;
+                        prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                        await prisma.personnelReport.update({
+                            where: { id: prj.id },
+                            data: { metadata: prjMeta }
+                        });
+                    }
+                } catch (ePrj) {
+                    console.error('Failed to sync direct project progress:', ePrj.message);
                 }
             }
         }
@@ -1373,7 +1516,7 @@ exports.saveDailyReportFromPpp = async (req, res) => {
             }
 
             // Sinkronisasi 2 arah ke Rencana Kerja Staf (Plan & Sub-item Langkah)
-            if (it.sourceType === 'PLAN' && it.sourceId) {
+            if ((it.sourceType === 'PLAN' || it.sourceType === 'WEEKLY_PLAN') && it.sourceId) {
                 try {
                     const planId = parseInt(it.sourceId);
                     if (!isNaN(planId)) {
@@ -1384,12 +1527,17 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
                             }
                             let pItems = Array.isArray(meta.items) ? [...meta.items] : [];
+                            let linkedPrjId = null;
+                            let linkedPrjItemIdx = null;
+
                             if (it.planItemIndex !== undefined && it.planItemIndex !== null && pItems[it.planItemIndex]) {
                                 pItems[it.planItemIndex] = {
                                     ...pItems[it.planItemIndex],
                                     percentage: targetPct,
                                     status: 'PROSES'
                                 };
+                                linkedPrjId = pItems[it.planItemIndex].projectId || meta.projectId || null;
+                                linkedPrjItemIdx = pItems[it.planItemIndex].projectItemIndex !== undefined ? pItems[it.planItemIndex].projectItemIndex : null;
                             }
                             const avgPct = pItems.length > 0 
                                 ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
@@ -1406,10 +1554,63 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                     }
                                 }
                             });
+
+                            // Upward Chain Sync to Project
+                            if (linkedPrjId) {
+                                try {
+                                    const prj = await prisma.personnelReport.findUnique({ where: { id: parseInt(linkedPrjId) } });
+                                    if (prj && prj.metadata) {
+                                        const prjMeta = { ...prj.metadata };
+                                        const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                                        if (linkedPrjItemIdx !== null && prjItems[linkedPrjItemIdx]) {
+                                            prjItems[linkedPrjItemIdx].percentage = targetPct;
+                                            prjItems[linkedPrjItemIdx].status = 'PROSES';
+                                        }
+                                        const prjAvg = prjItems.length > 0
+                                            ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
+                                            : targetPct;
+                                        prjMeta.items = prjItems;
+                                        prjMeta.percentage = prjAvg;
+                                        prjMeta.status = prjAvg === 100 ? 'SELESAI' : 'PROSES';
+                                        await prisma.personnelReport.update({
+                                            where: { id: prj.id },
+                                            data: { metadata: prjMeta }
+                                        });
+                                    }
+                                } catch (eUp) {
+                                    console.error('Error upward syncing to project in PPP in-progress:', eUp.message);
+                                }
+                            }
                         }
                     }
                 } catch (e) {
                     console.error('Failed to sync plan in-progress:', e.message);
+                }
+            } else if (it.sourceType === 'PROJECT' && it.sourceId) {
+                // Direct Project sync
+                try {
+                    const prjId = parseInt(it.sourceId);
+                    const prj = await prisma.personnelReport.findUnique({ where: { id: prjId } });
+                    if (prj && prj.metadata) {
+                        const prjMeta = { ...prj.metadata };
+                        const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                        if (it.planItemIndex !== undefined && it.planItemIndex !== null && prjItems[it.planItemIndex]) {
+                            prjItems[it.planItemIndex].percentage = targetPct;
+                            prjItems[it.planItemIndex].status = 'PROSES';
+                        }
+                        const prjAvg = prjItems.length > 0
+                            ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
+                            : targetPct;
+                        prjMeta.items = prjItems;
+                        prjMeta.percentage = prjAvg;
+                        prjMeta.status = prjAvg === 100 ? 'SELESAI' : 'PROSES';
+                        await prisma.personnelReport.update({
+                            where: { id: prj.id },
+                            data: { metadata: prjMeta }
+                        });
+                    }
+                } catch (ePrj) {
+                    console.error('Failed to sync direct project in-progress:', ePrj.message);
                 }
             }
         }

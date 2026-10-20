@@ -234,10 +234,99 @@ exports.getReports = async (req, res) => {
 
         const myReport = userReportsMap[reqUserId] || reports.find(r => r.userId === reqUserId) || null;
 
+        // Auto Carry-Over: Cari laporan hari kerja sebelumnya untuk menarik rencana besok
+        let suggestedFromYesterday = [];
+        try {
+            const yesterdayReport = await prisma.personnelReport.findFirst({
+                where: {
+                    userId: reqUserId,
+                    type: 'DAILY',
+                    NOT: { content: 'SETORAN_HAFALAN' },
+                    date: { lt: gteDate }
+                },
+                orderBy: { date: 'desc' }
+            });
+
+            if (yesterdayReport && yesterdayReport.metadata) {
+                let yMeta = yesterdayReport.metadata;
+                if (typeof yMeta === 'string') {
+                    try { yMeta = JSON.parse(yMeta); } catch (e) { yMeta = {}; }
+                }
+
+                if (Array.isArray(yMeta.tomorrowPlans) && yMeta.tomorrowPlans.length > 0) {
+                    suggestedFromYesterday = yMeta.tomorrowPlans
+                        .filter(tp => tp && (tp.title || tp.text))
+                        .map(tp => ({
+                            text: tp.title || tp.text || '',
+                            categoryTag: tp.categoryTag || 'UMUM',
+                            status: 'IN_PROGRESS',
+                            progressPercentage: 50,
+                            sourceType: tp.sourceType || 'PLAN',
+                            sourceId: tp.sourceId || null,
+                            planItemIndex: tp.planItemIndex !== undefined ? tp.planItemIndex : null,
+                            projectId: tp.projectId || null,
+                            projectItemIndex: tp.projectItemIndex !== undefined ? tp.projectItemIndex : null,
+                            obstacleNote: '',
+                            photos: [],
+                            isFromYesterday: true
+                        }));
+                }
+            }
+        } catch (errPrev) {
+            console.error('Error fetching yesterday report for carry-over:', errPrev);
+        }
+
+        // Ambil Project Aktif dan Rencana Pekanan Aktif milik user untuk opsi penarikan
+        let userProjects = [];
+        let userWeeklyPlans = [];
+        try {
+            const allUserPlans = await prisma.personnelReport.findMany({
+                where: {
+                    userId: reqUserId,
+                    type: 'WEEKLY'
+                },
+                orderBy: { updatedAt: 'desc' }
+            });
+
+            allUserPlans.forEach(p => {
+                let m = p.metadata;
+                if (typeof m === 'string') {
+                    try { m = JSON.parse(m); } catch (e) { m = {}; }
+                }
+                if (!m) return;
+                const items = Array.isArray(m.items) ? m.items : [];
+                const isProject = !!m.isProject || m.planType === 'PROJECT';
+                const planObj = {
+                    id: p.id,
+                    title: m.title || p.content || 'Rencana Kerja',
+                    categoryTag: m.categoryTag || p.category || 'UMUM',
+                    startDate: m.startDate || p.date,
+                    endDate: m.endDate || null,
+                    priority: m.priority || 'SEDANG',
+                    status: m.status || 'PENDING',
+                    percentage: m.percentage || 0,
+                    items,
+                    isProject,
+                    planType: m.planType || (isProject ? 'PROJECT' : 'WEEKLY')
+                };
+
+                if (isProject) {
+                    userProjects.push(planObj);
+                } else if (m.isPlan) {
+                    userWeeklyPlans.push(planObj);
+                }
+            });
+        } catch (ePlans) {
+            console.error('Error fetching user projects/weekly plans:', ePlans);
+        }
+
         res.json({ 
             success: true, 
             reports, 
             myReport,
+            suggestedFromYesterday,
+            userProjects,
+            userWeeklyPlans,
             isKabid: isUserKabid 
         });
 
@@ -419,7 +508,7 @@ exports.updateMyReport = async (req, res) => {
                         } catch (e) {
                             console.error('[Laporan] Error syncing maintenance:', e.message);
                         }
-                    } else if (p.sourceType === 'PLAN' && p.sourceId) {
+                    } else if ((p.sourceType === 'PLAN' || p.sourceType === 'WEEKLY_PLAN') && p.sourceId) {
                         try {
                             const plan = await prisma.personnelReport.findUnique({
                                 where: { id: parseInt(p.sourceId) }
@@ -427,12 +516,16 @@ exports.updateMyReport = async (req, res) => {
                             if (plan && plan.metadata && plan.metadata.isPlan) {
                                 const updatedMeta = { ...plan.metadata };
                                 const pct = p.status === 'COMPLETED' ? 100 : (p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : 50);
+                                let linkedProjectId = null;
+                                let linkedProjectItemIdx = null;
 
                                 if (updatedMeta.items && Array.isArray(updatedMeta.items) && updatedMeta.items.length > 0 && p.planItemIndex !== null && p.planItemIndex !== undefined) {
                                     const idx = parseInt(p.planItemIndex);
                                     if (updatedMeta.items[idx]) {
                                         updatedMeta.items[idx].percentage = pct;
                                         updatedMeta.items[idx].status = pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING');
+                                        linkedProjectId = updatedMeta.items[idx].projectId || updatedMeta.projectId || null;
+                                        linkedProjectItemIdx = updatedMeta.items[idx].projectItemIndex !== undefined ? updatedMeta.items[idx].projectItemIndex : null;
                                     }
                                     // Recalculate whole plan status
                                     const allItemsDone = updatedMeta.items.every(it => it.percentage === 100 || it.status === 'SELESAI');
@@ -443,6 +536,7 @@ exports.updateMyReport = async (req, res) => {
                                     // Single-goal plan without sub-items
                                     updatedMeta.percentage = pct;
                                     updatedMeta.status = pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING');
+                                    linkedProjectId = updatedMeta.projectId || null;
                                 }
 
                                 await prisma.personnelReport.update({
@@ -450,9 +544,64 @@ exports.updateMyReport = async (req, res) => {
                                     data: { metadata: updatedMeta }
                                 });
                                 console.log(`[Laporan] Auto-synced daily report update to plan ${plan.id} (Status: ${updatedMeta.status}, Progres: ${updatedMeta.percentage}%)`);
+
+                                // Upward Chain Sync: Update Project Induk jika butir rencana pekanan ini terhubung ke Project
+                                if (linkedProjectId) {
+                                    try {
+                                        const prj = await prisma.personnelReport.findUnique({ where: { id: parseInt(linkedProjectId) } });
+                                        if (prj && prj.metadata) {
+                                            const prjMeta = { ...prj.metadata };
+                                            const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                                            if (linkedProjectItemIdx !== null && prjItems[linkedProjectItemIdx]) {
+                                                prjItems[linkedProjectItemIdx].percentage = pct;
+                                                prjItems[linkedProjectItemIdx].status = pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING');
+                                            }
+                                            const prjAvg = prjItems.length > 0 
+                                                ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length) 
+                                                : pct;
+                                            prjMeta.items = prjItems;
+                                            prjMeta.percentage = prjAvg;
+                                            prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                                            await prisma.personnelReport.update({
+                                                where: { id: prj.id },
+                                                data: { metadata: prjMeta }
+                                            });
+                                            console.log(`[Laporan] Upward chain synced to Project ${prj.id} (Progres: ${prjAvg}%)`);
+                                        }
+                                    } catch (errPrjSync) {
+                                        console.error('[Laporan] Error upward syncing to project:', errPrjSync.message);
+                                    }
+                                }
                             }
                         } catch (e) {
                             console.error('[Laporan] Error syncing plan:', e.message);
+                        }
+                    } else if (p.sourceType === 'PROJECT' && p.sourceId) {
+                        // Direct pull from Project
+                        try {
+                            const prj = await prisma.personnelReport.findUnique({ where: { id: parseInt(p.sourceId) } });
+                            if (prj && prj.metadata) {
+                                const prjMeta = { ...prj.metadata };
+                                const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                                const pct = p.status === 'COMPLETED' ? 100 : (p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : 50);
+                                if (p.planItemIndex !== null && p.planItemIndex !== undefined && prjItems[p.planItemIndex]) {
+                                    prjItems[p.planItemIndex].percentage = pct;
+                                    prjItems[p.planItemIndex].status = pct === 100 ? 'SELESAI' : (pct > 0 ? 'PROSES' : 'PENDING');
+                                }
+                                const prjAvg = prjItems.length > 0 
+                                    ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length) 
+                                    : pct;
+                                prjMeta.items = prjItems;
+                                prjMeta.percentage = prjAvg;
+                                prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                                await prisma.personnelReport.update({
+                                    where: { id: prj.id },
+                                    data: { metadata: prjMeta }
+                                });
+                                console.log(`[Laporan] Direct project sync for ${prj.id} (Progres: ${prjAvg}%)`);
+                            }
+                        } catch (ePrjDirect) {
+                            console.error('[Laporan] Error syncing direct project:', ePrjDirect.message);
                         }
                     }
                 }

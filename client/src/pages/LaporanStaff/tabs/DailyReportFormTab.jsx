@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
     Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, 
     Plus, X, RotateCcw, Edit2, Trash2, Layers, Clock, AlertTriangle, 
-    Camera, Loader2, Save, Target, Sparkles, Wand2, Undo2
+    Camera, Loader2, Save, Target, Sparkles, Wand2, Undo2, Briefcase, FolderGit2
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -59,12 +59,15 @@ const DailyReportFormTab = ({
     assignments = [],
     convertTaskToReport,
     plans = [],
+    userProjects = [],
+    userWeeklyPlans = [],
     convertPlanItemToReport,
     applyRoutine
 }) => {
     // State for AI Polish feature
     const [polishingKey, setPolishingKey] = useState(null);
     const [originalHistory, setOriginalHistory] = useState({});
+    const [planDrawerFilter, setPlanDrawerFilter] = useState('ALL'); // 'ALL' | 'WEEKLY' | 'PROJECT'
 
     // Polish activity text
     const handlePolishText = async (index, period = 'morning') => {
@@ -634,73 +637,159 @@ const DailyReportFormTab = ({
                             </div>
                         </div>
 
-                        {/* Active Work Plans Converter */}
+                        {/* Active Work Plans & Projects Converter */}
                         {plans && plans.length > 0 && (
                             <div className="space-y-2.5 pt-3 border-t border-slate-200/70">
-                                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Target size={14} className="text-violet-600" /> Butir Rencana Kerja Aktif
-                                </h4>
-                                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                                    {(() => {
-                                        const pendingPlanEntries = plans.flatMap(plan => {
-                                            const meta = plan.metadata || {};
-                                            const items = Array.isArray(meta.items) ? meta.items : [];
-                                            if (items.length > 0) {
-                                                return items
-                                                    .map((it, idx) => ({ plan, it, idx }))
-                                                    .filter(({ it }) => (it.percentage || 0) < 100 && it.status !== 'SELESAI');
-                                            } else {
-                                                const isDone = meta.status === 'SELESAI' || meta.percentage === 100;
-                                                return isDone ? [] : [{ plan, it: null, idx: null }];
-                                            }
-                                        });
-
-                                        if (pendingPlanEntries.length === 0) {
-                                            return (
-                                                <div className="p-4 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                                    Seluruh target rencana kerja Anda telah terselesaikan 100%.
-                                                </div>
-                                            );
+                                {(() => {
+                                    const allPendingPlanEntries = plans.flatMap(plan => {
+                                        const meta = plan.metadata || {};
+                                        const isProject = !!meta.isProject || meta.planType === 'PROJECT';
+                                        const items = Array.isArray(meta.items) ? meta.items : [];
+                                        if (items.length > 0) {
+                                            return items
+                                                .map((it, idx) => ({ plan, it, idx, isProject }))
+                                                .filter(({ it }) => (it.percentage || 0) < 100 && it.status !== 'SELESAI');
+                                        } else {
+                                            const isDone = meta.status === 'SELESAI' || meta.percentage === 100;
+                                            return isDone ? [] : [{ plan, it: null, idx: null, isProject }];
                                         }
+                                    });
 
-                                        return pendingPlanEntries.map(({ plan, it, idx }, entryIdx) => {
-                                            const rawPlanTitle = (plan.metadata?.title || plan.content || 'Kegiatan').trim();
-                                            const planTitle = rawPlanTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawPlanTitle;
-                                            const activityText = it ? (it.activity || it.text || '') : planTitle;
-                                            const pct = it ? (it.percentage || 0) : (plan.metadata?.percentage || 0);
+                                    const weeklyEntries = allPendingPlanEntries.filter(e => !e.isProject);
+                                    const projectEntries = allPendingPlanEntries.filter(e => e.isProject);
 
-                                            return (
-                                                <div key={`${plan.id}-${idx !== null ? idx : entryIdx}`} className="p-3 bg-violet-50/40 border border-violet-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-                                                    <div>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
-                                                                {planTitle}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-400 font-bold">{pct}%</span>
-                                                        </div>
-                                                        <h5 className="text-xs font-bold text-slate-800 mt-1">{activityText}</h5>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'morning')}
-                                                            className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
-                                                        >
-                                                            + Pagi
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'afternoon')}
-                                                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
-                                                        >
-                                                            + Siang
-                                                        </button>
-                                                    </div>
+                                    const visibleEntries = allPendingPlanEntries.filter(e => {
+                                        if (planDrawerFilter === 'WEEKLY') return !e.isProject;
+                                        if (planDrawerFilter === 'PROJECT') return e.isProject;
+                                        return true;
+                                    });
+
+                                    return (
+                                        <>
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <Target size={14} className="text-violet-600" /> Butir Rencana Kerja Aktif
+                                                </h4>
+
+                                                {/* Filter Segmented Controls */}
+                                                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 text-[10px] font-bold">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPlanDrawerFilter('ALL')}
+                                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                                            planDrawerFilter === 'ALL'
+                                                                ? 'bg-white text-slate-800 shadow-2xs font-black'
+                                                                : 'text-slate-500 hover:text-slate-800'
+                                                        }`}
+                                                    >
+                                                        Semua ({allPendingPlanEntries.length})
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPlanDrawerFilter('WEEKLY')}
+                                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                                            planDrawerFilter === 'WEEKLY'
+                                                                ? 'bg-violet-600 text-white shadow-2xs font-black'
+                                                                : 'text-violet-700 hover:text-violet-900'
+                                                        }`}
+                                                    >
+                                                        <span>📋 Pekanan</span>
+                                                        <span className="opacity-80">({weeklyEntries.length})</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPlanDrawerFilter('PROJECT')}
+                                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                                            planDrawerFilter === 'PROJECT'
+                                                                ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                                                                : 'text-emerald-700 hover:text-emerald-900'
+                                                        }`}
+                                                    >
+                                                        <span>📁 Project</span>
+                                                        <span className="opacity-80">({projectEntries.length})</span>
+                                                    </button>
                                                 </div>
-                                            );
-                                        });
-                                    })()}
-                                </div>
+                                            </div>
+
+                                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                                                {visibleEntries.length === 0 ? (
+                                                    <div className="p-4 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                                        {allPendingPlanEntries.length === 0
+                                                            ? 'Seluruh target rencana kerja & project Anda telah terselesaikan 100%.'
+                                                            : `Tidak ada butir pada kategori ${planDrawerFilter === 'WEEKLY' ? 'Rencana Pekanan' : 'Project Langsung'}.`}
+                                                    </div>
+                                                ) : (
+                                                    visibleEntries.map(({ plan, it, idx, isProject }, entryIdx) => {
+                                                        const rawPlanTitle = (plan.metadata?.title || plan.content || 'Kegiatan').trim();
+                                                        const planTitle = rawPlanTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawPlanTitle;
+                                                        const activityText = it ? (it.activity || it.text || '') : planTitle;
+                                                        const pct = it ? (it.percentage || 0) : (plan.metadata?.percentage || 0);
+                                                        const hasProjectLink = !!(it?.projectId);
+
+                                                        return (
+                                                            <div 
+                                                                key={`${plan.id}-${idx !== null ? idx : entryIdx}`} 
+                                                                className={`p-3 border rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs transition-all ${
+                                                                    isProject 
+                                                                        ? 'bg-emerald-50/40 border-emerald-200/80 hover:border-emerald-300' 
+                                                                        : 'bg-violet-50/40 border-violet-200/80 hover:border-violet-300'
+                                                                }`}
+                                                            >
+                                                                <div>
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        {isProject ? (
+                                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white flex items-center gap-0.5">
+                                                                                📁 Project
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-violet-600 text-white flex items-center gap-0.5">
+                                                                                📋 Pekanan
+                                                                            </span>
+                                                                        )}
+
+                                                                        {hasProjectLink && (
+                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
+                                                                                🔗 Induk Project
+                                                                            </span>
+                                                                        )}
+
+                                                                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                                                            isProject ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'
+                                                                        }`}>
+                                                                            {planTitle}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-500 font-bold">{pct}%</span>
+                                                                    </div>
+                                                                    <h5 className="text-xs font-bold text-slate-800 mt-1">{activityText}</h5>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'morning')}
+                                                                        className={`px-2.5 py-1 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95 ${
+                                                                            isProject ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-violet-600 hover:bg-violet-700'
+                                                                        }`}
+                                                                        title="Tarik ke Sesi Pagi Laporan Harian"
+                                                                    >
+                                                                        + Pagi
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'afternoon')}
+                                                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
+                                                                        title="Tarik ke Sesi Siang Laporan Harian"
+                                                                    >
+                                                                        + Siang
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>

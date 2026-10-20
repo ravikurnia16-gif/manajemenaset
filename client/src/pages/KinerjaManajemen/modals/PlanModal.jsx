@@ -16,6 +16,7 @@ const PlanModal = ({
 }) => {
     const [userId, setUserId] = useState('');
     const [title, setTitle] = useState('');
+    const [planType, setPlanType] = useState('WEEKLY'); // 'WEEKLY' | 'PROJECT'
     const [category, setCategory] = useState('UMUM');
     const [priority, setPriority] = useState('SEDANG');
     const [startDate, setStartDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -31,6 +32,8 @@ const PlanModal = ({
             if (initialPlan) {
                 setUserId(initialPlan.userId || (initialStaff ? initialStaff.id : ''));
                 setTitle(initialPlan.title || '');
+                const isProj = !!initialPlan.isProject || initialPlan.planType === 'PROJECT' || initialPlan.metadata?.isProject || initialPlan.metadata?.planType === 'PROJECT';
+                setPlanType(isProj ? 'PROJECT' : 'WEEKLY');
                 setCategory(initialPlan.categoryTag || initialPlan.category || 'UMUM');
                 setPriority(initialPlan.priority || 'SEDANG');
                 setStartDate(initialPlan.startDate ? dayjs(initialPlan.startDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
@@ -45,11 +48,14 @@ const PlanModal = ({
                     status: it.status || 'PENDING',
                     percentage: it.percentage !== undefined ? it.percentage : 0,
                     assigned: !!it.assigned,
-                    assignmentId: it.assignmentId || null
+                    assignmentId: it.assignmentId || null,
+                    projectId: it.projectId || null,
+                    projectItemIndex: it.projectItemIndex !== undefined ? it.projectItemIndex : null
                 })));
             } else {
                 setUserId(initialStaff ? initialStaff.id : (staffList[0]?.id || ''));
                 setTitle('');
+                setPlanType('WEEKLY');
                 setCategory('UMUM');
                 setPriority('SEDANG');
                 setStartDate(dayjs().format('YYYY-MM-DD'));
@@ -102,9 +108,12 @@ const PlanModal = ({
 
         try {
             setSaving(true);
+            const isProject = planType === 'PROJECT';
             const payload = {
                 userId,
                 title: title.trim(),
+                planType,
+                isProject,
                 category,
                 priority,
                 startDate,
@@ -161,6 +170,39 @@ const PlanModal = ({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Tipe Perencanaan: Pekanan vs Project */}
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                            Tipe Perencanaan
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPlanType('WEEKLY')}
+                                className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                    planType !== 'PROJECT'
+                                        ? 'bg-violet-50/80 border-violet-400 ring-2 ring-violet-500/20 shadow-2xs'
+                                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                }`}
+                            >
+                                <span className="text-xs font-black text-violet-700 block">📋 Rencana Pekanan</span>
+                                <span className="text-[10px] text-slate-500">Target operasional mingguan staf</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPlanType('PROJECT')}
+                                className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                    planType === 'PROJECT'
+                                        ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-2xs'
+                                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                }`}
+                            >
+                                <span className="text-xs font-black text-emerald-700 block">📁 Rencana Umum (Project)</span>
+                                <span className="text-[10px] text-slate-500">Master plan / inisiatif besar jangka panjang</span>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Staf Penanggung Jawab */}
                     <div className="space-y-1.5">
                         <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
