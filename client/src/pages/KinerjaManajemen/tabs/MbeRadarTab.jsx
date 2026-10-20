@@ -319,7 +319,7 @@ const MbeRadarTab = ({ radarData, loading, onRefresh }) => {
                                     </div>
                                     <div className="flex items-center justify-between text-[11px] text-slate-600 font-medium">
                                         <span>Target KM: {rem.targetKm ? `${rem.targetKm.toLocaleString('id-ID')} KM` : '-'}</span>
-                                        <span>Odometer Saat Ini: {rem.vehicle?.currentOdometer ? `${rem.vehicle.currentOdometer.toLocaleString('id-ID')} KM` : '-'}</span>
+                                        <span>Odometer Saat Ini: {(rem.vehicle?.odometer ?? rem.vehicle?.currentOdometer) !== undefined && (rem.vehicle?.odometer ?? rem.vehicle?.currentOdometer) !== null ? `${(rem.vehicle.odometer ?? rem.vehicle.currentOdometer).toLocaleString('id-ID')} KM` : '-'}</span>
                                     </div>
                                 </div>
                             ))}

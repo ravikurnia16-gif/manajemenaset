@@ -181,11 +181,20 @@ exports.getMbeRadar = async (req, res) => {
                 status: { in: ['WARNING', 'OVERDUE'] }
             },
             include: {
-                vehicle: { select: { id: true, name: true, plateNumber: true, type: true, currentOdometer: true } }
+                vehicle: { select: { id: true, name: true, plateNumber: true, type: true, odometer: true } }
             },
             orderBy: { targetDate: 'asc' },
             take: 15
         });
+
+        // Map so consumers get both odometer and currentOdometer
+        const mappedOverdueReminders = overdueVehicleReminders.map(rem => ({
+            ...rem,
+            vehicle: rem.vehicle ? {
+                ...rem.vehicle,
+                currentOdometer: rem.vehicle.odometer
+            } : null
+        }));
 
         const pendingVehicleServices = await prisma.vehicleService.findMany({
             where: {
@@ -257,7 +266,7 @@ exports.getMbeRadar = async (req, res) => {
                 overdueAssignments,
                 pendingExtensions,
                 criticalMaintenance,
-                overdueVehicleReminders,
+                overdueVehicleReminders: mappedOverdueReminders,
                 pendingVehicleServices,
                 unresolvedObstacles: unresolvedObstacles.slice(0, 15)
             }
