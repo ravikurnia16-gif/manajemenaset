@@ -161,11 +161,11 @@ export default function InventoryVendorPage() {
 
             <Modal isOpen={modal.open} onClose={closeModal} title={
                 modal.type === 'vendor' ? (modal.data ? 'Edit Vendor' : 'Tambah Vendor') :
-                modal.type === 'project' ? (modal.data ? 'Edit Proyek Pengadaan' : 'Buat Proyek Pengadaan') :
-                modal.type === 'vendor-selection' ? (modal.data?.id ? 'Edit Data Seleksi' : 'Pilih Vendor Peserta') :
-                modal.type === 'vendor-mou' ? (modal.data?.id ? 'Edit MoU' : 'Buat MoU Baru') :
-                modal.type === 'vendor-evaluation' ? (modal.data?.id ? 'Edit Penilaian' : 'Beri Penilaian') :
-                modal.type === 'project-receive' ? 'Penerimaan Barang Proyek' : ''
+                    modal.type === 'project' ? (modal.data ? 'Edit Proyek Pengadaan' : 'Buat Proyek Pengadaan') :
+                        modal.type === 'vendor-selection' ? (modal.data?.id ? 'Edit Data Seleksi' : 'Pilih Vendor Peserta') :
+                            modal.type === 'vendor-mou' ? (modal.data?.id ? 'Edit MoU' : 'Buat MoU Baru') :
+                                modal.type === 'vendor-evaluation' ? (modal.data?.id ? 'Edit Penilaian' : 'Beri Penilaian') :
+                                    modal.type === 'project-receive' ? 'Penerimaan Barang Proyek' : ''
             }>
                 {modal.type === 'vendor' && (
                     <SimpleForm

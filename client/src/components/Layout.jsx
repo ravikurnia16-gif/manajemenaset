@@ -59,7 +59,7 @@ const Layout = () => {
             ];
             const isStaffSarpras = sarprasKeywords.some(kw => pos.includes(kw));
             const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
-            
+
             // Hanya Role ADMIN_ASET / Staff Sarpras yang memiliki kewajiban mengisi laporan harian
             if (isKabid || !isAdminAset) {
                 setHasReported(true);
@@ -68,7 +68,7 @@ const Layout = () => {
 
             try {
                 const res = await api.get('/laporan/status');
-                
+
                 const now = new Date();
                 const hour = now.getHours();
                 const minute = now.getMinutes();
@@ -200,7 +200,7 @@ const Layout = () => {
         <div className="flex bg-slate-50 h-screen font-sans text-slate-900 overflow-hidden print:h-auto print:overflow-visible print:bg-white print:block">
             {/* Mobile Backdrop */}
             {isSidebarOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-20 lg:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                 />
@@ -333,15 +333,15 @@ const Layout = () => {
                         </div>
                     </div>
                 </header>
-                
+
                 {!hasReported && !location.pathname.startsWith('/laporan') && (
                     <div className="bg-rose-500 text-white px-4 py-2 flex items-center justify-between shadow-md shrink-0 z-20 animate-in slide-in-from-top-2">
                         <div className="flex items-center gap-2 text-sm font-bold">
                             <AlertCircle size={18} className="animate-pulse" />
                             Anda belum mengisi Laporan Kegiatan {reportWarningType || ''} hari ini!
                         </div>
-                        <Link 
-                            to="/laporan" 
+                        <Link
+                            to="/laporan"
                             className="bg-white text-rose-600 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-rose-50 transition-colors shadow-sm"
                         >
                             Isi Sekarang
@@ -354,7 +354,7 @@ const Layout = () => {
                         <Outlet />
                     </div>
                     <footer className="mt-8 pt-4 border-t border-slate-200 text-center text-xs text-slate-400 font-medium shrink-0 print:hidden">
-                        &copy; Kepala Bidang Sarana 2025/2027 x PT. Nusantara Insan Olahkarya
+                        &copy; Kepala Bidang Sarana 2025/2027
                     </footer>
                 </main>
 

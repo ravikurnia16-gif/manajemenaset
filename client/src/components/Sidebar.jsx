@@ -28,7 +28,7 @@ const Sidebar = ({ isOpen = true }) => {
 
     const [settings, setSettings] = useState(null);
     useEffect(() => {
-        api.get('/settings').then(res => setSettings(res.data)).catch(() => {});
+        api.get('/settings').then(res => setSettings(res.data)).catch(() => { });
     }, []);
 
     const toggleMenu = (menu) => {
@@ -69,7 +69,7 @@ const Sidebar = ({ isOpen = true }) => {
                         setUnitWorkshopOrderCount(res.data.length);
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [user?.id, user?.unitId]);
 
@@ -94,10 +94,10 @@ const Sidebar = ({ isOpen = true }) => {
 
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const isSuperAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user?.role);
-    
+
     const isKabidSarpras = ['KABID_SARPRAS', 'SUPER_ADMIN'].includes(role) || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
     const isWorkshopUnit21 = user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop');
-    
+
     const isAdminAset = ['ADMIN_ASET', 'BIDANG_IT', 'SUPER_ADMIN'].includes(role) || pos.includes('admin aset') || isStaffSarpras;
     const isAdminAsetOrSuper = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'BIDANG_IT'].includes(role) || isWarehouseAdmin || isStaffSarpras;
     const canAccessWorkshopBaru = isKabidSarpras || isAdminAset || isWorkshopUnit21;
@@ -109,7 +109,7 @@ const Sidebar = ({ isOpen = true }) => {
     const canViewLaporan = isKabidSarprasPosition || isAdminAsetRole;
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(role) || pos.includes('kepala bidang pembangunan') || pos.includes('staff pembangunan');
-    
+
     // Laporan Role Checks
     const isStaffGudang = isKabidSarpras || pos.includes('gudang dan logistik');
     const isStaffAset = isKabidSarpras || pos.includes('aset');
@@ -118,7 +118,7 @@ const Sidebar = ({ isOpen = true }) => {
     const canViewLaporanKendaraan = isKabidSarpras || pos.includes('kendaraan');
     const canViewLaporanKeuangan = isKabidSarpras || pos.includes('keuangan dan administrasi');
     const canViewLaporanAset = isKabidSarpras || pos.includes('aset');
-    
+
     // Security menu hidden based on user request
     const isSecurityAdmin = false; // isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
 
@@ -429,7 +429,7 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
                     )}
                     <Link to="/settings" className={navItemClass('/settings')}><Settings size={18} /> Pengaturan</Link>
-                    
+
                     {settings?.surveyEnabled && (
                         renderCollapsible('survey', <MessageSquare size={18} />, 'Survey Kepuasan', (
                             <>
@@ -468,7 +468,7 @@ const Sidebar = ({ isOpen = true }) => {
                     <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>Logout</span>
                 </button>
                 <div className="mt-2 pt-2 border-t border-slate-800/80 text-center text-[10px] text-slate-500 font-medium leading-relaxed whitespace-normal">
-                    &copy; Kepala Bidang Sarana 2025/2027 x PT. Nusantara Insan Olahkarya
+                    &copy; Kepala Bidang Sarana 2025/2027
                 </div>
             </div>
         </div>

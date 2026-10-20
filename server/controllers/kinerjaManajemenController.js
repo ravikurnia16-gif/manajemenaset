@@ -871,6 +871,15 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
         });
         const activePlans = allPlanReports.filter(r => r.metadata && r.metadata.isPlan);
 
+        // 2b. Ambil rencana kerja (Tomorrow's Plans) dari Laporan Harian 7 hari terakhir
+        const recentDailyReports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: { gte: dayjs().subtract(7, 'day').startOf('day').toDate() }
+            },
+            orderBy: { date: 'desc' }
+        });
+
         // 3. Ambil seluruh Penugasan Aktif
         const allAssignments = await prisma.personnelAssignment.findMany({
             where: {
@@ -881,7 +890,7 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
 
         // 4. Petakan data per staf
         const staffData = staffList.map(st => {
-            const myPlans = activePlans.filter(p => p.userId === st.id).map(p => {
+            const myWeeklyPlans = activePlans.filter(p => p.userId === st.id).map(p => {
                 const meta = p.metadata || {};
                 const items = Array.isArray(meta.items) ? meta.items : [];
                 const doneCount = items.filter(it => it.percentage === 100 || it.status === 'SELESAI').length;
@@ -907,6 +916,36 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
                     createdAt: p.createdAt
                 };
             });
+
+            // Ekstrak Rencana Besok (Tomorrow's Plan) dari Laporan Harian staf
+            const myDailyTomorrowPlans = [];
+            recentDailyReports
+                .filter(r => r.userId === st.id && r.metadata)
+                .forEach(r => {
+                    let meta = r.metadata;
+                    if (typeof meta === 'string') {
+                        try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                    }
+                    const tps = Array.isArray(meta?.tomorrowPlans) ? meta.tomorrowPlans : [];
+                    tps.forEach((tp, idx) => {
+                        if (tp && tp.title && String(tp.title).trim()) {
+                            myDailyTomorrowPlans.push({
+                                id: `tp-${r.id}-${idx}`,
+                                reportId: r.id,
+                                userId: st.id,
+                                title: String(tp.title).trim(),
+                                categoryTag: tp.categoryTag || 'UMUM',
+                                priority: tp.priority || 'SEDANG',
+                                startDate: r.date,
+                                status: 'PENDING',
+                                isDailyPlan: true,
+                                sourceType: 'PLAN'
+                            });
+                        }
+                    });
+                });
+
+            const myPlans = [...myWeeklyPlans, ...myDailyTomorrowPlans];
 
             const myAssignments = allAssignments.filter(a => a.assigneeId === st.id).map(a => ({
                 id: a.id,
@@ -1223,8 +1262,157 @@ exports.saveDailyReportFromPpp = async (req, res) => {
             updatedAt: new Date().toISOString()
         });
 
-        completedItems.forEach(it => morningPoints.push(mapCompleted(it)));
-        inProgressItems.forEach(it => afternoonPoints.push(mapProgress(it)));
+        for (const it of completedItems) {
+            morningPoints.push(mapCompleted(it));
+
+            // Sinkronisasi 2 arah ke Penugasan
+            if (it.sourceType === 'ASSIGNMENT' && it.sourceId) {
+                try {
+                    const aId = parseInt(it.sourceId);
+                    const assign = await prisma.personnelAssignment.findUnique({ where: { id: aId } });
+                    if (assign) {
+                        let aItems = Array.isArray(assign.items) ? [...assign.items] : [];
+                        if (it.planItemIndex !== undefined && it.planItemIndex !== null && aItems[it.planItemIndex]) {
+                            aItems[it.planItemIndex] = {
+                                ...aItems[it.planItemIndex],
+                                isDone: true,
+                                status: 'COMPLETED',
+                                percentage: 100
+                            };
+                        }
+                        const allDone = aItems.length > 0 ? aItems.every(i => i.isDone || i.status === 'COMPLETED') : true;
+
+                        await prisma.personnelAssignment.update({
+                            where: { id: aId },
+                            data: {
+                                items: aItems,
+                                status: allDone ? 'COMPLETED' : 'IN_PROGRESS',
+                                actualCompletionDate: allDone ? new Date() : assign.actualCompletionDate,
+                                progressPercentage: allDone ? 100 : Math.max(assign.progressPercentage, 50)
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to auto-complete assignment:', e.message);
+                }
+            }
+
+            // Sinkronisasi 2 arah ke Rencana Kerja Staf (Plan & Sub-item Langkah)
+            if (it.sourceType === 'PLAN' && it.sourceId) {
+                try {
+                    const planId = parseInt(it.sourceId);
+                    if (!isNaN(planId)) {
+                        const planRep = await prisma.personnelReport.findUnique({ where: { id: planId } });
+                        if (planRep && planRep.metadata) {
+                            let meta = planRep.metadata;
+                            if (typeof meta === 'string') {
+                                try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                            }
+                            let pItems = Array.isArray(meta.items) ? [...meta.items] : [];
+                            if (it.planItemIndex !== undefined && it.planItemIndex !== null && pItems[it.planItemIndex]) {
+                                pItems[it.planItemIndex] = {
+                                    ...pItems[it.planItemIndex],
+                                    percentage: 100,
+                                    status: 'SELESAI'
+                                };
+                            }
+                            const avgPct = pItems.length > 0 
+                                ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
+                                : 100;
+
+                            await prisma.personnelReport.update({
+                                where: { id: planRep.id },
+                                data: {
+                                    metadata: {
+                                        ...meta,
+                                        items: pItems,
+                                        percentage: avgPct,
+                                        status: avgPct === 100 ? 'SELESAI' : (meta.status || 'PROSES')
+                                    }
+                                }
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to sync plan progress:', e.message);
+                }
+            }
+        }
+
+        for (const it of inProgressItems) {
+            afternoonPoints.push(mapProgress(it));
+            const targetPct = it.progressPercentage !== undefined ? parseInt(it.progressPercentage) : 50;
+
+            // Sinkronisasi 2 arah ke Penugasan
+            if (it.sourceType === 'ASSIGNMENT' && it.sourceId) {
+                try {
+                    const aId = parseInt(it.sourceId);
+                    const assign = await prisma.personnelAssignment.findUnique({ where: { id: aId } });
+                    if (assign) {
+                        let aItems = Array.isArray(assign.items) ? [...assign.items] : [];
+                        if (it.planItemIndex !== undefined && it.planItemIndex !== null && aItems[it.planItemIndex]) {
+                            aItems[it.planItemIndex] = {
+                                ...aItems[it.planItemIndex],
+                                percentage: targetPct,
+                                status: 'IN_PROGRESS'
+                            };
+                        }
+
+                        await prisma.personnelAssignment.update({
+                            where: { id: aId },
+                            data: {
+                                items: aItems,
+                                status: 'IN_PROGRESS',
+                                progressPercentage: targetPct
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to update assignment progress:', e.message);
+                }
+            }
+
+            // Sinkronisasi 2 arah ke Rencana Kerja Staf (Plan & Sub-item Langkah)
+            if (it.sourceType === 'PLAN' && it.sourceId) {
+                try {
+                    const planId = parseInt(it.sourceId);
+                    if (!isNaN(planId)) {
+                        const planRep = await prisma.personnelReport.findUnique({ where: { id: planId } });
+                        if (planRep && planRep.metadata) {
+                            let meta = planRep.metadata;
+                            if (typeof meta === 'string') {
+                                try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                            }
+                            let pItems = Array.isArray(meta.items) ? [...meta.items] : [];
+                            if (it.planItemIndex !== undefined && it.planItemIndex !== null && pItems[it.planItemIndex]) {
+                                pItems[it.planItemIndex] = {
+                                    ...pItems[it.planItemIndex],
+                                    percentage: targetPct,
+                                    status: 'PROSES'
+                                };
+                            }
+                            const avgPct = pItems.length > 0 
+                                ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
+                                : targetPct;
+
+                            await prisma.personnelReport.update({
+                                where: { id: planRep.id },
+                                data: {
+                                    metadata: {
+                                        ...meta,
+                                        items: pItems,
+                                        percentage: avgPct,
+                                        status: avgPct === 100 ? 'SELESAI' : 'PROSES'
+                                    }
+                                }
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to sync plan in-progress:', e.message);
+                }
+            }
+        }
 
         // Jika ada kendala, sematkan di butir
         if (obstacleItems && obstacleItems.length > 0) {
