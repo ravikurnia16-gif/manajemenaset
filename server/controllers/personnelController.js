@@ -1034,6 +1034,16 @@ exports.updateAssignmentStatus = async (req, res) => {
                         console.log(`[Personnel Sync] Synced assignment ${updated.id} progress to today's daily report (${updated.progressPercentage}%)`);
                     }
                 }
+
+                // 2-Way Sync: Sync assignment progress back to linked weekly plan
+                try {
+                    const kinerjaCtrl = require('./kinerjaManajemenController');
+                    if (kinerjaCtrl && typeof kinerjaCtrl.syncAssignmentToPlan === 'function') {
+                        await kinerjaCtrl.syncAssignmentToPlan(updated.id, updated.progressPercentage, updated.status);
+                    }
+                } catch (planSyncErr) {
+                    console.error('[Personnel Sync] Error syncing assignment to plan:', planSyncErr.message);
+                }
             } catch (syncErr) {
                 console.error('[Personnel Sync] Sync error:', syncErr.message);
             }

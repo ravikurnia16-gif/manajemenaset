@@ -3,11 +3,13 @@ const prisma = new PrismaClient();
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
+const isoWeek = require('dayjs/plugin/isoWeek');
 const fs = require('fs');
 const path = require('path');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(isoWeek);
 
 const OKR_STORE_PATH = path.join(__dirname, '../data/okr_store.json');
 
@@ -150,6 +152,106 @@ const SARPRAS_USER_FILTER = {
 };
 
 /**
+ * Helper Sinkronisasi 2 Arah: Assignment -> Plan
+ * Memperbarui status dan persentase butir Rencana Kerja jika Penugasan yang bersangkutan diperbarui.
+ */
+const syncAssignmentToPlan = async (assignmentId, progressPercentage, status) => {
+    if (!assignmentId) return;
+    try {
+        const aId = parseInt(assignmentId, 10);
+        const targetPct = progressPercentage !== undefined ? parseInt(progressPercentage, 10) : (status === 'COMPLETED' ? 100 : 0);
+        const isDone = targetPct === 100 || status === 'COMPLETED';
+        const itemStatus = isDone ? 'SELESAI' : (targetPct > 0 ? 'PROSES' : 'PENDING');
+
+        const planReports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY'
+            }
+        });
+
+        for (const rep of planReports) {
+            let meta = rep.metadata;
+            if (typeof meta === 'string') {
+                try { meta = JSON.parse(meta); } catch (e) { continue; }
+            }
+            if (!meta || !meta.isPlan) continue;
+
+            let modified = false;
+            let linkedProjectId = null;
+            let linkedProjectItemIndex = null;
+
+            if (Array.isArray(meta.items)) {
+                meta.items = meta.items.map((it) => {
+                    if (it.assignmentId && parseInt(it.assignmentId, 10) === aId) {
+                        modified = true;
+                        linkedProjectId = it.projectId || meta.projectId || null;
+                        linkedProjectItemIndex = it.projectItemIndex !== undefined ? it.projectItemIndex : null;
+                        return {
+                            ...it,
+                            percentage: targetPct,
+                            status: itemStatus
+                        };
+                    }
+                    return it;
+                });
+            }
+
+            if (meta.assignmentId && parseInt(meta.assignmentId, 10) === aId) {
+                modified = true;
+            }
+
+            if (modified) {
+                const items = Array.isArray(meta.items) ? meta.items : [];
+                const avgPct = items.length > 0
+                    ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length)
+                    : targetPct;
+                const planDone = avgPct === 100 || (items.length > 0 && items.every(i => i.percentage === 100 || i.status === 'SELESAI'));
+
+                meta.percentage = avgPct;
+                meta.status = planDone ? 'SELESAI' : (avgPct > 0 ? 'PROSES' : 'PENDING');
+
+                await prisma.personnelReport.update({
+                    where: { id: rep.id },
+                    data: { metadata: meta }
+                });
+                console.log(`[2-Way Sync] Synced Assignment #${aId} (${targetPct}%) -> Plan #${rep.id} (${avgPct}%)`);
+
+                // Upward chain sync to project if linked
+                if (linkedProjectId) {
+                    try {
+                        const prj = await prisma.personnelReport.findUnique({ where: { id: parseInt(linkedProjectId, 10) } });
+                        if (prj && prj.metadata) {
+                            let prjMeta = typeof prj.metadata === 'string' ? JSON.parse(prj.metadata) : { ...prj.metadata };
+                            let prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                            if (linkedProjectItemIndex !== null && prjItems[linkedProjectItemIndex]) {
+                                prjItems[linkedProjectItemIndex].percentage = targetPct;
+                                prjItems[linkedProjectItemIndex].status = itemStatus;
+                            }
+                            const prjAvg = prjItems.length > 0
+                                ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
+                                : targetPct;
+                            prjMeta.items = prjItems;
+                            prjMeta.percentage = prjAvg;
+                            prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                            await prisma.personnelReport.update({
+                                where: { id: prj.id },
+                                data: { metadata: prjMeta }
+                            });
+                        }
+                    } catch (eUp) {
+                        console.error('[2-Way Sync] Upward project sync error:', eUp.message);
+                    }
+                }
+            }
+        }
+    } catch (errSync) {
+        console.error('[2-Way Sync] Error syncing assignment to plan:', errSync.message);
+    }
+};
+
+exports.syncAssignmentToPlan = syncAssignmentToPlan;
+
+/**
  * GET /api/kinerja-manajemen/mbe-radar
  * Radar Pengecualian / Management by Exception (Overdue, Stalled, Overdue Service, Obstacles)
  */
@@ -280,58 +382,129 @@ exports.getMbeRadar = async (req, res) => {
             });
         });
 
-        // 6. Friday Weekly Planning Check: Cek apakah hari ini Jumat s.d. Minggu
-        // Jika iya, deteksi staf yang belum membuat rencana kerja untuk pekan depan
+        // 6. Overdue Staff Work Plans (Rencana Kerja Staf Melewati Batas Waktu)
+        const allWeeklyReports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY',
+                user: SARPRAS_USER_FILTER
+            },
+            include: {
+                user: { select: { id: true, name: true, position: true, phone: true } }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        const overduePlans = [];
+        allWeeklyReports.forEach(rep => {
+            let m = rep.metadata;
+            if (typeof m === 'string') {
+                try { m = JSON.parse(m); } catch (e) { m = {}; }
+            }
+            if (!m || !m.isPlan) return;
+            const isDone = m.status === 'SELESAI' || m.percentage === 100;
+            if (isDone) return;
+
+            if (m.endDate) {
+                const endDay = dayjs.tz(m.endDate, 'Asia/Jakarta').endOf('day');
+                if (endDay.isBefore(nowWib)) {
+                    const daysOverdue = Math.max(1, nowWib.diff(endDay, 'day'));
+                    const items = Array.isArray(m.items) ? m.items : [];
+                    const doneItems = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+
+                    const cleanPhone = (rep.user?.phone || '').replace(/^0/, '62').replace(/\D/g, '');
+                    const waText = encodeURIComponent(
+                        `Assalamu'alaikum Akhi ${rep.user?.name || 'Staf'},\n\n` +
+                        `Mengingatkan Rencana Kerja: *"${m.title || 'Rencana Kerja'}"* telah melewati target selesai (${dayjs(m.endDate).format('DD MMM YYYY')}, terlambat ${daysOverdue} hari).\n` +
+                        `📊 Progres saat ini: ${m.percentage || 0}% (${doneItems}/${items.length} butir selesai).\n\n` +
+                        `Mohon segera diperbarui atau dikoordinasikan di aplikasi Manajemen Aset. Syukron.`
+                    );
+
+                    overduePlans.push({
+                        id: rep.id,
+                        title: m.title || 'Rencana Kerja Staf',
+                        planType: m.planType || 'WEEKLY',
+                        category: m.categoryTag || rep.category || 'UMUM',
+                        priority: m.priority || 'SEDANG',
+                        startDate: m.startDate,
+                        endDate: m.endDate,
+                        daysOverdue,
+                        percentage: m.percentage || 0,
+                        totalItems: items.length,
+                        doneItems,
+                        user: rep.user,
+                        waText,
+                        waLink: cleanPhone ? `https://wa.me/${cleanPhone}?text=${waText}` : null
+                    });
+                }
+            }
+        });
+
+        // 7. Weekly Planning Compliance Check (Kepatuhan Penyusunan Rencana Kerja Staf)
+        // Jika Jumat s.d. Minggu: periksa kesiapan rencana untuk Pekan Depan
+        // Jika Senin s.d. Kamis: periksa kepatuhan rencana untuk Pekan Berjalan
         const nowWib = dayjs().tz('Asia/Jakarta');
         const dayOfWeek = nowWib.day(); // 5 = Jumat, 6 = Sabtu, 0 = Minggu
         const isFridayWeekend = [5, 6, 0].includes(dayOfWeek);
-        const fridayMissingPlans = [];
+        const missingWeeklyPlans = [];
 
-        if (isFridayWeekend) {
-            try {
-                const nextMonday = nowWib.add(1, 'week').startOf('isoWeek').toDate();
-                const nextFriday = nowWib.add(1, 'week').startOf('isoWeek').add(4, 'day').endOf('day').toDate();
+        try {
+            const targetMonday = isFridayWeekend
+                ? nowWib.add(1, 'week').startOf('isoWeek')
+                : nowWib.startOf('isoWeek');
+            const targetFriday = targetMonday.add(4, 'day').endOf('day');
+            const periodLabel = `${targetMonday.format('DD MMM')} - ${targetFriday.format('DD MMM YYYY')}`;
 
-                const nextWeekPlans = await prisma.personnelReport.findMany({
-                    where: {
-                        type: 'WEEKLY',
-                        date: { gte: nowWib.startOf('day').toDate() }
+            const plansInTargetWeek = await prisma.personnelReport.findMany({
+                where: {
+                    type: 'WEEKLY',
+                    date: {
+                        gte: targetMonday.startOf('day').toDate(),
+                        lte: targetFriday.endOf('day').toDate()
                     }
-                });
+                }
+            });
 
-                const userIdsWithNextWeekPlan = new Set();
-                nextWeekPlans.forEach(p => {
-                    let m = p.metadata;
-                    if (typeof m === 'string') {
-                        try { m = JSON.parse(m); } catch (e) { m = {}; }
-                    }
-                    if (m && m.isPlan && m.planType !== 'PROJECT') {
-                        userIdsWithNextWeekPlan.add(p.userId);
-                    }
-                });
+            const userIdsWithPlan = new Set();
+            plansInTargetWeek.forEach(p => {
+                let m = p.metadata;
+                if (typeof m === 'string') {
+                    try { m = JSON.parse(m); } catch (e) { m = {}; }
+                }
+                if (m && m.isPlan && m.planType !== 'PROJECT') {
+                    userIdsWithPlan.add(p.userId);
+                }
+            });
 
-                const allStaff = await prisma.user.findMany({
-                    where: STAFF_USER_WHERE,
-                    select: { id: true, name: true, position: true, phone: true }
-                });
+            const allStaff = await prisma.user.findMany({
+                where: STAFF_USER_WHERE,
+                select: { id: true, name: true, position: true, phone: true }
+            });
 
-                allStaff.forEach(st => {
-                    if (!userIdsWithNextWeekPlan.has(st.id)) {
-                        fridayMissingPlans.push({
-                            userId: st.id,
-                            name: st.name,
-                            position: st.position,
-                            phone: st.phone,
-                            missingPeriod: `${dayjs(nextMonday).format('DD MMM')} - ${dayjs(nextFriday).format('DD MMM YYYY')}`
-                        });
-                    }
-                });
-            } catch (errFri) {
-                console.error('Error checking friday missing plans in radar:', errFri);
-            }
+            allStaff.forEach(st => {
+                if (!userIdsWithPlan.has(st.id)) {
+                    const cleanPhone = (st.phone || '').replace(/^0/, '62').replace(/\D/g, '');
+                    const waText = encodeURIComponent(
+                        `Assalamu'alaikum Akhi ${st.name},\n\n` +
+                        `Mengingatkan untuk menyusun Rencana Kerja ${isFridayWeekend ? 'Pekan Depan' : 'Pekan Ini'} (${periodLabel}) pada Aplikasi Manajemen Aset.\n\n` +
+                        `Mohon dapat disusun agar target operasional sarana dapat terpantau dengan baik. Syukron.`
+                    );
+                    missingWeeklyPlans.push({
+                        userId: st.id,
+                        name: st.name,
+                        position: st.position,
+                        phone: st.phone,
+                        missingPeriod: periodLabel,
+                        isNextWeek: isFridayWeekend,
+                        waText,
+                        waLink: cleanPhone ? `https://wa.me/${cleanPhone}?text=${waText}` : null
+                    });
+                }
+            });
+        } catch (errMissing) {
+            console.error('Error checking missing plans in radar:', errMissing);
         }
 
-        // Total Exception Count
+        // Total Exception Count (Termasuk Rencana Overdue & Missing Plans)
         const totalExceptions =
             overdueAssignments.length +
             pendingExtensions.length +
@@ -339,7 +512,8 @@ exports.getMbeRadar = async (req, res) => {
             overdueVehicleReminders.length +
             pendingVehicleServices.length +
             unresolvedObstacles.length +
-            fridayMissingPlans.length;
+            overduePlans.length +
+            missingWeeklyPlans.length;
 
         return res.json({
             success: true,
@@ -351,7 +525,9 @@ exports.getMbeRadar = async (req, res) => {
                 overdueVehicleReminders: mappedOverdueReminders,
                 pendingVehicleServices,
                 unresolvedObstacles: unresolvedObstacles.slice(0, 15),
-                fridayMissingPlans
+                overduePlans,
+                missingWeeklyPlans,
+                fridayMissingPlans: missingWeeklyPlans // backwards compatibility
             }
         });
     } catch (error) {
@@ -584,6 +760,10 @@ exports.getDailyPpp = async (req, res) => {
  * GET /api/kinerja-manajemen/weekly-pdca
  * Evaluasi Siklus Mingguan: Plan, Do, Check, Act
  */
+/**
+ * GET /api/kinerja-manajemen/weekly-pdca
+ * Evaluasi Siklus Mingguan: Plan, Do, Check, Act (Terpadu Penugasan & Rencana Kerja)
+ */
 exports.getWeeklyPdca = async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
@@ -594,7 +774,7 @@ exports.getWeeklyPdca = async (req, res) => {
             ? dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate()
             : dayjs().tz('Asia/Jakarta').startOf('week').add(6, 'day').endOf('day').toDate(); // Sabtu
 
-        // 1. PLAN (P): Target Penugasan yang jatuh tempo atau direncanakan pada minggu ini (Staf Sarpras Pusat)
+        // 1. PLAN (P): Target Penugasan Resmi & Rencana Kerja Mingguan Staf Sarpras
         const plannedAssignments = await prisma.personnelAssignment.findMany({
             where: {
                 OR: [
@@ -608,7 +788,72 @@ exports.getWeeklyPdca = async (req, res) => {
             }
         });
 
-        // 2. DO (D): Realisasi seluruh aktivitas laporan staf dalam rentang minggu ini (Staf Sarpras Pusat)
+        // Ambil Rencana Kerja Staf (Weekly Reports dengan isPlan: true)
+        const allPlanReports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY',
+                user: SARPRAS_USER_FILTER
+            },
+            include: {
+                user: { select: { id: true, name: true, position: true } }
+            }
+        });
+
+        const plannedWorkPlans = [];
+        const plannedWorkPlanItems = [];
+
+        allPlanReports.forEach(rep => {
+            let m = rep.metadata;
+            if (typeof m === 'string') {
+                try { m = JSON.parse(m); } catch (e) { return; }
+            }
+            if (!m || !m.isPlan) return;
+
+            const repDate = dayjs(rep.date);
+            const pStart = m.startDate ? dayjs(m.startDate) : repDate;
+            const pEnd = m.endDate ? dayjs(m.endDate) : repDate;
+
+            const isOverlap =
+                (repDate.isAfter(dayjs(start).subtract(1, 'day')) && repDate.isBefore(dayjs(end).add(1, 'day'))) ||
+                (pStart.isBefore(dayjs(end).add(1, 'day')) && pEnd.isAfter(dayjs(start).subtract(1, 'day')));
+
+            if (isOverlap) {
+                plannedWorkPlans.push({
+                    id: rep.id,
+                    title: m.title || rep.content,
+                    planType: m.planType || 'WEEKLY',
+                    category: m.categoryTag || rep.category || 'UMUM',
+                    priority: m.priority || 'SEDANG',
+                    startDate: m.startDate,
+                    endDate: m.endDate,
+                    percentage: m.percentage || 0,
+                    status: m.status || (m.percentage === 100 ? 'SELESAI' : 'PENDING'),
+                    user: rep.user,
+                    itemsCount: Array.isArray(m.items) ? m.items.length : 0
+                });
+
+                if (Array.isArray(m.items)) {
+                    m.items.forEach((it, idx) => {
+                        const isDone = it.percentage === 100 || it.status === 'SELESAI';
+                        plannedWorkPlanItems.push({
+                            planId: rep.id,
+                            planTitle: m.title || rep.content,
+                            itemIndex: idx,
+                            activity: it.activity || it.text || 'Aktivitas Kerja',
+                            targetDate: it.targetDate || m.endDate || '',
+                            percentage: it.percentage || 0,
+                            status: it.status || (isDone ? 'SELESAI' : 'PENDING'),
+                            isDone,
+                            assignmentId: it.assignmentId || null,
+                            user: rep.user,
+                            category: m.categoryTag || rep.category || 'UMUM'
+                        });
+                    });
+                }
+            }
+        });
+
+        // 2. DO (D): Realisasi seluruh aktivitas laporan harian staf dalam rentang minggu ini
         const weeklyReports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
@@ -624,6 +869,8 @@ exports.getWeeklyPdca = async (req, res) => {
         let plannedActivitiesDone = 0;
         let incidentalActivitiesDone = 0;
         let totalObstacles = 0;
+        const obstacleDetails = [];
+        const categoryExecutionMap = {};
 
         weeklyReports.forEach(rep => {
             const pts = rep.metadata?.manualPoints;
@@ -634,13 +881,22 @@ exports.getWeeklyPdca = async (req, res) => {
 
             allPts.forEach(p => {
                 totalActivitiesDone++;
+                const cat = p.categoryTag || rep.category || 'UMUM';
+                categoryExecutionMap[cat] = (categoryExecutionMap[cat] || 0) + 1;
+
                 if (p.sourceType === 'PLAN' || p.sourceType === 'ASSIGNMENT' || p.isRoutine) {
                     plannedActivitiesDone++;
                 } else {
                     incidentalActivitiesDone++;
                 }
-                if (p.status === 'OBSTACLE' || p.obstacleNote) {
+                if (p.status === 'OBSTACLE' || (p.obstacleNote && p.obstacleNote.trim().length > 0)) {
                     totalObstacles++;
+                    obstacleDetails.push({
+                        user: rep.user?.name || 'Staf',
+                        note: p.obstacleNote || 'Kendala lapangan',
+                        category: cat,
+                        activity: p.text || 'Kegiatan'
+                    });
                 }
             });
         });
@@ -654,10 +910,22 @@ exports.getWeeklyPdca = async (req, res) => {
         });
 
         // 3. CHECK (C): Evaluasi Capaian & Gap Analysis
-        const totalPlannedCount = plannedAssignments.length;
+        const totalPlannedAssignments = plannedAssignments.length;
         const completedAssignmentsCount = plannedAssignments.filter(a => a.status === 'COMPLETED').length;
-        const assignmentCompletionRate = totalPlannedCount > 0
-            ? Math.round((completedAssignmentsCount / totalPlannedCount) * 100)
+        const assignmentCompletionRate = totalPlannedAssignments > 0
+            ? Math.round((completedAssignmentsCount / totalPlannedAssignments) * 100)
+            : 100;
+
+        const totalPlannedItemsCount = plannedWorkPlanItems.length;
+        const completedPlanItemsCount = plannedWorkPlanItems.filter(i => i.isDone).length;
+        const planCompletionRate = totalPlannedItemsCount > 0
+            ? Math.round((completedPlanItemsCount / totalPlannedItemsCount) * 100)
+            : 100;
+
+        const grandPlannedCount = totalPlannedAssignments + totalPlannedItemsCount;
+        const grandCompletedCount = completedAssignmentsCount + completedPlanItemsCount;
+        const overallCompletionRate = grandPlannedCount > 0
+            ? Math.round((grandCompletedCount / grandPlannedCount) * 100)
             : 100;
 
         const totalExecution = plannedActivitiesDone + incidentalActivitiesDone;
@@ -673,7 +941,7 @@ exports.getWeeklyPdca = async (req, res) => {
             select: { createdAt: true, firstRespondedAt: true }
         });
 
-        let avgSlaHours = 1.5; // fallback normal
+        let avgSlaHours = 1.5;
         if (maintenanceWithResponse.length > 0) {
             const totalDiffHours = maintenanceWithResponse.reduce((acc, curr) => {
                 const diffHours = dayjs(curr.firstRespondedAt).diff(dayjs(curr.createdAt), 'hour', true);
@@ -682,21 +950,125 @@ exports.getWeeklyPdca = async (req, res) => {
             avgSlaHours = parseFloat((totalDiffHours / maintenanceWithResponse.length).toFixed(1));
         }
 
-        // Tugas-tugas yang tertunda (Gap)
-        const delayedTasks = plannedAssignments.filter(a => a.status !== 'COMPLETED');
+        // Tugas & Butir Rencana Tertunda (Delayed Tasks)
+        const delayedTasks = [
+            ...plannedAssignments.filter(a => a.status !== 'COMPLETED').map(a => ({
+                id: a.id,
+                source: 'ASSIGNMENT',
+                title: a.title,
+                category: a.category || 'PENUGASAN',
+                dueDate: a.dueDate,
+                percentage: a.progressPercentage || 0,
+                assignee: a.assignee
+            })),
+            ...plannedWorkPlanItems.filter(i => !i.isDone).map(i => ({
+                id: `plan-${i.planId}-${i.itemIndex}`,
+                source: 'PLAN_ITEM',
+                title: `${i.activity} (${i.planTitle})`,
+                category: i.category,
+                dueDate: i.targetDate,
+                percentage: i.percentage,
+                assignee: i.user
+            }))
+        ];
 
-        // 4. ACT (A): Tindakan Koreksi & Rekomendasi Siklus Berikutnya
+        // Pengelompokan Kendala Lapangan (Root Cause Categorization)
+        const obstacleCategories = {
+            SUKU_CADANG: 0,
+            ANGGARAN_BIAYA: 0,
+            TEKNIS_KERUSAKAN: 0,
+            AKSES_CUACA: 0,
+            UMUM_LAINNYA: 0
+        };
+
+        obstacleDetails.forEach(obs => {
+            const text = (obs.note + ' ' + obs.activity).toLowerCase();
+            if (text.includes('suku cadang') || text.includes('sparepart') || text.includes('onderdil') || text.includes('habis') || text.includes('stok')) {
+                obstacleCategories.SUKU_CADANG++;
+            } else if (text.includes('anggaran') || text.includes('dana') || text.includes('biaya') || text.includes('nota') || text.includes('uang')) {
+                obstacleCategories.ANGGARAN_BIAYA++;
+            } else if (text.includes('hujan') || text.includes('cuaca') || text.includes('akses') || text.includes('kunci') || text.includes('izin')) {
+                obstacleCategories.AKSES_CUACA++;
+            } else if (text.includes('rusak') || text.includes('macet') || text.includes('konslet') || text.includes('kebocoran') || text.includes('pipa') || text.includes('ac')) {
+                obstacleCategories.TEKNIS_KERUSAKAN++;
+            } else {
+                obstacleCategories.UMUM_LAINNYA++;
+            }
+        });
+
+        // 4. ACT (A): Tindakan Koreksi & Rekomendasi Kaizen Terstruktur
+        const kaizenActions = [];
         const recommendations = [];
+
         if (delayedTasks.length > 0) {
-            recommendations.push(`Terdapat ${delayedTasks.length} penugasan yang belum tuntas; rekomendasikan realokasi prioritas di awal minggu berikutnya.`);
+            const recText = `Terdapat ${delayedTasks.length} butir tugas/rencana belum tuntas; rekomendasikan realokasi prioritas dan evaluasi bottleneck di awal minggu berikutnya.`;
+            recommendations.push(recText);
+            kaizenActions.push({
+                id: 'kz-1',
+                type: 'PRIORITAS_ULANG',
+                title: `Penyelesaian Backlog (${delayedTasks.length} Tertunda)`,
+                urgency: 'TINGGI',
+                targetDept: 'Seluruh Tim Sarpras',
+                impact: 'Mencegah efek domino keterlambatan proyek dan penugasan prioritas pimpinan.',
+                description: `Lakukan rescheduling untuk ${delayedTasks.length} butir tugas tertunda. Prioritaskan butir dengan urgensi tinggi pada hari Senin-Selasa.`
+            });
         }
+
+        if (obstacleCategories.SUKU_CADANG + obstacleCategories.ANGGARAN_BIAYA > 0) {
+            const count = obstacleCategories.SUKU_CADANG + obstacleCategories.ANGGARAN_BIAYA;
+            const recText = `Terdeteksi ${count} hambatan terkait pengadaan suku cadang & dana; percepat alur persetujuan pembelian darurat agar operasional tidak mandek.`;
+            recommendations.push(recText);
+            kaizenActions.push({
+                id: 'kz-2',
+                type: 'ELIMINASI_KENDALA',
+                title: `Percepatan Rantai Pasok & Suku Cadang`,
+                urgency: 'TINGGI',
+                targetDept: 'Gudang & Logistik',
+                impact: 'Memangkas waktu tunggu teknisi saat perbaikan kritis fasilitas pondok.',
+                description: `Sediakan buffer stock untuk material fast-moving (lampu, stop kontak, fitting pipa, freon AC) agar kendala logistik tidak berulang.`
+            });
+        }
+
         if (incidentalPercentage > 35) {
-            recommendations.push(`Porsi pekerjaan mendadak tinggi (${incidentalPercentage}%); disarankan audit preventif berkala untuk meminimalkan kerusakan darurat.`);
+            const recText = `Porsi pekerjaan mendadak tinggi (${incidentalPercentage}%); disarankan audit preventif berkala untuk meminimalkan kerusakan darurat.`;
+            recommendations.push(recText);
+            kaizenActions.push({
+                id: 'kz-3',
+                type: 'PREVENTIF',
+                title: `Peningkatan Preventive Maintenance (${incidentalPercentage}% Insidental)`,
+                urgency: 'SEDANG',
+                targetDept: 'Tim Teknisi & Pemeliharaan',
+                impact: 'Menurunkan frekuensi kerusakan darurat hingga 40% dan menghemat biaya perawatan.',
+                description: `Perketat checklist inspeksi berkala sarana santri & kelas tiap akhir pekan guna mendeteksi gejala kerusakan sebelum menjadi gangguan fatal.`
+            });
         } else {
             recommendations.push(`Rasio pekerjaan terencana sangat sehat (${plannedPercentage}% terencana); pertahankan jadwal preventive maintenance.`);
         }
-        if (totalObstacles > 5) {
-            recommendations.push(`Tercatat ${totalObstacles} hambatan teknis; jadwalkan koordinasi teknis mingguan untuk menyelesaikan kendala berulang.`);
+
+        if (avgSlaHours > 2.0) {
+            const recText = `Rata-rata respon penanganan kerusakan fasilitas (${avgSlaHours} Jam) melebihi batas target 2 Jam; optimalkan triase tiket darurat.`;
+            recommendations.push(recText);
+            kaizenActions.push({
+                id: 'kz-4',
+                type: 'STANDARISASI',
+                title: `Akselerasi Waktu Tanggap Darurat (SLA ${avgSlaHours} Jam)`,
+                urgency: 'TINGGI',
+                targetDept: 'Teknisi Piket & Helpdesk',
+                impact: 'Meningkatkan kepuasan unit santri/sekolah terhadap kecepatan pelayanan fasilitas.',
+                description: `Aktifkan auto-forwarding tiket darurat ke grup teknisi piket sehingga waktu tanggap pertama dapat ditekan di bawah 1 Jam.`
+            });
+        }
+
+        if (kaizenActions.length === 0) {
+            kaizenActions.push({
+                id: 'kz-std',
+                type: 'STANDARISASI',
+                title: 'Pertahankan Performa Unggul & Standarisasi SOP',
+                urgency: 'STANDAR',
+                targetDept: 'Seluruh Bidang Sarpras',
+                impact: 'Mempertahankan konsistensi kualitas mutu operasional sarana pondok.',
+                description: 'Seluruh indikator kinerja memenuhi standar target. Lanjutkan kedisiplinan pelaporan harian dan monitoring rutin sarana.'
+            });
         }
 
         return res.json({
@@ -708,29 +1080,40 @@ exports.getWeeklyPdca = async (req, res) => {
             pdca: {
                 plan: {
                     title: 'Rencana Target Kerja Mingguan',
-                    totalPlannedTasks: totalPlannedCount,
-                    tasks: plannedAssignments
+                    totalPlannedTasks: grandPlannedCount,
+                    totalPlannedAssignments,
+                    totalPlannedPlanItems,
+                    tasks: plannedAssignments,
+                    workPlans: plannedWorkPlans,
+                    workPlanItems: plannedWorkPlanItems
                 },
                 do: {
                     title: 'Realisasi Eksekusi Lapangan',
                     totalActivitiesDone,
                     plannedActivitiesDone,
                     incidentalActivitiesDone,
+                    completedAssignmentsCount,
+                    completedPlanItemsCount,
                     resolvedMaintenanceCount: resolvedMaintenance.length,
-                    reportsCount: weeklyReports.length
+                    reportsCount: weeklyReports.length,
+                    categoryExecution: categoryExecutionMap
                 },
                 check: {
                     title: 'Evaluasi & Gap Analysis',
                     assignmentCompletionRate,
+                    planCompletionRate,
+                    overallCompletionRate,
                     plannedPercentage,
                     incidentalPercentage,
                     avgSlaHours,
                     totalObstacles,
+                    obstacleCategories,
                     delayedTasks
                 },
                 act: {
-                    title: 'Tindak Lanjut & Rekomendasi Pimpinan',
-                    recommendations
+                    title: 'Tindak Lanjut & Rekomendasi Pimpinan (Kaizen)',
+                    recommendations,
+                    kaizenActions
                 }
             }
         });
@@ -1192,6 +1575,18 @@ exports.saveStaffPlan = async (req, res) => {
             isFromProject: !!it.isFromProject
         })) : [];
 
+        // Validasi target selesai butir pekerjaan tidak boleh lebih dari target utama
+        if (endDate) {
+            for (const it of formattedItems) {
+                if (it.targetDate && dayjs(it.targetDate).isAfter(dayjs(endDate), 'day')) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Target selesai butir pekerjaan ("${it.activity || 'Kegiatan'}") tidak boleh lebih dari target utama (${dayjs(endDate).format('YYYY-MM-DD')}).`
+                    });
+                }
+            }
+        }
+
         const avgPercentage = formattedItems.length > 0
             ? Math.round(formattedItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / formattedItems.length)
             : 0;
@@ -1236,6 +1631,26 @@ exports.saveStaffPlan = async (req, res) => {
             });
         }
 
+        // 2-Way Sync: Sinkronisasi ke Penugasan resmi jika butir rencana memiliki assignmentId
+        for (const it of formattedItems) {
+            if (it.assignmentId) {
+                try {
+                    const aId = parseInt(it.assignmentId, 10);
+                    const assignDone = it.percentage === 100 || it.status === 'SELESAI';
+                    await prisma.personnelAssignment.update({
+                        where: { id: aId },
+                        data: {
+                            progressPercentage: it.percentage || 0,
+                            status: assignDone ? 'COMPLETED' : (it.percentage > 0 ? 'IN_PROGRESS' : 'PENDING'),
+                            actualCompletionDate: assignDone ? new Date() : null
+                        }
+                    });
+                } catch (errSyncA) {
+                    console.error('[2-Way Sync] Error syncing plan item to assignment in saveStaffPlan:', errSyncA.message);
+                }
+            }
+        }
+
         return res.json({
             success: true,
             message: planId ? 'Rencana kerja staf berhasil diperbarui.' : 'Rencana kerja staf berhasil dibuat.',
@@ -1266,7 +1681,7 @@ exports.deleteStaffPlan = async (req, res) => {
 
 /**
  * PUT /api/kinerja-manajemen/plans/:id/item
- * Memperbarui progres atau status butir kegiatan rencana kerja
+ * Memperbarui progres atau status butir kegiatan rencana kerja (Sinkron 2-arah ke Penugasan)
  */
 exports.updatePlanItemStatus = async (req, res) => {
     try {
@@ -1282,12 +1697,18 @@ exports.updatePlanItemStatus = async (req, res) => {
 
         const meta = { ...plan.metadata };
         const items = Array.isArray(meta.items) ? [...meta.items] : [];
+        let updatedItem = null;
+
         if (itemIndex !== undefined && items[itemIndex]) {
+            const newPct = percentage !== undefined ? parseInt(percentage, 10) : (items[itemIndex].percentage || 0);
+            const newStatus = status || (newPct === 100 ? 'SELESAI' : (newPct > 0 ? 'PROSES' : 'PENDING'));
+
             items[itemIndex] = {
                 ...items[itemIndex],
-                ...(percentage !== undefined ? { percentage: parseInt(percentage, 10) } : {}),
-                ...(status ? { status } : {})
+                percentage: newPct,
+                status: newStatus
             };
+            updatedItem = items[itemIndex];
             meta.items = items;
             const avg = Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length);
             meta.percentage = avg;
@@ -1298,6 +1719,25 @@ exports.updatePlanItemStatus = async (req, res) => {
             where: { id: plan.id },
             data: { metadata: meta }
         });
+
+        // 2-Way Sync: Update Penugasan resmi jika butir ini memiliki keterkaitan assignmentId
+        if (updatedItem && updatedItem.assignmentId) {
+            try {
+                const aId = parseInt(updatedItem.assignmentId, 10);
+                const assignDone = updatedItem.percentage === 100 || updatedItem.status === 'SELESAI';
+                await prisma.personnelAssignment.update({
+                    where: { id: aId },
+                    data: {
+                        progressPercentage: updatedItem.percentage || 0,
+                        status: assignDone ? 'COMPLETED' : (updatedItem.percentage > 0 ? 'IN_PROGRESS' : 'PENDING'),
+                        actualCompletionDate: assignDone ? new Date() : null
+                    }
+                });
+                console.log(`[2-Way Sync] Synced Plan Item -> Assignment #${aId} (${updatedItem.percentage}%)`);
+            } catch (errSyncItem) {
+                console.error('[2-Way Sync] Error syncing updated plan item to assignment:', errSyncItem.message);
+            }
+        }
 
         return res.json({ success: true, message: 'Progres butir rencana berhasil diperbarui.', plan: updated });
     } catch (error) {
@@ -1392,6 +1832,9 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 progressPercentage: allDone ? 100 : Math.max(assign.progressPercentage, 50)
                             }
                         });
+
+                        // 2-Way Sync: Update linked Plan item
+                        await syncAssignmentToPlan(aId, 100, 'COMPLETED');
                     }
                 } catch (e) {
                     console.error('Failed to auto-complete assignment:', e.message);
@@ -1525,6 +1968,9 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 progressPercentage: targetPct
                             }
                         });
+
+                        // 2-Way Sync: Update linked Plan item
+                        await syncAssignmentToPlan(aId, targetPct, 'IN_PROGRESS');
                     }
                 } catch (e) {
                     console.error('Failed to update assignment progress:', e.message);

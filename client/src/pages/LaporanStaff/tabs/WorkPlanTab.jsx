@@ -8,7 +8,10 @@ import {
     Eye, Download, FileSpreadsheet, Printer, FolderGit2, Briefcase
 } from 'lucide-react';
 import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
 import jsPDF from 'jspdf';
+
+dayjs.extend(isoWeek);
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import api from '../../../lib/axios';
@@ -679,6 +682,8 @@ export default function WorkPlanTab({
     // Open Create Modal
     const handleOpenCreateModal = () => {
         setEditingPlan(null);
+        const nextWeekStart = dayjs().add(1, 'week').startOf('isoWeek').format('YYYY-MM-DD');
+        const nextWeekEnd = dayjs().add(1, 'week').startOf('isoWeek').add(4, 'day').format('YYYY-MM-DD');
         setPlanForm({
             title: '',
             planType: 'WEEKLY',
@@ -686,8 +691,8 @@ export default function WorkPlanTab({
             position: user.position || '',
             category: getUserCategory(user.position, userDivision),
             priority: 'SEDANG',
-            startDate: dayjs().format('YYYY-MM-DD'),
-            endDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
+            startDate: nextWeekStart,
+            endDate: nextWeekEnd,
             notes: '',
             items: []
         });

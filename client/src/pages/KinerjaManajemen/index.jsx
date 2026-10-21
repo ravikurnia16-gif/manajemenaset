@@ -367,6 +367,7 @@ const KinerjaManajemen = () => {
                     radarData={radarData} 
                     loading={loadingRadar} 
                     onRefresh={fetchMbeRadar} 
+                    onNavigateTab={setActiveTab}
                 />
             )}
 
@@ -453,6 +454,7 @@ const KinerjaManajemen = () => {
                 staffList={staffList}
                 initialStaff={selectedStaffForPlan}
                 initialPlan={initialDataForPlan}
+                staffPlansData={staffPlansData}
             />
 
             {/* LIGHTBOX MODAL FOR IMAGES */}

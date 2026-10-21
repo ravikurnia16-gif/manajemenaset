@@ -493,6 +493,14 @@ exports.updateMyReport = async (req, res) => {
                                     actualCompletionDate: p.status === 'COMPLETED' ? new Date() : null
                                 }
                             });
+
+                            // 2-Way Sync: Update linked Plan
+                            try {
+                                const kinerjaCtrl = require('./kinerjaManajemenController');
+                                if (kinerjaCtrl && typeof kinerjaCtrl.syncAssignmentToPlan === 'function') {
+                                    await kinerjaCtrl.syncAssignmentToPlan(parseInt(p.sourceId), pct, p.status);
+                                }
+                            } catch (ePlanSync) {}
                         } catch (e) {
                             console.error('[Laporan] Error syncing assignment:', e.message);
                         }
