@@ -121,6 +121,34 @@ const writeOkrConfig = (data) => {
     fs.writeFileSync(OKR_STORE_PATH, JSON.stringify(data, null, 2), 'utf-8');
 };
 
+// Filter standar Staf Bidang Sarana & Admin Aset (Mengecualikan Sarpras Unit & Bidang Lain)
+const SARPRAS_KEYWORDS = [
+    'manajemen aset',
+    'gudang dan logistik',
+    'kendaraan',
+    'teknisi aset',
+    'teknisi',
+    'keuangan dan administrasi',
+    'kepala bidang sarana',
+    'kabid sarpras'
+];
+
+const SARPRAS_USER_FILTER = {
+    OR: [
+        { role: 'ADMIN_ASET' },
+        { role: 'KABID_SARPRAS' },
+        { position: { contains: 'Kepala Bidang Sarana' } },
+        { position: { contains: 'Kabid Sarpras' } },
+        ...SARPRAS_KEYWORDS.map(kw => ({ position: { contains: kw } }))
+    ],
+    NOT: [
+        { position: { contains: 'Sarpras Unit' } },
+        { role: 'ADMIN_UNIT' },
+        { position: { contains: 'Kepala Bidang Pembangunan' } },
+        { position: { contains: 'Kepala Bidang Pendidikan' } }
+    ]
+};
+
 /**
  * GET /api/kinerja-manajemen/mbe-radar
  * Radar Pengecualian / Management by Exception (Overdue, Stalled, Overdue Service, Obstacles)
@@ -136,7 +164,8 @@ exports.getMbeRadar = async (req, res) => {
         const overdueAssignments = await prisma.personnelAssignment.findMany({
             where: {
                 status: { notIn: ['COMPLETED', 'CANCELLED'] },
-                dueDate: { lt: now }
+                dueDate: { lt: now },
+                assignee: SARPRAS_USER_FILTER
             },
             include: {
                 assignee: { select: { id: true, name: true, position: true, phone: true } },
@@ -149,7 +178,8 @@ exports.getMbeRadar = async (req, res) => {
         // 2. Pending Extension Requests (Permintaan Perpanjangan Waktu Tugas)
         const pendingExtensions = await prisma.personnelAssignment.findMany({
             where: {
-                extensionStatus: 'PENDING'
+                extensionStatus: 'PENDING',
+                assignee: SARPRAS_USER_FILTER
             },
             include: {
                 assignee: { select: { id: true, name: true, position: true, phone: true } }
@@ -302,12 +332,12 @@ exports.getMbeRadar = async (req, res) => {
         }
 
         // Total Exception Count
-        const totalExceptions = 
-            overdueAssignments.length + 
-            pendingExtensions.length + 
-            criticalMaintenance.length + 
-            overdueVehicleReminders.length + 
-            pendingVehicleServices.length + 
+        const totalExceptions =
+            overdueAssignments.length +
+            pendingExtensions.length +
+            criticalMaintenance.length +
+            overdueVehicleReminders.length +
+            pendingVehicleServices.length +
             unresolvedObstacles.length +
             fridayMissingPlans.length;
 
@@ -341,11 +371,12 @@ exports.getDailyPpp = async (req, res) => {
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        // 1. Ambil seluruh Laporan Harian Staf pada tanggal ini
+        // 1. Ambil seluruh Laporan Harian Staf pada tanggal ini (Khusus Staf Sarpras Pusat)
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOfDay, lte: endOfDay }
+                date: { gte: startOfDay, lte: endOfDay },
+                user: SARPRAS_USER_FILTER
             },
             include: {
                 user: { select: { id: true, name: true, position: true, phone: true } }
@@ -365,11 +396,12 @@ exports.getDailyPpp = async (req, res) => {
             }
         });
 
-        // 3. Ambil Penugasan yang tuntas atau aktif pada tanggal ini
+        // 3. Ambil Penugasan yang tuntas atau aktif pada tanggal ini (Khusus Staf Sarpras Pusat)
         const assignmentsDone = await prisma.personnelAssignment.findMany({
             where: {
                 status: 'COMPLETED',
-                actualCompletionDate: { gte: startOfDay, lte: endOfDay }
+                actualCompletionDate: { gte: startOfDay, lte: endOfDay },
+                assignee: SARPRAS_USER_FILTER
             },
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
@@ -382,7 +414,8 @@ exports.getDailyPpp = async (req, res) => {
                 OR: [
                     { startDate: { lte: endOfDay } },
                     { dueDate: { gte: startOfDay } }
-                ]
+                ],
+                assignee: SARPRAS_USER_FILTER
             },
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
@@ -554,31 +587,33 @@ exports.getDailyPpp = async (req, res) => {
 exports.getWeeklyPdca = async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
-        const start = startDate 
-            ? dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate() 
+        const start = startDate
+            ? dayjs.tz(startDate, 'Asia/Jakarta').startOf('day').toDate()
             : dayjs().tz('Asia/Jakarta').startOf('week').add(1, 'day').startOf('day').toDate(); // Senin
-        const end = endDate 
-            ? dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate() 
+        const end = endDate
+            ? dayjs.tz(endDate, 'Asia/Jakarta').endOf('day').toDate()
             : dayjs().tz('Asia/Jakarta').startOf('week').add(6, 'day').endOf('day').toDate(); // Sabtu
 
-        // 1. PLAN (P): Target Penugasan yang jatuh tempo atau direncanakan pada minggu ini
+        // 1. PLAN (P): Target Penugasan yang jatuh tempo atau direncanakan pada minggu ini (Staf Sarpras Pusat)
         const plannedAssignments = await prisma.personnelAssignment.findMany({
             where: {
                 OR: [
                     { dueDate: { gte: start, lte: end } },
                     { startDate: { gte: start, lte: end } }
-                ]
+                ],
+                assignee: SARPRAS_USER_FILTER
             },
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
         });
 
-        // 2. DO (D): Realisasi seluruh aktivitas laporan staf dalam rentang minggu ini
+        // 2. DO (D): Realisasi seluruh aktivitas laporan staf dalam rentang minggu ini (Staf Sarpras Pusat)
         const weeklyReports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: start, lte: end }
+                date: { gte: start, lte: end },
+                user: SARPRAS_USER_FILTER
             },
             include: {
                 user: { select: { id: true, name: true, position: true } }
@@ -621,8 +656,8 @@ exports.getWeeklyPdca = async (req, res) => {
         // 3. CHECK (C): Evaluasi Capaian & Gap Analysis
         const totalPlannedCount = plannedAssignments.length;
         const completedAssignmentsCount = plannedAssignments.filter(a => a.status === 'COMPLETED').length;
-        const assignmentCompletionRate = totalPlannedCount > 0 
-            ? Math.round((completedAssignmentsCount / totalPlannedCount) * 100) 
+        const assignmentCompletionRate = totalPlannedCount > 0
+            ? Math.round((completedAssignmentsCount / totalPlannedCount) * 100)
             : 100;
 
         const totalExecution = plannedActivitiesDone + incidentalActivitiesDone;
@@ -756,15 +791,16 @@ exports.getOkrDashboard = async (req, res) => {
         const overdueReminders = await prisma.vehicleMaintenanceReminder.count({
             where: { status: 'OVERDUE' }
         });
-        const actualVehicleCompliance = totalReminders > 0 
-            ? Math.round(((totalReminders - overdueReminders) / totalReminders) * 100) 
+        const actualVehicleCompliance = totalReminders > 0
+            ? Math.round(((totalReminders - overdueReminders) / totalReminders) * 100)
             : 100;
 
         // Metric 5: Assignment Ontime Rate
         const completedAssignments = await prisma.personnelAssignment.findMany({
             where: {
                 status: 'COMPLETED',
-                updatedAt: { gte: thirtyDaysAgo }
+                updatedAt: { gte: thirtyDaysAgo },
+                assignee: SARPRAS_USER_FILTER
             },
             select: { dueDate: true, actualCompletionDate: true, updatedAt: true }
         });
@@ -775,8 +811,8 @@ exports.getOkrDashboard = async (req, res) => {
                 onTimeCount++;
             }
         });
-        const actualAssignmentOntime = completedAssignments.length > 0 
-            ? Math.round((onTimeCount / completedAssignments.length) * 100) 
+        const actualAssignmentOntime = completedAssignments.length > 0
+            ? Math.round((onTimeCount / completedAssignments.length) * 100)
             : 88;
 
         // Metric 6: Report Discipline Score
@@ -842,8 +878,8 @@ exports.getOkrDashboard = async (req, res) => {
         });
 
         // Overall Division OKR Progress
-        const divisionOkrScore = enrichedOkrs.length > 0 
-            ? Math.round(enrichedOkrs.reduce((acc, o) => acc + o.overallScore, 0) / enrichedOkrs.length) 
+        const divisionOkrScore = enrichedOkrs.length > 0
+            ? Math.round(enrichedOkrs.reduce((acc, o) => acc + o.overallScore, 0) / enrichedOkrs.length)
             : 0;
 
         return res.json({
@@ -881,32 +917,9 @@ exports.saveOkr = async (req, res) => {
  */
 exports.getStaffPlansAndAssignments = async (req, res) => {
     try {
-        const sarprasKeywords = [
-            'manajemen aset',
-            'gudang dan logistik',
-            'kendaraan',
-            'teknisi aset',
-            'teknisi',
-            'keuangan dan administrasi',
-            'admin aset',
-            'sarana dan prasarana'
-        ];
-
-        // 1. Ambil seluruh staf Sarpras & Kepala Bidang Sarana
+        // 1. Ambil seluruh staf Sarpras & Kepala Bidang Sarana (Kecualikan Sarpras Unit)
         const staffList = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { role: 'ADMIN_ASET' },
-                    { role: 'KABID_SARPRAS' },
-                    { position: { contains: 'Kepala Bidang Sarana' } },
-                    { position: { contains: 'Kabid Sarpras' } },
-                    ...sarprasKeywords.map(kw => ({ position: { contains: kw } }))
-                ],
-                NOT: [
-                    { position: { contains: 'Kepala Bidang Pembangunan' } },
-                    { position: { contains: 'Kepala Bidang Pendidikan' } }
-                ]
-            },
+            where: SARPRAS_USER_FILTER,
             select: {
                 id: true,
                 name: true,
@@ -953,8 +966,8 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
                 const meta = p.metadata || {};
                 const items = Array.isArray(meta.items) ? meta.items : [];
                 const doneCount = items.filter(it => it.percentage === 100 || it.status === 'SELESAI').length;
-                const avgPct = items.length > 0 
-                    ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) 
+                const avgPct = items.length > 0
+                    ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length)
                     : (meta.percentage || (meta.status === 'SELESAI' ? 100 : 0));
                 const isProject = !!meta.isProject || meta.planType === 'PROJECT';
 
@@ -1179,8 +1192,8 @@ exports.saveStaffPlan = async (req, res) => {
             isFromProject: !!it.isFromProject
         })) : [];
 
-        const avgPercentage = formattedItems.length > 0 
-            ? Math.round(formattedItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / formattedItems.length) 
+        const avgPercentage = formattedItems.length > 0
+            ? Math.round(formattedItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / formattedItems.length)
             : 0;
         const isDone = avgPercentage === 100 || (formattedItems.length > 0 && formattedItems.every(i => i.status === 'SELESAI' || i.percentage === 100));
 
@@ -1409,7 +1422,7 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 linkedPrjId = pItems[it.planItemIndex].projectId || meta.projectId || null;
                                 linkedPrjItemIdx = pItems[it.planItemIndex].projectItemIndex !== undefined ? pItems[it.planItemIndex].projectItemIndex : null;
                             }
-                            const avgPct = pItems.length > 0 
+                            const avgPct = pItems.length > 0
                                 ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
                                 : 100;
 
@@ -1542,7 +1555,7 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 linkedPrjId = pItems[it.planItemIndex].projectId || meta.projectId || null;
                                 linkedPrjItemIdx = pItems[it.planItemIndex].projectItemIndex !== undefined ? pItems[it.planItemIndex].projectItemIndex : null;
                             }
-                            const avgPct = pItems.length > 0 
+                            const avgPct = pItems.length > 0
                                 ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
                                 : targetPct;
 

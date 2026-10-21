@@ -13,8 +13,10 @@ const MutationList = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
+    const [isProcessing, setIsProcessing] = useState(false);
+
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canApprove = ['SUPER_ADMIN', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role);
+    const canApprove = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
 
     useEffect(() => {
         fetchMovements();
@@ -31,34 +33,6 @@ const MutationList = () => {
         }
     };
 
-    const handleBulkApproval = async (action) => {
-        if (!confirm(`Konfirmasi ${action === 'approve' ? 'Persetujuan' : 'Penolakan'} untuk ${selectedItems.length} data?`)) return;
-        try {
-            await api.post(`/assets/movements/${action}`, { ids: selectedItems, note: `Diproses masal oleh ${user.username}` });
-            alert(`${selectedItems.length} data berhasil diproses.`);
-            setSelectedItems([]);
-            fetchMovements();
-        } catch (error) {
-            alert('Gagal memproses mutasi: ' + (error.response?.data?.error || error.message));
-        }
-    };
-
-    const handleApproval = async (id, action) => {
-        if (!confirm(`Konfirmasi ${action === 'approve' ? 'Persetujuan' : 'Penolakan'} mutasi ini?`)) return;
-        try {
-            await api.post(`/assets/movements/${id}/${action}`, { note: `Diproses oleh ${user.username}` });
-            alert(`Mutasi berhasil ${action === 'approve' ? 'disetujui' : 'ditolak'}.`);
-            fetchMovements();
-        } catch (error) {
-            alert('Gagal memproses mutasi: ' + (error.response?.data?.error || error.message));
-        }
-    };
-
-    const isOnlyPendingSelected = selectedItems.length > 0 && selectedItems.every(id => {
-        const item = movements.find(m => m.id === id);
-        return item?.status === 'PENDING';
-    });
-
     const filteredMovements = movements.filter(m => {
         const matchesSearch =
             m.asset?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -67,14 +41,76 @@ const MutationList = () => {
         return matchesSearch && matchesStatus;
     });
 
+    const selectedPendingItems = selectedItems.filter(id => {
+        const item = movements.find(m => m.id === id);
+        return item?.status === 'PENDING';
+    });
+
+    const pendingFilteredMovements = filteredMovements.filter(m => m.status === 'PENDING');
+
+    const handleSelectAllPending = () => {
+        const pendingIds = pendingFilteredMovements.map(m => m.id);
+        const allSelected = pendingIds.length > 0 && pendingIds.every(id => selectedItems.includes(id));
+        if (allSelected) {
+            setSelectedItems(prev => prev.filter(id => !pendingIds.includes(id)));
+        } else {
+            setSelectedItems(prev => Array.from(new Set([...prev, ...pendingIds])));
+        }
+    };
+
+    const handleBulkApproval = async (action) => {
+        const targetIds = action === 'delete' ? selectedItems : selectedPendingItems;
+        if (targetIds.length === 0) {
+            alert('Tidak ada mutasi berstatus Menunggu (PENDING) yang dipilih untuk di-' + (action === 'approve' ? 'ACC / setujui' : 'tolak'));
+            return;
+        }
+
+        const actionText = action === 'approve' ? 'ACC / Menyetujui Massal' : 'Menolak Massal';
+        if (!confirm(`Konfirmasi ${actionText} untuk ${targetIds.length} pengajuan mutasi terpilih?`)) return;
+
+        try {
+            setIsProcessing(true);
+            const resp = await api.post(`/assets/movements/${action}`, {
+                ids: targetIds,
+                note: `Diproses masal oleh ${user.username || user.name || 'Admin'}`
+            });
+            alert(resp.data?.message || `${targetIds.length} data mutasi berhasil diproses.`);
+            setSelectedItems(prev => prev.filter(id => !targetIds.includes(id)));
+            fetchMovements();
+        } catch (error) {
+            alert('Gagal memproses mutasi: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleApproval = async (id, action) => {
+        const actionText = action === 'approve' ? 'Persetujuan / ACC' : 'Penolakan';
+        if (!confirm(`Konfirmasi ${actionText} mutasi ini?`)) return;
+        try {
+            setIsProcessing(true);
+            await api.post(`/assets/movements/${id}/${action}`, { note: `Diproses oleh ${user.username || user.name || 'Admin'}` });
+            alert(`Mutasi berhasil ${action === 'approve' ? 'disetujui' : 'ditolak'}.`);
+            setSelectedItems(prev => prev.filter(itemId => itemId !== id));
+            fetchMovements();
+        } catch (error) {
+            alert('Gagal memproses mutasi: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const handleBulkDelete = async () => {
         if (!confirm(`Hapus ${selectedItems.length} data mutasi terpilih?`)) return;
         try {
+            setIsProcessing(true);
             await api.delete('/assets/movements/bulk', { data: { ids: selectedItems } });
             setSelectedItems([]);
             fetchMovements();
         } catch (error) {
             alert('Gagal menghapus data: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -106,7 +142,7 @@ const MutationList = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6 animate-in fade-in duration-500 pb-16">
             <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -122,21 +158,21 @@ const MutationList = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
-                <div className="md:col-span-3 relative">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                <div className="md:col-span-5 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
                         placeholder="Cari Asset atau Kode..."
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="md:col-span-1 relative">
+                <div className="md:col-span-3 relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <select
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-medium"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-medium text-sm"
                         value={statusFilter}
                         onChange={(e) => {
                             setStatusFilter(e.target.value);
@@ -149,30 +185,44 @@ const MutationList = () => {
                         <option value="REJECTED">Ditolak</option>
                     </select>
                 </div>
-                <div className="md:col-span-2 flex gap-2">
-                    {selectedItems.length > 0 && isOnlyPendingSelected && canApprove && (
-                        <>
-                            <button
-                                onClick={() => handleBulkApproval('approve')}
-                                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-3 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
-                            >
-                                <CheckCircle size={18} /> Setujui ({selectedItems.length})
-                            </button>
-                            <button
-                                onClick={() => handleBulkApproval('reject')}
-                                className="flex-1 flex items-center justify-center gap-2 bg-orange-600 text-white px-3 py-2.5 rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
-                            >
-                                <XCircle size={18} /> Tolak
-                            </button>
-                        </>
+                <div className="md:col-span-4 flex flex-wrap gap-2 items-center justify-end">
+                    {pendingFilteredMovements.length > 0 && canApprove && (
+                        <button
+                            type="button"
+                            onClick={handleSelectAllPending}
+                            className="px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold hover:bg-amber-100 transition-all flex items-center gap-1.5 shadow-sm"
+                            title="Pilih semua yang berstatus menunggu persetujuan"
+                        >
+                            <Clock size={14} className="text-amber-600" />
+                            <span>Pilih {pendingFilteredMovements.length} Menunggu</span>
+                        </button>
+                    )}
+                    {selectedPendingItems.length > 0 && canApprove && (
+                        <button
+                            disabled={isProcessing}
+                            onClick={() => handleBulkApproval('approve')}
+                            className="flex items-center justify-center gap-1.5 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200 disabled:opacity-50"
+                        >
+                            <CheckCircle size={15} /> ACC Massal ({selectedPendingItems.length})
+                        </button>
+                    )}
+                    {selectedPendingItems.length > 0 && canApprove && (
+                        <button
+                            disabled={isProcessing}
+                            onClick={() => handleBulkApproval('reject')}
+                            className="flex items-center justify-center gap-1.5 bg-orange-600 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-orange-700 transition-all shadow-md shadow-orange-200 disabled:opacity-50"
+                        >
+                            <XCircle size={15} /> Tolak ({selectedPendingItems.length})
+                        </button>
                     )}
                     {selectedItems.length > 0 && canApprove && (
                         <button
+                            disabled={isProcessing}
                             onClick={handleBulkDelete}
-                            className={`p-2.5 rounded-xl font-bold transition-all border ${isOnlyPendingSelected ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-600 hover:text-white' : 'flex-1 bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-200'}`}
-                            title="Hapus Terpilih"
+                            className="p-2 rounded-xl font-bold transition-all border bg-red-50 text-red-600 border-red-100 hover:bg-red-600 hover:text-white"
+                            title={`Hapus ${selectedItems.length} Terpilih`}
                         >
-                            <Plus size={18} className="rotate-45" /> {isOnlyPendingSelected ? '' : `Hapus ${selectedItems.length}`}
+                            <Plus size={16} className="rotate-45" />
                         </button>
                     )}
                 </div>
@@ -365,6 +415,58 @@ const MutationList = () => {
                     )}
                 </div>
             </div>
+
+            {/* Floating Bulk Action Bar */}
+            {selectedItems.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700/60 flex flex-wrap items-center gap-3 animate-in slide-in-from-bottom-5 duration-300">
+                    <div className="text-xs font-medium pr-3 border-r border-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span><strong className="text-blue-400 font-black">{selectedItems.length}</strong> mutasi dipilih</span>
+                        {selectedPendingItems.length > 0 && (
+                            <span className="text-slate-300">
+                                (<strong className="text-amber-400 font-black">{selectedPendingItems.length}</strong> menunggu)
+                            </span>
+                        )}
+                    </div>
+
+                    {canApprove && selectedPendingItems.length > 0 && (
+                        <button
+                            disabled={isProcessing}
+                            onClick={() => handleBulkApproval('approve')}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-900/40 active:scale-95 disabled:opacity-50"
+                        >
+                            <CheckCircle size={16} /> ACC Massal ({selectedPendingItems.length})
+                        </button>
+                    )}
+
+                    {canApprove && selectedPendingItems.length > 0 && (
+                        <button
+                            disabled={isProcessing}
+                            onClick={() => handleBulkApproval('reject')}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-orange-900/40 active:scale-95 disabled:opacity-50"
+                        >
+                            <XCircle size={16} /> Tolak ({selectedPendingItems.length})
+                        </button>
+                    )}
+
+                    {canApprove && (
+                        <button
+                            disabled={isProcessing}
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-900/40 active:scale-95 disabled:opacity-50"
+                        >
+                            <Plus size={16} className="rotate-45" /> Hapus ({selectedItems.length})
+                        </button>
+                    )}
+
+                    <button
+                        onClick={() => setSelectedItems([])}
+                        className="px-2.5 py-1.5 text-xs text-slate-400 hover:text-white transition-colors underline"
+                    >
+                        Batal
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

@@ -26,20 +26,33 @@ const AssetList = ({ validationMode = false }) => {
     const [customConfig, setCustomConfig] = useState({ columns: 3, width: 60, height: 40 });
     const [paperSize, setPaperSize] = useState('A4');
 
+    const storageKey = validationMode ? 'asset_validation_filters' : 'asset_list_filters';
+    const savedFilters = (() => {
+        try {
+            const saved = sessionStorage.getItem(storageKey);
+            return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+            return null;
+        }
+    })();
+
     // Filter Logic
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isSemanticSearch, setIsSemanticSearch] = useState(false);
-    const [selectedCondition, setSelectedCondition] = useState('');
+    const [searchTerm, setSearchTerm] = useState(savedFilters?.searchTerm || '');
+    const [debouncedSearch, setDebouncedSearch] = useState(savedFilters?.searchTerm || '');
+    const [isSemanticSearch, setIsSemanticSearch] = useState(savedFilters?.isSemanticSearch || false);
+    const [selectedCondition, setSelectedCondition] = useState(savedFilters?.selectedCondition || '');
     const [selectedIds, setSelectedIds] = useState([]);
     const kirRef = useRef();
     const [assetsForKIR, setAssetsForKIR] = useState([]);
     const [summary, setSummary] = useState({ total: 0, categories: [], keywordCounts: [] });
     const [summaryLoading, setSummaryLoading] = useState(true);
-    const [selectedCategory, setSelectedCategory] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState(savedFilters?.selectedCategory || '');
     const [masterCategories, setMasterCategories] = useState([]);
 
     // Validation Feature State
-    const [validationFilter, setValidationFilter] = useState(validationMode ? 'UNVERIFIED' : 'ALL'); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
+    const [validationFilter, setValidationFilter] = useState(
+        savedFilters?.validationFilter || (validationMode ? 'UNVERIFIED' : 'ALL')
+    ); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
     const [validationModal, setValidationModal] = useState({
         isOpen: false,
         assetIds: [],
@@ -63,9 +76,11 @@ const AssetList = ({ validationMode = false }) => {
     const queryUnitId = searchParams.get('unitId');
 
     const [selectedUnit, setSelectedUnit] = useState(
-        isGlobalAdmin ? (queryUnitId || '') : (currentUser.unitId?.toString() || '')
+        isGlobalAdmin 
+            ? (queryUnitId || (savedFilters?.selectedUnit !== undefined ? savedFilters.selectedUnit : '')) 
+            : (currentUser.unitId?.toString() || '')
     );
-    const [selectedRoom, setSelectedRoom] = useState('');
+    const [selectedRoom, setSelectedRoom] = useState(savedFilters?.selectedRoom || '');
     const isReadOnlyUser = currentUser.role === 'USER';
 
     useEffect(() => {
@@ -75,10 +90,50 @@ const AssetList = ({ validationMode = false }) => {
     }, [queryUnitId, isGlobalAdmin]);
 
     // Pagination State
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [currentPage, setCurrentPage] = useState(savedFilters?.currentPage || 1);
+    const [itemsPerPage, setItemsPerPage] = useState(savedFilters?.itemsPerPage || 10);
 
     const [totalItems, setTotalItems] = useState(0);
+
+    // Save active filters & pagination to sessionStorage so actions & navigations don't wipe them out
+    useEffect(() => {
+        try {
+            sessionStorage.setItem(storageKey, JSON.stringify({
+                searchTerm,
+                isSemanticSearch,
+                selectedUnit,
+                selectedRoom,
+                selectedCategory,
+                selectedCondition,
+                validationFilter,
+                currentPage,
+                itemsPerPage
+            }));
+        } catch (e) {
+            console.error('Failed to save filters to sessionStorage:', e);
+        }
+    }, [storageKey, searchTerm, isSemanticSearch, selectedUnit, selectedRoom, selectedCategory, selectedCondition, validationFilter, currentPage, itemsPerPage]);
+
+    const handleResetFilters = () => {
+        setSearchTerm('');
+        setDebouncedSearch('');
+        setIsSemanticSearch(false);
+        setSelectedCondition('');
+        setSelectedCategory('');
+        setSelectedRoom('');
+        setValidationFilter(validationMode ? 'UNVERIFIED' : 'ALL');
+        if (isGlobalAdmin) {
+            setSelectedUnit('');
+        } else {
+            setSelectedUnit(currentUser.unitId?.toString() || '');
+        }
+        setCurrentPage(1);
+        try {
+            sessionStorage.removeItem(storageKey);
+        } catch (e) {
+            console.error('Failed to remove filters from sessionStorage:', e);
+        }
+    };
 
     const handlePrintKIR = useReactToPrint({
         contentRef: kirRef,
@@ -100,8 +155,6 @@ const AssetList = ({ validationMode = false }) => {
             });
             const allAssets = resp.data.data || resp.data;
             setAssetsForKIR(Array.isArray(allAssets) ? allAssets : []);
-            // KIRPrint is always mounted, so ref is always valid.
-            // Small delay just for React to update the props (assets data).
             setTimeout(() => handlePrintKIR(), 300);
         } catch (error) {
             console.error("Failed to prepare KIR:", error);
@@ -127,15 +180,15 @@ const AssetList = ({ validationMode = false }) => {
         }
     };
 
-    const fetchData = async () => {
+    const fetchData = async (targetPage = currentPage) => {
         try {
             setLoading(true);
 
             // Build Query Params
             const params = {
-                page: currentPage,
+                page: targetPage,
                 limit: itemsPerPage,
-                search: searchTerm,
+                search: debouncedSearch,
                 semanticSearch: isSemanticSearch,
                 validationStatus: validationFilter,
                 unitId: selectedUnit,
@@ -178,24 +231,67 @@ const AssetList = ({ validationMode = false }) => {
         }
     };
 
-    // Debounce Search
+    // Debounce Search input
     useEffect(() => {
         const timer = setTimeout(() => {
-            setCurrentPage(1); // Reset to page 1 on search change
-            fetchData();
-        }, 500); // 500ms debounce
+            setDebouncedSearch(searchTerm);
+        }, 500);
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
     // Triggers for filters/pagination
+    const isFirstRender = useRef(true);
+    const prevFiltersRef = useRef({
+        selectedUnit,
+        selectedRoom,
+        selectedCategory,
+        selectedCondition,
+        validationFilter,
+        isSemanticSearch,
+        debouncedSearch,
+        itemsPerPage
+    });
+
     useEffect(() => {
-        setCurrentPage(1);
-        fetchData();
-        // Force selection if not global admin
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            fetchData(currentPage);
+            return;
+        }
+
+        const prev = prevFiltersRef.current;
+        const filterChanged =
+            prev.selectedUnit !== selectedUnit ||
+            prev.selectedRoom !== selectedRoom ||
+            prev.selectedCategory !== selectedCategory ||
+            prev.selectedCondition !== selectedCondition ||
+            prev.validationFilter !== validationFilter ||
+            prev.isSemanticSearch !== isSemanticSearch ||
+            prev.debouncedSearch !== debouncedSearch ||
+            prev.itemsPerPage !== itemsPerPage;
+
+        prevFiltersRef.current = {
+            selectedUnit,
+            selectedRoom,
+            selectedCategory,
+            selectedCondition,
+            validationFilter,
+            isSemanticSearch,
+            debouncedSearch,
+            itemsPerPage
+        };
+
+        if (filterChanged) {
+            setCurrentPage(1);
+            fetchData(1);
+        } else {
+            fetchData(currentPage);
+        }
+
         if (!isGlobalAdmin && currentUser.unitId) {
             setSelectedUnit(currentUser.unitId.toString());
         }
-    }, [itemsPerPage, selectedUnit, selectedRoom, selectedCondition, validationFilter, selectedCategory, isSemanticSearch]);
+    }, [currentPage, itemsPerPage, selectedUnit, selectedRoom, selectedCondition, validationFilter, selectedCategory, isSemanticSearch, debouncedSearch]);
 
     // Ref for Print
     const [printAsset, setPrintAsset] = useState(null);
@@ -1163,7 +1259,7 @@ const AssetList = ({ validationMode = false }) => {
                             <option value="RUSAK_BERAT">Rusak Berat</option>
                             <option value="DISPOSED">Disposed</option>
                         </select>
-                        <button onClick={() => { setSearchTerm(''); setSelectedCondition(''); setSelectedCategory(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-10 h-10 flex items-center justify-center border border-slate-200 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm" title="Reset Filter">
+                        <button onClick={handleResetFilters} className="w-10 h-10 flex items-center justify-center border border-slate-200 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm" title="Reset Filter">
                             <XCircle size={18} />
                         </button>
                     </div>

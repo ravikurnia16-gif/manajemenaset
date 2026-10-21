@@ -708,7 +708,7 @@ exports.endTrip = async (req, res) => {
                 `Waktu: *${formatWAWaktu(new Date())}*\n\n` +
                 `*Rincian Kerusakan/Insiden:*\n"${incidentNotes || '-'}"\n\n` +
                 (photoUrl ? `*Foto Bukti Kejadian:* ${formatMediaUrl(photoUrl)}\n\n` : '') +
-                `_Laporan ini tersimpan pada riwayat peminjaman kendaraan sebagai catatan operasional perjalanan._`;
+                `_Laporan ini otomatis masuk ke menu Pemeliharaan Kendaraan (Tab Laporan Kerusakan) & antrean tiket perbaikan servis._`;
 
             for (const person of allRecipients) {
                 try {
@@ -718,9 +718,9 @@ exports.endTrip = async (req, res) => {
                     await createNotification(
                         person.id,
                         `Laporan Kerusakan Kendaraan ${booking.vehicle.plateNumber}`,
-                        `Dilaporkan insiden/kerusakan pada ${booking.vehicle.name} oleh ${booking.user.name}. Cek detail di riwayat peminjaman.`,
+                        `Dilaporkan insiden/kerusakan pada ${booking.vehicle.name} oleh ${booking.user.name}. Cek detail di menu Pemeliharaan (Tab Laporan Kerusakan).`,
                         'URGENT',
-                        '/kendaraan/peminjaman'
+                        '/kendaraan/pemeliharaan?tab=damage'
                     );
                 } catch (err) {
                     console.error('Failed to notify incident to PIC/staff:', err.message);

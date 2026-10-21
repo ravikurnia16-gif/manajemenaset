@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
     Settings, Plus, Search, Calendar, Car, Wrench, Trash2, Pencil, Eye, 
     Download, AlertTriangle, Image, X, ExternalLink, CheckCircle, CheckCircle2, 
@@ -18,6 +18,7 @@ import VehicleServiceSPKModal from './components/VehicleServiceSPKModal';
 
 const VehicleMaintenanceList = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [logs, setLogs] = useState([]);
     const [tripIncidents, setTripIncidents] = useState([]);
     const [vehicles, setVehicles] = useState([]);
@@ -25,7 +26,11 @@ const VehicleMaintenanceList = () => {
     const [loadingIncidents, setLoadingIncidents] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedVehicleId, setSelectedVehicleId] = useState('');
-    const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'damage' | 'maintenance'
+    const [activeTab, setActiveTab] = useState(() => {
+        const tabParam = searchParams?.get('tab');
+        if (tabParam === 'damage' || tabParam === 'maintenance') return tabParam;
+        return 'requests';
+    }); // 'requests' | 'damage' | 'maintenance'
     const [requestStatusFilter, setRequestStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
     const [damageStatusFilter, setDamageStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
     const [previewPhoto, setPreviewPhoto] = useState(null); // photo lightbox modal
@@ -61,6 +66,13 @@ const VehicleMaintenanceList = () => {
         fetchTripIncidents();
         fetchVehicles();
     }, []);
+
+    useEffect(() => {
+        const tabParam = searchParams?.get('tab');
+        if (tabParam && ['requests', 'damage', 'maintenance'].includes(tabParam)) {
+            setActiveTab(tabParam);
+        }
+    }, [searchParams]);
 
     const fetchLogs = async () => {
         try {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock, Edit,
@@ -2325,7 +2326,14 @@ const VehicleBooking = () => {
                                                     <div className="font-bold text-slate-800">{b.vehicle?.name}</div>
                                                     <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                 </div>
-                                                {getStatusBadge(b.status)}
+                                                <div className="flex flex-col items-end gap-1">
+                                                    {getStatusBadge(b.status)}
+                                                    {b.hasIncident && (
+                                                        <span className="inline-flex items-center gap-1 text-[8px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                                            <AlertCircle size={9} className="text-rose-600" /> Insiden
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
                                                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -2449,6 +2457,13 @@ const VehicleBooking = () => {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         {getStatusBadge(b.status)}
+                                                        {b.hasIncident && (
+                                                            <div className="mt-1">
+                                                                <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                                                    <AlertCircle size={10} className="text-rose-600" /> Ada Kerusakan/Insiden
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="text-[10px] font-bold text-slate-500">
@@ -4717,6 +4732,37 @@ const VehicleBooking = () => {
                                 <div className="p-3 bg-red-50 rounded-xl border border-red-100">
                                     <div className="text-[10px] font-bold text-red-400 uppercase mb-1">Catatan Admin/PIC</div>
                                     <div className="text-sm text-red-600 font-medium italic">"{showDetailModal.adminNote}"</div>
+                                </div>
+                            )}
+
+                            {showDetailModal.hasIncident && (
+                                <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-xs font-black text-rose-700 uppercase flex items-center gap-1.5">
+                                            <AlertCircle size={15} className="text-rose-600" />
+                                            Laporan Kerusakan / Insiden Jalan
+                                        </div>
+                                        <Link 
+                                            to="/kendaraan/pemeliharaan?tab=damage" 
+                                            className="text-[10px] font-bold text-rose-700 hover:text-rose-900 bg-white px-2 py-0.5 rounded-md border border-rose-200 hover:border-rose-400 flex items-center gap-1 transition"
+                                        >
+                                            Buka di Pemeliharaan <ArrowRight size={10} />
+                                        </Link>
+                                    </div>
+                                    <div className="text-xs text-rose-900 font-medium leading-relaxed bg-white/80 p-2.5 rounded-lg border border-rose-100">
+                                        {showDetailModal.incidentNotes || 'Kerusakan kendaraan saat perjalanan'}
+                                    </div>
+                                    {showDetailModal.incidentPhoto && (
+                                        <div className="mt-2">
+                                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Foto Bukti Kerusakan:</div>
+                                            <img 
+                                                src={getMediaUrl(showDetailModal.incidentPhoto)} 
+                                                alt="Bukti Insiden" 
+                                                className="w-full max-h-48 object-cover rounded-xl border border-rose-200 cursor-pointer hover:opacity-95" 
+                                                onClick={() => window.open(getMediaUrl(showDetailModal.incidentPhoto), '_blank')}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
