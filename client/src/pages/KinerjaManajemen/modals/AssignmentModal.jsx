@@ -83,10 +83,10 @@ const AssignmentModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0 bg-white">
                     <div className="flex items-center gap-2">
                         <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
                             <CheckSquare size={18} />
@@ -107,24 +107,25 @@ const AssignmentModal = ({
                     </button>
                 </div>
 
-                {/* Banner Rujukan Plan */}
-                {planId && (
-                    <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl flex items-start gap-2.5">
-                        <Sparkles size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                        <div className="text-xs">
-                            <span className="font-bold text-blue-900 block">Mengangkat Rencana Kerja Staf:</span>
-                            <span className="text-blue-700 font-medium">
-                                {initialData?.planTitle ? `"${initialData.planTitle}"` : 'Rencana Kerja Terpilih'}
-                                {planItemIndex !== null && ` • Butir Kegiatan #${planItemIndex + 1}`}
-                            </span>
-                            <p className="text-[10px] text-blue-600 mt-1">
-                                Penugasan ini otomatis terhubung dengan butir rencana kerja staf dan akan memantau progresnya.
-                            </p>
+                {/* Form Body */}
+                <form id="assignment-modal-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
+                    {/* Banner Rujukan Plan */}
+                    {planId && (
+                        <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-2xl flex items-start gap-2.5">
+                            <Sparkles size={16} className="text-blue-600 shrink-0 mt-0.5" />
+                            <div className="text-xs">
+                                <span className="font-bold text-blue-900 block">Mengangkat Rencana Kerja Staf:</span>
+                                <span className="text-blue-700 font-medium">
+                                    {initialData?.planTitle ? `"${initialData.planTitle}"` : 'Rencana Kerja Terpilih'}
+                                    {planItemIndex !== null && ` • Butir Kegiatan #${planItemIndex + 1}`}
+                                </span>
+                                <p className="text-[10px] text-blue-600 mt-1">
+                                    Penugasan ini otomatis terhubung dengan butir rencana kerja staf dan akan memantau progresnya.
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Staf Penerima Tugas */}
                     <div className="space-y-1.5">
                         <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
@@ -223,25 +224,27 @@ const AssignmentModal = ({
                         />
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
-                        >
-                            Batal
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
-                        >
-                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                            <span>Simpan & Tugaskan</span>
-                        </button>
-                    </div>
                 </form>
+
+                {/* Footer Actions */}
+                <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-100 bg-slate-50 shrink-0">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        form="assignment-modal-form"
+                        disabled={saving}
+                        className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        <span>Simpan & Tugaskan</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

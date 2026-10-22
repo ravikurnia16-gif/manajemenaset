@@ -480,10 +480,10 @@ const PlanModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 my-8 animate-in zoom-in-95 duration-200">
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header (Pinned at top) */}
+                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0 bg-white">
                     <div className="flex items-center gap-2.5">
                         <span className="w-9 h-9 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center font-bold shrink-0">
                             <Target size={20} />
@@ -506,7 +506,7 @@ const PlanModal = ({
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form id="plan-modal-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
                     {/* Tipe Perencanaan: Pekanan vs Project */}
                     <div className="space-y-1.5">
                         <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
@@ -995,25 +995,29 @@ const PlanModal = ({
                         />
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
-                        >
-                            Batal
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
-                        >
-                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                            <span>{initialPlan ? 'Simpan Perubahan' : 'Buat Rencana Kerja'}</span>
-                        </button>
-                    </div>
+                    {/* Spacer bottom */}
+                    <div className="h-2" />
                 </form>
+
+                {/* Footer Actions (Pinned at bottom) */}
+                <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-slate-100 bg-slate-50 shrink-0">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        form="plan-modal-form"
+                        disabled={saving}
+                        className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        <span>{initialPlan ? 'Simpan Perubahan' : 'Buat Rencana Kerja'}</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

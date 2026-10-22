@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     AlertTriangle, Clock, CheckCircle2, AlertCircle, 
     ArrowRight, Wrench, Car, UserCheck, 
     ShieldAlert, ExternalLink, Calendar, ChevronRight,
-    MessageSquare, Send, ListTodo, AlertOctagon, UserX
+    MessageSquare, Send, ListTodo, AlertOctagon, UserX,
+    Filter, RotateCcw, Info
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -11,8 +12,61 @@ import { Link } from 'react-router-dom';
 
 dayjs.locale('id');
 
-const MbeRadarTab = ({ radarData, loading, onRefresh, onNavigateTab }) => {
+const MbeRadarTab = ({ 
+    radarData, 
+    loading, 
+    onRefresh, 
+    onNavigateTab,
+    startDate = '',
+    setStartDate,
+    endDate = '',
+    setEndDate,
+    onApplyDateFilter
+}) => {
     const [filterCategory, setFilterCategory] = useState('ALL');
+    const [localStart, setLocalStart] = useState(startDate);
+    const [localEnd, setLocalEnd] = useState(endDate);
+
+    useEffect(() => {
+        setLocalStart(startDate);
+        setLocalEnd(endDate);
+    }, [startDate, endDate]);
+
+    const isCustomActive = Boolean(startDate || endDate);
+
+    const handleQuickPreset = (presetKey) => {
+        const today = dayjs();
+        let s = '';
+        let e = '';
+        if (presetKey === 'TODAY') {
+            s = today.format('YYYY-MM-DD');
+            e = today.format('YYYY-MM-DD');
+        } else if (presetKey === 'THIS_WEEK') {
+            s = today.startOf('isoWeek').format('YYYY-MM-DD');
+            e = today.endOf('isoWeek').format('YYYY-MM-DD');
+        } else if (presetKey === 'NEXT_WEEK') {
+            s = today.add(1, 'week').startOf('isoWeek').format('YYYY-MM-DD');
+            e = today.add(1, 'week').endOf('isoWeek').format('YYYY-MM-DD');
+        } else if (presetKey === 'THIS_MONTH') {
+            s = today.startOf('month').format('YYYY-MM-DD');
+            e = today.endOf('month').format('YYYY-MM-DD');
+        } else if (presetKey === 'RESET') {
+            s = '';
+            e = '';
+        }
+        setLocalStart(s);
+        setLocalEnd(e);
+        if (setStartDate) setStartDate(s);
+        if (setEndDate) setEndDate(e);
+        if (onApplyDateFilter) onApplyDateFilter(s, e);
+    };
+
+    const handleApply = (e) => {
+        if (e) e.preventDefault();
+        if (setStartDate) setStartDate(localStart);
+        if (setEndDate) setEndDate(localEnd);
+        if (onApplyDateFilter) onApplyDateFilter(localStart, localEnd);
+    };
 
     if (loading) {
         return (
@@ -46,6 +100,131 @@ const MbeRadarTab = ({ radarData, loading, onRefresh, onNavigateTab }) => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
+            {/* 0. Filter & Evaluasi Rentang Tanggal */}
+            <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-xs space-y-3">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
+                            <Calendar size={18} />
+                        </span>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                                    Filter Evaluasi Tanggal Radar MBE
+                                </h3>
+                                {isCustomActive ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-black animate-in fade-in">
+                                        🔍 Filter Kustom Aktif
+                                    </span>
+                                ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                                        ⚡ Real-Time (Kondisi Saat Ini)
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium">
+                                {isCustomActive
+                                    ? `Mengevaluasi tenggat & anomali pada: ${startDate ? dayjs(startDate).format('DD MMM YYYY') : 'Awal'} s.d. ${endDate ? dayjs(endDate).format('DD MMM YYYY') : 'Sekarang'}`
+                                    : 'Default sistem memantau keterlambatan aktual saat ini. Pilih rentang tanggal untuk simulasi tenggat atau evaluasi periode tertentu.'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => handleQuickPreset('RESET')}
+                            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                !isCustomActive
+                                    ? 'bg-rose-600 text-white shadow-xs font-black'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            <Clock size={12} /> Real-Time
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickPreset('TODAY')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                            Hari Ini
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickPreset('THIS_WEEK')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                            Pekan Ini
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickPreset('NEXT_WEEK')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                            Pekan Depan
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickPreset('THIS_MONTH')}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                            Bulan Ini
+                        </button>
+                    </div>
+                </div>
+
+                {/* Form Input Rentang Tanggal */}
+                <form onSubmit={handleApply} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-2 flex-1">
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                Dari Tanggal
+                            </label>
+                            <input
+                                type="date"
+                                value={localStart}
+                                onChange={(e) => setLocalStart(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-rose-500 cursor-pointer"
+                            />
+                        </div>
+                        <span className="text-slate-400 font-bold text-xs pt-4">s/d</span>
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                Sampai Tanggal
+                            </label>
+                            <input
+                                type="date"
+                                value={localEnd}
+                                onChange={(e) => setLocalEnd(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-rose-500 cursor-pointer"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-0 sm:pt-4">
+                        <button
+                            type="submit"
+                            className="flex-1 sm:flex-none px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                            <Filter size={13} />
+                            <span>Terapkan Rentang</span>
+                        </button>
+                        {isCustomActive && (
+                            <button
+                                type="button"
+                                onClick={() => handleQuickPreset('RESET')}
+                                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                                title="Reset ke Real-Time"
+                            >
+                                <RotateCcw size={13} />
+                                <span>Reset</span>
+                            </button>
+                        )}
+                    </div>
+                </form>
+            </div>
+
             {/* 1. Executive Summary Banner */}
             <div className={`p-6 rounded-3xl border text-white shadow-sm transition-all ${
                 totalExceptions === 0 
@@ -54,11 +233,16 @@ const MbeRadarTab = ({ radarData, loading, onRefresh, onNavigateTab }) => {
             }`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black tracking-wider uppercase backdrop-blur-xs">
                                 Management by Exception (MBE)
                             </span>
                             <span className="text-xs text-rose-100 font-medium">• Radar Anomali Pimpinan</span>
+                            {isCustomActive && (
+                                <span className="px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-bold">
+                                    Rentang: {startDate ? dayjs(startDate).format('DD/MM/YY') : 'Awal'} - {endDate ? dayjs(endDate).format('DD/MM/YY') : 'Sekarang'}
+                                </span>
+                            )}
                         </div>
                         <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2.5">
                             {totalExceptions === 0 ? (
@@ -75,7 +259,9 @@ const MbeRadarTab = ({ radarData, loading, onRefresh, onNavigateTab }) => {
                         </h2>
                         <p className="text-xs text-white/90 max-w-2xl leading-relaxed">
                             {totalExceptions === 0
-                                ? 'Seluruh penugasan berjalan tepat waktu, rencana kerja tersusun rapi, tidak ada perbaikan sarana macet, dan armada kendaraan prima.'
+                                ? (isCustomActive
+                                    ? `Pada rentang ${startDate ? dayjs(startDate).format('DD MMM YYYY') : ''} s.d. ${endDate ? dayjs(endDate).format('DD MMM YYYY') : ''}, seluruh penugasan dan rencana kerja berprogres sesuai target tanpa ada keterlambatan atau pemeliharaan macet.`
+                                    : 'Seluruh penugasan berjalan tepat waktu, rencana kerja tersusun rapi, tidak ada perbaikan sarana macet, dan armada prima. (Kondisi 0 anomali menunjukkan operasional on-schedule).')
                                 : 'Sistem otomatis menyaring pekerjaan rutin dan mengangkat tugas melewati batas waktu, rencana kerja tertunda, staf belum menyusun rencana, serta kendala lapangan yang butuh keputusan Anda.'}
                         </p>
                     </div>
@@ -119,6 +305,31 @@ const MbeRadarTab = ({ radarData, loading, onRefresh, onNavigateTab }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Info Box: Penjelasan Jika MBE Bernilai 0 */}
+            {totalExceptions === 0 && (
+                <div className="p-4 sm:p-5 bg-emerald-50/80 border border-emerald-200/90 rounded-3xl flex items-start gap-3.5 shadow-xs animate-in fade-in duration-300">
+                    <div className="w-8 h-8 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Info size={18} />
+                    </div>
+                    <div className="text-xs text-emerald-950 space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black uppercase tracking-wider text-emerald-900">
+                                Mengapa Radar Anomali (MBE) Kosong / 0?
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-800 text-[10px] font-bold">
+                                Normal & On-Schedule
+                            </span>
+                        </div>
+                        <p className="text-emerald-800 leading-relaxed font-medium">
+                            Radar MBE (<b>Management by Exception</b>) bekerja berdasarkan prinsip manajemen modern: pimpinan hanya diinterupsi bila ada <b>penyimpangan, tugas terlambat, atau kendala kritis</b>. Nilai 0 ini membuktikan bahwa <b>tidak ada masalah atau error pada sistem</b>, melainkan seluruh penugasan dan rencana kerja staf saat ini masih dalam batas target waktu yang aman (on track).
+                        </p>
+                        <p className="text-[11px] text-emerald-700 font-medium">
+                            💡 <b>Tips:</b> Gunakan toolbar <b>Filter Evaluasi Tanggal</b> di bagian atas jika Anda ingin menyimulasikan cut-off akhir bulan atau meninjau histori keterlambatan periode lampau.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* 2. SECTION: KEPATUHAN PENYUSUNAN RENCANA KERJA STAF */}
             {missingWeeklyPlans.length > 0 && (

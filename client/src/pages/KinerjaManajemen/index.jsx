@@ -44,6 +44,8 @@ const KinerjaManajemen = () => {
     // States for MBE Radar
     const [radarData, setRadarData] = useState(null);
     const [loadingRadar, setLoadingRadar] = useState(false);
+    const [mbeStartDate, setMbeStartDate] = useState('');
+    const [mbeEndDate, setMbeEndDate] = useState('');
 
     // States for Daily PPP
     const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -78,10 +80,16 @@ const KinerjaManajemen = () => {
     const [lightboxPhoto, setLightboxPhoto] = useState(null);
 
     // Fetchers
-    const fetchMbeRadar = async () => {
+    const fetchMbeRadar = async (overrideStart, overrideEnd) => {
         try {
             setLoadingRadar(true);
-            const res = await api.get('/kinerja-manajemen/mbe-radar');
+            const start = overrideStart !== undefined ? overrideStart : mbeStartDate;
+            const end = overrideEnd !== undefined ? overrideEnd : mbeEndDate;
+            const params = {};
+            if (start) params.startDate = start;
+            if (end) params.endDate = end;
+
+            const res = await api.get('/kinerja-manajemen/mbe-radar', { params });
             if (res.data.success) {
                 setRadarData(res.data.radar);
             }
@@ -366,8 +374,13 @@ const KinerjaManajemen = () => {
                 <MbeRadarTab 
                     radarData={radarData} 
                     loading={loadingRadar} 
-                    onRefresh={fetchMbeRadar} 
+                    onRefresh={() => fetchMbeRadar()} 
                     onNavigateTab={setActiveTab}
+                    startDate={mbeStartDate}
+                    setStartDate={setMbeStartDate}
+                    endDate={mbeEndDate}
+                    setEndDate={setMbeEndDate}
+                    onApplyDateFilter={(s, e) => fetchMbeRadar(s, e)}
                 />
             )}
 

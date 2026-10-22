@@ -257,32 +257,58 @@ exports.syncAssignmentToPlan = syncAssignmentToPlan;
  */
 exports.getMbeRadar = async (req, res) => {
     try {
-        const now = dayjs().tz('Asia/Jakarta').toDate();
-        const oneDayAgo = dayjs().tz('Asia/Jakarta').subtract(24, 'hour').toDate();
-        const threeDaysAgo = dayjs().tz('Asia/Jakarta').subtract(72, 'hour').toDate();
-        const fourteenDaysAgo = dayjs().tz('Asia/Jakarta').subtract(14, 'day').startOf('day').toDate();
+        const { startDate, endDate } = req.query;
+        const nowWib = dayjs().tz('Asia/Jakarta');
+
+        const customStart = startDate ? dayjs.tz(startDate, 'Asia/Jakarta').startOf('day') : null;
+        const customEnd = endDate ? dayjs.tz(endDate, 'Asia/Jakarta').endOf('day') : null;
+        const isCustomRange = Boolean(customStart || customEnd);
+
+        // Evaluation cutoff dates
+        const evalCutoff = customEnd ? customEnd.toDate() : nowWib.toDate();
+        const evalStart = customStart ? customStart.toDate() : null;
+
+        const oneDayAgo = nowWib.subtract(24, 'hour').toDate();
+        const threeDaysAgo = nowWib.subtract(72, 'hour').toDate();
+        const fourteenDaysAgo = nowWib.subtract(14, 'day').startOf('day').toDate();
 
         // 1. Overdue Assignments (Penugasan Terlambat)
+        let assignmentWhere = {
+            status: { notIn: ['COMPLETED', 'CANCELLED'] },
+            assignee: SARPRAS_USER_FILTER
+        };
+        if (isCustomRange) {
+            assignmentWhere.dueDate = {
+                ...(evalStart ? { gte: evalStart } : {}),
+                ...(evalCutoff ? { lte: evalCutoff } : {})
+            };
+        } else {
+            assignmentWhere.dueDate = { lt: evalCutoff };
+        }
+
         const overdueAssignments = await prisma.personnelAssignment.findMany({
-            where: {
-                status: { notIn: ['COMPLETED', 'CANCELLED'] },
-                dueDate: { lt: now },
-                assignee: SARPRAS_USER_FILTER
-            },
+            where: assignmentWhere,
             include: {
                 assignee: { select: { id: true, name: true, position: true, phone: true } },
                 assigner: { select: { id: true, name: true, position: true } }
             },
             orderBy: { dueDate: 'asc' },
-            take: 20
+            take: 30
         });
 
         // 2. Pending Extension Requests (Permintaan Perpanjangan Waktu Tugas)
+        let extensionWhere = {
+            extensionStatus: 'PENDING',
+            assignee: SARPRAS_USER_FILTER
+        };
+        if (isCustomRange) {
+            extensionWhere.updatedAt = {
+                ...(evalStart ? { gte: evalStart } : {}),
+                ...(evalCutoff ? { lte: evalCutoff } : {})
+            };
+        }
         const pendingExtensions = await prisma.personnelAssignment.findMany({
-            where: {
-                extensionStatus: 'PENDING',
-                assignee: SARPRAS_USER_FILTER
-            },
+            where: extensionWhere,
             include: {
                 assignee: { select: { id: true, name: true, position: true, phone: true } }
             },
@@ -290,14 +316,30 @@ exports.getMbeRadar = async (req, res) => {
         });
 
         // 3. Critical & Stalled Maintenance (Pemeliharaan Macet / Kritis / Darurat)
-        const criticalMaintenance = await prisma.maintenance.findMany({
-            where: {
+        let maintenanceWhere;
+        if (isCustomRange) {
+            maintenanceWhere = {
+                createdAt: {
+                    ...(evalStart ? { gte: evalStart } : {}),
+                    ...(evalCutoff ? { lte: evalCutoff } : {})
+                },
+                OR: [
+                    { urgency: { in: ['EMERGENCY', 'URGENT'] }, status: { notIn: ['COMPLETED', 'REJECTED'] } },
+                    { status: { in: ['SUBMITTED', 'IN_PROGRESS'] } }
+                ]
+            };
+        } else {
+            maintenanceWhere = {
                 OR: [
                     { urgency: { in: ['EMERGENCY', 'URGENT'] }, status: { notIn: ['COMPLETED', 'REJECTED'] } },
                     { status: 'SUBMITTED', createdAt: { lt: oneDayAgo } },
                     { status: 'IN_PROGRESS', updatedAt: { lt: threeDaysAgo } }
                 ]
-            },
+            };
+        }
+
+        const criticalMaintenance = await prisma.maintenance.findMany({
+            where: maintenanceWhere,
             include: {
                 unit: { select: { id: true, name: true } },
                 user: { select: { id: true, name: true, phone: true } },
@@ -308,10 +350,18 @@ exports.getMbeRadar = async (req, res) => {
         });
 
         // 4. Vehicle Service Due / Overdue (Armada Butuh Servis & Pengajuan Bengkel Pending)
+        let reminderWhere = {
+            status: { in: ['WARNING', 'OVERDUE'] }
+        };
+        if (isCustomRange) {
+            reminderWhere.targetDate = {
+                ...(evalStart ? { gte: evalStart } : {}),
+                ...(evalCutoff ? { lte: evalCutoff } : {})
+            };
+        }
+
         const overdueVehicleReminders = await prisma.vehicleMaintenanceReminder.findMany({
-            where: {
-                status: { in: ['WARNING', 'OVERDUE'] }
-            },
+            where: reminderWhere,
             include: {
                 vehicle: { select: { id: true, name: true, plateNumber: true, type: true, odometer: true } }
             },
@@ -328,10 +378,16 @@ exports.getMbeRadar = async (req, res) => {
             } : null
         }));
 
+        let serviceWhere = { status: 'PENDING' };
+        if (isCustomRange) {
+            serviceWhere.createdAt = {
+                ...(evalStart ? { gte: evalStart } : {}),
+                ...(evalCutoff ? { lte: evalCutoff } : {})
+            };
+        }
+
         const pendingVehicleServices = await prisma.vehicleService.findMany({
-            where: {
-                status: 'PENDING'
-            },
+            where: serviceWhere,
             include: {
                 vehicle: { select: { id: true, name: true, plateNumber: true, type: true } },
                 requester: { select: { id: true, name: true, phone: true } }
@@ -341,16 +397,26 @@ exports.getMbeRadar = async (req, res) => {
         });
 
         // 5. Unresolved Staff Obstacles (Kendala Lapangan yang Butuh Arahan Kabid)
+        let obstacleReportWhere = {
+            type: 'DAILY',
+            user: SARPRAS_USER_FILTER
+        };
+        if (isCustomRange) {
+            obstacleReportWhere.date = {
+                ...(evalStart ? { gte: evalStart } : {}),
+                ...(evalCutoff ? { lte: evalCutoff } : {})
+            };
+        } else {
+            obstacleReportWhere.date = { gte: fourteenDaysAgo };
+        }
+
         const recentReports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'DAILY',
-                date: { gte: fourteenDaysAgo }
-            },
+            where: obstacleReportWhere,
             include: {
                 user: { select: { id: true, name: true, position: true, phone: true } }
             },
             orderBy: { date: 'desc' },
-            take: 30
+            take: 40
         });
 
         const unresolvedObstacles = [];
@@ -383,11 +449,16 @@ exports.getMbeRadar = async (req, res) => {
         });
 
         // 6. Overdue Staff Work Plans (Rencana Kerja Staf Melewati Batas Waktu)
+        let weeklyReportWhere = {
+            type: 'WEEKLY',
+            user: SARPRAS_USER_FILTER
+        };
+        if (isCustomRange && evalStart) {
+            weeklyReportWhere.date = { gte: evalStart };
+        }
+
         const allWeeklyReports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'WEEKLY',
-                user: SARPRAS_USER_FILTER
-            },
+            where: weeklyReportWhere,
             include: {
                 user: { select: { id: true, name: true, position: true, phone: true } }
             },
@@ -405,9 +476,14 @@ exports.getMbeRadar = async (req, res) => {
             if (isDone) return;
 
             if (m.endDate) {
-                const endDay = dayjs.tz(m.endDate, 'Asia/Jakarta').endOf('day');
-                if (endDay.isBefore(nowWib)) {
-                    const daysOverdue = Math.max(1, nowWib.diff(endDay, 'day'));
+                const planEndDay = dayjs.tz(m.endDate, 'Asia/Jakarta').endOf('day');
+                const evalDay = customEnd || nowWib;
+
+                const isOverdue = planEndDay.isBefore(evalDay);
+                const isWithinStart = customStart ? !planEndDay.isBefore(customStart) : true;
+
+                if (isOverdue && isWithinStart) {
+                    const daysOverdue = Math.max(1, evalDay.diff(planEndDay, 'day'));
                     const items = Array.isArray(m.items) ? m.items : [];
                     const doneItems = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
 
@@ -440,71 +516,88 @@ exports.getMbeRadar = async (req, res) => {
         });
 
         // 7. Weekly Planning Compliance Check (Kepatuhan Penyusunan Rencana Kerja Staf)
-        // Jika Jumat s.d. Minggu: periksa kesiapan rencana untuk Pekan Depan
-        // Jika Senin s.d. Kamis: periksa kepatuhan rencana untuk Pekan Berjalan
-        const nowWib = dayjs().tz('Asia/Jakarta');
-        const dayOfWeek = nowWib.day(); // 5 = Jumat, 6 = Sabtu, 0 = Minggu
-        const isFridayWeekend = [5, 6, 0].includes(dayOfWeek);
         const missingWeeklyPlans = [];
-
         try {
-            const targetMonday = isFridayWeekend
-                ? nowWib.add(1, 'week').startOf('isoWeek')
-                : nowWib.startOf('isoWeek');
-            const targetFriday = targetMonday.add(4, 'day').endOf('day');
-            const periodLabel = `${targetMonday.format('DD MMM')} - ${targetFriday.format('DD MMM YYYY')}`;
-
-            const plansInTargetWeek = await prisma.personnelReport.findMany({
-                where: {
-                    type: 'WEEKLY',
-                    date: {
-                        gte: targetMonday.startOf('day').toDate(),
-                        lte: targetFriday.endOf('day').toDate()
-                    }
+            let targetWeeks = [];
+            if (isCustomRange && customStart && customEnd) {
+                // Iterasi setiap Senin pada rentang customStart s.d. customEnd
+                let curMonday = customStart.startOf('isoWeek');
+                const lastMonday = customEnd.startOf('isoWeek');
+                while (!curMonday.isAfter(lastMonday)) {
+                    targetWeeks.push({
+                        monday: curMonday,
+                        friday: curMonday.add(4, 'day').endOf('day'),
+                        isNextWeek: curMonday.isAfter(nowWib)
+                    });
+                    curMonday = curMonday.add(1, 'week');
                 }
-            });
-
-            const userIdsWithPlan = new Set();
-            plansInTargetWeek.forEach(p => {
-                let m = p.metadata;
-                if (typeof m === 'string') {
-                    try { m = JSON.parse(m); } catch (e) { m = {}; }
-                }
-                if (m && m.isPlan && m.planType !== 'PROJECT') {
-                    userIdsWithPlan.add(p.userId);
-                }
-            });
+            } else {
+                const dayOfWeek = nowWib.day(); // 5 = Jumat, 6 = Sabtu, 0 = Minggu
+                const isFridayWeekend = [5, 6, 0].includes(dayOfWeek);
+                const targetMonday = isFridayWeekend
+                    ? nowWib.add(1, 'week').startOf('isoWeek')
+                    : nowWib.startOf('isoWeek');
+                targetWeeks.push({
+                    monday: targetMonday,
+                    friday: targetMonday.add(4, 'day').endOf('day'),
+                    isNextWeek: isFridayWeekend
+                });
+            }
 
             const allStaff = await prisma.user.findMany({
                 where: STAFF_USER_WHERE,
                 select: { id: true, name: true, position: true, phone: true }
             });
 
-            allStaff.forEach(st => {
-                if (!userIdsWithPlan.has(st.id)) {
-                    const cleanPhone = (st.phone || '').replace(/^0/, '62').replace(/\D/g, '');
-                    const waText = encodeURIComponent(
-                        `Assalamu'alaikum Akhi ${st.name},\n\n` +
-                        `Mengingatkan untuk menyusun Rencana Kerja ${isFridayWeekend ? 'Pekan Depan' : 'Pekan Ini'} (${periodLabel}) pada Aplikasi Manajemen Aset.\n\n` +
-                        `Mohon dapat disusun agar target operasional sarana dapat terpantau dengan baik. Syukron.`
-                    );
-                    missingWeeklyPlans.push({
-                        userId: st.id,
-                        name: st.name,
-                        position: st.position,
-                        phone: st.phone,
-                        missingPeriod: periodLabel,
-                        isNextWeek: isFridayWeekend,
-                        waText,
-                        waLink: cleanPhone ? `https://wa.me/${cleanPhone}?text=${waText}` : null
-                    });
-                }
-            });
+            for (const tw of targetWeeks) {
+                const periodLabel = `${tw.monday.format('DD MMM')} - ${tw.friday.format('DD MMM YYYY')}`;
+                const plansInTargetWeek = await prisma.personnelReport.findMany({
+                    where: {
+                        type: 'WEEKLY',
+                        date: {
+                            gte: tw.monday.startOf('day').toDate(),
+                            lte: tw.friday.endOf('day').toDate()
+                        }
+                    }
+                });
+
+                const userIdsWithPlan = new Set();
+                plansInTargetWeek.forEach(p => {
+                    let m = p.metadata;
+                    if (typeof m === 'string') {
+                        try { m = JSON.parse(m); } catch (e) { m = {}; }
+                    }
+                    if (m && m.isPlan && m.planType !== 'PROJECT') {
+                        userIdsWithPlan.add(p.userId);
+                    }
+                });
+
+                allStaff.forEach(st => {
+                    if (!userIdsWithPlan.has(st.id)) {
+                        const cleanPhone = (st.phone || '').replace(/^0/, '62').replace(/\D/g, '');
+                        const waText = encodeURIComponent(
+                            `Assalamu'alaikum Akhi ${st.name},\n\n` +
+                            `Mengingatkan untuk menyusun Rencana Kerja ${tw.isNextWeek ? 'Pekan Depan' : 'Pekan Ini'} (${periodLabel}) pada Aplikasi Manajemen Aset.\n\n` +
+                            `Mohon dapat disusun agar target operasional sarana dapat terpantau dengan baik. Syukron.`
+                        );
+                        missingWeeklyPlans.push({
+                            userId: st.id,
+                            name: st.name,
+                            position: st.position,
+                            phone: st.phone,
+                            missingPeriod: periodLabel,
+                            isNextWeek: tw.isNextWeek,
+                            waText,
+                            waLink: cleanPhone ? `https://wa.me/${cleanPhone}?text=${waText}` : null
+                        });
+                    }
+                });
+            }
         } catch (errMissing) {
             console.error('Error checking missing plans in radar:', errMissing);
         }
 
-        // Total Exception Count (Termasuk Rencana Overdue & Missing Plans)
+        // Total Exception Count
         const totalExceptions =
             overdueAssignments.length +
             pendingExtensions.length +
@@ -518,6 +611,11 @@ exports.getMbeRadar = async (req, res) => {
         return res.json({
             success: true,
             totalExceptions,
+            activeFilter: {
+                startDate: startDate || null,
+                endDate: endDate || null,
+                isCustomRange
+            },
             radar: {
                 overdueAssignments,
                 pendingExtensions,
