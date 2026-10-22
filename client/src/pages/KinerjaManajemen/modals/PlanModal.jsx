@@ -155,6 +155,10 @@ const PlanModal = ({
     const effectiveStaffData = (staffPlansData && staffPlansData.length > 0) ? staffPlansData : loadedStaffPlans;
 
     const { candidateItems, matchingRangeItems, otherProjectItems } = useMemo(() => {
+        if (planType !== 'WEEKLY') {
+            return { candidateItems: [], matchingRangeItems: [], otherProjectItems: [] };
+        }
+
         const list = [];
         const seenKeys = new Set();
 
@@ -531,7 +535,7 @@ const PlanModal = ({
                                 }`}
                             >
                                 <span className="text-xs font-black text-violet-700 block">📋 Rencana Pekanan</span>
-                                <span className="text-[10px] text-slate-500">Target operasional mingguan staf</span>
+                                <span className="text-[10px] text-slate-500">Target mingguan (dapat mengambil butir rencana)</span>
                             </button>
                             <button
                                 type="button"
@@ -543,7 +547,7 @@ const PlanModal = ({
                                 }`}
                             >
                                 <span className="text-xs font-black text-emerald-700 block">📁 Rencana Umum (Project)</span>
-                                <span className="text-[10px] text-slate-500">Master plan / inisiatif besar jangka panjang</span>
+                                <span className="text-[10px] text-slate-500">Master plan baru (disusun mandiri dari awal)</span>
                             </button>
                         </div>
                     </div>
@@ -742,160 +746,177 @@ const PlanModal = ({
                         </div>
                     </div>
 
-                    {/* PILIHAN BUTIR RENCANA YANG PERNAH DIBUAT SESUAI RENTANG TANGGAL */}
-                    <div className="p-3.5 bg-gradient-to-br from-violet-50/70 via-indigo-50/40 to-slate-50 border border-violet-200/80 rounded-2xl space-y-2.5">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center font-black shadow-xs">
-                                    <Layers size={14} />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-1.5">
-                                        <h5 className="text-xs font-black text-violet-950 uppercase tracking-wider">
-                                            Pilihan Butir Rencana yang Tersedia
-                                        </h5>
-                                        <span className="px-1.5 py-0.2 rounded-full bg-violet-600 text-white text-[9px] font-black">
-                                            {matchingRangeItems.length} Sesuai Periode
-                                        </span>
+                    {/* PILIHAN BUTIR RENCANA: HANYA TERSEDIA UNTUK TIPE PERENCANAAN PEKANAN */}
+                    {planType === 'WEEKLY' && (
+                        <div className="p-3.5 bg-gradient-to-br from-violet-50/70 via-indigo-50/40 to-slate-50 border border-violet-200/80 rounded-2xl space-y-2.5">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center font-black shadow-xs">
+                                        <Layers size={14} />
                                     </div>
-                                    <p className="text-[10px] text-violet-700 font-medium">
-                                        Butir dari Master Project & Rencana yang terjadwal mulai pada rentang {startDate ? dayjs(startDate).format('DD MMM') : '-'} s.d. {endDate ? dayjs(endDate).format('DD MMM YYYY') : '-'}
-                                    </p>
+                                    <div>
+                                        <div className="flex items-center gap-1.5">
+                                            <h5 className="text-xs font-black text-violet-950 uppercase tracking-wider">
+                                                Pilihan Butir Rencana yang Tersedia
+                                            </h5>
+                                            <span className="px-1.5 py-0.2 rounded-full bg-violet-600 text-white text-[9px] font-black">
+                                                {matchingRangeItems.length} Sesuai Periode
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-violet-700 font-medium">
+                                            Tarik butir dari Master Project & Rencana yang terjadwal mulai pada rentang {startDate ? dayjs(startDate).format('DD MMM') : '-'} s.d. {endDate ? dayjs(endDate).format('DD MMM YYYY') : '-'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    {matchingRangeItems.length > 0 && matchingRangeItems.some(m => !isItemAlreadyAdded(m.activity)) && (
+                                        <button
+                                            type="button"
+                                            onClick={handleImportAllMatchingItems}
+                                            className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                                            title="Tarik semua butir periode ini ke dalam rencana"
+                                        >
+                                            <Plus size={11} /> Ambil Semua ({matchingRangeItems.filter(m => !isItemAlreadyAdded(m.activity)).length})
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCandidateDrawerOpen(!isCandidateDrawerOpen)}
+                                        className="p-1 text-violet-700 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer"
+                                        title={isCandidateDrawerOpen ? 'Ciutkan' : 'Buka pilihan'}
+                                    >
+                                        {isCandidateDrawerOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5">
-                                {matchingRangeItems.length > 0 && matchingRangeItems.some(m => !isItemAlreadyAdded(m.activity)) && (
-                                    <button
-                                        type="button"
-                                        onClick={handleImportAllMatchingItems}
-                                        className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
-                                        title="Tarik semua butir periode ini ke dalam rencana"
-                                    >
-                                        <Plus size={11} /> Ambil Semua ({matchingRangeItems.filter(m => !isItemAlreadyAdded(m.activity)).length})
-                                    </button>
-                                )}
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCandidateDrawerOpen(!isCandidateDrawerOpen)}
-                                    className="p-1 text-violet-700 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer"
-                                    title={isCandidateDrawerOpen ? 'Ciutkan' : 'Buka pilihan'}
-                                >
-                                    {isCandidateDrawerOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                </button>
-                            </div>
-                        </div>
+                            {isCandidateDrawerOpen && (
+                                <div className="space-y-2 pt-1 border-t border-violet-100">
+                                    {/* Filter Segment: Sesuai Rentang Tanggal vs Semua Butir Project */}
+                                    <div className="flex items-center gap-1 text-[10px] font-bold">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCandidateTab('RANGE')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                                candidateTab === 'RANGE' 
+                                                    ? 'bg-violet-600 text-white shadow-2xs font-black' 
+                                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            🎯 Sesuai Rentang Tanggal ({matchingRangeItems.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCandidateTab('ALL_PROJECTS')}
+                                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                                candidateTab === 'ALL_PROJECTS' 
+                                                    ? 'bg-violet-600 text-white shadow-2xs font-black' 
+                                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            📁 Semua Butir Project Aktif ({otherProjectItems.length})
+                                        </button>
+                                    </div>
 
-                        {isCandidateDrawerOpen && (
-                            <div className="space-y-2 pt-1 border-t border-violet-100">
-                                {/* Filter Segment: Sesuai Rentang Tanggal vs Semua Butir Project */}
-                                <div className="flex items-center gap-1 text-[10px] font-bold">
-                                    <button
-                                        type="button"
-                                        onClick={() => setCandidateTab('RANGE')}
-                                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                            candidateTab === 'RANGE' 
-                                                ? 'bg-violet-600 text-white shadow-2xs font-black' 
-                                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        🎯 Sesuai Rentang Tanggal ({matchingRangeItems.length})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setCandidateTab('ALL_PROJECTS')}
-                                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                            candidateTab === 'ALL_PROJECTS' 
-                                                ? 'bg-violet-600 text-white shadow-2xs font-black' 
-                                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        📁 Semua Butir Project Aktif ({otherProjectItems.length})
-                                    </button>
-                                </div>
+                                    {/* List Candidate Items */}
+                                    {(() => {
+                                        const displayList = candidateTab === 'RANGE' ? matchingRangeItems : otherProjectItems;
 
-                                {/* List Candidate Items */}
-                                {(() => {
-                                    const displayList = candidateTab === 'RANGE' ? matchingRangeItems : otherProjectItems;
+                                        if (displayList.length === 0) {
+                                            return (
+                                                <div className="p-3 bg-white/80 rounded-xl border border-dashed border-violet-200 text-center space-y-1">
+                                                    <p className="text-[11px] text-slate-500 italic">
+                                                        {candidateTab === 'RANGE'
+                                                            ? `Belum ada butir rencana dengan tanggal target pada rentang ${startDate ? dayjs(startDate).format('DD MMM') : ''} s.d. ${endDate ? dayjs(endDate).format('DD MMM YYYY') : ''}.`
+                                                            : 'Tidak ada butir project aktif lainnya.'}
+                                                    </p>
+                                                    {candidateTab === 'RANGE' && otherProjectItems.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCandidateTab('ALL_PROJECTS')}
+                                                            className="text-[10px] text-violet-700 hover:underline font-bold"
+                                                        >
+                                                            Lihat {otherProjectItems.length} butir dari Master Project aktif →
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
 
-                                    if (displayList.length === 0) {
                                         return (
-                                            <div className="p-3 bg-white/80 rounded-xl border border-dashed border-violet-200 text-center space-y-1">
-                                                <p className="text-[11px] text-slate-500 italic">
-                                                    {candidateTab === 'RANGE'
-                                                        ? `Belum ada butir rencana dengan tanggal target pada rentang ${startDate ? dayjs(startDate).format('DD MMM') : ''} s.d. ${endDate ? dayjs(endDate).format('DD MMM YYYY') : ''}.`
-                                                        : 'Tidak ada butir project aktif lainnya.'}
-                                                </p>
-                                                {candidateTab === 'RANGE' && otherProjectItems.length > 0 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setCandidateTab('ALL_PROJECTS')}
-                                                        className="text-[10px] text-violet-700 hover:underline font-bold"
-                                                    >
-                                                        Lihat {otherProjectItems.length} butir dari Master Project aktif →
-                                                    </button>
-                                                )}
+                                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                                                {displayList.map((cand) => {
+                                                    const alreadyAdded = isItemAlreadyAdded(cand.activity);
+                                                    return (
+                                                        <div
+                                                            key={cand.key}
+                                                            className={`p-2 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                                                                alreadyAdded
+                                                                    ? 'bg-emerald-50/50 border-emerald-200 text-slate-500'
+                                                                    : 'bg-white border-violet-100 hover:border-violet-300 shadow-2xs'
+                                                            }`}
+                                                        >
+                                                            <div className="min-w-0 flex-1 space-y-0.5">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
+                                                                        cand.isProject ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                                                                    }`}>
+                                                                        {cand.isProject ? '📁 Project' : '📋 Rencana'}: {cand.planTitle}
+                                                                    </span>
+                                                                    {cand.targetDate ? (
+                                                                        <span className="text-[9px] text-violet-700 font-bold bg-violet-100/70 px-1.5 py-0.2 rounded">
+                                                                            Target: {dayjs(cand.targetDate).format('DD MMM YYYY')}
+                                                                        </span>
+                                                                    ) : cand.planStartDate && (
+                                                                        <span className="text-[9px] text-slate-500 font-bold bg-slate-100 px-1.5 py-0.2 rounded">
+                                                                            Mulai: {dayjs(cand.planStartDate).format('DD MMM YYYY')}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs font-bold text-slate-800 truncate">
+                                                                    {cand.activity}
+                                                                </p>
+                                                            </div>
+
+                                                            {alreadyAdded ? (
+                                                                <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black flex items-center gap-1 shrink-0">
+                                                                    <Check size={11} /> Ditambahkan
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleImportCandidateItem(cand)}
+                                                                    className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs active:scale-95"
+                                                                >
+                                                                    <Plus size={11} /> Ambil Butir
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         );
-                                    }
+                                    })()}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
-                                    return (
-                                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
-                                            {displayList.map((cand) => {
-                                                const alreadyAdded = isItemAlreadyAdded(cand.activity);
-                                                return (
-                                                    <div
-                                                        key={cand.key}
-                                                        className={`p-2 rounded-xl border transition-all flex items-center justify-between gap-2 ${
-                                                            alreadyAdded
-                                                                ? 'bg-emerald-50/50 border-emerald-200 text-slate-500'
-                                                                : 'bg-white border-violet-100 hover:border-violet-300 shadow-2xs'
-                                                        }`}
-                                                    >
-                                                        <div className="min-w-0 flex-1 space-y-0.5">
-                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
-                                                                    cand.isProject ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                                                                }`}>
-                                                                    {cand.isProject ? '📁 Project' : '📋 Rencana'}: {cand.planTitle}
-                                                                </span>
-                                                                {cand.targetDate ? (
-                                                                    <span className="text-[9px] text-violet-700 font-bold bg-violet-100/70 px-1.5 py-0.2 rounded">
-                                                                        Target: {dayjs(cand.targetDate).format('DD MMM YYYY')}
-                                                                    </span>
-                                                                ) : cand.planStartDate && (
-                                                                    <span className="text-[9px] text-slate-500 font-bold bg-slate-100 px-1.5 py-0.2 rounded">
-                                                                        Mulai: {dayjs(cand.planStartDate).format('DD MMM YYYY')}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-xs font-bold text-slate-800 truncate">
-                                                                {cand.activity}
-                                                            </p>
-                                                        </div>
-
-                                                        {alreadyAdded ? (
-                                                            <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black flex items-center gap-1 shrink-0">
-                                                                <Check size={11} /> Ditambahkan
-                                                            </span>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleImportCandidateItem(cand)}
-                                                                className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs active:scale-95"
-                                                            >
-                                                                <Plus size={11} /> Ambil Butir
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                })()}
+                    {/* Informasi Rencana Umum (Project): Dibuat Baru dari Nol */}
+                    {planType === 'PROJECT' && (
+                        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950">
+                            <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs shrink-0 mt-0.5">
+                                <FolderGit2 size={15} />
                             </div>
-                        )}
-                    </div>
+                            <div className="space-y-0.5">
+                                <span className="font-bold text-emerald-900 block">Penyusunan Rencana Umum (Master Project) Baru</span>
+                                <p className="text-[11px] text-emerald-700 font-medium">
+                                    Rencana Umum disusun mandiri dari awal sebagai acuan inisiatif/proyek baru (bukan mengambil dari butir rencana lain). Susun butir-butir langkah kerja baru di bawah atau gunakan tombol <b>"Rinci dg AI"</b>.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Rincian Butir Pekerjaan / Sub-Kegiatan */}
                     <div className="space-y-2 pt-2 border-t border-slate-100">
