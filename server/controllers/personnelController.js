@@ -1138,7 +1138,7 @@ exports.updateDriverInfo = async (req, res) => {
     const userRole = req.user.role;
 
     try {
-        if (!['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(userRole)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(userRole)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 

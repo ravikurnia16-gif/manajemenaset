@@ -45,6 +45,7 @@ const DailyReportPppModal = ({
     // Tracking item rencana/penugasan yang sudah ditarik { [itemKey]: 'COMPLETED' | 'IN_PROGRESS' | 'OBSTACLE' | 'TOMORROW' }
     const [pulledMap, setPulledMap] = useState({});
     const [pppDrawerFilter, setPppDrawerFilter] = useState('ALL'); // 'ALL' | 'WEEKLY' | 'PROJECT' | 'ASSIGNMENT'
+    const [showCompletedInDrawer, setShowCompletedInDrawer] = useState(false);
     const [saving, setSaving] = useState(false);
 
     // Otomatis tentukan Staf Pelapor
@@ -67,10 +68,25 @@ const DailyReportPppModal = ({
 
     if (!isOpen) return null;
 
-    // Ambil rencana & penugasan aktif dari staf yang sedang dipilih
+    // Ambil rencana & penugasan staf yang sedang dipilih
     const currentStaffProfile = staffPlansData.find(s => s.id === parseInt(selectedStaffId));
-    const activeStaffPlans = currentStaffProfile?.plans || [];
-    const activeStaffAssignments = currentStaffProfile?.assignments || [];
+    const rawPlans = currentStaffProfile?.plans || [];
+    const rawAssignments = currentStaffProfile?.assignments || [];
+
+    // Filter pekerjaan & rencana yang benar-benar MASIH AKTIF (kecuali user mengaktifkan toggle tampilkan selesai)
+    const activeStaffPlans = rawPlans.filter(p => {
+        const isFinished = p.isDone || p.status === 'SELESAI' || (p.avgPct !== undefined && p.avgPct >= 100);
+        return showCompletedInDrawer ? true : !isFinished;
+    });
+
+    const activeStaffAssignments = rawAssignments.filter(a => {
+        const isFinished = a.status === 'COMPLETED' || (a.progressPercentage !== undefined && a.progressPercentage >= 100);
+        return showCompletedInDrawer ? true : !isFinished;
+    });
+
+    const totalFinishedCount = 
+        rawAssignments.filter(a => a.status === 'COMPLETED' || (a.progressPercentage !== undefined && a.progressPercentage >= 100)).length +
+        rawPlans.filter(p => p.isDone || p.status === 'SELESAI' || (p.avgPct !== undefined && p.avgPct >= 100)).length;
 
     // Helper: Tarik Cepat Item atau Sub-Item Langkah ke salah satu dari 4 Pilar
     const handlePullItem = (item, type = 'PLAN', targetPillar = 'COMPLETED', subItemIndex = null, subItemTitle = null) => {
@@ -285,43 +301,60 @@ const DailyReportPppModal = ({
                             </div>
 
                             {/* Filter Segmented Controls */}
-                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-blue-200 text-[10px] font-bold">
-                                <button
-                                    type="button"
-                                    onClick={() => setPppDrawerFilter('ALL')}
-                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                                        pppDrawerFilter === 'ALL' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    Semua
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPppDrawerFilter('WEEKLY')}
-                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                                        pppDrawerFilter === 'WEEKLY' ? 'bg-violet-600 text-white shadow-2xs font-black' : 'text-violet-700 hover:text-violet-900'
-                                    }`}
-                                >
-                                    📋 Pekanan
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPppDrawerFilter('PROJECT')}
-                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                                        pppDrawerFilter === 'PROJECT' ? 'bg-emerald-600 text-white shadow-2xs font-black' : 'text-emerald-700 hover:text-emerald-900'
-                                    }`}
-                                >
-                                    📁 Project
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPppDrawerFilter('ASSIGNMENT')}
-                                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                                        pppDrawerFilter === 'ASSIGNMENT' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-blue-700 hover:text-blue-900'
-                                    }`}
-                                >
-                                    🎯 Tugas
-                                </button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-blue-200 text-[10px] font-bold">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPppDrawerFilter('ALL')}
+                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                            pppDrawerFilter === 'ALL' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Semua ({activeStaffPlans.length + activeStaffAssignments.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPppDrawerFilter('WEEKLY')}
+                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                            pppDrawerFilter === 'WEEKLY' ? 'bg-violet-600 text-white shadow-2xs font-black' : 'text-violet-700 hover:text-violet-900'
+                                        }`}
+                                    >
+                                        📋 Pekanan ({activeStaffPlans.filter(p => !p.isProject).length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPppDrawerFilter('PROJECT')}
+                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                            pppDrawerFilter === 'PROJECT' ? 'bg-emerald-600 text-white shadow-2xs font-black' : 'text-emerald-700 hover:text-emerald-900'
+                                        }`}
+                                    >
+                                        📁 Project ({activeStaffPlans.filter(p => p.isProject).length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPppDrawerFilter('ASSIGNMENT')}
+                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                                            pppDrawerFilter === 'ASSIGNMENT' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-blue-700 hover:text-blue-900'
+                                        }`}
+                                    >
+                                        🎯 Tugas ({activeStaffAssignments.length})
+                                    </button>
+                                </div>
+
+                                {totalFinishedCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCompletedInDrawer(prev => !prev)}
+                                        className={`px-2 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                                            showCompletedInDrawer 
+                                                ? 'bg-slate-700 text-white border-slate-700 shadow-2xs font-black' 
+                                                : 'bg-white text-slate-500 hover:text-slate-800 border-blue-200'
+                                        }`}
+                                        title="Beralih untuk melihat pekerjaan yang sudah berstatus selesai"
+                                    >
+                                        <span>{showCompletedInDrawer ? 'Sembunyikan Selesai' : `Tampilkan Selesai (${totalFinishedCount})`}</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -378,38 +411,46 @@ const DailyReportPppModal = ({
 
                                                 {/* 4 Pilihan Tindak Lanjut Instan */}
                                                 <div className="flex items-center gap-1 shrink-0 flex-wrap">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(a, 'ASSIGNMENT', 'COMPLETED')}
-                                                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Laporkan penugasan ini tuntas 100%"
-                                                    >
-                                                        ✅ Selesai
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(a, 'ASSIGNMENT', 'IN_PROGRESS')}
-                                                        className="px-2 py-1 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Laporkan masih dalam proses pengerjaan"
-                                                    >
-                                                        ⏳ Proses
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(a, 'ASSIGNMENT', 'OBSTACLE')}
-                                                        className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Laporkan menghadapi kendala lapangan"
-                                                    >
-                                                        ⚠️ Kendala
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(a, 'ASSIGNMENT', 'TOMORROW')}
-                                                        className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Jadwalkan lanjut pada hari esok"
-                                                    >
-                                                        📅 Besok
-                                                    </button>
+                                                    {a.status === 'COMPLETED' ? (
+                                                        <span className="px-2.5 py-1 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg text-[10px] font-black flex items-center gap-1">
+                                                            <CheckCheck size={12} /> Tugas Sudah Tuntas 100%
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'COMPLETED')}
+                                                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Laporkan seluruh butir penugasan ini tuntas 100%"
+                                                            >
+                                                                ✅ Selesai
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'IN_PROGRESS')}
+                                                                className="px-2 py-1 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Laporkan masih dalam proses pengerjaan"
+                                                            >
+                                                                ⏳ Proses
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'OBSTACLE')}
+                                                                className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Laporkan menghadapi kendala lapangan"
+                                                            >
+                                                                ⚠️ Kendala
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'TOMORROW')}
+                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Jadwalkan lanjut pada hari esok"
+                                                            >
+                                                                📅 Besok
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -424,40 +465,51 @@ const DailyReportPppModal = ({
                                                             const subKey = `ASSIGNMENT-${a.id}-step-${sIdx}`;
                                                             const subPulled = pulledMap[subKey];
                                                             const subTitle = sub.title || sub.name || sub.text || `Butir #${sIdx + 1}`;
+                                                            const subIsDone = sub.isDone || sub.status === 'COMPLETED' || sub.percentage === 100 || a.status === 'COMPLETED';
+
                                                             return (
-                                                                <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1.5 bg-white rounded-lg border border-slate-200/80 text-xs">
+                                                                <div key={sIdx} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1.5 rounded-lg border text-xs ${
+                                                                    subIsDone ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900' : 'bg-white border-slate-200/80'
+                                                                }`}>
                                                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                                                         <span className="text-slate-400 font-bold text-[10px] shrink-0">#{sIdx + 1}</span>
-                                                                        <span className="font-semibold text-slate-700 truncate">{subTitle}</span>
+                                                                        <span className={`font-semibold truncate ${subIsDone ? 'line-through text-slate-500' : 'text-slate-700'}`}>{subTitle}</span>
+                                                                        {subIsDone && (
+                                                                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black shrink-0">
+                                                                                ✓ Sudah Selesai
+                                                                            </span>
+                                                                        )}
                                                                         {subPulled && (
                                                                             <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black shrink-0">
                                                                                 ✓ {subPulled === 'COMPLETED' ? 'Selesai' : subPulled === 'IN_PROGRESS' ? 'Proses' : subPulled === 'OBSTACLE' ? 'Kendala' : 'Besok'}
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePullItem(a, 'ASSIGNMENT', 'COMPLETED', sIdx, subTitle)}
-                                                                            className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
-                                                                        >
-                                                                            Selesai
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePullItem(a, 'ASSIGNMENT', 'IN_PROGRESS', sIdx, subTitle)}
-                                                                            className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
-                                                                        >
-                                                                            Proses
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePullItem(a, 'ASSIGNMENT', 'OBSTACLE', sIdx, subTitle)}
-                                                                            className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
-                                                                        >
-                                                                            Kendala
-                                                                        </button>
-                                                                    </div>
+                                                                    {!subIsDone && (
+                                                                        <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'COMPLETED', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                            >
+                                                                                Selesai
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'IN_PROGRESS', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                            >
+                                                                                Proses
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'OBSTACLE', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                            >
+                                                                                Kendala
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             );
                                                         })}
@@ -522,38 +574,46 @@ const DailyReportPppModal = ({
                                                     </div>
 
                                                 <div className="flex items-center gap-1 shrink-0 flex-wrap">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(p, 'PLAN', 'COMPLETED')}
-                                                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Laporkan seluruh rencana ini tuntas 100%"
-                                                    >
-                                                        ✅ Selesai
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(p, 'PLAN', 'IN_PROGRESS')}
-                                                        className="px-2 py-1 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Laporkan masih dalam proses"
-                                                    >
-                                                        ⏳ Proses
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(p, 'PLAN', 'OBSTACLE')}
-                                                        className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Laporkan ada kendala"
-                                                    >
-                                                        ⚠️ Kendala
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handlePullItem(p, 'PLAN', 'TOMORROW')}
-                                                        className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                        title="Jadwalkan untuk hari esok"
-                                                    >
-                                                        📅 Besok
-                                                    </button>
+                                                    {(p.isDone || p.status === 'SELESAI' || p.avgPct === 100) ? (
+                                                        <span className="px-2.5 py-1 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg text-[10px] font-black flex items-center gap-1">
+                                                            <CheckCheck size={12} /> {isProject ? 'Project' : 'Rencana'} Tuntas 100%
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(p, 'PLAN', 'COMPLETED')}
+                                                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Laporkan seluruh rencana ini tuntas 100%"
+                                                            >
+                                                                ✅ Selesai
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(p, 'PLAN', 'IN_PROGRESS')}
+                                                                className="px-2 py-1 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Laporkan masih dalam proses"
+                                                            >
+                                                                ⏳ Proses
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(p, 'PLAN', 'OBSTACLE')}
+                                                                className="px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Laporkan ada kendala"
+                                                            >
+                                                                ⚠️ Kendala
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePullItem(p, 'PLAN', 'TOMORROW')}
+                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-300 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Jadwalkan untuk hari esok"
+                                                            >
+                                                                📅 Besok
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -568,8 +628,12 @@ const DailyReportPppModal = ({
                                                             const subKey = `PLAN-${p.id}-step-${sIdx}`;
                                                             const subPulled = pulledMap[subKey];
                                                             const subTitle = sub.activity || sub.name || sub.text || `Langkah #${sIdx + 1}`;
+                                                            const subIsDone = sub.percentage === 100 || sub.status === 'SELESAI' || sub.isDone || p.isDone || p.status === 'SELESAI';
+
                                                             return (
-                                                                <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1.5 bg-white rounded-lg border border-slate-200/80 text-xs">
+                                                                <div key={sIdx} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-1.5 rounded-lg border text-xs ${
+                                                                    subIsDone ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900' : 'bg-white border-slate-200/80'
+                                                                }`}>
                                                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                                                         <span className="text-slate-400 font-bold text-[10px] shrink-0">#{sIdx + 1}</span>
                                                                         {sub.projectId && (
@@ -577,36 +641,43 @@ const DailyReportPppModal = ({
                                                                                 🔗 Project
                                                                             </span>
                                                                         )}
-                                                                        <span className="font-semibold text-slate-700 truncate">{subTitle}</span>
+                                                                        <span className={`font-semibold truncate ${subIsDone ? 'line-through text-slate-500' : 'text-slate-700'}`}>{subTitle}</span>
+                                                                        {subIsDone && (
+                                                                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black shrink-0">
+                                                                                ✓ Sudah Selesai
+                                                                            </span>
+                                                                        )}
                                                                         {subPulled && (
                                                                             <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black shrink-0">
                                                                                 ✓ {subPulled === 'COMPLETED' ? 'Selesai' : subPulled === 'IN_PROGRESS' ? 'Proses' : subPulled === 'OBSTACLE' ? 'Kendala' : 'Besok'}
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePullItem(p, 'PLAN', 'COMPLETED', sIdx, subTitle)}
-                                                                            className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
-                                                                        >
-                                                                            Selesai
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePullItem(p, 'PLAN', 'IN_PROGRESS', sIdx, subTitle)}
-                                                                            className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
-                                                                        >
-                                                                            Proses
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handlePullItem(p, 'PLAN', 'OBSTACLE', sIdx, subTitle)}
-                                                                            className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
-                                                                        >
-                                                                            Kendala
-                                                                        </button>
-                                                                    </div>
+                                                                    {!subIsDone && (
+                                                                        <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(p, 'PLAN', 'COMPLETED', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                            >
+                                                                                Selesai
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(p, 'PLAN', 'IN_PROGRESS', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                            >
+                                                                                Proses
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(p, 'PLAN', 'OBSTACLE', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                            >
+                                                                                Kendala
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             );
                                                         })}

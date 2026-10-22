@@ -1910,7 +1910,12 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                     const aId = parseInt(it.sourceId);
                     const assign = await prisma.personnelAssignment.findUnique({ where: { id: aId } });
                     if (assign) {
-                        let aItems = Array.isArray(assign.items) ? [...assign.items] : [];
+                        let aItems = [];
+                        if (Array.isArray(assign.items)) aItems = [...assign.items];
+                        else if (typeof assign.items === 'string') {
+                            try { aItems = JSON.parse(assign.items || '[]'); } catch (e) { aItems = []; }
+                        }
+
                         if (it.planItemIndex !== undefined && it.planItemIndex !== null && aItems[it.planItemIndex]) {
                             aItems[it.planItemIndex] = {
                                 ...aItems[it.planItemIndex],
@@ -1918,21 +1923,62 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 status: 'COMPLETED',
                                 percentage: 100
                             };
+                        } else {
+                            // User clicked Selesai on the entire assignment card:
+                            // Mark ALL sub-items as completed
+                            aItems = aItems.map(item => ({
+                                ...item,
+                                isDone: true,
+                                status: 'COMPLETED',
+                                percentage: 100
+                            }));
                         }
-                        const allDone = aItems.length > 0 ? aItems.every(i => i.isDone || i.status === 'COMPLETED') : true;
+                        const allDone = aItems.length > 0
+                            ? aItems.every(i => i.isDone || i.status === 'COMPLETED' || i.percentage === 100)
+                            : true;
 
-                        await prisma.personnelAssignment.update({
+                        const isWholeCardDone = (it.planItemIndex === null || it.planItemIndex === undefined);
+                        const newStatus = (isWholeCardDone || allDone) ? 'COMPLETED' : 'IN_PROGRESS';
+                        const newPct = newStatus === 'COMPLETED' ? 100 : Math.max(assign.progressPercentage || 0, 50);
+
+                        const updatedAssign = await prisma.personnelAssignment.update({
                             where: { id: aId },
                             data: {
                                 items: aItems,
-                                status: allDone ? 'COMPLETED' : 'IN_PROGRESS',
-                                actualCompletionDate: allDone ? new Date() : assign.actualCompletionDate,
-                                progressPercentage: allDone ? 100 : Math.max(assign.progressPercentage, 50)
+                                status: newStatus,
+                                actualCompletionDate: newStatus === 'COMPLETED' ? new Date() : assign.actualCompletionDate,
+                                progressPercentage: newPct
                             }
                         });
 
                         // 2-Way Sync: Update linked Plan item
-                        await syncAssignmentToPlan(aId, 100, 'COMPLETED');
+                        await syncAssignmentToPlan(aId, newPct, newStatus);
+
+                        // If linked to a Maintenance ticket, close it too
+                        let mId = null;
+                        const sourceNotes = updatedAssign.notes || assign.notes || '';
+                        try {
+                            const parsed = JSON.parse(sourceNotes);
+                            if (parsed.maintenanceId) mId = parseInt(parsed.maintenanceId);
+                        } catch (e) {}
+                        if (!mId && updatedAssign.title) {
+                            const matchMt = updatedAssign.title.match(/MT\/\d+\/(\d+)/i);
+                            if (matchMt) {
+                                const mTicket = await prisma.maintenance.findFirst({
+                                    where: { ticketNumber: matchMt[0] }
+                                });
+                                if (mTicket) mId = mTicket.id;
+                            }
+                        }
+                        if (mId && newStatus === 'COMPLETED') {
+                            await prisma.maintenance.update({
+                                where: { id: mId },
+                                data: {
+                                    status: 'COMPLETED',
+                                    completionDate: new Date()
+                                }
+                            });
+                        }
                     }
                 } catch (e) {
                     console.error('Failed to auto-complete assignment:', e.message);
@@ -1962,10 +2008,19 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 };
                                 linkedPrjId = pItems[it.planItemIndex].projectId || meta.projectId || null;
                                 linkedPrjItemIdx = pItems[it.planItemIndex].projectItemIndex !== undefined ? pItems[it.planItemIndex].projectItemIndex : null;
+                            } else {
+                                // User clicked Selesai on the whole plan!
+                                pItems = pItems.map(item => ({
+                                    ...item,
+                                    percentage: 100,
+                                    status: 'SELESAI'
+                                }));
+                                linkedPrjId = meta.projectId || null;
                             }
                             const avgPct = pItems.length > 0
                                 ? Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length)
                                 : 100;
+                            const isAllPlanDone = (it.planItemIndex === null || it.planItemIndex === undefined) || avgPct === 100;
 
                             await prisma.personnelReport.update({
                                 where: { id: planRep.id },
@@ -1973,8 +2028,8 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                     metadata: {
                                         ...meta,
                                         items: pItems,
-                                        percentage: avgPct,
-                                        status: avgPct === 100 ? 'SELESAI' : (meta.status || 'PROSES')
+                                        percentage: isAllPlanDone ? 100 : avgPct,
+                                        status: isAllPlanDone ? 'SELESAI' : (meta.status || 'PROSES')
                                     }
                                 }
                             });
@@ -1984,18 +2039,24 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                                 try {
                                     const prj = await prisma.personnelReport.findUnique({ where: { id: parseInt(linkedPrjId) } });
                                     if (prj && prj.metadata) {
-                                        const prjMeta = { ...prj.metadata };
-                                        const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                                        let prjMeta = prj.metadata;
+                                        if (typeof prjMeta === 'string') {
+                                            try { prjMeta = JSON.parse(prjMeta); } catch (e) { prjMeta = {}; }
+                                        }
+                                        let prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
                                         if (linkedPrjItemIdx !== null && prjItems[linkedPrjItemIdx]) {
                                             prjItems[linkedPrjItemIdx].percentage = 100;
                                             prjItems[linkedPrjItemIdx].status = 'SELESAI';
+                                        } else if (isAllPlanDone) {
+                                            prjItems = prjItems.map(i => ({ ...i, percentage: 100, status: 'SELESAI' }));
                                         }
                                         const prjAvg = prjItems.length > 0
                                             ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
                                             : 100;
+                                        const isPrjDone = prjAvg === 100;
                                         prjMeta.items = prjItems;
-                                        prjMeta.percentage = prjAvg;
-                                        prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                                        prjMeta.percentage = isPrjDone ? 100 : prjAvg;
+                                        prjMeta.status = isPrjDone ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
                                         await prisma.personnelReport.update({
                                             where: { id: prj.id },
                                             data: { metadata: prjMeta }
@@ -2016,18 +2077,29 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                     const prjId = parseInt(it.sourceId);
                     const prj = await prisma.personnelReport.findUnique({ where: { id: prjId } });
                     if (prj && prj.metadata) {
-                        const prjMeta = { ...prj.metadata };
-                        const prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
+                        let prjMeta = prj.metadata;
+                        if (typeof prjMeta === 'string') {
+                            try { prjMeta = JSON.parse(prjMeta); } catch (e) { prjMeta = {}; }
+                        }
+                        let prjItems = Array.isArray(prjMeta.items) ? [...prjMeta.items] : [];
                         if (it.planItemIndex !== undefined && it.planItemIndex !== null && prjItems[it.planItemIndex]) {
                             prjItems[it.planItemIndex].percentage = 100;
                             prjItems[it.planItemIndex].status = 'SELESAI';
+                        } else {
+                            // User clicked Selesai on the entire project card!
+                            prjItems = prjItems.map(item => ({
+                                ...item,
+                                percentage: 100,
+                                status: 'SELESAI'
+                            }));
                         }
                         const prjAvg = prjItems.length > 0
                             ? Math.round(prjItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / prjItems.length)
                             : 100;
+                        const isPrjDone = (it.planItemIndex === null || it.planItemIndex === undefined) || prjAvg === 100;
                         prjMeta.items = prjItems;
-                        prjMeta.percentage = prjAvg;
-                        prjMeta.status = prjAvg === 100 ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
+                        prjMeta.percentage = isPrjDone ? 100 : prjAvg;
+                        prjMeta.status = isPrjDone ? 'SELESAI' : (prjAvg > 0 ? 'PROSES' : 'PENDING');
                         await prisma.personnelReport.update({
                             where: { id: prj.id },
                             data: { metadata: prjMeta }
