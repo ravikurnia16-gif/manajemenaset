@@ -29,6 +29,8 @@ const PlanModal = ({
     const [title, setTitle] = useState('');
     const [targetOutput, setTargetOutput] = useState('');
     const [planType, setPlanType] = useState('WEEKLY'); // 'WEEKLY' | 'PROJECT'
+    const [weeklyMode, setWeeklyMode] = useState('NEW'); // 'NEW' (Buat Baru) | 'FROM_PROJECT' (Ambil dari Rencana Umum)
+    const [selectedProjectId, setSelectedProjectId] = useState('');
     const [category, setCategory] = useState('UMUM');
     const [priority, setPriority] = useState('SEDANG');
     const [startDate, setStartDate] = useState(defaultNextWeekStart);
@@ -40,10 +42,8 @@ const PlanModal = ({
     const [saving, setSaving] = useState(false);
     const [loadingAi, setLoadingAi] = useState(false);
 
-    // Butir-butir rencana yang pernah dibuat sebelumnya
+    // Muat data rencana & project staf jika belum ada
     const [loadedStaffPlans, setLoadedStaffPlans] = useState([]);
-    const [candidateTab, setCandidateTab] = useState('RANGE'); // 'RANGE' | 'ALL_PROJECTS'
-    const [isCandidateDrawerOpen, setIsCandidateDrawerOpen] = useState(true);
 
     // Muat data rencana & project staf jika belum ada
     useEffect(() => {
@@ -91,11 +91,21 @@ const PlanModal = ({
                         projectItemIndex: it.projectItemIndex !== undefined ? it.projectItemIndex : null
                     };
                 }));
+                const linkedPrjId = initialPlan.projectId || initialPlan.metadata?.projectId || rawItems.find(i => i.projectId)?.projectId || null;
+                if (!isProj && linkedPrjId) {
+                    setWeeklyMode('FROM_PROJECT');
+                    setSelectedProjectId(String(linkedPrjId));
+                } else {
+                    setWeeklyMode('NEW');
+                    setSelectedProjectId('');
+                }
             } else {
                 setUserId(initialStaff ? initialStaff.id : (currentUser?.id || staffList[0]?.id || ''));
                 setTitle('');
                 setTargetOutput('');
                 setPlanType('WEEKLY');
+                setWeeklyMode('NEW');
+                setSelectedProjectId('');
                 setCategory('UMUM');
                 setPriority('SEDANG');
                 // Rencana pekan depan otomatis diambil tanggal pekan depan
@@ -151,165 +161,132 @@ const PlanModal = ({
         }
     };
 
-    // Ekstrak butir-butir rencana yang pernah dibuat sebelumnya
-    const effectiveStaffData = (staffPlansData && staffPlansData.length > 0) ? staffPlansData : loadedStaffPlans;
-
-    const { candidateItems, matchingRangeItems, otherProjectItems } = useMemo(() => {
-        if (planType !== 'WEEKLY') {
-            return { candidateItems: [], matchingRangeItems: [], otherProjectItems: [] };
-        }
-
+    // Daftar Rencana Umum (Master Project) yang tersedia
+    const availableProjects = useMemo(() => {
         const list = [];
-        const seenKeys = new Set();
+        const seen = new Set();
+        const staffArr = (staffPlansData && staffPlansData.length > 0) ? staffPlansData : loadedStaffPlans;
 
-        const currentStaffRecord = effectiveStaffData.find(s => s.id === parseInt(userId, 10));
-        const staffPlans = currentStaffRecord?.plans || [];
-
-        const allActiveProjects = [];
-        effectiveStaffData.forEach(st => {
-            (st.plans || []).forEach(p => {
-                if ((p.isProject || p.planType === 'PROJECT') && !allActiveProjects.some(ap => ap.id === p.id)) {
-                    allActiveProjects.push(p);
+        staffArr.forEach(st => {
+            (st.projects || st.plans || []).forEach(p => {
+                const isProj = !!p.isProject || p.planType === 'PROJECT' || p.metadata?.isProject || p.metadata?.planType === 'PROJECT';
+                if (isProj && !seen.has(p.id)) {
+                    seen.add(p.id);
+                    list.push(p);
                 }
             });
         });
+        return list;
+    }, [staffPlansData, loadedStaffPlans]);
 
-        const combinedPlans = [
-            ...staffPlans,
-            ...allActiveProjects.filter(ap => !staffPlans.some(sp => sp.id === ap.id))
-        ];
+    const currentSelectedProject = useMemo(() => {
+        if (!selectedProjectId) return null;
+        return availableProjects.find(p => p.id === parseInt(selectedProjectId, 10)) || null;
+    }, [availableProjects, selectedProjectId]);
 
-        combinedPlans.forEach(plan => {
-            if (initialPlan?.id && plan.id === initialPlan.id) return;
-
-            const pItems = Array.isArray(plan.items) ? plan.items : [];
-            const isProject = !!plan.isProject || plan.planType === 'PROJECT';
-            const planTitle = plan.title || (isProject ? 'Project' : 'Rencana');
-
-            pItems.forEach((it, idx) => {
-                const key = `${plan.id}-${idx}-${it.activity || it.text || idx}`;
-                if (seenKeys.has(key)) return;
-                seenKeys.add(key);
-
-                const isDone = it.percentage === 100 || it.status === 'SELESAI';
-                if (isDone) return;
-
-                list.push({
-                    key,
-                    planId: plan.id,
-                    planTitle,
-                    isProject,
-                    categoryTag: plan.categoryTag || 'UMUM',
-                    planStartDate: plan.startDate ? dayjs(plan.startDate).format('YYYY-MM-DD') : null,
-                    planEndDate: plan.endDate ? dayjs(plan.endDate).format('YYYY-MM-DD') : null,
-                    itemIndex: idx,
-                    activity: it.activity || it.text || '',
-                    targetDate: it.targetDate ? dayjs(it.targetDate).format('YYYY-MM-DD') : '',
-                    percentage: it.percentage || 0,
-                    status: it.status || 'PENDING'
-                });
-            });
-        });
-
-        // Saring butir yang sesuai dengan rentang tanggal mulainya [startDate, endDate]
-        const startD = startDate ? dayjs(startDate) : null;
-        const endD = endDate ? dayjs(endDate) : (startD ? startD.add(4, 'day') : null);
-
-        const rangeMatches = list.filter(it => {
-            if (!it.activity || !it.activity.trim()) return false;
-            if (!startD) return false;
-
-            // 1. Target date jatuh dalam rentang [startDate, endDate]
-            if (it.targetDate) {
-                const tDate = dayjs(it.targetDate);
-                if (!tDate.isBefore(startD, 'day') && !tDate.isAfter(endD, 'day')) {
-                    return true;
-                }
-            }
-
-            // 2. Tanggal mulai rencana induknya berada dalam rentang [startDate, endDate]
-            if (it.planStartDate) {
-                const pStart = dayjs(it.planStartDate);
-                if (!pStart.isBefore(startD, 'day') && !pStart.isAfter(endD, 'day')) {
-                    return true;
-                }
-            }
-
-            // 3. Project induk berjalan / overlap dengan rentang [startDate, endDate]
-            if (it.isProject && it.planStartDate && it.planEndDate) {
-                const pStart = dayjs(it.planStartDate);
-                const pEnd = dayjs(it.planEndDate);
-                if (!pStart.isAfter(endD, 'day') && !pEnd.isBefore(startD, 'day')) {
-                    return true;
-                }
-            }
-
-            return false;
-        });
-
-        const others = list.filter(it => it.isProject && !rangeMatches.some(rm => rm.key === it.key));
-
-        return { candidateItems: list, matchingRangeItems: rangeMatches, otherProjectItems: others };
-    }, [effectiveStaffData, userId, startDate, endDate, initialPlan?.id]);
-
-    const isItemAlreadyAdded = (act) => {
-        if (!act) return false;
-        return items.some(it => it.activity && it.activity.trim().toLowerCase() === act.trim().toLowerCase());
+    const isProjectItemAlreadyAdded = (projId, itemIdx) => {
+        return items.some(it => 
+            parseInt(it.projectId, 10) === parseInt(projId, 10) && 
+            parseInt(it.projectItemIndex, 10) === parseInt(itemIdx, 10)
+        );
     };
 
-    const handleImportCandidateItem = (candidate) => {
-        let importedTarget = candidate.targetDate;
+    const handleSelectProject = (projIdStr) => {
+        setSelectedProjectId(projIdStr);
+        if (!projIdStr) return;
+        const pId = parseInt(projIdStr, 10);
+        const proj = availableProjects.find(p => p.id === pId);
+        if (!proj) return;
+
+        // Auto-fill template metadata from Master Project if user hasn't typed custom title yet
+        if (!title || !title.trim() || title === proj.title) {
+            setTitle(proj.title);
+        }
+        if (proj.targetOutput && (!targetOutput || !targetOutput.trim())) {
+            setTargetOutput(proj.targetOutput);
+        }
+        if (proj.categoryTag && category === 'UMUM') {
+            setCategory(proj.categoryTag);
+        }
+        if (proj.priority) {
+            setPriority(proj.priority);
+        }
+    };
+
+    const handleImportSingleProjectItem = (proj, itemIdx) => {
+        if (!proj || !proj.items || !proj.items[itemIdx]) return;
+        const it = proj.items[itemIdx];
+        let importedTarget = it.targetDate;
         if (!importedTarget || (endDate && dayjs(importedTarget).isAfter(dayjs(endDate), 'day'))) {
             importedTarget = endDate || startDate;
         }
-        if (importedTarget && startDate && dayjs(importedTarget).isBefore(dayjs(startDate), 'day')) {
-            importedTarget = startDate;
-        }
 
         const newItem = {
-            activity: candidate.activity,
+            activity: it.activity || it.text || `Langkah #${itemIdx + 1}`,
             targetDate: importedTarget,
-            status: candidate.status || 'PENDING',
-            percentage: candidate.percentage || 0,
-            projectId: candidate.isProject ? candidate.planId : null,
-            projectItemIndex: candidate.isProject ? candidate.itemIndex : null,
-            isFromProject: candidate.isProject
+            status: it.status || 'PENDING',
+            percentage: it.percentage || 0,
+            projectId: proj.id,
+            projectItemIndex: itemIdx,
+            isFromProject: true
         };
 
+        if (!title || !title.trim()) {
+            setTitle(proj.title);
+        }
+        if (proj.targetOutput && (!targetOutput || !targetOutput.trim())) {
+            setTargetOutput(proj.targetOutput);
+        }
+        if (proj.categoryTag && category === 'UMUM') {
+            setCategory(proj.categoryTag);
+        }
+
         setItems(prev => {
-            if (prev.length === 1 && (!prev[0].activity || !prev[0].activity.trim())) {
+            const hasEmptyPlaceholder = prev.length === 1 && (!prev[0].activity || !prev[0].activity.trim());
+            if (hasEmptyPlaceholder) {
                 return [newItem];
             }
             return [...prev, newItem];
         });
     };
 
-    const handleImportAllMatchingItems = () => {
-        const toImport = matchingRangeItems.filter(m => !isItemAlreadyAdded(m.activity));
+    const handleImportAllPendingProjectItems = () => {
+        if (!currentSelectedProject || !Array.isArray(currentSelectedProject.items)) return;
+        const toImport = [];
+        currentSelectedProject.items.forEach((it, idx) => {
+            const isDone = it.percentage === 100 || it.status === 'SELESAI';
+            if (!isDone && !isProjectItemAlreadyAdded(currentSelectedProject.id, idx)) {
+                let importedTarget = it.targetDate;
+                if (!importedTarget || (endDate && dayjs(importedTarget).isAfter(dayjs(endDate), 'day'))) {
+                    importedTarget = endDate || startDate;
+                }
+                toImport.push({
+                    activity: it.activity || it.text || `Langkah #${idx + 1}`,
+                    targetDate: importedTarget,
+                    status: it.status || 'PENDING',
+                    percentage: it.percentage || 0,
+                    projectId: currentSelectedProject.id,
+                    projectItemIndex: idx,
+                    isFromProject: true
+                });
+            }
+        });
+
         if (toImport.length === 0) return;
 
-        const newItems = toImport.map(m => {
-            let importedTarget = m.targetDate;
-            if (!importedTarget || (endDate && dayjs(importedTarget).isAfter(dayjs(endDate), 'day'))) {
-                importedTarget = endDate || startDate;
-            }
-            if (importedTarget && startDate && dayjs(importedTarget).isBefore(dayjs(startDate), 'day')) {
-                importedTarget = startDate;
-            }
-            return {
-                activity: m.activity,
-                targetDate: importedTarget,
-                status: m.status || 'PENDING',
-                percentage: m.percentage || 0,
-                projectId: m.isProject ? m.planId : null,
-                projectItemIndex: m.isProject ? m.itemIndex : null,
-                isFromProject: m.isProject
-            };
-        });
+        if (!title || !title.trim()) {
+            setTitle(currentSelectedProject.title);
+        }
+        if (currentSelectedProject.targetOutput && (!targetOutput || !targetOutput.trim())) {
+            setTargetOutput(currentSelectedProject.targetOutput);
+        }
+        if (currentSelectedProject.categoryTag && category === 'UMUM') {
+            setCategory(currentSelectedProject.categoryTag);
+        }
 
         setItems(prev => {
             const filteredPrev = prev.filter(it => it.activity && it.activity.trim().length > 0);
-            return [...filteredPrev, ...newItems];
+            return [...filteredPrev, ...toImport];
         });
     };
 
@@ -463,6 +440,7 @@ const PlanModal = ({
                 targetOutput: targetOutput.trim(),
                 planType,
                 isProject,
+                projectId: !isProject && weeklyMode === 'FROM_PROJECT' && selectedProjectId ? parseInt(selectedProjectId, 10) : null,
                 category,
                 priority,
                 startDate,
@@ -535,7 +513,7 @@ const PlanModal = ({
                                 }`}
                             >
                                 <span className="text-xs font-black text-violet-700 block">📋 Rencana Pekanan</span>
-                                <span className="text-[10px] text-slate-500">Target mingguan (dapat mengambil butir rencana)</span>
+                                <span className="text-[10px] text-slate-500">Target operasional mingguan staf</span>
                             </button>
                             <button
                                 type="button"
@@ -551,6 +529,70 @@ const PlanModal = ({
                             </button>
                         </div>
                     </div>
+
+                    {/* Jika Rencana Pekanan: Pilihan Ada 2: Rencana Baru (Buat Baru) atau Ambil dari Rencana Umum */}
+                    {planType === 'WEEKLY' && (
+                        <div className="space-y-2 p-3.5 bg-gradient-to-r from-violet-50/60 via-purple-50/40 to-slate-50 border border-violet-200/80 rounded-2xl">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-black text-violet-950 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>⚙️</span> Opsi Sumber Rencana Pekanan
+                                </label>
+                                <span className="text-[10px] font-bold text-violet-600 bg-white px-2 py-0.5 rounded-full border border-violet-200">
+                                    Pilih Salah Satu
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setWeeklyMode('NEW')}
+                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                        weeklyMode === 'NEW'
+                                            ? 'bg-white border-violet-500 text-violet-950 ring-2 ring-violet-500/25 shadow-xs font-bold'
+                                            : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black flex items-center gap-1.5 text-violet-900">
+                                            <span>✨</span> Rencana Baru (Buat Baru)
+                                        </span>
+                                        {weeklyMode === 'NEW' && (
+                                            <span className="w-4 h-4 rounded-full bg-violet-600 text-white flex items-center justify-center text-[9px] font-black">
+                                                ✓
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 mt-1 font-normal">
+                                        Susun rencana mandiri dari nol untuk target pekan depan
+                                    </p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setWeeklyMode('FROM_PROJECT')}
+                                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                        weeklyMode === 'FROM_PROJECT'
+                                            ? 'bg-white border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/25 shadow-xs font-bold'
+                                            : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black flex items-center gap-1.5 text-emerald-900">
+                                            <span>📁</span> Ambil dari Rencana Umum
+                                        </span>
+                                        {weeklyMode === 'FROM_PROJECT' && (
+                                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-black">
+                                                ✓
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 mt-1 font-normal">
+                                        Tarik butir langkah kerja dari Master Project yang aktif
+                                    </p>
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Staf Penanggung Jawab */}
                     <div className="space-y-1.5">
@@ -746,158 +788,137 @@ const PlanModal = ({
                         </div>
                     </div>
 
-                    {/* PILIHAN BUTIR RENCANA: HANYA TERSEDIA UNTUK TIPE PERENCANAAN PEKANAN */}
-                    {planType === 'WEEKLY' && (
-                        <div className="p-3.5 bg-gradient-to-br from-violet-50/70 via-indigo-50/40 to-slate-50 border border-violet-200/80 rounded-2xl space-y-2.5">
-                            <div className="flex items-center justify-between flex-wrap gap-2">
+                    {/* JIKA RENCANA PEKANAN DARI RENCANA UMUM: PILIH PROJECT & AMBIL BUTIR */}
+                    {planType === 'WEEKLY' && weeklyMode === 'FROM_PROJECT' && (
+                        <div className="p-3.5 bg-gradient-to-br from-emerald-50/80 via-teal-50/40 to-slate-50 border border-emerald-200 rounded-2xl space-y-3">
+                            <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center font-black shadow-xs">
-                                        <Layers size={14} />
+                                    <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                                        <FolderGit2 size={15} />
                                     </div>
                                     <div>
-                                        <div className="flex items-center gap-1.5">
-                                            <h5 className="text-xs font-black text-violet-950 uppercase tracking-wider">
-                                                Pilihan Butir Rencana yang Tersedia
-                                            </h5>
-                                            <span className="px-1.5 py-0.2 rounded-full bg-violet-600 text-white text-[9px] font-black">
-                                                {matchingRangeItems.length} Sesuai Periode
-                                            </span>
-                                        </div>
-                                        <p className="text-[10px] text-violet-700 font-medium">
-                                            Tarik butir dari Master Project & Rencana yang terjadwal mulai pada rentang {startDate ? dayjs(startDate).format('DD MMM') : '-'} s.d. {endDate ? dayjs(endDate).format('DD MMM YYYY') : '-'}
+                                        <h5 className="text-xs font-black text-emerald-950 uppercase tracking-wider">
+                                            Pilih Rencana Umum (Master Project)
+                                        </h5>
+                                        <p className="text-[10px] text-emerald-700 font-medium">
+                                            Pilih project aktif yang butir langkah kerjanya akan dieksekusi pada pekan ini
                                         </p>
                                     </div>
                                 </div>
-
-                                <div className="flex items-center gap-1.5">
-                                    {matchingRangeItems.length > 0 && matchingRangeItems.some(m => !isItemAlreadyAdded(m.activity)) && (
-                                        <button
-                                            type="button"
-                                            onClick={handleImportAllMatchingItems}
-                                            className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
-                                            title="Tarik semua butir periode ini ke dalam rencana"
-                                        >
-                                            <Plus size={11} /> Ambil Semua ({matchingRangeItems.filter(m => !isItemAlreadyAdded(m.activity)).length})
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsCandidateDrawerOpen(!isCandidateDrawerOpen)}
-                                        className="p-1 text-violet-700 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer"
-                                        title={isCandidateDrawerOpen ? 'Ciutkan' : 'Buka pilihan'}
-                                    >
-                                        {isCandidateDrawerOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                    </button>
-                                </div>
+                                {availableProjects.length > 0 && (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black shrink-0">
+                                        {availableProjects.length} Project Aktif
+                                    </span>
+                                )}
                             </div>
 
-                            {isCandidateDrawerOpen && (
-                                <div className="space-y-2 pt-1 border-t border-violet-100">
-                                    {/* Filter Segment: Sesuai Rentang Tanggal vs Semua Butir Project */}
-                                    <div className="flex items-center gap-1 text-[10px] font-bold">
-                                        <button
-                                            type="button"
-                                            onClick={() => setCandidateTab('RANGE')}
-                                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                                candidateTab === 'RANGE' 
-                                                    ? 'bg-violet-600 text-white shadow-2xs font-black' 
-                                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            🎯 Sesuai Rentang Tanggal ({matchingRangeItems.length})
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setCandidateTab('ALL_PROJECTS')}
-                                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                                                candidateTab === 'ALL_PROJECTS' 
-                                                    ? 'bg-violet-600 text-white shadow-2xs font-black' 
-                                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            📁 Semua Butir Project Aktif ({otherProjectItems.length})
-                                        </button>
-                                    </div>
-
-                                    {/* List Candidate Items */}
-                                    {(() => {
-                                        const displayList = candidateTab === 'RANGE' ? matchingRangeItems : otherProjectItems;
-
-                                        if (displayList.length === 0) {
+                            {/* Dropdown Select Project */}
+                            {availableProjects.length === 0 ? (
+                                <div className="p-3 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 italic">
+                                    Belum ada Rencana Umum (Master Project) aktif yang tersimpan. Silakan pilih "Rencana Baru (Buat Baru)" atau buat Master Project terlebih dahulu.
+                                </div>
+                            ) : (
+                                <div className="space-y-2.5">
+                                    <select
+                                        value={selectedProjectId || ''}
+                                        onChange={(e) => handleSelectProject(e.target.value)}
+                                        className="w-full px-3 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400/40 cursor-pointer shadow-2xs"
+                                    >
+                                        <option value="">-- Pilih Rencana Umum / Master Project --</option>
+                                        {availableProjects.map(proj => {
+                                            const itemsCount = Array.isArray(proj.items) ? proj.items.length : 0;
+                                            const doneCount = Array.isArray(proj.items) ? proj.items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length : 0;
                                             return (
-                                                <div className="p-3 bg-white/80 rounded-xl border border-dashed border-violet-200 text-center space-y-1">
-                                                    <p className="text-[11px] text-slate-500 italic">
-                                                        {candidateTab === 'RANGE'
-                                                            ? `Belum ada butir rencana dengan tanggal target pada rentang ${startDate ? dayjs(startDate).format('DD MMM') : ''} s.d. ${endDate ? dayjs(endDate).format('DD MMM YYYY') : ''}.`
-                                                            : 'Tidak ada butir project aktif lainnya.'}
-                                                    </p>
-                                                    {candidateTab === 'RANGE' && otherProjectItems.length > 0 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setCandidateTab('ALL_PROJECTS')}
-                                                            className="text-[10px] text-violet-700 hover:underline font-bold"
-                                                        >
-                                                            Lihat {otherProjectItems.length} butir dari Master Project aktif →
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                <option key={proj.id} value={proj.id}>
+                                                    📁 {proj.title} ({doneCount}/{itemsCount} butir selesai • Progres: {proj.avgPct || 0}%)
+                                                </option>
                                             );
-                                        }
+                                        })}
+                                    </select>
 
-                                        return (
-                                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
-                                                {displayList.map((cand) => {
-                                                    const alreadyAdded = isItemAlreadyAdded(cand.activity);
+                                    {/* Display Selected Project Details & Its Steps */}
+                                    {currentSelectedProject && (
+                                        <div className="p-3 bg-white rounded-xl border border-emerald-200/70 space-y-2.5 shadow-2xs">
+                                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                                <div>
+                                                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">
+                                                        Rincian Butir Rencana Umum ({currentSelectedProject.items?.length || 0} Butir):
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-500 font-medium">
+                                                        Pilih butir yang ingin ditarik ke dalam daftar pekerjaan pekan ini
+                                                    </span>
+                                                </div>
+                                                {currentSelectedProject.items && currentSelectedProject.items.some((it, idx) => !isProjectItemAlreadyAdded(currentSelectedProject.id, idx) && it.percentage !== 100) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleImportAllPendingProjectItems}
+                                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                                                    >
+                                                        <Plus size={11} /> Ambil Semua Butir Tersisa
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Step items of this project */}
+                                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                                {(currentSelectedProject.items || []).map((it, idx) => {
+                                                    const isDone = it.percentage === 100 || it.status === 'SELESAI';
+                                                    const alreadyAdded = isProjectItemAlreadyAdded(currentSelectedProject.id, idx);
+                                                    const actName = it.activity || it.text || `Langkah #${idx + 1}`;
+
                                                     return (
                                                         <div
-                                                            key={cand.key}
-                                                            className={`p-2 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                                                            key={idx}
+                                                            className={`p-2 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
                                                                 alreadyAdded
-                                                                    ? 'bg-emerald-50/50 border-emerald-200 text-slate-500'
-                                                                    : 'bg-white border-violet-100 hover:border-violet-300 shadow-2xs'
+                                                                    ? 'bg-emerald-50/70 border-emerald-300 text-slate-600'
+                                                                    : isDone
+                                                                        ? 'bg-slate-50 border-slate-200 text-slate-400'
+                                                                        : 'bg-white border-slate-200 hover:border-emerald-300 shadow-2xs'
                                                             }`}
                                                         >
                                                             <div className="min-w-0 flex-1 space-y-0.5">
                                                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
-                                                                        cand.isProject ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                                                                    }`}>
-                                                                        {cand.isProject ? '📁 Project' : '📋 Rencana'}: {cand.planTitle}
+                                                                    <span className="text-[9px] font-black text-slate-400">#{idx + 1}</span>
+                                                                    <span className={`font-semibold truncate ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                                                        {actName}
                                                                     </span>
-                                                                    {cand.targetDate ? (
-                                                                        <span className="text-[9px] text-violet-700 font-bold bg-violet-100/70 px-1.5 py-0.2 rounded">
-                                                                            Target: {dayjs(cand.targetDate).format('DD MMM YYYY')}
+                                                                    {isDone && (
+                                                                        <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 text-[9px] font-black">
+                                                                            ✓ Sudah Tuntas 100%
                                                                         </span>
-                                                                    ) : cand.planStartDate && (
-                                                                        <span className="text-[9px] text-slate-500 font-bold bg-slate-100 px-1.5 py-0.2 rounded">
-                                                                            Mulai: {dayjs(cand.planStartDate).format('DD MMM YYYY')}
+                                                                    )}
+                                                                    {it.targetDate && (
+                                                                        <span className="text-[9px] text-slate-400 font-medium">
+                                                                            Target Project: {dayjs(it.targetDate).format('DD MMM YYYY')}
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <p className="text-xs font-bold text-slate-800 truncate">
-                                                                    {cand.activity}
-                                                                </p>
                                                             </div>
 
-                                                            {alreadyAdded ? (
-                                                                <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black flex items-center gap-1 shrink-0">
-                                                                    <Check size={11} /> Ditambahkan
-                                                                </span>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleImportCandidateItem(cand)}
-                                                                    className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs active:scale-95"
-                                                                >
-                                                                    <Plus size={11} /> Ambil Butir
-                                                                </button>
-                                                            )}
+                                                            <div className="shrink-0">
+                                                                {alreadyAdded ? (
+                                                                    <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black flex items-center gap-1">
+                                                                        <Check size={11} /> Sudah Ditarik
+                                                                    </span>
+                                                                ) : isDone ? (
+                                                                    <span className="text-[10px] text-slate-400 italic font-medium">Tuntas</span>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleImportSingleProjectItem(currentSelectedProject, idx)}
+                                                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                                                    >
+                                                                        <Plus size={11} /> Ambil ke Pekan Ini
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
-                                        );
-                                    })()}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1014,6 +1035,11 @@ const PlanModal = ({
                                                 {it.assigned && (
                                                     <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
                                                         ✓ Ditugaskan Resmi
+                                                    </span>
+                                                )}
+                                                {(it.projectId || it.isFromProject) && (
+                                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                                                        🔗 Dari Rencana Umum{it.projectItemIndex !== null && it.projectItemIndex !== undefined ? ` #${it.projectItemIndex + 1}` : ''}
                                                     </span>
                                                 )}
                                             </div>
