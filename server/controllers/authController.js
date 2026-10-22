@@ -334,3 +334,204 @@ exports.changePassword = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// DEV ONLY: Mendapatkan pilihan role & akun untuk kemudahan testing di localhost
+exports.getDevRoles = async (req, res) => {
+    try {
+        let users = [];
+        try {
+            users = await prisma.user.findMany({
+                where: {
+                    OR: [
+                        { role: 'KABID_SARPRAS' },
+                        { role: 'SUPER_ADMIN' },
+                        { role: 'ADMIN_ASET' },
+                        { role: 'ADMIN_UNIT' },
+                        { position: { contains: 'Sarana' } },
+                        { position: { contains: 'Teknisi' } },
+                        { position: { contains: 'Gudang' } }
+                    ]
+                },
+                select: {
+                    id: true,
+                    username: true,
+                    name: true,
+                    role: true,
+                    position: true,
+                    nip: true,
+                    unitId: true,
+                    unit: { select: { id: true, name: true } }
+                },
+                orderBy: { id: 'asc' },
+                take: 30
+            });
+        } catch (dbErr) {
+            console.warn('[getDevRoles] DB lookup failed, will return default presets:', dbErr.message);
+        }
+
+        const presets = [
+            {
+                key: 'KABID',
+                label: 'Kepala Bidang Sarana',
+                role: 'KABID_SARPRAS',
+                position: 'Kepala Bidang Sarana',
+                defaultName: 'Ravi Kurnia (Kabid Sarana)',
+                icon: '👑',
+                color: 'violet',
+                description: 'Approval, Penugasan, Rencana Kerja, Review PPP'
+            },
+            {
+                key: 'TEKNISI',
+                label: 'Staff Teknisi Lapangan',
+                role: 'USER',
+                position: 'Staff Teknisi',
+                defaultName: 'Staff Teknisi (Listrik/AC)',
+                icon: '🛠️',
+                color: 'amber',
+                description: 'Laporan Harian (PPP), Service AC & Listrik, Pengerjaan SPK'
+            },
+            {
+                key: 'ADMIN_ASET',
+                label: 'Staff Aset / Admin Aset',
+                role: 'ADMIN_ASET',
+                position: 'Staff Manajemen Aset',
+                defaultName: 'Admin Sarana & Aset',
+                icon: '📦',
+                color: 'blue',
+                description: 'Inventaris Aset, Mutasi, Penghapusan & Logistik'
+            },
+            {
+                key: 'SUPER_ADMIN',
+                label: 'Super Admin (IT)',
+                role: 'SUPER_ADMIN',
+                position: 'Kepala Bidang IT',
+                defaultName: 'Super Administrator',
+                icon: '⚡',
+                color: 'rose',
+                description: 'Akses Penuh Semua Modul, User & Pengaturan Sistem'
+            },
+            {
+                key: 'ADMIN_UNIT',
+                label: 'Admin Unit (Sekolah/Unit)',
+                role: 'ADMIN_UNIT',
+                position: 'Tata Usaha Unit',
+                defaultName: 'Admin Unit Pemohon',
+                icon: '🏫',
+                color: 'emerald',
+                description: 'Pengadaan Unit, Pinjam Aset, Permohonan Service'
+            },
+            {
+                key: 'GUDANG',
+                label: 'Staff Gudang & Logistik',
+                role: 'USER',
+                position: 'Staff Gudang dan Logistik',
+                defaultName: 'Staff Gudang & Seragam',
+                icon: '🏪',
+                color: 'cyan',
+                description: 'Stok Barang, Seragam, Penerimaan Barang'
+            }
+        ];
+
+        // Enrich presets with matched users from DB
+        const enrichedPresets = presets.map(p => {
+            const matchedUser = users.find(u => {
+                if (p.key === 'KABID') {
+                    return u.role === 'KABID_SARPRAS' || (u.position || '').toLowerCase().includes('kepala bidang sarana');
+                }
+                if (p.key === 'TEKNISI') {
+                    return (u.position || '').toLowerCase().includes('teknisi');
+                }
+                if (p.key === 'ADMIN_ASET') {
+                    return u.role === 'ADMIN_ASET' || (u.position || '').toLowerCase().includes('manajemen aset');
+                }
+                if (p.key === 'SUPER_ADMIN') {
+                    return u.role === 'SUPER_ADMIN';
+                }
+                if (p.key === 'ADMIN_UNIT') {
+                    return u.role === 'ADMIN_UNIT';
+                }
+                if (p.key === 'GUDANG') {
+                    return (u.position || '').toLowerCase().includes('gudang');
+                }
+                return false;
+            });
+
+            return {
+                ...p,
+                matchedUser: matchedUser || null
+            };
+        });
+
+        res.json({
+            success: true,
+            presets: enrichedPresets,
+            allUsers: users
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// DEV ONLY: Login instan untuk pengujian di localhost tanpa memerlukan password
+exports.devLogin = async (req, res) => {
+    try {
+        const { userId, role, position, name, username } = req.body;
+        let user = null;
+
+        if (userId) {
+            try {
+                user = await prisma.user.findUnique({
+                    where: { id: parseInt(userId, 10) },
+                    include: { unit: true }
+                });
+            } catch (e) {
+                console.warn('[devLogin] User lookup by ID failed:', e.message);
+            }
+        }
+
+        if (!user && (role || position)) {
+            try {
+                user = await prisma.user.findFirst({
+                    where: {
+                        OR: [
+                            ...(role ? [{ role: role }] : []),
+                            ...(position ? [{ position: { contains: position } }] : [])
+                        ]
+                    },
+                    include: { unit: true }
+                });
+            } catch (e) {
+                console.warn('[devLogin] User lookup by role/pos failed:', e.message);
+            }
+        }
+
+        // Fallback dummy user if not found in db or db offline
+        if (!user) {
+            user = {
+                id: userId ? parseInt(userId, 10) : 999,
+                username: username || (name || role || 'dev_user').toLowerCase().replace(/[^a-z0-9]/g, '_'),
+                name: name || `Dev ${role || 'User'}`,
+                role: role || 'SUPER_ADMIN',
+                position: position || 'Developer Test',
+                unitId: 1,
+                unit: { id: 1, name: 'Unit Pengembangan Dev' }
+            };
+        }
+
+        const token = jwt.sign(
+            { id: user.id, role: user.role, unitId: user.unitId, position: user.position, name: user.name },
+            process.env.JWT_SECRET || 'secret_fallback',
+            { expiresIn: '365d' }
+        );
+
+        return res.json({
+            success: true,
+            token,
+            user: { ...user, password: '' }
+        });
+    } catch (error) {
+        console.error('Dev login error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+

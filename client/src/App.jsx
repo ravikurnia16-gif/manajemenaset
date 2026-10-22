@@ -72,6 +72,7 @@ import VehicleInspectionForm from './pages/Vehicle/VehicleInspectionForm';
 import VehicleInspectionList from './pages/Vehicle/VehicleInspectionList';
 import VehicleReminderDashboard from './pages/Vehicle/VehicleReminderDashboard';
 import LoginPage from './pages/LoginPage';
+import DevRoleSwitcher from './components/DevRoleSwitcher';
 import PublicAssetView from './pages/PublicAssetView';
 import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
@@ -441,6 +442,7 @@ function App() {
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
       </Routes>
+      <DevRoleSwitcher />
     </BrowserRouter>
   );
 }
