@@ -335,8 +335,25 @@ exports.changePassword = async (req, res) => {
     }
 };
 
+// Helper deteksi localhost / dev request
+const isLocalhostRequest = (req) => {
+    const host = (req.hostname || req.headers.host || '').toLowerCase();
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    return (
+        host.includes('localhost') ||
+        host.includes('127.0.0.1') ||
+        ip === '127.0.0.1' ||
+        ip === '::1' ||
+        ip.includes('127.0.0.1') ||
+        process.env.NODE_ENV !== 'production'
+    );
+};
+
 // DEV ONLY: Mendapatkan pilihan role & akun untuk kemudahan testing di localhost
 exports.getDevRoles = async (req, res) => {
+    if (!isLocalhostRequest(req)) {
+        return res.status(403).json({ error: 'Akses ditolak: Fitur ini hanya diizinkan di localhost / development.' });
+    }
     try {
         let users = [];
         try {
@@ -474,6 +491,9 @@ exports.getDevRoles = async (req, res) => {
 
 // DEV ONLY: Login instan untuk pengujian di localhost tanpa memerlukan password
 exports.devLogin = async (req, res) => {
+    if (!isLocalhostRequest(req)) {
+        return res.status(403).json({ error: 'Akses ditolak: Fitur ini hanya diizinkan di localhost / development.' });
+    }
     try {
         const { userId, role, position, name, username } = req.body;
         let user = null;
