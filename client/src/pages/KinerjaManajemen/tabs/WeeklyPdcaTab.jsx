@@ -243,6 +243,12 @@ const WeeklyPdcaTab = ({
                                                 </span>
                                             </div>
                                             <h5 className="text-xs font-bold text-slate-800 truncate">{title}</h5>
+                                            {item.targetOutput && (
+                                                <p className="text-[10px] text-violet-700 font-medium truncate flex items-center gap-1">
+                                                    <span className="font-bold shrink-0">🎯 Target:</span>
+                                                    <span className="text-slate-600 truncate">{item.targetOutput}</span>
+                                                </p>
+                                            )}
                                             <p className="text-[10px] text-slate-500 font-medium truncate">{subtitle}</p>
                                         </div>
                                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase shrink-0 ${

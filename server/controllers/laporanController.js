@@ -2595,11 +2595,13 @@ TUGAS ANDA:
 3. Untuk setiap butir langkah dalam array "steps":
    - "activity": Uraian tindakan kerja teknis yang jelas dan profesional (maksimal 15 kata per langkah).
    - "targetDate": Tanggal estimasi langkah dalam format YYYY-MM-DD. Tanggal langkah HARUS dimulai dari ${startStr} dan MAKSIMAL ${endStr} (TIDAK BOLEH melebihi ${endStr}). Urutkan tanggal dari awal sampai deadline.
-4. "scopeNote": 1-2 kalimat ringkasan ruang lingkup pengerjaan atau saran keselamatan kerja (K3).
+4. "targetOutput": 1 kalimat wujud hasil akhir/output konkret yang terukur setelah seluruh rencana ini selesai (contoh: "1 Dokumen SOP disahkan", "Unit pendingin normal 20°C", "Instalasi jalur kabel panel utama tuntas & aman").
+5. "scopeNote": 1-2 kalimat ringkasan ruang lingkup pengerjaan atau saran keselamatan kerja (K3).
 
 KEMBALIKAN HANYA FORMAT JSON MURNI TANPA MARKDOWN (tanpa blok backtick json):
 {
   "priority": "TINGGI",
+  "targetOutput": "Wujud hasil akhir terukur...",
   "steps": [
     { "activity": "Langkah pertama...", "targetDate": "${startStr}" }
   ],
@@ -2640,6 +2642,7 @@ KEMBALIKAN HANYA FORMAT JSON MURNI TANPA MARKDOWN (tanpa blok backtick json):
 
             parsedData = {
                 priority: priority || 'SEDANG',
+                targetOutput: `Pekerjaan ${title} tuntas 100%, teruji aman, dan siap digunakan.`,
                 steps: [
                     { activity: `Pemeriksaan awal & identifikasi kebutuhan: ${title}`, targetDate: startD.format('YYYY-MM-DD') },
                     { activity: `Persiapan material, alat pelindung & suku cadang`, targetDate: midDate },

@@ -27,6 +27,7 @@ const PlanModal = ({
 
     const [userId, setUserId] = useState('');
     const [title, setTitle] = useState('');
+    const [targetOutput, setTargetOutput] = useState('');
     const [planType, setPlanType] = useState('WEEKLY'); // 'WEEKLY' | 'PROJECT'
     const [category, setCategory] = useState('UMUM');
     const [priority, setPriority] = useState('SEDANG');
@@ -62,6 +63,7 @@ const PlanModal = ({
             if (initialPlan) {
                 setUserId(initialPlan.userId || (initialStaff ? initialStaff.id : ''));
                 setTitle(initialPlan.title || '');
+                setTargetOutput(initialPlan.targetOutput || initialPlan.metadata?.targetOutput || initialPlan.metadata?.targetPencapaian || '');
                 const isProj = !!initialPlan.isProject || initialPlan.planType === 'PROJECT' || initialPlan.metadata?.isProject || initialPlan.metadata?.planType === 'PROJECT';
                 setPlanType(isProj ? 'PROJECT' : 'WEEKLY');
                 setCategory(initialPlan.categoryTag || initialPlan.category || 'UMUM');
@@ -92,6 +94,7 @@ const PlanModal = ({
             } else {
                 setUserId(initialStaff ? initialStaff.id : (currentUser?.id || staffList[0]?.id || ''));
                 setTitle('');
+                setTargetOutput('');
                 setPlanType('WEEKLY');
                 setCategory('UMUM');
                 setPriority('SEDANG');
@@ -410,6 +413,10 @@ const PlanModal = ({
                     setPriority(aiData.priority);
                 }
 
+                if ((aiData.targetOutput || aiData.expectedOutput) && (!targetOutput || !targetOutput.trim())) {
+                    setTargetOutput(aiData.targetOutput || aiData.expectedOutput);
+                }
+
                 if (aiData.scopeNote && (!notes || !notes.trim())) {
                     setNotes(aiData.scopeNote);
                 }
@@ -449,6 +456,7 @@ const PlanModal = ({
             const payload = {
                 userId,
                 title: title.trim(),
+                targetOutput: targetOutput.trim(),
                 planType,
                 isProject,
                 category,
@@ -599,6 +607,28 @@ const PlanModal = ({
                             required
                             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 outline-none focus:border-violet-500"
                         />
+                    </div>
+
+                    {/* Target Pencapaian (Output / Definisi Tuntas) */}
+                    <div className="space-y-1.5 p-3.5 bg-violet-50/50 border border-violet-100 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-violet-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <Target size={14} className="text-violet-600" /> Target Pencapaian (Output / Wujud Hasil Akhir)
+                            </label>
+                            <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
+                                Tolok Ukur Keberhasilan
+                            </span>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Misal: 1 Dokumen SOP disahkan, 5 Ruangan AC dingin normal, BA serah terima ditandatangani..."
+                            value={targetOutput}
+                            onChange={(e) => setTargetOutput(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-white border border-violet-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 transition-all"
+                        />
+                        <p className="text-[10px] text-slate-500 font-medium">
+                            💡 Cantumkan output fisik/dokumen yang terukur agar pimpinan dan staf memiliki kesepakatan jelas kapan rencana ini dianggap tuntas 100%.
+                        </p>
                     </div>
 
                     {/* Grid Kategori, Prioritas, & Tanggal */}

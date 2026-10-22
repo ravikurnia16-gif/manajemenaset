@@ -288,6 +288,13 @@ const StaffPlansTab = ({
                                                                                 </span>
                                                                             </div>
                                                                             <h6 className="text-xs font-black text-slate-800 leading-snug">{p.title}</h6>
+                                                                            {p.targetOutput && (
+                                                                                <div className="flex items-center gap-1.5 text-[11px] text-violet-900 bg-violet-50/80 border border-violet-100 rounded-lg px-2 py-0.5 mt-1 max-w-full">
+                                                                                    <Target size={11} className="text-violet-600 shrink-0" />
+                                                                                    <span className="font-bold text-violet-700 shrink-0">Target:</span>
+                                                                                    <span className="font-medium text-slate-700 truncate">{p.targetOutput}</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
 
                                                                         {/* Edit / Delete Actions */}

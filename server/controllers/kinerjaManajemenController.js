@@ -919,6 +919,7 @@ exports.getWeeklyPdca = async (req, res) => {
                 plannedWorkPlans.push({
                     id: rep.id,
                     title: m.title || rep.content,
+                    targetOutput: m.targetOutput || m.targetPencapaian || '',
                     planType: m.planType || 'WEEKLY',
                     category: m.categoryTag || rep.category || 'UMUM',
                     priority: m.priority || 'SEDANG',
@@ -936,6 +937,7 @@ exports.getWeeklyPdca = async (req, res) => {
                         plannedWorkPlanItems.push({
                             planId: rep.id,
                             planTitle: m.title || rep.content,
+                            targetOutput: m.targetOutput || m.targetPencapaian || '',
                             itemIndex: idx,
                             activity: it.activity || it.text || 'Aktivitas Kerja',
                             targetDate: it.targetDate || m.endDate || '',
@@ -1456,6 +1458,7 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
                     id: p.id,
                     userId: p.userId,
                     title: meta.title || 'Rencana Kerja',
+                    targetOutput: meta.targetOutput || meta.targetPencapaian || '',
                     categoryTag: meta.categoryTag || p.category || 'UMUM',
                     startDate: meta.startDate || p.date,
                     endDate: meta.endDate || null,
@@ -1644,7 +1647,7 @@ exports.createAssignmentFromPlan = async (req, res) => {
 exports.saveStaffPlan = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, title, category, priority, startDate, endDate, items = [], notes = '', planType, isProject, projectId } = req.body;
+        const { userId, title, targetOutput, category, priority, startDate, endDate, items = [], notes = '', planType, isProject, projectId } = req.body;
         const targetUserId = userId ? parseInt(userId, 10) : parseInt(req.user.id, 10);
 
         if (!title || !targetUserId) {
@@ -1701,6 +1704,7 @@ exports.saveStaffPlan = async (req, res) => {
                 planType: resolvedPlanType,
                 projectId: projectId || null,
                 title: title.trim(),
+                targetOutput: (targetOutput || '').trim(),
                 position: user?.position || 'Staff',
                 categoryTag: resolvedCat,
                 priority: priority || 'SEDANG',

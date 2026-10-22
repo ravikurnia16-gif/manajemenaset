@@ -109,7 +109,7 @@ const DailyReportPppModal = ({
                     ...cleaned,
                     {
                         title: titleText,
-                        output: 'Tuntas dilaksanakan sesuai target jadwal.',
+                        output: item.targetOutput || 'Tuntas dilaksanakan sesuai target jadwal.',
                         categoryTag: 'UMUM',
                         isPlanned: true,
                         sourceType: isProject ? 'PROJECT' : type,
@@ -571,6 +571,12 @@ const DailyReportPppModal = ({
                                                             )}
                                                         </div>
                                                         <h5 className="text-xs font-bold text-slate-800">{p.title}</h5>
+                                                        {p.targetOutput && (
+                                                            <p className="text-[10px] text-violet-700 font-bold flex items-center gap-1">
+                                                                <span className="shrink-0">🎯 Target:</span>
+                                                                <span className="text-slate-600 font-medium truncate">{p.targetOutput}</span>
+                                                            </p>
+                                                        )}
                                                     </div>
 
                                                 <div className="flex items-center gap-1 shrink-0 flex-wrap">
