@@ -8,6 +8,7 @@ const { uploadFile } = require('../services/minioService');
 const aiService = require('../services/aiService');
 const { createNotification } = require('./notificationController');
 const { isHolidayOrWeekend, getNationalHoliday } = require('../utils/holidayHelper');
+const localData = require('../services/localDataStorage');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -342,9 +343,13 @@ exports.getReports = async (req, res) => {
  * Save or update daily report for the logged in Admin Aset.
  */
 exports.updateMyReport = async (req, res) => {
+    const userId = parseInt(req.user.id, 10);
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const report = localData.saveDailyReport(req.body, userId);
+        return res.json({ success: true, message: 'Laporan harian PPP berhasil disimpan (tersimpan lokal).', report, isLocalOffline: true });
+    }
     try {
-        const { category, targetDate, manualPoints, tomorrowPlans } = req.body;
-        const userId = parseInt(req.user.id, 10);
+        const { category, targetDate, manualPoints, tomorrowPlans, completedItems, inProgressItems, obstacleItems } = req.body;
         
         // Selalu gunakan zona waktu Waktu Indonesia Barat (WIB / Asia/Jakarta)
         let reportDate = dayjs().tz('Asia/Jakarta');
@@ -373,40 +378,112 @@ exports.updateMyReport = async (req, res) => {
         // Pilih laporan yang sudah punya manualPoints, atau rekaman pertama
         let report = existingReports.find(r => r.metadata && r.metadata.manualPoints) || existingReports[0] || null;
 
-        const incomingMorning = Array.isArray(manualPoints?.morning) ? manualPoints.morning : [];
-        const incomingAfternoon = Array.isArray(manualPoints?.afternoon) ? manualPoints.afternoon : [];
-
         // Ambil data lama jika ada untuk smart merge
         const existingMetadata = typeof report?.metadata === 'object' && report?.metadata !== null ? report.metadata : {};
         const oldPoints = existingMetadata.manualPoints || {};
         const oldMorning = Array.isArray(oldPoints.morning || oldPoints.morningPoints) ? (oldPoints.morning || oldPoints.morningPoints) : [];
         const oldAfternoon = Array.isArray(oldPoints.afternoon || oldPoints.afternoonPoints) ? (oldPoints.afternoon || oldPoints.afternoonPoints) : [];
 
-        // Format points
-        const mapPoint = (p) => ({
-            text: (p.text || '').trim(),
-            categoryTag: p.categoryTag || category || 'UMUM',
-            status: p.status || 'COMPLETED',
-            progressPercentage: p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : (p.status === 'COMPLETED' ? 100 : 50),
-            sourceType: p.sourceType || null,
-            sourceId: p.sourceId || null,
-            planItemIndex: p.planItemIndex !== undefined && p.planItemIndex !== null ? parseInt(p.planItemIndex) : null,
-            obstacleNote: (p.obstacleNote || '').trim(),
-            isRoutine: !!p.isRoutine,
-            photos: Array.isArray(p.photos) ? p.photos : [],
-            review: p.review || null,
-            updatedAt: new Date().toISOString()
-        });
+        // Deteksi apakah data dikirim dalam Format PPP (Completed, In-Progress, Obstacles)
+        const hasPppPayload = Array.isArray(completedItems) || Array.isArray(inProgressItems) || Array.isArray(obstacleItems);
 
-        // Smart merge: jika incoming kosong tapi data lama ada, pertahankan data lama
-        let finalMorning = incomingMorning.map(mapPoint);
-        if (finalMorning.length === 0 && oldMorning.length > 0 && incomingAfternoon.length > 0) {
-            finalMorning = oldMorning;
-        }
+        let finalMorning = [];
+        let finalAfternoon = [];
 
-        let finalAfternoon = incomingAfternoon.map(mapPoint);
-        if (finalAfternoon.length === 0 && oldAfternoon.length > 0 && incomingMorning.length > 0) {
-            finalAfternoon = oldAfternoon;
+        if (hasPppPayload) {
+            const safeCompleted = Array.isArray(completedItems) ? completedItems : [];
+            const safeInProgress = Array.isArray(inProgressItems) ? inProgressItems : [];
+            const safeObstacles = Array.isArray(obstacleItems) ? obstacleItems : [];
+
+            // A. Pekerjaan Selesai Hari Ini -> ke Morning points (status COMPLETED, 100%)
+            safeCompleted.forEach(c => {
+                finalMorning.push({
+                    text: (c.title || c.text || 'Tugas Selesai').trim(),
+                    output: (c.output || '').trim(),
+                    categoryTag: c.categoryTag || category || 'UMUM',
+                    status: 'COMPLETED',
+                    progressPercentage: 100,
+                    sourceType: c.sourceType || null,
+                    sourceId: c.sourceId || null,
+                    planItemIndex: c.planItemIndex !== undefined && c.planItemIndex !== null ? parseInt(c.planItemIndex) : null,
+                    projectId: c.projectId || null,
+                    projectItemIndex: c.projectItemIndex !== undefined && c.projectItemIndex !== null ? parseInt(c.projectItemIndex) : null,
+                    obstacleNote: '',
+                    isRoutine: !!c.isRoutine,
+                    photos: Array.isArray(c.photos) ? c.photos : [],
+                    updatedAt: new Date().toISOString()
+                });
+            });
+
+            // C. Kendala Lapangan -> ke Morning points (status OBSTACLE)
+            safeObstacles.forEach(obs => {
+                finalMorning.push({
+                    text: (obs.title || obs.obstacleNote || 'Kendala Lapangan').trim(),
+                    output: '',
+                    categoryTag: obs.categoryTag || category || 'UMUM',
+                    status: 'OBSTACLE',
+                    progressPercentage: 0,
+                    obstacleNote: (obs.obstacleNote || obs.title || '').trim(),
+                    actionPlan: (obs.actionPlan || '').trim(),
+                    sourceType: obs.sourceType || null,
+                    sourceId: obs.sourceId || null,
+                    photos: Array.isArray(obs.photos) ? obs.photos : [],
+                    updatedAt: new Date().toISOString()
+                });
+            });
+
+            // B. Sedang Dikerjakan (On-Progress) -> ke Afternoon points (status IN_PROGRESS)
+            safeInProgress.forEach(p => {
+                const pct = p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : 50;
+                finalAfternoon.push({
+                    text: (p.title || p.text || 'Tugas On-Progress').trim(),
+                    output: '',
+                    targetDate: p.targetDate || '',
+                    categoryTag: p.categoryTag || category || 'UMUM',
+                    status: 'IN_PROGRESS',
+                    progressPercentage: pct,
+                    sourceType: p.sourceType || null,
+                    sourceId: p.sourceId || null,
+                    planItemIndex: p.planItemIndex !== undefined && p.planItemIndex !== null ? parseInt(p.planItemIndex) : null,
+                    projectId: p.projectId || null,
+                    projectItemIndex: p.projectItemIndex !== undefined && p.projectItemIndex !== null ? parseInt(p.projectItemIndex) : null,
+                    obstacleNote: '',
+                    isRoutine: !!p.isRoutine,
+                    photos: Array.isArray(p.photos) ? p.photos : [],
+                    updatedAt: new Date().toISOString()
+                });
+            });
+        } else {
+            // Legacy mapping
+            const incomingMorning = Array.isArray(manualPoints?.morning) ? manualPoints.morning : [];
+            const incomingAfternoon = Array.isArray(manualPoints?.afternoon) ? manualPoints.afternoon : [];
+
+            const mapPoint = (p) => ({
+                text: (p.text || '').trim(),
+                categoryTag: p.categoryTag || category || 'UMUM',
+                status: p.status || 'COMPLETED',
+                progressPercentage: p.progressPercentage !== undefined ? parseInt(p.progressPercentage) : (p.status === 'COMPLETED' ? 100 : 50),
+                sourceType: p.sourceType || null,
+                sourceId: p.sourceId || null,
+                planItemIndex: p.planItemIndex !== undefined && p.planItemIndex !== null ? parseInt(p.planItemIndex) : null,
+                projectId: p.projectId || null,
+                projectItemIndex: p.projectItemIndex !== undefined && p.projectItemIndex !== null ? parseInt(p.projectItemIndex) : null,
+                obstacleNote: (p.obstacleNote || '').trim(),
+                isRoutine: !!p.isRoutine,
+                photos: Array.isArray(p.photos) ? p.photos : [],
+                review: p.review || null,
+                updatedAt: new Date().toISOString()
+            });
+
+            finalMorning = incomingMorning.map(mapPoint);
+            if (finalMorning.length === 0 && oldMorning.length > 0 && incomingAfternoon.length > 0) {
+                finalMorning = oldMorning;
+            }
+
+            finalAfternoon = incomingAfternoon.map(mapPoint);
+            if (finalAfternoon.length === 0 && oldAfternoon.length > 0 && incomingMorning.length > 0) {
+                finalAfternoon = oldAfternoon;
+            }
         }
 
         const formattedPoints = {
@@ -414,36 +491,79 @@ exports.updateMyReport = async (req, res) => {
             afternoon: finalAfternoon
         };
 
+        const mergedCompletedItems = completedItems !== undefined 
+            ? (Array.isArray(completedItems) ? completedItems : []) 
+            : (existingMetadata.completedItems || []);
+        const mergedInProgressItems = inProgressItems !== undefined 
+            ? (Array.isArray(inProgressItems) ? inProgressItems : []) 
+            : (existingMetadata.inProgressItems || []);
+        const mergedObstacleItems = obstacleItems !== undefined 
+            ? (Array.isArray(obstacleItems) ? obstacleItems : []) 
+            : (existingMetadata.obstacleItems || []);
+        const mergedTomorrowPlans = tomorrowPlans !== undefined 
+            ? (Array.isArray(tomorrowPlans) ? tomorrowPlans : []) 
+            : (existingMetadata.tomorrowPlans || []);
+
         // Buat ringkasan teks otomatis ke kolom content
-        const summaryLines = [];
-        if (finalMorning.length > 0) {
-            summaryLines.push('[SESI PAGI]');
+        const summaryLines = ['[LAPORAN HARIAN PPP]'];
+        if (mergedCompletedItems.length > 0) {
+            summaryLines.push('A. PEKERJAAN SELESAI HARI INI:');
+            mergedCompletedItems.forEach((p, idx) => {
+                const out = p.output ? ` (Output: ${p.output})` : '';
+                summaryLines.push(`${idx + 1}. [${p.categoryTag || category || 'UMUM'}] ${p.title || p.text || 'Tugas Selesai'}${out}`);
+            });
+        } else if (finalMorning.length > 0) {
+            summaryLines.push('A. PEKERJAAN SELESAI:');
             finalMorning.forEach((p, idx) => {
                 const obs = p.status === 'OBSTACLE' && p.obstacleNote ? ` (Kendala: ${p.obstacleNote})` : '';
                 summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text || 'Dokumentasi Foto'} [${p.status}]${obs}`);
             });
         }
-        if (finalAfternoon.length > 0) {
-            summaryLines.push('[SESI SIANG]');
+
+        if (mergedInProgressItems.length > 0) {
+            summaryLines.push('B. SEDANG DIKERJAKAN (ON-PROGRESS):');
+            mergedInProgressItems.forEach((p, idx) => {
+                const pct = p.progressPercentage ? ` [${p.progressPercentage}%]` : '';
+                const tgt = p.targetDate ? ` (Target: ${p.targetDate})` : '';
+                summaryLines.push(`${idx + 1}. [${p.categoryTag || category || 'UMUM'}] ${p.title || p.text || 'Tugas On-Progress'}${pct}${tgt}`);
+            });
+        } else if (finalAfternoon.length > 0) {
+            summaryLines.push('B. DALAM PROSES:');
             finalAfternoon.forEach((p, idx) => {
                 const obs = p.status === 'OBSTACLE' && p.obstacleNote ? ` (Kendala: ${p.obstacleNote})` : '';
                 summaryLines.push(`${idx + 1}. [${p.categoryTag || 'UMUM'}] ${p.text || 'Dokumentasi Foto'} [${p.status}]${obs}`);
             });
         }
-        if (Array.isArray(tomorrowPlans) && tomorrowPlans.length > 0) {
-            summaryLines.push('[RENCANA BESOK]');
-            tomorrowPlans.forEach((tp, idx) => {
-                if (tp.title) summaryLines.push(`${idx + 1}. [${tp.categoryTag || 'UMUM'}] ${tp.title}`);
+
+        if (mergedObstacleItems.length > 0) {
+            summaryLines.push('C. KENDALA LAPANGAN:');
+            mergedObstacleItems.forEach((obs, idx) => {
+                const act = obs.actionPlan ? ` (Solusi: ${obs.actionPlan})` : '';
+                summaryLines.push(`${idx + 1}. [${obs.categoryTag || category || 'UMUM'}] ${obs.obstacleNote || obs.title || 'Kendala'}${act}`);
             });
         }
+
+        if (mergedTomorrowPlans.length > 0) {
+            summaryLines.push('D. RENCANA KERJA BESOK:');
+            mergedTomorrowPlans.forEach((tp, idx) => {
+                if (tp.title) summaryLines.push(`${idx + 1}. [${tp.categoryTag || category || 'UMUM'}] ${tp.title} [Prioritas: ${tp.priority || 'SEDANG'}]`);
+            });
+        }
+
         const autoContent = summaryLines.join('\n');
 
         // Simpan pada tengah hari (12:00:00 WIB) agar aman dari pergeseran batas hari UTC vs WIB
         const normalizedDate = reportDate.hour(12).minute(0).second(0).toDate();
 
-        const mergedTomorrowPlans = tomorrowPlans !== undefined 
-            ? (Array.isArray(tomorrowPlans) ? tomorrowPlans : []) 
-            : (existingMetadata.tomorrowPlans || []);
+        const newMetadata = {
+            ...existingMetadata,
+            manualPoints: formattedPoints,
+            completedItems: mergedCompletedItems,
+            inProgressItems: mergedInProgressItems,
+            obstacleItems: mergedObstacleItems,
+            tomorrowPlans: mergedTomorrowPlans,
+            lastSubmittedAt: new Date().toISOString()
+        };
 
         if (report) {
             report = await prisma.personnelReport.update({
@@ -452,12 +572,7 @@ exports.updateMyReport = async (req, res) => {
                     content: autoContent || report.content || '',
                     category: category || report.category || 'UMUM',
                     date: normalizedDate,
-                    metadata: {
-                        ...existingMetadata,
-                        manualPoints: formattedPoints,
-                        tomorrowPlans: mergedTomorrowPlans,
-                        lastSubmittedAt: new Date().toISOString()
-                    }
+                    metadata: newMetadata
                 }
             });
         } else {
@@ -467,11 +582,7 @@ exports.updateMyReport = async (req, res) => {
                     type: 'DAILY',
                     category: category || 'UMUM',
                     content: autoContent, 
-                    metadata: {
-                        manualPoints: formattedPoints,
-                        tomorrowPlans: mergedTomorrowPlans,
-                        lastSubmittedAt: new Date().toISOString()
-                    },
+                    metadata: newMetadata,
                     date: normalizedDate
                 }
             });
@@ -622,6 +733,10 @@ exports.updateMyReport = async (req, res) => {
         res.json({ success: true, report });
     } catch (error) {
         console.error('Error updating report:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const report = localData.saveDailyReport(req.body, userId);
+            return res.json({ success: true, message: 'Laporan harian PPP berhasil disimpan (tersimpan lokal).', report, isLocalOffline: true });
+        }
         res.status(500).json({ error: 'Terjadi kesalahan pada server saat menyimpan laporan' });
     }
 };

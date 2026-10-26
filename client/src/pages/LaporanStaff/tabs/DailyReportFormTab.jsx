@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-    Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, 
+    Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, ChevronUp,
     Plus, X, RotateCcw, Edit2, Trash2, Layers, Clock, AlertTriangle, 
-    Camera, Loader2, Save, Target, Sparkles, Wand2, Undo2, Briefcase, FolderGit2
+    Camera, Loader2, Save, Target, Sparkles, Wand2, Undo2, Briefcase, FolderGit2,
+    ArrowRight, Search, Filter, Check, Sliders, ShieldAlert, ListTodo, FileText
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -17,10 +18,17 @@ const DailyReportFormTab = ({
     userDivision,
     selectedDate,
     setSelectedDate,
-    morningPoints,
-    setMorningPoints,
-    afternoonPoints,
-    setAfternoonPoints,
+    // 4 Pilar Metode PPP
+    completedItems = [],
+    setCompletedItems = () => {},
+    inProgressItems = [],
+    setInProgressItems = () => {},
+    hasObstacle = false,
+    setHasObstacle = () => {},
+    obstacleItems = [],
+    setObstacleItems = () => {},
+    tomorrowPlans = [],
+    setTomorrowPlans = () => {},
     personalStats,
     saving,
     handleSaveReport,
@@ -30,7 +38,7 @@ const DailyReportFormTab = ({
     handleRemovePhoto,
     setLightboxPhoto,
     // Templates management
-    staffCustomTemplates,
+    staffCustomTemplates = [],
     saveStaffTemplates,
     handleResetToDefaultTemplates,
     newTemplateText,
@@ -53,8 +61,6 @@ const DailyReportFormTab = ({
     setShowAllTemplates,
     showMissedDates,
     setShowMissedDates,
-    mobileSessionTab,
-    setMobileSessionTab,
     // Routine & assignments & plans
     assignments = [],
     convertTaskToReport,
@@ -67,1713 +73,1429 @@ const DailyReportFormTab = ({
     // State for AI Polish feature
     const [polishingKey, setPolishingKey] = useState(null);
     const [originalHistory, setOriginalHistory] = useState({});
+    
+    // Drawers & Accordions
+    const [showTaskDrawer, setShowTaskDrawer] = useState(false);
+    const [showPlanDrawer, setShowPlanDrawer] = useState(false);
     const [planDrawerFilter, setPlanDrawerFilter] = useState('ALL'); // 'ALL' | 'WEEKLY' | 'PROJECT'
+    const [taskSearch, setTaskSearch] = useState('');
+    
+    // Filter view for mobile (ALL, COMPLETED, IN_PROGRESS, OBSTACLE, TOMORROW)
+    const [activePillarTab, setActivePillarTab] = useState('ALL');
 
-    // Polish activity text
-    const handlePolishText = async (index, period = 'morning') => {
-        const list = period === 'morning' ? morningPoints : afternoonPoints;
-        const item = list[index];
-        if (!item || !item.text || !item.text.trim()) return;
+    // Polish activity text with Gemini AI
+    const handlePolishText = async (index, targetPillar = 'COMPLETED') => {
+        let item = null;
+        if (targetPillar === 'COMPLETED') item = completedItems[index];
+        else if (targetPillar === 'IN_PROGRESS') item = inProgressItems[index];
+        else if (targetPillar === 'OBSTACLE') item = obstacleItems[index];
+        else if (targetPillar === 'TOMORROW') item = tomorrowPlans[index];
 
-        const key = `${period}-${index}`;
+        const textToPolish = item?.title || item?.text || item?.obstacleNote || '';
+        if (!textToPolish || !textToPolish.trim()) return;
+
+        const key = `${targetPillar}-${index}`;
         try {
             setPolishingKey(key);
             const res = await api.post('/laporan/ai/polish-text', {
-                text: item.text,
+                text: textToPolish,
                 categoryTag: item.categoryTag || userDivision || 'UMUM',
-                mode: 'activity'
+                mode: targetPillar === 'OBSTACLE' ? 'obstacle' : 'activity'
             });
 
             if (res.data?.success && res.data?.polished) {
                 setOriginalHistory(prev => ({
                     ...prev,
-                    [key]: item.text
+                    [key]: textToPolish
                 }));
 
-                const updated = [...list];
-                updated[index] = {
-                    ...updated[index],
-                    text: res.data.polished
-                };
-                if (period === 'morning') setMorningPoints(updated);
-                else setAfternoonPoints(updated);
+                if (targetPillar === 'COMPLETED') {
+                    const updated = [...completedItems];
+                    updated[index] = { ...updated[index], title: res.data.polished };
+                    setCompletedItems(updated);
+                } else if (targetPillar === 'IN_PROGRESS') {
+                    const updated = [...inProgressItems];
+                    updated[index] = { ...updated[index], title: res.data.polished };
+                    setInProgressItems(updated);
+                } else if (targetPillar === 'OBSTACLE') {
+                    const updated = [...obstacleItems];
+                    updated[index] = { ...updated[index], obstacleNote: res.data.polished };
+                    setObstacleItems(updated);
+                } else if (targetPillar === 'TOMORROW') {
+                    const updated = [...tomorrowPlans];
+                    updated[index] = { ...updated[index], title: res.data.polished };
+                    setTomorrowPlans(updated);
+                }
             }
         } catch (err) {
-            console.error('Failed to polish text:', err);
-            alert(err.response?.data?.error || 'Gagal merapikan teks dengan AI. Silakan coba lagi.');
+            console.error('AI Polish error:', err);
         } finally {
             setPolishingKey(null);
         }
     };
 
-    // Revert activity text to original
-    const handleRevertText = (index, period = 'morning') => {
-        const key = `${period}-${index}`;
-        const orig = originalHistory[key];
-        if (!orig) return;
+    const handleUndoPolish = (index, targetPillar = 'COMPLETED') => {
+        const key = `${targetPillar}-${index}`;
+        const prevText = originalHistory[key];
+        if (!prevText) return;
 
-        const list = period === 'morning' ? morningPoints : afternoonPoints;
-        const updated = [...list];
-        updated[index] = {
-            ...updated[index],
-            text: orig
-        };
-        if (period === 'morning') setMorningPoints(updated);
-        else setAfternoonPoints(updated);
-
-        setOriginalHistory(prev => {
-            const next = { ...prev };
-            delete next[key];
-            return next;
-        });
-    };
-
-    // Polish obstacle note
-    const handlePolishObstacle = async (index, period = 'morning') => {
-        const list = period === 'morning' ? morningPoints : afternoonPoints;
-        const item = list[index];
-        if (!item || !item.obstacleNote || !item.obstacleNote.trim()) return;
-
-        const key = `obs-${period}-${index}`;
-        try {
-            setPolishingKey(key);
-            const res = await api.post('/laporan/ai/polish-text', {
-                text: item.obstacleNote,
-                categoryTag: item.categoryTag || userDivision || 'UMUM',
-                mode: 'obstacle'
-            });
-
-            if (res.data?.success && res.data?.polished) {
-                setOriginalHistory(prev => ({
-                    ...prev,
-                    [key]: item.obstacleNote
-                }));
-
-                const updated = [...list];
-                updated[index] = {
-                    ...updated[index],
-                    obstacleNote: res.data.polished
-                };
-                if (period === 'morning') setMorningPoints(updated);
-                else setAfternoonPoints(updated);
-            }
-        } catch (err) {
-            console.error('Failed to polish obstacle:', err);
-            alert(err.response?.data?.error || 'Gagal merapikan kendala dengan AI.');
-        } finally {
-            setPolishingKey(null);
+        if (targetPillar === 'COMPLETED') {
+            const updated = [...completedItems];
+            updated[index] = { ...updated[index], title: prevText };
+            setCompletedItems(updated);
+        } else if (targetPillar === 'IN_PROGRESS') {
+            const updated = [...inProgressItems];
+            updated[index] = { ...updated[index], title: prevText };
+            setInProgressItems(updated);
+        } else if (targetPillar === 'OBSTACLE') {
+            const updated = [...obstacleItems];
+            updated[index] = { ...updated[index], obstacleNote: prevText };
+            setObstacleItems(updated);
+        } else if (targetPillar === 'TOMORROW') {
+            const updated = [...tomorrowPlans];
+            updated[index] = { ...updated[index], title: prevText };
+            setTomorrowPlans(updated);
         }
-    };
-
-    // Revert obstacle note to original
-    const handleRevertObstacle = (index, period = 'morning') => {
-        const key = `obs-${period}-${index}`;
-        const orig = originalHistory[key];
-        if (!orig) return;
-
-        const list = period === 'morning' ? morningPoints : afternoonPoints;
-        const updated = [...list];
-        updated[index] = {
-            ...updated[index],
-            obstacleNote: orig
-        };
-        if (period === 'morning') setMorningPoints(updated);
-        else setAfternoonPoints(updated);
 
         setOriginalHistory(prev => {
-            const next = { ...prev };
-            delete next[key];
-            return next;
+            const copy = { ...prev };
+            delete copy[key];
+            return copy;
         });
     };
+
+    // Filtered assignments for drawer
+    const filteredAssignments = useMemo(() => {
+        return (assignments || []).filter(a => {
+            if (a.status === 'COMPLETED') return false;
+            if (!taskSearch) return true;
+            const q = taskSearch.toLowerCase();
+            return (a.title || '').toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q);
+        });
+    }, [assignments, taskSearch]);
+
+    // Counters
+    const validCompletedCount = completedItems.filter(i => (i.title && i.title.trim()) || (i.photos && i.photos.length > 0)).length;
+    const validInProgressCount = inProgressItems.filter(i => (i.title && i.title.trim()) || (i.photos && i.photos.length > 0)).length;
+    const validObstacleCount = hasObstacle ? obstacleItems.filter(o => (o.title && o.title.trim()) || (o.obstacleNote && o.obstacleNote.trim())).length : 0;
+    const validTomorrowCount = tomorrowPlans.filter(t => t.title && t.title.trim()).length;
 
     return (
-        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300">
-            {/* Personal Scorecard Banner - Compact on Mobile */}
-            {personalStats && (
-                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-                    <div className="space-y-1">
-                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200">Kartu Skor Kinerja Personal</span>
-                        <h3 className="text-base sm:text-lg font-black leading-tight">{user.name} ({user.position || 'Staff Manajemen Aset'})</h3>
-                        {personalStats.latestFeedback && (
-                            <div className="mt-1.5 bg-white/10 backdrop-blur-sm p-2 sm:p-2.5 rounded-xl text-xs text-white/90 border border-white/20">
-                                💬 <b>Catatan Kabid ({personalStats.latestFeedback.date}):</b> "{personalStats.latestFeedback.note}"
-                            </div>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-6 shrink-0 bg-white/10 backdrop-blur-md p-2.5 sm:px-5 sm:py-3 rounded-2xl border border-white/20 text-center sm:text-left">
-                        <div>
-                            <span className="text-[9px] sm:text-[10px] font-bold text-blue-200 block">Kedisiplinan Bulan Ini</span>
-                            <span className="text-xl sm:text-2xl font-black text-white">{personalStats.disciplineScore}%</span>
-                        </div>
-                        <div className="border-l border-white/20 pl-3 sm:pl-6">
-                            <span className="text-[9px] sm:text-[10px] font-bold text-blue-200 block">Hari Lengkap</span>
-                            <span className="text-xl sm:text-2xl font-black text-white">{personalStats.completedDays} / {personalStats.totalWorkDaysPassed || 0} Hari</span>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* BANNER MODE LAPORAN SUSULAN (WIB) */}
-            {selectedDate !== dayjs().format('YYYY-MM-DD') && (
-                <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3 animate-in fade-in duration-200">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-bold shrink-0">
-                            <Calendar size={18} />
-                        </div>
-                        <div>
-                            <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-100 block">Mode Pengisian Susulan (WIB)</span>
-                            <h4 className="text-xs sm:text-sm font-black">
-                                Mengisi Laporan untuk: {dayjs(selectedDate).format('dddd, DD MMMM YYYY')}
-                            </h4>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}
-                        className="text-[11px] font-bold bg-white text-orange-800 hover:bg-orange-50 px-3 py-1.5 rounded-xl transition-all shrink-0 cursor-pointer shadow-xs active:scale-95"
-                    >
-                        Kembali ke Hari Ini
-                    </button>
-                </div>
-            )}
-
-            {/* RANGKUMAN TANGGAL BELUM LAPOR (SENIN - JUMAT) */}
-            {personalStats?.missedDates && personalStats.missedDates.length > 0 ? (
-                <div className="bg-amber-50 border border-amber-300 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl space-y-2.5 sm:space-y-3 shadow-2xs">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
-                                <AlertCircle size={16} />
-                            </div>
-                            <div className="min-w-0">
-                                <h4 className="text-xs sm:text-sm font-black text-amber-950 uppercase tracking-wider truncate">
-                                    {personalStats.missedDates.length} Hari Belum Lengkap
-                                </h4>
-                                <p className="text-[10px] sm:text-[11px] text-amber-800 font-medium truncate sm:whitespace-normal">
-                                    Ketuk tanggal untuk mengisi susulan laporan harian.
+        <div className="space-y-6">
+            {/* 1. PERINGATAN TANGGAL KOSONG (LAPORAN SUSULAN) */}
+            {personalStats?.missedDates && personalStats.missedDates.length > 0 && (
+                <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/80 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xs animate-in fade-in">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                            <span className="p-2.5 rounded-2xl bg-rose-500 text-white shrink-0 shadow-xs mt-0.5">
+                                <AlertTriangle size={20} />
+                            </span>
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-black text-rose-900 tracking-tight">
+                                    Laporan Harian Belum Terisi ({personalStats.missedDates.length} Hari Kerja Terakhir)
+                                </h3>
+                                <p className="text-xs text-rose-700/90 leading-relaxed font-medium">
+                                    Sistem mendeteksi ada hari kerja di mana Anda belum mengisi laporan. Klik salah satu tanggal di bawah ini untuk mengisi laporan susulan:
                                 </p>
                             </div>
                         </div>
                         <button
                             type="button"
                             onClick={() => setShowMissedDates(!showMissedDates)}
-                            className="text-[10px] sm:text-[11px] font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-200 px-2.5 py-1 rounded-xl transition-all shrink-0 cursor-pointer"
+                            className="text-xs font-bold text-rose-700 hover:text-rose-900 underline flex items-center gap-1 shrink-0 cursor-pointer pt-1"
                         >
-                            {showMissedDates ? 'Ciutkan' : 'Lihat Semua'}
+                            {showMissedDates ? 'Sembunyikan' : 'Lihat Tanggal'}
+                            <ChevronDown size={14} className={`transform transition-transform ${showMissedDates ? 'rotate-180' : ''}`} />
                         </button>
                     </div>
 
-                    {/* Compact Horizontal Scroll on Mobile when Collapsed */}
-                    {!showMissedDates ? (
-                        <div className="flex gap-2 overflow-x-auto pb-1 pt-0.5 custom-scrollbar">
-                            {personalStats.missedDates.map((mItem, idx) => {
-                                const isSelected = selectedDate === mItem.date;
-                                return (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => setSelectedDate(mItem.date)}
-                                        className={`px-3 py-1.5 rounded-xl border text-left shrink-0 transition-all cursor-pointer ${
-                                            isSelected
-                                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                                : 'bg-white hover:bg-amber-100/70 border-amber-200 text-slate-800'
-                                        }`}
-                                    >
-                                        <span className="text-[11px] font-black block leading-tight">{mItem.formattedDate}</span>
-                                        <span className={`text-[9px] font-bold block ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                                            {mItem.hasMorning ? 'Pagi ✅' : 'Pagi ❌'} | {mItem.hasAfternoon ? 'Siang ✅' : 'Siang ❌'}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1">
-                            {personalStats.missedDates.map((mItem, idx) => {
-                                const isSelected = selectedDate === mItem.date;
-                                return (
-                                    <div 
-                                        key={idx}
-                                        onClick={() => setSelectedDate(mItem.date)}
-                                        className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-2 group ${
-                                            isSelected
-                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-400'
-                                                : 'bg-white hover:bg-amber-100/60 border-amber-200 text-slate-800 shadow-2xs'
-                                        }`}
-                                    >
-                                        <div className="flex items-start justify-between gap-1">
-                                            <div>
-                                                <span className="text-xs font-black block leading-tight">
-                                                    {mItem.formattedDate}
-                                                </span>
-                                                <span className={`text-[10px] font-medium ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                                                    {mItem.isToday ? 'Hari Kerja Ini' : 'Hari Kerja'}
-                                                </span>
-                                            </div>
-                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg shrink-0 ${
-                                                isSelected 
-                                                    ? 'bg-white text-blue-700' 
-                                                    : (mItem.status === 'BELUM' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800')
-                                            }`}>
-                                                {mItem.status === 'BELUM' ? 'Belum Diisi' : 'Parsial'}
-                                            </span>
-                                        </div>
-
-                                        <div className={`flex items-center justify-between text-[11px] pt-1.5 border-t ${
-                                            isSelected ? 'border-blue-500' : 'border-slate-100'
-                                        }`}>
-                                            <span className={`font-medium ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                                                {mItem.hasMorning ? 'Pagi ✅' : 'Pagi ❌'} | {mItem.hasAfternoon ? 'Siang ✅' : 'Siang ❌'}
-                                            </span>
-                                            <span className={`font-bold flex items-center gap-1 ${
-                                                isSelected ? 'text-white underline' : 'text-blue-600 group-hover:text-blue-800'
-                                            }`}>
-                                                {isSelected ? 'Sedang Dipilih' : '✍️ Isi Laporan'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                    {showMissedDates && (
+                        <div className="mt-4 pt-3 border-t border-rose-200/60 flex flex-wrap gap-2">
+                            {personalStats.missedDates.map(mDate => (
+                                <button
+                                    key={mDate}
+                                    type="button"
+                                    onClick={() => setSelectedDate(mDate)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                                        selectedDate === mDate
+                                            ? 'bg-rose-600 text-white ring-2 ring-rose-400 font-black'
+                                            : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-100/70'
+                                    }`}
+                                >
+                                    <Calendar size={12} />
+                                    <span>{dayjs(mDate).format('dddd, DD MMMM YYYY')}</span>
+                                </button>
+                            ))}
                         </div>
                     )}
-                </div>
-            ) : (
-                <div className="bg-emerald-50 border border-emerald-200 p-3.5 sm:p-4 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 font-bold shadow-2xs">
-                    <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                    <span>Alhamdulillah! Seluruh laporan hari kerja Anda (Senin s.d. Jumat) bulan ini telah terisi lengkap.</span>
                 </div>
             )}
 
-            {/* ROUTINE CHECKLIST & TASK CONVERTER SECTION (Collapsible for Mobile Convenience) */}
-            <div className="bg-white p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm space-y-3">
-                <div 
-                    onClick={() => setShowTemplateAccordion(!showTemplateAccordion)}
-                    className="flex items-center justify-between cursor-pointer select-none"
-                >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
-                            <CheckSquare size={18} />
+            {/* 2. TOP HEADER: DATE PICKER & QUICK STATS */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDate(dayjs(selectedDate).subtract(1, 'day').format('YYYY-MM-DD'))}
+                            className="p-1.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-all cursor-pointer"
+                            title="Hari Sebelumnya"
+                        >
+                            &larr;
+                        </button>
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-xl shadow-2xs text-xs font-black text-slate-800">
+                            <Calendar size={14} className="text-emerald-600" />
+                            <span>{dayjs(selectedDate).format('dddd, DD MMMM YYYY')}</span>
                         </div>
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
-                                    Template Rutinitas & Penugasan
-                                </h3>
-                                <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                                    {DIVISION_TAGS.find(d => d.key === userDivision)?.label || userDivision}
-                                </span>
-                            </div>
-                            <p className="text-[10px] sm:text-xs text-slate-400 truncate">
-                                {showTemplateAccordion ? 'Klik untuk menutup daftar template' : 'Klik untuk menyalin kegiatan rutin otomatis ke sesi Pagi/Siang'}
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDate(dayjs(selectedDate).add(1, 'day').format('YYYY-MM-DD'))}
+                            disabled={selectedDate === dayjs().format('YYYY-MM-DD')}
+                            className="p-1.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Hari Berikutnya"
+                        >
+                            &rarr;
+                        </button>
+                    </div>
+
+                    {selectedDate !== dayjs().format('YYYY-MM-DD') && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-black transition-all cursor-pointer border border-emerald-200/70"
+                        >
+                            Kembali ke Hari Ini
+                        </button>
+                    )}
+                </div>
+
+                {/* Ringkasan 4 Pilar PPP Counter */}
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 md:pb-0">
+                    <div className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-1.5 text-[11px] font-black text-emerald-700">
+                        <CheckCircle2 size={13} /> Selesai: {validCompletedCount}
+                    </div>
+                    <div className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-1.5 text-[11px] font-black text-amber-700">
+                        <Clock size={13} /> On-Progress: {validInProgressCount}
+                    </div>
+                    <div className={`px-2.5 py-1 rounded-xl flex items-center gap-1.5 text-[11px] font-black border ${
+                        hasObstacle ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-500'
+                    }`}>
+                        <AlertTriangle size={13} /> Kendala: {hasObstacle ? validObstacleCount : 'Nihil'}
+                    </div>
+                    <div className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-1.5 text-[11px] font-black text-indigo-700">
+                        <Target size={13} /> Rencana Besok: {validTomorrowCount}
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. QUICK ACTIONS: DRAWER TARIK DARI PENUGASAN, RENCANA KERJA & TEMPLATE */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Tombol Buka Penugasan */}
+                <button
+                    type="button"
+                    onClick={() => { setShowTaskDrawer(!showTaskDrawer); setShowPlanDrawer(false); setShowTemplateAccordion(false); }}
+                    className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
+                        showTaskDrawer ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
+                >
+                    <div className="flex items-center gap-2.5">
+                        <span className={`p-2 rounded-xl ${showTaskDrawer ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600'}`}>
+                            <Briefcase size={16} />
+                        </span>
+                        <div>
+                            <p className="text-xs font-black">Tarik dari Penugasan</p>
+                            <p className={`text-[10px] ${showTaskDrawer ? 'text-white/80' : 'text-slate-400'}`}>
+                                {filteredAssignments.length} Tugas pimpinan aktif
                             </p>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        className="p-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all shrink-0 cursor-pointer"
-                    >
-                        <ChevronDown size={18} className={`transition-transform duration-200 ${showTemplateAccordion ? 'rotate-180' : ''}`} />
-                    </button>
-                </div>
+                    <ChevronDown size={16} className={`transform transition-transform ${showTaskDrawer ? 'rotate-180' : ''}`} />
+                </button>
 
-                {showTemplateAccordion && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-slate-100 animate-in fade-in duration-200">
-                        {/* Daily Routine Checklist - Personalized per staff */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between flex-wrap gap-2">
-                                <div>
-                                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                        <span>Template Rutinitas Mandiri</span>
-                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                                            {staffCustomTemplates.length} Kegiatan
+                {/* Tombol Buka Rencana Kerja / Project */}
+                <button
+                    type="button"
+                    onClick={() => { setShowPlanDrawer(!showPlanDrawer); setShowTaskDrawer(false); setShowTemplateAccordion(false); }}
+                    className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
+                        showPlanDrawer ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
+                >
+                    <div className="flex items-center gap-2.5">
+                        <span className={`p-2 rounded-xl ${showPlanDrawer ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'}`}>
+                            <FolderGit2 size={16} />
+                        </span>
+                        <div>
+                            <p className="text-xs font-black">Tarik dari Rencana Kerja</p>
+                            <p className={`text-[10px] ${showPlanDrawer ? 'text-white/80' : 'text-slate-400'}`}>
+                                {(userWeeklyPlans.length + userProjects.length)} Program aktif
+                            </p>
+                        </div>
+                    </div>
+                    <ChevronDown size={16} className={`transform transition-transform ${showPlanDrawer ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Tombol Buka Template Rutin */}
+                <button
+                    type="button"
+                    onClick={() => { setShowTemplateAccordion(!showTemplateAccordion); setShowTaskDrawer(false); setShowPlanDrawer(false); }}
+                    className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
+                        showTemplateAccordion ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
+                >
+                    <div className="flex items-center gap-2.5">
+                        <span className={`p-2 rounded-xl ${showTemplateAccordion ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-600'}`}>
+                            <ListTodo size={16} />
+                        </span>
+                        <div>
+                            <p className="text-xs font-black">Kegiatan Rutin & Template</p>
+                            <p className={`text-[10px] ${showTemplateAccordion ? 'text-white/80' : 'text-slate-400'}`}>
+                                Salin tugas harian standar
+                            </p>
+                        </div>
+                    </div>
+                    <ChevronDown size={16} className={`transform transition-transform ${showTemplateAccordion ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+
+            {/* EXPANDABLE DRAWER: TARIK DARI PENUGASAN */}
+            {showTaskDrawer && (
+                <div className="bg-white p-4 sm:p-5 rounded-3xl border border-blue-200 shadow-md space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 className="text-xs font-black text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Briefcase size={14} className="text-blue-600" /> Pilih Penugasan untuk Ditarik ke Laporan Hari Ini
+                        </h4>
+                        <div className="w-48 sm:w-64">
+                            <input
+                                type="text"
+                                placeholder="Cari penugasan..."
+                                value={taskSearch}
+                                onChange={(e) => setTaskSearch(e.target.value)}
+                                className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    {filteredAssignments.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-3 text-center">Tidak ada penugasan pimpinan yang aktif saat ini.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                            {filteredAssignments.map(task => (
+                                <div key={task.id} className="p-3 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-2xl space-y-2 transition-all">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="space-y-0.5 flex-1 min-w-0">
+                                            <span className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded text-[9px] font-black uppercase">
+                                                {task.category || 'UMUM'}
+                                            </span>
+                                            <h5 className="text-xs font-bold text-slate-800 leading-snug line-clamp-1">{task.title}</h5>
+                                            {task.description && <p className="text-[11px] text-slate-500 line-clamp-1">{task.description}</p>}
+                                        </div>
+                                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${task.priority === 'TINGGI' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700'}`}>
+                                            {task.priority || 'SEDANG'}
                                         </span>
-                                    </h4>
-                                    <p className="text-[10px] text-slate-400">Disusun oleh Anda sendiri sesuai tugas riil di lapangan</p>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                            {task.dueDate ? `Tenggat: ${dayjs(task.dueDate).format('DD/MM/YYYY')}` : 'Tanpa tenggat'}
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => { convertTaskToReport(task, 'COMPLETED'); setShowTaskDrawer(false); }}
+                                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                title="Tarik ke Pekerjaan Selesai (100%)"
+                                            >
+                                                🟢 Selesai
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => { convertTaskToReport(task, 'IN_PROGRESS'); setShowTaskDrawer(false); }}
+                                                className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                title="Tarik ke Pekerjaan On-Progress"
+                                            >
+                                                🟡 Proses
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => { convertTaskToReport(task, 'TOMORROW'); setShowTaskDrawer(false); }}
+                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                title="Tarik ke Rencana Kerja Besok"
+                                            >
+                                                🟣 Besok
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* EXPANDABLE DRAWER: TARIK DARI RENCANA KERJA / PROJECT */}
+            {showPlanDrawer && (
+                <div className="bg-white p-4 sm:p-5 rounded-3xl border border-indigo-200 shadow-md space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <FolderGit2 size={14} className="text-indigo-600" /> Tarik Butir dari Rencana Pekanan / Project Anda
+                        </h4>
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-[10px] font-bold">
+                            <button
+                                type="button"
+                                onClick={() => setPlanDrawerFilter('ALL')}
+                                className={`px-2 py-1 rounded-lg transition-all ${planDrawerFilter === 'ALL' ? 'bg-white text-indigo-700 shadow-2xs font-black' : 'text-slate-500'}`}
+                            >
+                                Semua
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPlanDrawerFilter('WEEKLY')}
+                                className={`px-2 py-1 rounded-lg transition-all ${planDrawerFilter === 'WEEKLY' ? 'bg-white text-indigo-700 shadow-2xs font-black' : 'text-slate-500'}`}
+                            >
+                                Pekanan
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPlanDrawerFilter('PROJECT')}
+                                className={`px-2 py-1 rounded-lg transition-all ${planDrawerFilter === 'PROJECT' ? 'bg-white text-indigo-700 shadow-2xs font-black' : 'text-slate-500'}`}
+                            >
+                                Project
+                            </button>
+                        </div>
+                    </div>
+
+                    {((planDrawerFilter === 'PROJECT' ? [] : userWeeklyPlans).length === 0 && (planDrawerFilter === 'WEEKLY' ? [] : userProjects).length === 0) ? (
+                        <p className="text-xs text-slate-400 italic py-3 text-center">Belum ada rencana pekanan atau project yang terdaftar.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                            {[
+                                ...(planDrawerFilter !== 'PROJECT' ? userWeeklyPlans : []),
+                                ...(planDrawerFilter !== 'WEEKLY' ? userProjects : [])
+                            ].map(plan => {
+                                const items = Array.isArray(plan.items) ? plan.items : [];
+                                return (
+                                    <div key={plan.id} className="p-3 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200/80 rounded-2xl space-y-2 transition-all">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="space-y-0.5 flex-1 min-w-0">
+                                                <div className="flex items-center gap-1">
+                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${plan.isProject ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        {plan.isProject ? '📁 Project' : '📅 Pekanan'}
+                                                    </span>
+                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded text-[9px] font-black uppercase">
+                                                        {plan.categoryTag || 'UMUM'}
+                                                    </span>
+                                                </div>
+                                                <h5 className="text-xs font-bold text-slate-800 leading-snug">{plan.title}</h5>
+                                                {plan.targetOutput && <p className="text-[10px] text-emerald-700 font-bold">🎯 Output: {plan.targetOutput}</p>}
+                                            </div>
+                                            <span className="text-xs font-black text-indigo-600 shrink-0">{plan.percentage || 0}%</span>
+                                        </div>
+
+                                        {/* Sub-item langkah jika ada */}
+                                        {items.length > 0 ? (
+                                            <div className="space-y-1.5 pt-1.5 border-t border-slate-200/70">
+                                                {items.map((sub, sIdx) => (
+                                                    <div key={sIdx} className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                                                        <span className="text-[11px] font-medium text-slate-700 truncate flex-1">
+                                                            {sIdx + 1}. {sub.activity || sub.text || sub.title}
+                                                        </span>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'COMPLETED'); setShowPlanDrawer(false); }}
+                                                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
+                                                                title="Tarik Langkah ke Selesai"
+                                                            >
+                                                                🟢 Selesai
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'IN_PROGRESS'); setShowPlanDrawer(false); }}
+                                                                className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
+                                                                title="Tarik Langkah ke On-Progress"
+                                                            >
+                                                                🟡 Proses
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'TOMORROW'); setShowPlanDrawer(false); }}
+                                                                className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
+                                                                title="Tarik Langkah ke Rencana Besok"
+                                                            >
+                                                                🟣 Besok
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-200/60">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'COMPLETED'); setShowPlanDrawer(false); }}
+                                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                >
+                                                    🟢 Tarik Selesai
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'IN_PROGRESS'); setShowPlanDrawer(false); }}
+                                                    className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                >
+                                                    🟡 Tarik On-Progress
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'TOMORROW'); setShowPlanDrawer(false); }}
+                                                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                >
+                                                    🟣 Tarik Rencana Besok
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* EXPANDABLE ACCORDION: TEMPLATE RUTIN */}
+            {showTemplateAccordion && (
+                <div className="bg-white p-4 sm:p-5 rounded-3xl border border-emerald-200 shadow-md space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <ListTodo size={14} className="text-emerald-600" /> Template Rutin Bidang Sarpras
+                        </h4>
+                        <button
+                            type="button"
+                            onClick={() => setIsAddingTemplate(!isAddingTemplate)}
+                            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer"
+                        >
+                            <Plus size={13} /> Tambah Template Baru
+                        </button>
+                    </div>
+
+                    {isAddingTemplate && (
+                        <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-2">
+                            <input
+                                type="text"
+                                placeholder="Tuliskan butir kegiatan rutin baru..."
+                                value={newTemplateText}
+                                onChange={(e) => setNewTemplateText(e.target.value)}
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                            />
+                            <div className="flex items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddingTemplate(false)}
+                                    className="px-3 py-1 text-slate-500 text-xs font-bold cursor-pointer"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleAddCustomTemplate}
+                                    className="px-4 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-all cursor-pointer"
+                                >
+                                    Simpan Template
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                        {(ROUTINE_TEMPLATES[userDivision] || ROUTINE_TEMPLATES.UMUM || []).map((text, idx) => (
+                            <div key={idx} className="p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2">
+                                <span className="text-xs text-slate-700 font-medium truncate flex-1">{text}</span>
+                                <div className="flex items-center gap-1 shrink-0">
                                     <button
                                         type="button"
-                                        onClick={() => setIsAddingTemplate(!isAddingTemplate)}
-                                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                                            isAddingTemplate 
-                                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' 
-                                                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs'
-                                        }`}
+                                        onClick={() => { applyRoutine(text, userDivision, 'COMPLETED'); setShowTemplateAccordion(false); }}
+                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                        title="Salin ke Pekerjaan Selesai"
                                     >
-                                        {isAddingTemplate ? <X size={12} /> : <Plus size={12} />}
-                                        {isAddingTemplate ? 'Batal' : '+ Susun Template'}
+                                        + Selesai
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={handleResetToDefaultTemplates}
-                                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-lg transition-all cursor-pointer"
-                                        title="Kosongkan daftar template"
+                                        onClick={() => { applyRoutine(text, userDivision, 'TOMORROW'); setShowTemplateAccordion(false); }}
+                                        className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                        title="Salin ke Rencana Besok"
                                     >
-                                        <RotateCcw size={12} />
+                                        + Besok
                                     </button>
                                 </div>
                             </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
-                            {/* Inline Add Template Form */}
-                            {isAddingTemplate && (
-                                <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-2.5 animate-in fade-in duration-200">
+            {/* MOBILE NAVIGATION PILLS */}
+            <div className="flex sm:hidden items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto gap-1">
+                <button
+                    type="button"
+                    onClick={() => setActivePillarTab('ALL')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                        activePillarTab === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'
+                    }`}
+                >
+                    Semua ({validCompletedCount + validInProgressCount + validObstacleCount + validTomorrowCount})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActivePillarTab('COMPLETED')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                        activePillarTab === 'COMPLETED' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                >
+                    🟢 Selesai ({completedItems.length})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActivePillarTab('IN_PROGRESS')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                        activePillarTab === 'IN_PROGRESS' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                >
+                    🟡 On-Progress ({inProgressItems.length})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActivePillarTab('OBSTACLE')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                        activePillarTab === 'OBSTACLE' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                >
+                    🔴 Kendala ({hasObstacle ? obstacleItems.length : 0})
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActivePillarTab('TOMORROW')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                        activePillarTab === 'TOMORROW' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                >
+                    🟣 Rencana Besok ({tomorrowPlans.length})
+                </button>
+            </div>
+
+            {/* 4. FORMULIR 4 PILAR METODE PPP */}
+            <div className="space-y-6">
+                {/* ============================================================== */}
+                {/* PILAR A: 🟢 PROGRESS - PEKERJAAN SELESAI HARI INI */}
+                {/* ============================================================== */}
+                <div className={`bg-white p-4 sm:p-6 rounded-3xl border border-emerald-200/80 shadow-sm space-y-4 ${
+                    activePillarTab !== 'ALL' && activePillarTab !== 'COMPLETED' ? 'hidden sm:block' : 'block'
+                }`}>
+                    <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                <CheckCircle2 size={18} />
+                            </span>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                    <span>A. Pekerjaan Selesai Hari Ini</span>
+                                    <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                        {completedItems.length} Butir
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                    Tugas dan kegiatan yang tuntas 100% hari ini beserta capaian output nyata
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setCompletedItems([
+                                ...completedItems, 
+                                { title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }
+                            ])}
+                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                        >
+                            <Plus size={14} /> <span>Tambah Selesai</span>
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        {completedItems.map((item, index) => (
+                            <div key={`c-${index}`} className="p-4 bg-emerald-50/30 border border-emerald-100 rounded-2xl space-y-3">
+                                {/* Baris 1: Nomor, Kategori, Badge Sumber & Hapus */}
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white text-xs font-black flex items-center justify-center shrink-0 shadow-xs">
+                                            {index + 1}
+                                        </span>
+                                        <select
+                                            value={item.categoryTag || userDivision || 'UMUM'}
+                                            onChange={(e) => {
+                                                const n = [...completedItems];
+                                                n[index].categoryTag = e.target.value;
+                                                setCompletedItems(n);
+                                            }}
+                                            className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                                        >
+                                            {DIVISION_TAGS.map(d => (
+                                                <option key={d.key} value={d.key}>{d.label}</option>
+                                            ))}
+                                        </select>
+                                        {item.sourceType === 'ASSIGNMENT' && (
+                                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-xl">
+                                                📋 Dari Penugasan
+                                            </span>
+                                        )}
+                                        {item.sourceType === 'PROJECT' && (
+                                            <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-1 rounded-xl">
+                                                📁 Dari Project
+                                            </span>
+                                        )}
+                                        {item.sourceType === 'PLAN' && (
+                                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-xl">
+                                                📅 Dari Rencana Pekanan
+                                            </span>
+                                        )}
+                                    </div>
+                                    {completedItems.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCompletedItems(completedItems.filter((_, i) => i !== index))}
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                                            title="Hapus butir pekerjaan ini"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Baris 2: Input Aktivitas + AI Polish */}
+                                <div className="space-y-1">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Tambah Butir Kegiatan Rutin Baru</span>
-                                        <span className="text-[9px] text-emerald-600">Akan tersimpan di akun Anda</span>
+                                        <label className="text-[11px] font-bold text-slate-600">Uraian Pekerjaan Tuntas:</label>
+                                        <div className="flex items-center gap-1.5">
+                                            {originalHistory[`COMPLETED-${index}`] && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleUndoPolish(index, 'COMPLETED')}
+                                                    className="text-[10px] font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                                                    title="Kembalikan teks asli sebelum dipoles AI"
+                                                >
+                                                    <Undo2 size={11} /> Undo AI
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePolishText(index, 'COMPLETED')}
+                                                disabled={polishingKey === `COMPLETED-${index}` || !item.title?.trim()}
+                                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer border border-indigo-200/70 disabled:opacity-40"
+                                                title="Perbaiki redaksi kalimat agar formal untuk pelaporan pimpinan"
+                                            >
+                                                {polishingKey === `COMPLETED-${index}` ? (
+                                                    <Loader2 size={11} className="animate-spin text-indigo-600" />
+                                                ) : (
+                                                    <Wand2 size={11} className="text-indigo-600" />
+                                                )}
+                                                <span>AI Polish</span>
+                                            </button>
+                                        </div>
                                     </div>
                                     <textarea
-                                        value={newTemplateText}
-                                        onChange={(e) => setNewTemplateText(e.target.value)}
-                                        placeholder="Tuliskan kegiatan rutin harian Anda di sini..."
-                                        rows={2}
-                                        className="w-full text-xs p-2.5 bg-white border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 resize-none"
-                                        autoFocus
+                                        rows="2"
+                                        placeholder="Contoh: Pembersihan filter dan pengecekan kebocoran pipa AC ruang kelas 7A..."
+                                        value={item.title}
+                                        onChange={(e) => {
+                                            const n = [...completedItems];
+                                            n[index].title = e.target.value;
+                                            setCompletedItems(n);
+                                        }}
+                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                                     />
-                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <select
-                                            value={newTemplateCategory}
-                                            onChange={(e) => setNewTemplateCategory(e.target.value)}
-                                            className="text-xs py-1 px-2.5 bg-white border border-emerald-200 rounded-lg text-slate-700 font-semibold focus:outline-none"
-                                        >
-                                            <option value="ASET">Divisi Manajemen Aset</option>
-                                            <option value="GUDANG">Divisi Gudang & Logistik</option>
-                                            <option value="TEKNISI">Divisi Teknisi & Perbaikan</option>
-                                            <option value="KENDARAAN">Divisi Kendaraan</option>
-                                            <option value="KEUANGAN">Divisi Keuangan & Admin</option>
-                                            <option value="UMUM">Operasional Umum</option>
-                                        </select>
+                                </div>
+
+                                {/* Baris 3: Target Capaian / Output */}
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                        <Target size={12} className="text-emerald-600" /> Hasil Terukur / Capaian Output:
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: Unit AC kembali dingin optimal (suhu 18°C), ruangan sejuk tanpa kebocoran air"
+                                        value={item.output || ''}
+                                        onChange={(e) => {
+                                            const n = [...completedItems];
+                                            n[index].output = e.target.value;
+                                            setCompletedItems(n);
+                                        }}
+                                        className="w-full px-3 py-1.5 bg-white border border-emerald-200/80 rounded-xl text-xs font-bold text-emerald-900 placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-emerald-500"
+                                    />
+                                </div>
+
+                                {/* Baris 4: Foto Bukti Lapangan */}
+                                <div className="space-y-1.5 pt-1">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                                            <Camera size={12} /> Foto Dokumentasi Lapangan (Maks. 5 Foto)
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'completed' })}
+                                                className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                            >
+                                                <Camera size={11} /> Ambil Foto Langsung
+                                            </button>
+                                            <label className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs">
+                                                <span>+ Unggah Berkas</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handlePhotoUpload(index, file, 'completed');
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Thumbnail Foto */}
+                                    {item.photos && item.photos.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 pt-1">
+                                            {item.photos.map((ph, pIdx) => {
+                                                const url = ph.url || ph;
+                                                return (
+                                                    <div key={pIdx} className="relative group w-16 h-16 rounded-xl overflow-hidden border border-slate-200 shadow-2xs">
+                                                        <img
+                                                            src={getMediaUrl(url)}
+                                                            alt="Bukti Selesai"
+                                                            onClick={() => setLightboxPhoto(getMediaUrl(url))}
+                                                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemovePhoto(index, pIdx, 'completed')}
+                                                            className="absolute top-1 right-1 p-0.5 bg-rose-600 text-white rounded-md shadow-xs opacity-90 hover:opacity-100 cursor-pointer"
+                                                            title="Hapus foto ini"
+                                                        >
+                                                            <X size={10} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        <button
+                            type="button"
+                            onClick={() => setCompletedItems([
+                                ...completedItems, 
+                                { title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }
+                            ])}
+                            className="w-full py-2.5 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 border border-dashed border-emerald-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                        >
+                            <Plus size={15} /> Tambah Butir Pekerjaan Selesai
+                        </button>
+                    </div>
+                </div>
+
+                {/* ============================================================== */}
+                {/* PILAR B: 🟡 PROGRESS - SEDANG DIKERJAKAN (ON-PROGRESS) */}
+                {/* ============================================================== */}
+                <div className={`bg-white p-4 sm:p-6 rounded-3xl border border-amber-200/80 shadow-sm space-y-4 ${
+                    activePillarTab !== 'ALL' && activePillarTab !== 'IN_PROGRESS' ? 'hidden sm:block' : 'block'
+                }`}>
+                    <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                                <Clock size={18} />
+                            </span>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                    <span>B. Pekerjaan Sedang Dikerjakan (On-Progress)</span>
+                                    <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                        {inProgressItems.length} Butir
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                    Pekerjaan bertahap atau belum tuntas 100% yang akan dilanjutkan berikutnya
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setInProgressItems([
+                                ...inProgressItems, 
+                                { title: '', progressPercentage: 50, targetDate: 'Hari kerja berikutnya', categoryTag: userDivision || 'UMUM', photos: [] }
+                            ])}
+                            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                        >
+                            <Plus size={14} /> <span>Tambah On-Progress</span>
+                        </button>
+                    </div>
+
+                    {inProgressItems.length === 0 ? (
+                        <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+                            <p className="text-xs text-slate-500 font-bold">Tidak ada pekerjaan yang tertunda / on-progress.</p>
+                            <p className="text-[11px] text-slate-400">Klik tombol di atas jika ada tugas yang baru dikerjakan sebagian hari ini.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {inProgressItems.map((item, index) => (
+                                <div key={`p-${index}`} className="p-4 bg-amber-50/30 border border-amber-100 rounded-2xl space-y-3">
+                                    {/* Baris 1: Nomor, Kategori, Badges & Hapus */}
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span className="w-7 h-7 rounded-xl bg-amber-500 text-white text-xs font-black flex items-center justify-center shrink-0 shadow-xs">
+                                                {index + 1}
+                                            </span>
+                                            <select
+                                                value={item.categoryTag || userDivision || 'UMUM'}
+                                                onChange={(e) => {
+                                                    const n = [...inProgressItems];
+                                                    n[index].categoryTag = e.target.value;
+                                                    setInProgressItems(n);
+                                                }}
+                                                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                                            >
+                                                {DIVISION_TAGS.map(d => (
+                                                    <option key={d.key} value={d.key}>{d.label}</option>
+                                                ))}
+                                            </select>
+                                            {item.isFromYesterday && (
+                                                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-lg">
+                                                    ⚡ Dari Rencana Kemarin
+                                                </span>
+                                            )}
+                                        </div>
                                         <button
                                             type="button"
-                                            onClick={handleAddCustomTemplate}
-                                            disabled={!newTemplateText.trim()}
-                                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-2xs"
+                                            onClick={() => setInProgressItems(inProgressItems.filter((_, i) => i !== index))}
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                                            title="Hapus butir on-progress ini"
                                         >
-                                            Simpan Template
+                                            <Trash2 size={15} />
                                         </button>
                                     </div>
-                                </div>
-                            )}
 
-                            {/* Custom Template Items List */}
-                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-                                {staffCustomTemplates.length === 0 ? (
-                                    <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                        Belum ada template kegiatan mandiri. Klik <strong>"+ Susun Template"</strong> untuk menambahkan rutinitas kerja Anda.
-                                    </div>
-                                ) : (
-                                    staffCustomTemplates.map((tpl, rIdx) => {
-                                        const isEditing = editingTemplateId === tpl.id;
-                                        return (
-                                            <div 
-                                                key={tpl.id || rIdx}
-                                                className="p-2.5 bg-white border border-slate-200/80 hover:border-slate-300 rounded-xl text-xs font-medium text-slate-700 space-y-2 shadow-2xs transition-all"
+                                    {/* Baris 2: Input Aktivitas */}
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-bold text-slate-600">Uraian Pekerjaan Sedang Berjalan:</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePolishText(index, 'IN_PROGRESS')}
+                                                disabled={polishingKey === `IN_PROGRESS-${index}` || !item.title?.trim()}
+                                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer border border-indigo-200/70 disabled:opacity-40"
                                             >
-                                                {isEditing ? (
-                                                    <div className="space-y-2">
-                                                        <textarea
-                                                            value={editingTemplateText}
-                                                            onChange={(e) => setEditingTemplateText(e.target.value)}
-                                                            rows={2}
-                                                            className="w-full text-xs p-2 bg-slate-50 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 resize-none"
-                                                            autoFocus
-                                                        />
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setEditingTemplateId(null)}
-                                                                className="px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100 rounded-md transition-all cursor-pointer"
-                                                            >
-                                                                Batal
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleSaveEditTemplate(tpl.id)}
-                                                                className="px-2.5 py-1 text-[11px] font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-all cursor-pointer"
-                                                            >
-                                                                Simpan
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                        <div className="flex items-start gap-1.5 flex-1 min-w-0">
-                                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
-                                                                tpl.categoryTag === 'GUDANG' ? 'bg-amber-100 text-amber-800' :
-                                                                tpl.categoryTag === 'TEKNISI' ? 'bg-emerald-100 text-emerald-800' :
-                                                                tpl.categoryTag === 'KENDARAAN' ? 'bg-indigo-100 text-indigo-800' :
-                                                                tpl.categoryTag === 'KEUANGAN' ? 'bg-violet-100 text-violet-800' :
-                                                                tpl.categoryTag === 'ASET' ? 'bg-blue-100 text-blue-800' :
-                                                                'bg-slate-100 text-slate-700'
-                                                            }`}>
-                                                                {tpl.categoryTag || 'UMUM'}
-                                                            </span>
-                                                            <span className="text-slate-700 text-xs leading-relaxed break-words">{tpl.text}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => applyRoutine(tpl.text, tpl.categoryTag || 'UMUM', 'morning')}
-                                                                className="px-2 py-1 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95"
-                                                                title="Tambahkan ke Sesi Pagi"
-                                                            >
-                                                                + Pagi
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => applyRoutine(tpl.text, tpl.categoryTag || 'UMUM', 'afternoon')}
-                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95"
-                                                                title="Tambahkan ke Sesi Siang"
-                                                            >
-                                                                + Siang
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setEditingTemplateId(tpl.id); setEditingTemplateText(tpl.text); }}
-                                                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all cursor-pointer"
-                                                                title="Edit butir template"
-                                                            >
-                                                                <Edit2 size={13} />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteCustomTemplate(tpl.id)}
-                                                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all cursor-pointer"
-                                                                title="Hapus template"
-                                                            >
-                                                                <Trash2 size={13} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
+                                                {polishingKey === `IN_PROGRESS-${index}` ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+                                                <span>AI Polish</span>
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            rows="2"
+                                            placeholder="Contoh: Pemasangan keramik koridor sayap timur lantai 2..."
+                                            value={item.title}
+                                            onChange={(e) => {
+                                                const n = [...inProgressItems];
+                                                n[index].title = e.target.value;
+                                                setInProgressItems(n);
+                                            }}
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+                                        />
+                                    </div>
 
-                            {/* Optional Reference Accordion from other divisions */}
-                            {Object.values(ROUTINE_TEMPLATES).some(arr => arr.length > 0) && (
-                                <div className="pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAllTemplates(!showAllTemplates)}
-                                        className="text-[10px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
-                                    >
-                                        <ChevronDown size={13} className={`transition-transform duration-200 ${showAllTemplates ? 'rotate-180' : ''}`} />
-                                        {showAllTemplates ? 'Sembunyikan Referensi Divisi Lain' : '💡 Butuh Ide? Lihat Referensi Template Divisi Lain'}
-                                    </button>
-                                    {showAllTemplates && (
-                                        <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar p-2 bg-slate-50 rounded-xl border border-slate-200/60 animate-in fade-in duration-200">
-                                            {Object.entries(ROUTINE_TEMPLATES).map(([catKey, routines]) => (
-                                                <div key={catKey} className="space-y-1">
-                                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                                                        {DIVISION_TAGS.find(d => d.key === catKey)?.label || catKey}
-                                                    </span>
-                                                    {routines.map((rText, rIdx) => (
-                                                        <div key={rIdx} className="p-1.5 bg-white rounded-lg border border-slate-200/60 text-[11px] flex items-center justify-between gap-1.5">
-                                                            <span className="flex-1 text-slate-600 truncate">{rText}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const newTpl = {
-                                                                        id: 'tpl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                                                                        text: rText,
-                                                                        categoryTag: catKey
-                                                                    };
-                                                                    saveStaffTemplates([...staffCustomTemplates, newTpl]);
-                                                                }}
-                                                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded cursor-pointer whitespace-nowrap"
-                                                                title="Salin butir ini ke Template Saya"
-                                                            >
-                                                                + Salin
-                                                            </button>
-                                                        </div>
+                                    {/* Baris 3: Estimasi Progres % & Target Tanggal */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                                                <span className="flex items-center gap-1"><Sliders size={12} /> Estimasi Progres:</span>
+                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md font-black">{item.progressPercentage || 50}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="range"
+                                                    min="5"
+                                                    max="95"
+                                                    step="5"
+                                                    value={item.progressPercentage || 50}
+                                                    onChange={(e) => {
+                                                        const n = [...inProgressItems];
+                                                        n[index].progressPercentage = parseInt(e.target.value);
+                                                        setInProgressItems(n);
+                                                    }}
+                                                    className="flex-1 accent-amber-600 cursor-pointer"
+                                                />
+                                                <div className="flex items-center gap-1">
+                                                    {[25, 50, 75, 90].map(pct => (
+                                                        <button
+                                                            key={pct}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const n = [...inProgressItems];
+                                                                n[index].progressPercentage = pct;
+                                                                setInProgressItems(n);
+                                                            }}
+                                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                                                item.progressPercentage === pct ? 'bg-amber-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                                            }`}
+                                                        >
+                                                            {pct}%
+                                                        </button>
                                                     ))}
                                                 </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                                <Calendar size={12} className="text-amber-600" /> Target Tanggal Selesai:
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Contoh: Besok sore / 28 Oktober 2026"
+                                                value={item.targetDate || ''}
+                                                onChange={(e) => {
+                                                    const n = [...inProgressItems];
+                                                    n[index].targetDate = e.target.value;
+                                                    setInProgressItems(n);
+                                                }}
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Baris 4: Foto Bukti Opsional */}
+                                    <div className="space-y-1 pt-1">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                                                <Camera size={12} /> Foto Kondisi Saat Ini (Opsional)
+                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'inprogress' })}
+                                                    className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <Camera size={11} /> Kamera
+                                                </button>
+                                                <label className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer">
+                                                    <span>+ Unggah</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handlePhotoUpload(index, file, 'inprogress');
+                                                        }}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {item.photos && item.photos.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {item.photos.map((ph, pIdx) => {
+                                                    const url = ph.url || ph;
+                                                    return (
+                                                        <div key={pIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-200">
+                                                            <img
+                                                                src={getMediaUrl(url)}
+                                                                alt="Bukti On Progress"
+                                                                onClick={() => setLightboxPhoto(getMediaUrl(url))}
+                                                                className="w-full h-full object-cover cursor-pointer"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemovePhoto(index, pIdx, 'inprogress')}
+                                                                className="absolute top-1 right-1 p-0.5 bg-rose-600 text-white rounded-md cursor-pointer"
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* ============================================================== */}
+                {/* PILAR C: 🔴 PROBLEMS - KENDALA & HAMBATAN LAPANGAN */}
+                {/* ============================================================== */}
+                <div className={`bg-white p-4 sm:p-6 rounded-3xl border border-rose-200/80 shadow-sm space-y-4 ${
+                    activePillarTab !== 'ALL' && activePillarTab !== 'OBSTACLE' ? 'hidden sm:block' : 'block'
+                }`}>
+                    <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                            <span className={`w-8 h-8 rounded-2xl flex items-center justify-center font-bold ${
+                                hasObstacle ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                                <AlertTriangle size={18} />
+                            </span>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                    <span>C. Kendala & Hambatan Lapangan</span>
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                        hasObstacle ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                    }`}>
+                                        {hasObstacle ? `${obstacleItems.length} Kendala Dilaporkan` : 'Nihil / Lancar'}
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                    Laporkan hambatan teknis atau kebutuhan eskalasi agar pimpinan dapat memberikan bantuan
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Toggle Ada Kendala / Nihil */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                            <button
+                                type="button"
+                                onClick={() => setHasObstacle(false)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                    !hasObstacle ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                ✅ Nihil (Lancar)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setHasObstacle(true)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                    hasObstacle ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                ⚠️ Ada Kendala
+                            </button>
+                        </div>
+                    </div>
+
+                    {!hasObstacle ? (
+                        <div className="p-4 bg-emerald-50/50 border border-emerald-200/60 rounded-2xl flex items-center gap-3">
+                            <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+                            <p className="text-xs text-emerald-800 font-medium leading-relaxed">
+                                <strong>Alhamdulillah:</strong> Tidak ada kendala operasional yang menghambat pekerjaan hari ini.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {obstacleItems.map((obs, index) => (
+                                <div key={`obs-${index}`} className="p-4 bg-rose-50/40 border border-rose-200 rounded-2xl space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-7 h-7 rounded-xl bg-rose-600 text-white text-xs font-black flex items-center justify-center shrink-0">
+                                                {index + 1}
+                                            </span>
+                                            <select
+                                                value={obs.categoryTag || userDivision || 'UMUM'}
+                                                onChange={(e) => {
+                                                    const n = [...obstacleItems];
+                                                    n[index].categoryTag = e.target.value;
+                                                    setObstacleItems(n);
+                                                }}
+                                                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                                            >
+                                                {DIVISION_TAGS.map(d => (
+                                                    <option key={d.key} value={d.key}>{d.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {obstacleItems.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setObstacleItems(obstacleItems.filter((_, i) => i !== index))}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl cursor-pointer"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-bold text-rose-900">Uraian Masalah / Hambatan Lapangan:</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePolishText(index, 'OBSTACLE')}
+                                                disabled={polishingKey === `OBSTACLE-${index}` || !obs.obstacleNote?.trim()}
+                                                className="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                                            >
+                                                {polishingKey === `OBSTACLE-${index}` ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+                                                <span>AI Polish</span>
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            rows="2"
+                                            placeholder="Contoh: Stok kabel UTP Cat6 di gudang habis dan toko langganan tutup..."
+                                            value={obs.obstacleNote || ''}
+                                            onChange={(e) => {
+                                                const n = [...obstacleItems];
+                                                n[index].obstacleNote = e.target.value;
+                                                n[index].title = e.target.value;
+                                                setObstacleItems(n);
+                                            }}
+                                            className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                            💡 Tindakan Perbaikan / Solusi yang Diajukan (Action Plan):
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Contoh: Pengajuan pembelian darurat 1 roll kabel melalui kas kecil atau pinjam dari unit SMA"
+                                            value={obs.actionPlan || ''}
+                                            onChange={(e) => {
+                                                const n = [...obstacleItems];
+                                                n[index].actionPlan = e.target.value;
+                                                setObstacleItems(n);
+                                            }}
+                                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
+                                        />
+                                    </div>
+
+                                    {/* Foto Bukti Kendala */}
+                                    <div className="space-y-1 pt-1">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                                                <Camera size={12} /> Foto Bukti Kendala / Kerusakan (Opsional)
+                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'obstacle' })}
+                                                    className="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[10px] font-black cursor-pointer"
+                                                >
+                                                    <Camera size={11} /> Kamera
+                                                </button>
+                                                <label className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold cursor-pointer">
+                                                    <span>+ Unggah</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handlePhotoUpload(index, file, 'obstacle');
+                                                        }}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {obs.photos && obs.photos.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {obs.photos.map((ph, pIdx) => {
+                                                    const url = ph.url || ph;
+                                                    return (
+                                                        <div key={pIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-200">
+                                                            <img
+                                                                src={getMediaUrl(url)}
+                                                                alt="Bukti Kendala"
+                                                                onClick={() => setLightboxPhoto(getMediaUrl(url))}
+                                                                className="w-full h-full object-cover cursor-pointer"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemovePhoto(index, pIdx, 'obstacle')}
+                                                                className="absolute top-1 right-1 p-0.5 bg-rose-600 text-white rounded-md cursor-pointer"
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button
+                                type="button"
+                                onClick={() => setObstacleItems([
+                                    ...obstacleItems, 
+                                    { title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }
+                                ])}
+                                className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-dashed border-rose-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                <Plus size={14} /> Tambah Kendala Lainnya
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* ============================================================== */}
+                {/* PILAR D: 🟣 PLANS - RENCANA KERJA BESOK / HARI BERIKUTNYA */}
+                {/* ============================================================== */}
+                <div className={`bg-white p-4 sm:p-6 rounded-3xl border border-indigo-200/80 shadow-sm space-y-4 ${
+                    activePillarTab !== 'ALL' && activePillarTab !== 'TOMORROW' ? 'hidden sm:block' : 'block'
+                }`}>
+                    <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                                <Target size={18} />
+                            </span>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                    <span>D. Rencana Kerja Besok / Hari Berikutnya</span>
+                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                                        Wajib Staf
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                    Butir agenda ini akan otomatis ter-carry over pada laporan esok hari
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setTomorrowPlans([
+                                ...tomorrowPlans, 
+                                { title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }
+                            ])}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                        >
+                            <Plus size={14} /> <span>Tambah Rencana</span>
+                        </button>
+                    </div>
+
+                    <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex items-center gap-2.5 text-xs text-indigo-900 font-medium">
+                        <Sparkles size={16} className="text-indigo-600 shrink-0" />
+                        <span>
+                            Susun target agenda besok agar aktivitas kerja terarah dan otomatis siap dilaporkan pada keesokan harinya.
+                        </span>
+                    </div>
+
+                    <div className="space-y-3">
+                        {tomorrowPlans.map((plan, index) => (
+                            <div key={`tp-${index}`} className="p-3.5 bg-indigo-50/30 border border-indigo-100 rounded-2xl space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">
+                                            {index + 1}
+                                        </span>
+                                        <select
+                                            value={plan.categoryTag || userDivision || 'UMUM'}
+                                            onChange={(e) => {
+                                                const n = [...tomorrowPlans];
+                                                n[index].categoryTag = e.target.value;
+                                                setTomorrowPlans(n);
+                                            }}
+                                            className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                                        >
+                                            {DIVISION_TAGS.map(d => (
+                                                <option key={d.key} value={d.key}>{d.label}</option>
+                                            ))}
+                                        </select>
+                                        <div className="flex items-center gap-1">
+                                            {['TINGGI', 'SEDANG', 'RENDAH'].map(pri => (
+                                                <button
+                                                    key={pri}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const n = [...tomorrowPlans];
+                                                        n[index].priority = pri;
+                                                        setTomorrowPlans(n);
+                                                    }}
+                                                    className={`px-2 py-0.5 rounded-lg text-[9px] font-black cursor-pointer transition-all ${
+                                                        plan.priority === pri
+                                                            ? (pri === 'TINGGI' ? 'bg-rose-600 text-white' : pri === 'SEDANG' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white')
+                                                            : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-100'
+                                                    }`}
+                                                >
+                                                    {pri}
+                                                </button>
                                             ))}
                                         </div>
+                                    </div>
+
+                                    {tomorrowPlans.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setTomorrowPlans(tomorrowPlans.filter((_, i) => i !== index))}
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl cursor-pointer"
+                                            title="Hapus butir rencana ini"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
                                     )}
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Active Assigned Tasks Converter */}
-                        <div className="space-y-2.5">
-                            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                <Layers size={14} className="text-blue-600" /> Penugasan Khusus dari Pimpinan
-                            </h4>
-                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                                {assignments.filter(t => t.assigneeId === user.id && t.progressPercentage < 100).length === 0 ? (
-                                    <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                        Tidak ada penugasan khusus aktif yang tertunda untuk Anda.
-                                    </div>
-                                ) : (
-                                    assignments.filter(t => t.assigneeId === user.id && t.progressPercentage < 100).map(t => (
-                                        <div key={t.id} className="p-3 bg-slate-50 border border-slate-200/70 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-                                            <div>
-                                                <h5 className="text-xs font-bold text-slate-800">{t.title}</h5>
-                                                <p className="text-[10px] text-slate-500 line-clamp-1">{t.description}</p>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => convertTaskToReport(t, 'morning')}
-                                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
-                                                >
-                                                    + Pagi
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => convertTaskToReport(t, 'afternoon')}
-                                                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
-                                                >
-                                                    + Siang
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Active Work Plans & Projects Converter */}
-                        {plans && plans.length > 0 && (
-                            <div className="space-y-2.5 pt-3 border-t border-slate-200/70">
-                                {(() => {
-                                    const allPendingPlanEntries = plans.flatMap(plan => {
-                                        const meta = plan.metadata || {};
-                                        const isProject = !!meta.isProject || meta.planType === 'PROJECT';
-                                        const items = Array.isArray(meta.items) ? meta.items : [];
-                                        if (items.length > 0) {
-                                            return items
-                                                .map((it, idx) => ({ plan, it, idx, isProject }))
-                                                .filter(({ it }) => (it.percentage || 0) < 100 && it.status !== 'SELESAI');
-                                        } else {
-                                            const isDone = meta.status === 'SELESAI' || meta.percentage === 100;
-                                            return isDone ? [] : [{ plan, it: null, idx: null, isProject }];
-                                        }
-                                    });
-
-                                    const weeklyEntries = allPendingPlanEntries.filter(e => !e.isProject);
-                                    const projectEntries = allPendingPlanEntries.filter(e => e.isProject);
-
-                                    const visibleEntries = allPendingPlanEntries.filter(e => {
-                                        if (planDrawerFilter === 'WEEKLY') return !e.isProject;
-                                        if (planDrawerFilter === 'PROJECT') return e.isProject;
-                                        return true;
-                                    });
-
-                                    return (
-                                        <>
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <Target size={14} className="text-violet-600" /> Butir Rencana Kerja Aktif
-                                                </h4>
-
-                                                {/* Filter Segmented Controls */}
-                                                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 text-[10px] font-bold">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPlanDrawerFilter('ALL')}
-                                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                                                            planDrawerFilter === 'ALL'
-                                                                ? 'bg-white text-slate-800 shadow-2xs font-black'
-                                                                : 'text-slate-500 hover:text-slate-800'
-                                                        }`}
-                                                    >
-                                                        Semua ({allPendingPlanEntries.length})
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPlanDrawerFilter('WEEKLY')}
-                                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                                                            planDrawerFilter === 'WEEKLY'
-                                                                ? 'bg-violet-600 text-white shadow-2xs font-black'
-                                                                : 'text-violet-700 hover:text-violet-900'
-                                                        }`}
-                                                    >
-                                                        <span>📋 Pekanan</span>
-                                                        <span className="opacity-80">({weeklyEntries.length})</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPlanDrawerFilter('PROJECT')}
-                                                        className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                                                            planDrawerFilter === 'PROJECT'
-                                                                ? 'bg-emerald-600 text-white shadow-2xs font-black'
-                                                                : 'text-emerald-700 hover:text-emerald-900'
-                                                        }`}
-                                                    >
-                                                        <span>📁 Project</span>
-                                                        <span className="opacity-80">({projectEntries.length})</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-                                                {visibleEntries.length === 0 ? (
-                                                    <div className="p-4 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                                        {allPendingPlanEntries.length === 0
-                                                            ? 'Seluruh target rencana kerja & project Anda telah terselesaikan 100%.'
-                                                            : `Tidak ada butir pada kategori ${planDrawerFilter === 'WEEKLY' ? 'Rencana Pekanan' : 'Project Langsung'}.`}
-                                                    </div>
-                                                ) : (
-                                                    visibleEntries.map(({ plan, it, idx, isProject }, entryIdx) => {
-                                                        const rawPlanTitle = (plan.metadata?.title || plan.content || 'Kegiatan').trim();
-                                                        const planTitle = rawPlanTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawPlanTitle;
-                                                        const activityText = it ? (it.activity || it.text || '') : planTitle;
-                                                        const pct = it ? (it.percentage || 0) : (plan.metadata?.percentage || 0);
-                                                        const hasProjectLink = !!(it?.projectId);
-
-                                                        return (
-                                                            <div 
-                                                                key={`${plan.id}-${idx !== null ? idx : entryIdx}`} 
-                                                                className={`p-3 border rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs transition-all ${
-                                                                    isProject 
-                                                                        ? 'bg-emerald-50/40 border-emerald-200/80 hover:border-emerald-300' 
-                                                                        : 'bg-violet-50/40 border-violet-200/80 hover:border-violet-300'
-                                                                }`}
-                                                            >
-                                                                <div>
-                                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                                        {isProject ? (
-                                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white flex items-center gap-0.5">
-                                                                                📁 Project
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-violet-600 text-white flex items-center gap-0.5">
-                                                                                📋 Pekanan
-                                                                            </span>
-                                                                        )}
-
-                                                                        {hasProjectLink && (
-                                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
-                                                                                🔗 Induk Project
-                                                                            </span>
-                                                                        )}
-
-                                                                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                                                                            isProject ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'
-                                                                        }`}>
-                                                                            {planTitle}
-                                                                        </span>
-                                                                        <span className="text-[10px] text-slate-500 font-bold">{pct}%</span>
-                                                                    </div>
-                                                                    <h5 className="text-xs font-bold text-slate-800 mt-1">{activityText}</h5>
-                                                                </div>
-                                                                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'morning')}
-                                                                        className={`px-2.5 py-1 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95 ${
-                                                                            isProject ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-violet-600 hover:bg-violet-700'
-                                                                        }`}
-                                                                        title="Tarik ke Sesi Pagi Laporan Harian"
-                                                                    >
-                                                                        + Pagi
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => convertPlanItemToReport && convertPlanItemToReport(plan, it, idx, 'afternoon')}
-                                                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95"
-                                                                        title="Tarik ke Sesi Siang Laporan Harian"
-                                                                    >
-                                                                        + Siang
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
-                                            </div>
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* MOBILE SESSION SWITCHER (Visible on Mobile Only) */}
-            <div className="flex sm:hidden items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                <button
-                    type="button"
-                    onClick={() => setMobileSessionTab('ALL')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                        mobileSessionTab === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'
-                    }`}
-                >
-                    Semua
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setMobileSessionTab('MORNING')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                        mobileSessionTab === 'MORNING' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500'
-                    }`}
-                >
-                    🌅 Pagi ({morningPoints.length})
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setMobileSessionTab('AFTERNOON')}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                        mobileSessionTab === 'AFTERNOON' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500'
-                    }`}
-                >
-                    🌇 Siang ({afternoonPoints.length})
-                </button>
-            </div>
-
-            {/* SESI INPUT FORM: Sesi Pagi & Sesi Siang */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                {/* Sesi Pagi */}
-                <div className={`bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm space-y-4 flex flex-col justify-between ${
-                    mobileSessionTab === 'AFTERNOON' ? 'hidden sm:flex' : 'flex'
-                }`}>
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div>
-                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Clock size={16} className="text-blue-600" /> Sesi Pagi (07.15 - 12.00 WIB)
-                                </h3>
-                                <p className="text-[11px] text-slate-400 font-medium">Batas pengingat: 13.30 WIB</p>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <button
-                                    type="button"
-                                    onClick={() => setMorningPoints([...morningPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
-                                    className="px-2.5 sm:px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                                >
-                                    <Plus size={14} /> <span className="hidden sm:inline">Tambah Kegiatan</span><span className="sm:hidden">+ Butir</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleSaveReport('morning')}
-                                    disabled={saving}
-                                    className="px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50"
-                                    title="Simpan Laporan Sesi Pagi"
-                                >
-                                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                                    <span>Simpan</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            {morningPoints.map((point, index) => (
-                                <div key={`m-${index}`} className="p-3.5 sm:p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2.5">
-                                    {/* Row 1: Number + Division Dropdown + Delete */}
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span className="w-7 h-7 rounded-xl bg-blue-600 text-white text-xs font-black flex items-center justify-center shrink-0 shadow-xs">
-                                                {index + 1}
-                                            </span>
-                                            <select
-                                                value={point.categoryTag}
-                                                onChange={(e) => {
-                                                    const n = [...morningPoints];
-                                                    n[index].categoryTag = e.target.value;
-                                                    setMorningPoints(n);
-                                                }}
-                                                className="flex-1 min-w-0 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none truncate"
-                                            >
-                                                {DIVISION_TAGS.map(d => (
-                                                    <option key={d.key} value={d.key}>{d.label}</option>
-                                                ))}
-                                            </select>
-                                            {point.sourceType === 'MAINTENANCE' && (
-                                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan modul Pemeliharaan">
-                                                    🔧 Pemeliharaan
-                                                </span>
-                                            )}
-                                            {point.sourceType === 'ASSIGNMENT' && (
-                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan Tab Penugasan">
-                                                    📋 Penugasan
-                                                </span>
-                                            )}
-                                        </div>
-                                        {morningPoints.length > 1 && (
-                                            <button 
-                                                type="button"
-                                                onClick={() => setMorningPoints(morningPoints.filter((_, i) => i !== index))}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0"
-                                                title="Hapus butir ini"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Feedback / Arahan dari Kabid jika ada */}
-                                    {point.review && (
-                                        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
-                                            point.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
-                                            point.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
-                                            'bg-blue-50/90 border-blue-200 text-blue-900'
-                                        }`}>
-                                            <div className="flex items-center justify-between font-bold text-[11px]">
-                                                <span className="flex items-center gap-1.5">
-                                                    {point.review.status === 'APPROVED' ? '✅ Disetujui Pimpinan' :
-                                                     point.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan (Arahan Kabid)' : '💡 Catatan Arahan Pimpinan'}
-                                                </span>
-                                                <span className="text-[10px] opacity-75 font-normal">
-                                                    oleh {point.review.reviewerName || 'Kabid Sarana'} • {dayjs(point.review.reviewedAt).format('DD/MM HH:mm')}
-                                                </span>
-                                            </div>
-                                            {point.review.feedbackNote && (
-                                                <p className="text-xs font-semibold italic pl-1 leading-relaxed bg-white/70 p-2 rounded-lg border border-slate-200/60">
-                                                    "{point.review.feedbackNote}"
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Row 2: Touch-Friendly Status Pills */}
-                                    <div className="flex items-center gap-1.5 pt-0.5">
+                                <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[11px] font-bold text-slate-600">Rencana Kegiatan Besok:</label>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const n = [...morningPoints];
-                                                n[index].status = 'COMPLETED';
-                                                n[index].progressPercentage = 100;
-                                                setMorningPoints(n);
-                                            }}
-                                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                point.status === 'COMPLETED' 
-                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
+                                            onClick={() => handlePolishText(index, 'TOMORROW')}
+                                            disabled={polishingKey === `TOMORROW-${index}` || !plan.title?.trim()}
+                                            className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40"
                                         >
-                                            <CheckCircle2 size={12} /> Selesai 100%
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const n = [...morningPoints];
-                                                n[index].status = 'IN_PROGRESS';
-                                                if (!n[index].progressPercentage) n[index].progressPercentage = 50;
-                                                setMorningPoints(n);
-                                            }}
-                                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                point.status === 'IN_PROGRESS' 
-                                                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            <Clock size={12} /> Proses {point.progressPercentage ? `(${point.progressPercentage}%)` : '(50%)'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const n = [...morningPoints];
-                                                n[index].status = 'OBSTACLE';
-                                                setMorningPoints(n);
-                                            }}
-                                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                point.status === 'OBSTACLE' 
-                                                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs' 
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            <AlertTriangle size={12} /> Kendala ⚠️
+                                            {polishingKey === `TOMORROW-${index}` ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+                                            <span>AI Polish</span>
                                         </button>
                                     </div>
-
-                                    {/* Quick Percentage Chips & Slider for In Progress */}
-                                    {point.status === 'IN_PROGRESS' && (
-                                        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-2.5 space-y-2 animate-in fade-in-50 duration-200">
-                                            <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
-                                                <span>Estimasi Capaian Progres:</span>
-                                                <span className="bg-amber-500 text-white px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs">
-                                                    {point.progressPercentage || 50}%
-                                                </span>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-4 gap-1.5">
-                                                {[25, 50, 75, 90].map(pct => (
-                                                    <button
-                                                        key={pct}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const n = [...morningPoints];
-                                                            n[index].progressPercentage = pct;
-                                                            setMorningPoints(n);
-                                                        }}
-                                                        className={`py-1 px-1.5 rounded-lg text-[10px] sm:text-[11px] font-extrabold border transition-all cursor-pointer ${
-                                                            (point.progressPercentage || 50) === pct
-                                                                ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                                                                : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70'
-                                                        }`}
-                                                    >
-                                                        {pct}%
-                                                    </button>
-                                                ))}
-                                            </div>
-
-                                            <div className="space-y-0.5">
-                                                <input 
-                                                    type="range"
-                                                    min="10"
-                                                    max="90"
-                                                    step="5"
-                                                    value={point.progressPercentage || 50}
-                                                    onChange={(e) => {
-                                                        const n = [...morningPoints];
-                                                        n[index].progressPercentage = parseInt(e.target.value);
-                                                        setMorningPoints(n);
-                                                    }}
-                                                    className="w-full accent-amber-600 cursor-pointer h-1.5"
-                                                />
-                                                <div className="flex justify-between text-[9px] font-semibold text-slate-400">
-                                                    <span>10% (Mulai)</span>
-                                                    <span>50% (Separuh)</span>
-                                                    <span>90% (Hampir Selesai)</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Activity Description with AI Polish */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                                Uraian Kegiatan:
-                                            </label>
-                                            <button
-                                                type="button"
-                                                disabled={polishingKey === `morning-${index}` || !point.text?.trim()}
-                                                onClick={() => handlePolishText(index, 'morning')}
-                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black transition-all border cursor-pointer ${
-                                                    polishingKey === `morning-${index}`
-                                                        ? 'bg-violet-100 text-violet-700 border-violet-300 animate-pulse'
-                                                        : !point.text?.trim()
-                                                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                                                            : 'bg-gradient-to-r from-violet-50 to-indigo-50 hover:from-violet-100 hover:to-indigo-100 text-violet-700 border-violet-200 shadow-2xs hover:shadow-xs active:scale-95'
-                                                }`}
-                                                title="Rapihkan tata bahasa kalimat menjadi bahasa laporan resmi (AI)"
-                                            >
-                                                {polishingKey === `morning-${index}` ? (
-                                                    <>
-                                                        <Loader2 size={12} className="animate-spin text-violet-600" />
-                                                        <span>Merapikan Teks...</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Sparkles size={12} className="text-violet-600 fill-violet-200" />
-                                                        <span>Rapihkan Kalimat (AI)</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
-
-                                        <textarea
-                                            rows="3"
-                                            placeholder="Uraikan aktivitas kerja pagi yang dikerjakan secara jelas..."
-                                            value={point.text}
-                                            onChange={(e) => {
-                                                const n = [...morningPoints];
-                                                n[index].text = e.target.value;
-                                                setMorningPoints(n);
-                                            }}
-                                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-                                        />
-
-                                        {/* Revert chip if text was polished */}
-                                        {originalHistory[`morning-${index}`] && (
-                                            <div className="flex items-center justify-between px-3 py-1 bg-violet-50/90 border border-violet-200/80 rounded-xl text-[10px] text-violet-900 animate-in fade-in">
-                                                <span className="flex items-center gap-1.5 font-medium">
-                                                    <Sparkles size={11} className="text-violet-600 shrink-0" />
-                                                    Kalimat telah dirapikan ke bahasa laporan resmi.
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRevertText(index, 'morning')}
-                                                    className="font-bold underline text-violet-700 hover:text-violet-950 flex items-center gap-1 cursor-pointer ml-2"
-                                                    title="Kembalikan ke teks sebelum dirapikan"
-                                                >
-                                                    <Undo2 size={10} /> Kembalikan teks awal
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Obstacle Note Field with AI Polish button */}
-                                    {point.status === 'OBSTACLE' && (
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
-                                                <AlertCircle size={14} className="text-rose-600 shrink-0" />
-                                                <input 
-                                                    type="text"
-                                                    placeholder="Jelaskan kendala/masalah yang dihadapi..."
-                                                    value={point.obstacleNote}
-                                                    onChange={(e) => {
-                                                        const n = [...morningPoints];
-                                                        n[index].obstacleNote = e.target.value;
-                                                        setMorningPoints(n);
-                                                    }}
-                                                    className="w-full bg-transparent text-xs font-bold text-rose-800 outline-none placeholder:text-rose-400"
-                                                />
-                                                {point.obstacleNote?.trim() && (
-                                                    <button
-                                                        type="button"
-                                                        disabled={polishingKey === `obs-morning-${index}`}
-                                                        onClick={() => handlePolishObstacle(index, 'morning')}
-                                                        className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition cursor-pointer shrink-0"
-                                                        title="Rapikan bahasa kendala (AI)"
-                                                    >
-                                                        {polishingKey === `obs-morning-${index}` ? (
-                                                            <Loader2 size={13} className="animate-spin text-rose-600" />
-                                                        ) : (
-                                                            <Sparkles size={13} className="text-rose-600" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {originalHistory[`obs-morning-${index}`] && (
-                                                <div className="flex items-center justify-between px-2.5 py-0.5 text-[9px] text-rose-700">
-                                                    <span>Kendala dirapikan oleh AI.</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRevertObstacle(index, 'morning')}
-                                                        className="font-bold underline hover:text-rose-950 cursor-pointer"
-                                                    >
-                                                        Kembalikan
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Mobile-Friendly Photo Upload Zone (Opsional) */}
-                                    <div className="space-y-2 pt-1 border-t border-slate-200/60">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-1.5">
-                                                <Camera size={13} className="text-blue-600" />
-                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                                                    Foto Bukti Lapangan
-                                                </span>
-                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
-                                                    (Opsional)
-                                                </span>
-                                            </div>
-                                            <span className="text-[10px] font-medium text-slate-400">
-                                                {(point.photos || []).length}/5 Foto
-                                            </span>
-                                        </div>
-
-                                        {/* Dual Upload Options: Direct Camera vs Gallery */}
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                disabled={uploadingPhotoIndex !== null}
-                                                onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'morning' })}
-                                                className="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-50"
-                                            >
-                                                {uploadingPhotoIndex === `morning-${index}` ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                                                <span>{uploadingPhotoIndex === `morning-${index}` ? 'Mengunggah...' : 'Buka Kamera'}</span>
-                                            </button>
-
-                                            <label className="cursor-pointer py-2 px-3 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs">
-                                                <Plus size={14} />
-                                                <span>Pilih Galeri</span>
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*" 
-                                                    className="hidden" 
-                                                    disabled={uploadingPhotoIndex !== null}
-                                                    onChange={(e) => {
-                                                        if (e.target.files[0]) {
-                                                            handlePhotoUpload(index, e.target.files[0], 'morning');
-                                                            e.target.value = '';
-                                                        }
-                                                    }} 
-                                                />
-                                            </label>
-                                        </div>
-
-                                        <p className="text-[10px] text-slate-400 italic">
-                                            * Upload foto bukti lapangan bersifat opsional (tidak wajib).
-                                        </p>
-
-                                        {/* Photo Thumbnails with Touch Delete Badge */}
-                                        {point.photos && point.photos.length > 0 && (
-                                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 pt-1.5">
-                                                {point.photos.map((ph, pIdx) => (
-                                                    <div key={pIdx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-2xs bg-slate-100">
-                                                        <img 
-                                                            src={getMediaUrl(ph.url || ph)} 
-                                                            alt="Bukti Lapangan" 
-                                                            className="w-full h-full object-cover cursor-pointer"
-                                                            onClick={() => setLightboxPhoto(getMediaUrl(ph.url || ph))}
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleRemovePhoto(index, pIdx, 'morning');
-                                                            }}
-                                                            className="absolute top-1 right-1 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform cursor-pointer"
-                                                            title="Hapus foto"
-                                                        >
-                                                            <X size={11} strokeWidth={3} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: Pengecekan unit genset dan pemeliharaan instalasi air..."
+                                        value={plan.title}
+                                        onChange={(e) => {
+                                            const n = [...tomorrowPlans];
+                                            n[index].title = e.target.value;
+                                            setTomorrowPlans(n);
+                                        }}
+                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
                                 </div>
-                            ))}
-
-                            {/* Add Item Button at Bottom */}
-                            <button
-                                type="button"
-                                onClick={() => setMorningPoints([...morningPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
-                                className="w-full py-2.5 bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-dashed border-blue-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
-                            >
-                                <Plus size={15} /> Tambah Butir Kegiatan Pagi
-                            </button>
-
-                            {/* Tombol Simpan Khusus Sesi Pagi */}
-                            <button
-                                type="button"
-                                onClick={() => handleSaveReport('morning')}
-                                disabled={saving}
-                                className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50 mt-1"
-                            >
-                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                <span>Simpan Laporan Sesi Pagi</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Sesi Siang */}
-                <div className={`bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm space-y-4 flex flex-col justify-between ${
-                    mobileSessionTab === 'MORNING' ? 'hidden sm:flex' : 'flex'
-                }`}>
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div>
-                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Clock size={16} className="text-indigo-600" /> Sesi Siang (13.00 - 16.15 WIB)
-                                </h3>
-                                <p className="text-[11px] text-slate-400 font-medium">Batas pengingat: 19.00 WIB</p>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <button
-                                    type="button"
-                                    onClick={() => setAfternoonPoints([...afternoonPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
-                                    className="px-2.5 sm:px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                                >
-                                    <Plus size={14} /> <span className="hidden sm:inline">Tambah Kegiatan</span><span className="sm:hidden">+ Butir</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleSaveReport('afternoon')}
-                                    disabled={saving}
-                                    className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs disabled:opacity-50"
-                                    title="Simpan Laporan Sesi Siang"
-                                >
-                                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                                    <span>Simpan</span>
-                                </button>
-                            </div>
-                        </div>
+                        ))}
 
-                        <div className="space-y-4">
-                            {afternoonPoints.map((point, index) => (
-                                <div key={`a-${index}`} className="p-3.5 sm:p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2.5">
-                                    {/* Row 1: Number + Division Dropdown + Delete */}
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0 shadow-xs">
-                                                {index + 1}
-                                            </span>
-                                            <select
-                                                value={point.categoryTag}
-                                                onChange={(e) => {
-                                                    const n = [...afternoonPoints];
-                                                    n[index].categoryTag = e.target.value;
-                                                    setAfternoonPoints(n);
-                                                }}
-                                                className="flex-1 min-w-0 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none truncate"
-                                            >
-                                                {DIVISION_TAGS.map(d => (
-                                                    <option key={d.key} value={d.key}>{d.label}</option>
-                                                ))}
-                                            </select>
-                                            {point.sourceType === 'MAINTENANCE' && (
-                                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan modul Pemeliharaan">
-                                                    🔧 Pemeliharaan
-                                                </span>
-                                            )}
-                                            {point.sourceType === 'ASSIGNMENT' && (
-                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-xl flex items-center gap-1 shrink-0" title="Terkoneksi langsung dengan Tab Penugasan">
-                                                    📋 Penugasan
-                                                </span>
-                                            )}
-                                        </div>
-                                        {afternoonPoints.length > 1 && (
-                                            <button 
-                                                type="button"
-                                                onClick={() => setAfternoonPoints(afternoonPoints.filter((_, i) => i !== index))}
-                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0"
-                                                title="Hapus butir ini"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Feedback / Arahan dari Kabid jika ada */}
-                                    {point.review && (
-                                        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
-                                            point.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
-                                            point.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
-                                            'bg-blue-50/90 border-blue-200 text-blue-900'
-                                        }`}>
-                                            <div className="flex items-center justify-between font-bold text-[11px]">
-                                                <span className="flex items-center gap-1.5">
-                                                    {point.review.status === 'APPROVED' ? '✅ Disetujui Pimpinan' :
-                                                     point.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan (Arahan Kabid)' : '💡 Catatan Arahan Pimpinan'}
-                                                </span>
-                                                <span className="text-[10px] opacity-75 font-normal">
-                                                    oleh {point.review.reviewerName || 'Kabid Sarana'} • {dayjs(point.review.reviewedAt).format('DD/MM HH:mm')}
-                                                </span>
-                                            </div>
-                                            {point.review.feedbackNote && (
-                                                <p className="text-xs font-semibold italic pl-1 leading-relaxed bg-white/70 p-2 rounded-lg border border-slate-200/60">
-                                                    "{point.review.feedbackNote}"
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Row 2: Touch-Friendly Status Pills */}
-                                    <div className="flex items-center gap-1.5 pt-0.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const n = [...afternoonPoints];
-                                                n[index].status = 'COMPLETED';
-                                                n[index].progressPercentage = 100;
-                                                setAfternoonPoints(n);
-                                            }}
-                                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                point.status === 'COMPLETED' 
-                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            <CheckCircle2 size={12} /> Selesai 100%
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const n = [...afternoonPoints];
-                                                n[index].status = 'IN_PROGRESS';
-                                                if (!n[index].progressPercentage) n[index].progressPercentage = 50;
-                                                setAfternoonPoints(n);
-                                            }}
-                                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                point.status === 'IN_PROGRESS' 
-                                                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            <Clock size={12} /> Proses {point.progressPercentage ? `(${point.progressPercentage}%)` : '(50%)'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const n = [...afternoonPoints];
-                                                n[index].status = 'OBSTACLE';
-                                                setAfternoonPoints(n);
-                                            }}
-                                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                point.status === 'OBSTACLE' 
-                                                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs' 
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            <AlertTriangle size={12} /> Kendala ⚠️
-                                        </button>
-                                    </div>
-
-                                    {/* Quick Percentage Chips & Slider for In Progress */}
-                                    {point.status === 'IN_PROGRESS' && (
-                                        <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-2.5 space-y-2 animate-in fade-in-50 duration-200">
-                                            <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
-                                                <span>Estimasi Capaian Progres:</span>
-                                                <span className="bg-amber-500 text-white px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs">
-                                                    {point.progressPercentage || 50}%
-                                                </span>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-4 gap-1.5">
-                                                {[25, 50, 75, 90].map(pct => (
-                                                    <button
-                                                        key={pct}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const n = [...afternoonPoints];
-                                                            n[index].progressPercentage = pct;
-                                                            setAfternoonPoints(n);
-                                                        }}
-                                                        className={`py-1 px-1.5 rounded-lg text-[10px] sm:text-[11px] font-extrabold border transition-all cursor-pointer ${
-                                                            (point.progressPercentage || 50) === pct
-                                                                ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                                                                : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/70'
-                                                        }`}
-                                                    >
-                                                        {pct}%
-                                                    </button>
-                                                ))}
-                                            </div>
-
-                                            <div className="space-y-0.5">
-                                                <input 
-                                                    type="range"
-                                                    min="10"
-                                                    max="90"
-                                                    step="5"
-                                                    value={point.progressPercentage || 50}
-                                                    onChange={(e) => {
-                                                        const n = [...afternoonPoints];
-                                                        n[index].progressPercentage = parseInt(e.target.value);
-                                                        setAfternoonPoints(n);
-                                                    }}
-                                                    className="w-full accent-amber-600 cursor-pointer h-1.5"
-                                                />
-                                                <div className="flex justify-between text-[9px] font-semibold text-slate-400">
-                                                    <span>10% (Mulai)</span>
-                                                    <span>50% (Separuh)</span>
-                                                    <span>90% (Hampir Selesai)</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Activity Description with AI Polish */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                                Uraian Kegiatan:
-                                            </label>
-                                            <button
-                                                type="button"
-                                                disabled={polishingKey === `afternoon-${index}` || !point.text?.trim()}
-                                                onClick={() => handlePolishText(index, 'afternoon')}
-                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black transition-all border cursor-pointer ${
-                                                    polishingKey === `afternoon-${index}`
-                                                        ? 'bg-indigo-100 text-indigo-700 border-indigo-300 animate-pulse'
-                                                        : !point.text?.trim()
-                                                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                                                            : 'bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 text-indigo-700 border-indigo-200 shadow-2xs hover:shadow-xs active:scale-95'
-                                                }`}
-                                                title="Rapihkan tata bahasa kalimat menjadi bahasa laporan resmi (AI)"
-                                            >
-                                                {polishingKey === `afternoon-${index}` ? (
-                                                    <>
-                                                        <Loader2 size={12} className="animate-spin text-indigo-600" />
-                                                        <span>Merapikan Teks...</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Sparkles size={12} className="text-indigo-600 fill-indigo-200" />
-                                                        <span>Rapihkan Kalimat (AI)</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
-
-                                        <textarea
-                                            rows="3"
-                                            placeholder="Uraikan aktivitas kerja siang yang dikerjakan secara jelas..."
-                                            value={point.text}
-                                            onChange={(e) => {
-                                                const n = [...afternoonPoints];
-                                                n[index].text = e.target.value;
-                                                setAfternoonPoints(n);
-                                            }}
-                                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
-                                        />
-
-                                        {/* Revert chip if text was polished */}
-                                        {originalHistory[`afternoon-${index}`] && (
-                                            <div className="flex items-center justify-between px-3 py-1 bg-indigo-50/90 border border-indigo-200/80 rounded-xl text-[10px] text-indigo-900 animate-in fade-in">
-                                                <span className="flex items-center gap-1.5 font-medium">
-                                                    <Sparkles size={11} className="text-indigo-600 shrink-0" />
-                                                    Kalimat telah dirapikan ke bahasa laporan resmi.
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRevertText(index, 'afternoon')}
-                                                    className="font-bold underline text-indigo-700 hover:text-indigo-950 flex items-center gap-1 cursor-pointer ml-2"
-                                                    title="Kembalikan ke teks sebelum dirapikan"
-                                                >
-                                                    <Undo2 size={10} /> Kembalikan teks awal
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Obstacle Note Field with AI Polish button */}
-                                    {point.status === 'OBSTACLE' && (
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
-                                                <AlertCircle size={14} className="text-rose-600 shrink-0" />
-                                                <input 
-                                                    type="text"
-                                                    placeholder="Jelaskan kendala/masalah yang dihadapi..."
-                                                    value={point.obstacleNote}
-                                                    onChange={(e) => {
-                                                        const n = [...afternoonPoints];
-                                                        n[index].obstacleNote = e.target.value;
-                                                        setAfternoonPoints(n);
-                                                    }}
-                                                    className="w-full bg-transparent text-xs font-bold text-rose-800 outline-none placeholder:text-rose-400"
-                                                />
-                                                {point.obstacleNote?.trim() && (
-                                                    <button
-                                                        type="button"
-                                                        disabled={polishingKey === `obs-afternoon-${index}`}
-                                                        onClick={() => handlePolishObstacle(index, 'afternoon')}
-                                                        className="p-1 rounded-lg text-rose-600 hover:bg-rose-100 transition cursor-pointer shrink-0"
-                                                        title="Rapikan bahasa kendala (AI)"
-                                                    >
-                                                        {polishingKey === `obs-afternoon-${index}` ? (
-                                                            <Loader2 size={13} className="animate-spin text-rose-600" />
-                                                        ) : (
-                                                            <Sparkles size={13} className="text-rose-600" />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {originalHistory[`obs-afternoon-${index}`] && (
-                                                <div className="flex items-center justify-between px-2.5 py-0.5 text-[9px] text-rose-700">
-                                                    <span>Kendala dirapikan oleh AI.</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRevertObstacle(index, 'afternoon')}
-                                                        className="font-bold underline hover:text-rose-950 cursor-pointer"
-                                                    >
-                                                        Kembalikan
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Mobile-Friendly Photo Upload Zone (Opsional) */}
-                                    <div className="space-y-2 pt-1 border-t border-slate-200/60">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-1.5">
-                                                <Camera size={13} className="text-indigo-600" />
-                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                                                    Foto Bukti Lapangan
-                                                </span>
-                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
-                                                    (Opsional)
-                                                </span>
-                                            </div>
-                                            <span className="text-[10px] font-medium text-slate-400">
-                                                {(point.photos || []).length}/5 Foto
-                                            </span>
-                                        </div>
-
-                                        {/* Dual Upload Options: Direct Camera vs Gallery */}
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                disabled={uploadingPhotoIndex !== null}
-                                                onClick={() => setCameraModalConfig({ isOpen: true, index, period: 'afternoon' })}
-                                                className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs cursor-pointer disabled:opacity-50"
-                                            >
-                                                {uploadingPhotoIndex === `afternoon-${index}` ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-                                                <span>{uploadingPhotoIndex === `afternoon-${index}` ? 'Mengunggah...' : 'Buka Kamera'}</span>
-                                            </button>
-
-                                            <label className="cursor-pointer py-2 px-3 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs">
-                                                <Plus size={14} />
-                                                <span>Galeri</span>
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*" 
-                                                    className="hidden" 
-                                                    disabled={uploadingPhotoIndex !== null}
-                                                    onChange={(e) => {
-                                                        if (e.target.files[0]) {
-                                                            handlePhotoUpload(index, e.target.files[0], 'afternoon');
-                                                            e.target.value = '';
-                                                        }
-                                                    }} 
-                                                />
-                                            </label>
-                                        </div>
-
-                                        <p className="text-[10px] text-slate-400 italic">
-                                            * Upload foto bukti lapangan bersifat opsional (tidak wajib).
-                                        </p>
-
-                                        {/* Photo Thumbnails with Touch Delete Badge */}
-                                        {point.photos && point.photos.length > 0 && (
-                                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 pt-1.5">
-                                                {point.photos.map((ph, pIdx) => (
-                                                    <div key={pIdx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-2xs bg-slate-100">
-                                                        <img 
-                                                            src={getMediaUrl(ph.url || ph)} 
-                                                            alt="Bukti Lapangan" 
-                                                            className="w-full h-full object-cover cursor-pointer"
-                                                            onClick={() => setLightboxPhoto(getMediaUrl(ph.url || ph))}
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleRemovePhoto(index, pIdx, 'afternoon');
-                                                            }}
-                                                            className="absolute top-1 right-1 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform cursor-pointer"
-                                                            title="Hapus foto"
-                                                        >
-                                                            <X size={11} strokeWidth={3} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-
-                            {/* Add Item Button at Bottom */}
-                            <button
-                                type="button"
-                                onClick={() => setAfternoonPoints([...afternoonPoints, { text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }])}
-                                className="w-full py-2.5 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 border border-dashed border-indigo-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
-                            >
-                                <Plus size={15} /> Tambah Butir Kegiatan Siang
-                            </button>
-
-                            {/* Tombol Simpan Khusus Sesi Siang */}
-                            <button
-                                type="button"
-                                onClick={() => handleSaveReport('afternoon')}
-                                disabled={saving}
-                                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-2xl text-xs sm:text-sm font-black shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50 mt-1"
-                            >
-                                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                <span>Simpan Laporan Sesi Siang</span>
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setTomorrowPlans([
+                                ...tomorrowPlans, 
+                                { title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }
+                            ])}
+                            className="w-full py-2.5 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-800 border border-dashed border-indigo-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                        >
+                            <Plus size={15} /> Tambah Butir Rencana Besok
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* SAVE BUTTON - Floating on Mobile above Navbar, Sticky on Desktop */}
+            {/* 5. FLOATING / STICKY SAVE BAR */}
             <div className="fixed sm:sticky bottom-[72px] sm:bottom-4 z-[45] left-3 right-3 sm:left-auto sm:right-auto sm:flex sm:justify-end">
-                {/* Mobile view */}
-                <div className="flex sm:hidden flex-col gap-2 w-full bg-white/95 backdrop-blur-md p-2.5 rounded-2xl border border-slate-200/90 shadow-2xl">
-                    {mobileSessionTab === 'MORNING' && (
-                        <button
-                            type="button"
-                            onClick={() => handleSaveReport('morning')}
-                            disabled={saving}
-                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                        >
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            <span>Simpan Laporan Sesi Pagi</span>
-                            <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                                {dayjs(selectedDate).format('DD/MM/YYYY')}
-                            </span>
-                        </button>
-                    )}
-                    {mobileSessionTab === 'AFTERNOON' && (
-                        <button
-                            type="button"
-                            onClick={() => handleSaveReport('afternoon')}
-                            disabled={saving}
-                            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-indigo-500/25 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                        >
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            <span>Simpan Laporan Sesi Siang</span>
-                            <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                                {dayjs(selectedDate).format('DD/MM/YYYY')}
-                            </span>
-                        </button>
-                    )}
-                    {mobileSessionTab === 'ALL' && (
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => handleSaveReport('morning')}
-                                disabled={saving}
-                                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
-                            >
-                                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                <span>Simpan Pagi</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleSaveReport('afternoon')}
-                                disabled={saving}
-                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-indigo-500/20 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
-                            >
-                                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                <span>Simpan Siang</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleSaveReport(null)}
-                                disabled={saving}
-                                className="px-3 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
-                                title="Simpan Semua Sesi"
-                            >
-                                <Save size={15} />
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <div className="w-full sm:w-auto bg-white/95 backdrop-blur-md p-3 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xl flex flex-col sm:flex-row items-center gap-3">
+                    <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-600 px-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Metode PPP Terpadu</span>
+                        <span className="text-slate-300">|</span>
+                        <span>{dayjs(selectedDate).format('DD/MM/YYYY')}</span>
+                    </div>
 
-                {/* Desktop view */}
-                <div className="hidden sm:flex sm:items-center sm:gap-3">
                     <button
                         type="button"
-                        onClick={() => handleSaveReport('morning')}
+                        onClick={handleSaveReport}
                         disabled={saving}
-                        className="px-5 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs rounded-2xl transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                    >
-                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                        <span>Simpan Sesi Pagi</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleSaveReport('afternoon')}
-                        disabled={saving}
-                        className="px-5 py-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-2xl transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
-                    >
-                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                        <span>Simpan Sesi Siang</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleSaveReport(null)}
-                        disabled={saving}
-                        className="px-7 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-800 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                        className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 active:scale-95"
                     >
                         {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                         <span>
-                            {saving 
-                                ? 'Menyimpan ke Server...' 
-                                : (selectedDate !== dayjs().format('YYYY-MM-DD') ? 'Simpan Semua Laporan Susulan' : 'Simpan Semua (Pagi & Siang)')
-                            }
-                        </span>
-                        <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
-                            {dayjs(selectedDate).format('DD/MM/YYYY')} (WIB)
+                            {saving ? 'Menyimpan ke Server...' : 'Simpan Laporan Harian (PPP) & Rencana Besok'}
                         </span>
                     </button>
                 </div>

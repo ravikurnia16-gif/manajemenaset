@@ -793,6 +793,37 @@ const TeamMonitoringTab = ({
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Rencana Kerja Besok (Metode PPP) */}
+                                    {report.metadata?.tomorrowPlans && report.metadata.tomorrowPlans.length > 0 && (
+                                        <div className="pt-2 border-t border-slate-100">
+                                            <h4 className="text-[11px] font-black text-violet-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <Calendar size={12} /> 🎯 Rencana Kerja Besok ({report.metadata.tomorrowPlans.length})
+                                            </h4>
+                                            <div className="space-y-1.5">
+                                                {report.metadata.tomorrowPlans.map((pl, plIdx) => (
+                                                    <div key={plIdx} className="bg-violet-50/50 p-2.5 rounded-xl border border-violet-100/80 flex items-start gap-2">
+                                                        <span className="w-4 h-4 rounded-full bg-violet-200 text-violet-800 text-[9px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                                            {plIdx + 1}
+                                                        </span>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                <span className="px-1.5 py-0.5 rounded bg-white text-[8px] font-black uppercase text-violet-700 border border-violet-200">
+                                                                    {pl.categoryTag || 'UMUM'}
+                                                                </span>
+                                                                {pl.priority === 'HIGH' && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[8px] font-bold">
+                                                                        Prioritas Tinggi
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs text-slate-700 font-medium leading-relaxed">{pl.text}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Verification / Feedback Form for Kabid */}

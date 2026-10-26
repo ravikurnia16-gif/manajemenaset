@@ -138,9 +138,22 @@ const LaporanStaff = () => {
     const [savingPointReview, setSavingPointReview] = useState(false);
     const [remindingStaff, setRemindingStaff] = useState(false);
 
-    // Staff Form States
-    const [morningPoints, setMorningPoints] = useState([{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-    const [afternoonPoints, setAfternoonPoints] = useState([{ text: '', categoryTag: 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+    // Staff Form States: Metode PPP (Progress, Problems, Plans) & Legacy Compatibility
+    const [completedItems, setCompletedItems] = useState([
+        { title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }
+    ]);
+    const [inProgressItems, setInProgressItems] = useState([]);
+    const [hasObstacle, setHasObstacle] = useState(false);
+    const [obstacleItems, setObstacleItems] = useState([
+        { title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }
+    ]);
+    const [tomorrowPlans, setTomorrowPlans] = useState([
+        { title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }
+    ]);
+
+    // Legacy States for backward compatibility
+    const [morningPoints, setMorningPoints] = useState([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+    const [afternoonPoints, setAfternoonPoints] = useState([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
     const [personalStats, setPersonalStats] = useState(null);
     const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState(null);
     const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
@@ -151,7 +164,7 @@ const LaporanStaff = () => {
     const [showAllTemplates, setShowAllTemplates] = useState(false);
     const [showMissedDates, setShowMissedDates] = useState(false);
     const [mobileSessionTab, setMobileSessionTab] = useState('ALL');
-    const [cameraModalConfig, setCameraModalConfig] = useState({ isOpen: false, index: null, period: 'morning' });
+    const [cameraModalConfig, setCameraModalConfig] = useState({ isOpen: false, index: null, period: 'completed' });
     const currentLoadedDateRef = useRef(null);
 
     // Staff Custom Templates
@@ -246,16 +259,26 @@ const LaporanStaff = () => {
         }
     }, [monitoringStartDate, monitoringEndDate, selectedStaffId, filterCategory, filterStatus]);
 
-    // Auto-Save Draft to LocalStorage
+    // Auto-Save Draft to LocalStorage (Metode PPP)
     useEffect(() => {
         if (activeTab === 'laporan' && !loading && currentLoadedDateRef.current === selectedDate) {
-            const hasContent = morningPoints.some(p => p.text?.trim() || p.photos?.length > 0) || afternoonPoints.some(p => p.text?.trim() || p.photos?.length > 0);
+            const hasContent = completedItems.some(p => p.title?.trim() || p.photos?.length > 0) ||
+                inProgressItems.some(p => p.title?.trim() || p.photos?.length > 0) ||
+                (hasObstacle && obstacleItems.some(o => o.obstacleNote?.trim() || o.title?.trim())) ||
+                tomorrowPlans.some(t => t.title?.trim());
+
             if (hasContent) {
-                const draftKey = `draft_laporan_${user.id || 'default'}_${selectedDate}`;
-                localStorage.setItem(draftKey, JSON.stringify({ morning: morningPoints, afternoon: afternoonPoints }));
+                const draftKey = `draft_laporan_ppp_${user.id || 'default'}_${selectedDate}`;
+                localStorage.setItem(draftKey, JSON.stringify({
+                    completedItems,
+                    inProgressItems,
+                    hasObstacle,
+                    obstacleItems,
+                    tomorrowPlans
+                }));
             }
         }
-    }, [morningPoints, afternoonPoints, selectedDate, activeTab, isKabid, loading, user.id]);
+    }, [completedItems, inProgressItems, hasObstacle, obstacleItems, tomorrowPlans, selectedDate, activeTab, loading, user.id]);
 
     // Client-side photo compression
     const compressImage = (fileOrBlobOrDataUrl, maxWidth = 1200, quality = 0.82) => {
@@ -316,7 +339,7 @@ const LaporanStaff = () => {
     };
 
     // -------------------------------------------------------------
-    // API CALLS: STAFF
+    // API CALLS: STAFF (Metode PPP: Progress, Problems, Plans)
     // -------------------------------------------------------------
     const fetchMyReport = async () => {
         try {
@@ -330,42 +353,130 @@ const LaporanStaff = () => {
                 if (res.data.userWeeklyPlans) setUserWeeklyPlans(res.data.userWeeklyPlans);
 
                 const rep = res.data.myReport;
-                const pts = rep?.metadata?.manualPoints;
-                if (pts && (pts.morning?.length > 0 || pts.afternoon?.length > 0 || pts.morningPoints?.length > 0 || pts.afternoonPoints?.length > 0)) {
+                const meta = rep?.metadata || {};
+                const hasPppData = (Array.isArray(meta.completedItems) && meta.completedItems.length > 0) ||
+                                   (Array.isArray(meta.inProgressItems) && meta.inProgressItems.length > 0) ||
+                                   (Array.isArray(meta.obstacleItems) && meta.obstacleItems.length > 0) ||
+                                   (Array.isArray(meta.tomorrowPlans) && meta.tomorrowPlans.length > 0);
+
+                if (hasPppData) {
+                    setCompletedItems(meta.completedItems?.length ? meta.completedItems : [{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                    setInProgressItems(meta.inProgressItems || []);
+                    const obs = meta.obstacleItems || [];
+                    setObstacleItems(obs.length > 0 ? obs : [{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                    setHasObstacle(obs.length > 0);
+                    setTomorrowPlans(meta.tomorrowPlans?.length ? meta.tomorrowPlans : [{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
+
+                    // Backward-compat for legacy components
+                    const pts = meta.manualPoints;
+                    if (pts) {
+                        setMorningPoints(pts.morning || []);
+                        setAfternoonPoints(pts.afternoon || []);
+                    }
+                    setHasRestoredDraft(false);
+                    setHasCarriedOver(false);
+                    currentLoadedDateRef.current = targetDateToLoad;
+                } else if (rep?.metadata?.manualPoints) {
+                    // Legacy report conversion to PPP
+                    const pts = rep.metadata.manualPoints;
                     const m = pts.morning || pts.morningPoints || [];
                     const a = pts.afternoon || pts.afternoonPoints || [];
-                    setMorningPoints(m.length > 0 ? m : [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                    setAfternoonPoints(a.length > 0 ? a : [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                    const all = [...m, ...a];
+                    
+                    const completed = all.filter(p => p.status === 'COMPLETED');
+                    const inProg = all.filter(p => p.status === 'IN_PROGRESS');
+                    const obst = all.filter(p => p.status === 'OBSTACLE');
+
+                    setCompletedItems(completed.length > 0 ? completed.map(p => ({
+                        title: p.text || '',
+                        output: p.output || 'Tuntas dilaksanakan sesuai target jadwal.',
+                        categoryTag: p.categoryTag || userDivision || 'UMUM',
+                        photos: p.photos || [],
+                        sourceType: p.sourceType || null,
+                        sourceId: p.sourceId || null,
+                        planItemIndex: p.planItemIndex !== undefined ? p.planItemIndex : null,
+                        projectId: p.projectId || null,
+                        projectItemIndex: p.projectItemIndex !== undefined ? p.projectItemIndex : null,
+                        isRoutine: !!p.isRoutine
+                    })) : [{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+
+                    setInProgressItems(inProg.map(p => ({
+                        title: p.text || '',
+                        progressPercentage: p.progressPercentage || 50,
+                        targetDate: p.targetDate || '',
+                        categoryTag: p.categoryTag || userDivision || 'UMUM',
+                        photos: p.photos || [],
+                        sourceType: p.sourceType || null,
+                        sourceId: p.sourceId || null,
+                        planItemIndex: p.planItemIndex !== undefined ? p.planItemIndex : null,
+                        projectId: p.projectId || null,
+                        projectItemIndex: p.projectItemIndex !== undefined ? p.projectItemIndex : null
+                    })));
+
+                    setObstacleItems(obst.length > 0 ? obst.map(p => ({
+                        title: p.text || 'Kendala Lapangan',
+                        obstacleNote: p.obstacleNote || '',
+                        actionPlan: p.actionPlan || '',
+                        categoryTag: p.categoryTag || userDivision || 'UMUM',
+                        photos: p.photos || []
+                    })) : [{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                    setHasObstacle(obst.length > 0);
+
+                    const tp = Array.isArray(rep.metadata?.tomorrowPlans) ? rep.metadata.tomorrowPlans : [];
+                    setTomorrowPlans(tp.length > 0 ? tp : [{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
+
+                    setMorningPoints(m);
+                    setAfternoonPoints(a);
                     setHasRestoredDraft(false);
                     setHasCarriedOver(false);
                     currentLoadedDateRef.current = targetDateToLoad;
                 } else {
-                    const draftKey = `draft_laporan_${user.id || 'default'}_${targetDateToLoad}`;
+                    // Check local draft first
+                    const draftKey = `draft_laporan_ppp_${user.id || 'default'}_${targetDateToLoad}`;
                     const savedDraft = localStorage.getItem(draftKey);
                     if (savedDraft) {
                         try {
                             const parsed = JSON.parse(savedDraft);
-                            if (parsed.morning?.length > 0 || parsed.afternoon?.length > 0) {
-                                setMorningPoints(parsed.morning || [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                                setAfternoonPoints(parsed.afternoon || [{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                            if (parsed.completedItems || parsed.inProgressItems || parsed.tomorrowPlans) {
+                                setCompletedItems(parsed.completedItems || [{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                                setInProgressItems(parsed.inProgressItems || []);
+                                setHasObstacle(!!parsed.hasObstacle);
+                                setObstacleItems(parsed.obstacleItems || [{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                                setTomorrowPlans(parsed.tomorrowPlans || [{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
                                 setHasRestoredDraft(true);
                                 setHasCarriedOver(false);
                                 currentLoadedDateRef.current = targetDateToLoad;
                                 return;
                             }
                         } catch (e) {
-                            console.error('Failed to parse draft', e);
+                            console.error('Failed to parse draft PPP', e);
                         }
                     }
 
-                    // Auto Carry-Over dari Laporan Rencana Kemarin
+                    // Auto Carry-Over dari Laporan Rencana Kemarin (suggestedFromYesterday)
                     if (Array.isArray(res.data.suggestedFromYesterday) && res.data.suggestedFromYesterday.length > 0) {
-                        setMorningPoints(res.data.suggestedFromYesterday);
-                        setAfternoonPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                        setCompletedItems([{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                        setInProgressItems(res.data.suggestedFromYesterday.map(item => ({
+                            title: item.text || item.title || '',
+                            progressPercentage: item.progressPercentage || 50,
+                            targetDate: 'Hari ini',
+                            categoryTag: item.categoryTag || userDivision || 'UMUM',
+                            photos: [],
+                            sourceType: item.sourceType || 'PLAN',
+                            sourceId: item.sourceId || null,
+                            planItemIndex: item.planItemIndex !== undefined ? item.planItemIndex : null,
+                            isFromYesterday: true
+                        })));
+                        setHasObstacle(false);
+                        setObstacleItems([{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                        setTomorrowPlans([{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
                         setHasCarriedOver(true);
                     } else {
-                        setMorningPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
-                        setAfternoonPoints([{ text: '', categoryTag: userDivision || 'UMUM', status: 'COMPLETED', obstacleNote: '', photos: [] }]);
+                        setCompletedItems([{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                        setInProgressItems([]);
+                        setHasObstacle(false);
+                        setObstacleItems([{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                        setTomorrowPlans([{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
                         setHasCarriedOver(false);
                     }
                     setHasRestoredDraft(false);
@@ -390,51 +501,89 @@ const LaporanStaff = () => {
         }
     };
 
-    const handleSaveReport = async (targetPeriod = null) => {
+    const handleSaveReport = async () => {
         try {
-            const validMorning = morningPoints.filter(p => (p.text && p.text.trim()) || (p.photos && p.photos.length > 0));
-            const validAfternoon = afternoonPoints.filter(p => (p.text && p.text.trim()) || (p.photos && p.photos.length > 0));
+            const validCompleted = completedItems.filter(p => (p.title && p.title.trim()) || (p.photos && p.photos.length > 0));
+            const validInProgress = inProgressItems.filter(p => (p.title && p.title.trim()) || (p.photos && p.photos.length > 0));
+            const validObstacles = hasObstacle ? obstacleItems.filter(o => (o.title && o.title.trim()) || (o.obstacleNote && o.obstacleNote.trim())) : [];
+            const validTomorrow = tomorrowPlans.filter(t => t.title && t.title.trim());
 
-            if (targetPeriod === 'morning') {
-                if (validMorning.length === 0) {
-                    alert('Mohon isi minimal satu uraian kegiatan pada Sesi Pagi sebelum menyimpan.');
-                    return;
-                }
-            } else if (targetPeriod === 'afternoon') {
-                if (validAfternoon.length === 0) {
-                    alert('Mohon isi minimal satu uraian kegiatan pada Sesi Siang sebelum menyimpan.');
-                    return;
-                }
-            } else {
-                if (validMorning.length === 0 && validAfternoon.length === 0) {
-                    alert('Mohon isi minimal satu uraian kegiatan pada Sesi Pagi atau Sesi Siang sebelum menyimpan laporan.');
-                    return;
-                }
+            if (validCompleted.length === 0 && validInProgress.length === 0 && validObstacles.length === 0) {
+                alert('Mohon isi minimal satu butir pekerjaan hari ini (Pekerjaan Selesai, Dalam Proses, atau Kendala).');
+                return;
+            }
+
+            if (validTomorrow.length === 0) {
+                alert('⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "D. Rencana Kerja Besok" agar tugas Anda terencana dan otomatis menjadi acuan kerja pada hari berikutnya.');
+                return;
             }
 
             setSaving(true);
+
+            // Petakan ke manualPoints agar sistem lama (PDF, Monitoring, AI, Export) tetap 100% kompatibel
+            const morningPoints = [
+                ...validCompleted.map(c => ({
+                    text: c.title,
+                    output: c.output || '',
+                    categoryTag: c.categoryTag || userDivision || 'UMUM',
+                    status: 'COMPLETED',
+                    progressPercentage: 100,
+                    photos: c.photos || [],
+                    sourceType: c.sourceType,
+                    sourceId: c.sourceId,
+                    planItemIndex: c.planItemIndex,
+                    projectId: c.projectId,
+                    projectItemIndex: c.projectItemIndex,
+                    isRoutine: !!c.isRoutine
+                })),
+                ...validObstacles.map(o => ({
+                    text: o.title || 'Kendala Lapangan',
+                    categoryTag: o.categoryTag || userDivision || 'UMUM',
+                    status: 'OBSTACLE',
+                    obstacleNote: o.obstacleNote || '',
+                    actionPlan: o.actionPlan || '',
+                    photos: o.photos || []
+                }))
+            ];
+
+            const afternoonPoints = validInProgress.map(p => ({
+                text: p.title,
+                categoryTag: p.categoryTag || userDivision || 'UMUM',
+                status: 'IN_PROGRESS',
+                progressPercentage: p.progressPercentage || 50,
+                targetDate: p.targetDate || '',
+                photos: p.photos || [],
+                sourceType: p.sourceType,
+                sourceId: p.sourceId,
+                planItemIndex: p.planItemIndex,
+                projectId: p.projectId,
+                projectItemIndex: p.projectItemIndex
+            }));
+
             const res = await api.post('/laporan/my', {
                 targetDate: selectedDate,
+                category: userDivision || 'UMUM',
+                completedItems: validCompleted,
+                inProgressItems: validInProgress,
+                obstacleItems: validObstacles,
+                tomorrowPlans: validTomorrow,
                 manualPoints: {
-                    morning: validMorning,
-                    afternoon: validAfternoon
+                    morning: morningPoints.length > 0 ? morningPoints : [{ text: 'Pekerjaan Selesai', status: 'COMPLETED' }],
+                    afternoon: afternoonPoints
                 }
             });
 
             if (res.data.success) {
-                const draftKey = `draft_laporan_${user.id || 'default'}_${selectedDate}`;
-                localStorage.removeItem(draftKey);
+                localStorage.removeItem(`draft_laporan_ppp_${user.id || 'default'}_${selectedDate}`);
+                localStorage.removeItem(`draft_laporan_${user.id || 'default'}_${selectedDate}`);
                 setHasRestoredDraft(false);
 
                 const isOldDate = selectedDate !== dayjs().format('YYYY-MM-DD');
                 const formattedDate = dayjs(selectedDate).format('DD/MM/YYYY');
-                let periodText = '';
-                if (targetPeriod === 'morning') periodText = 'Sesi Pagi ';
-                else if (targetPeriod === 'afternoon') periodText = 'Sesi Siang ';
 
                 alert(isOldDate
-                    ? `Alhamdulillah, laporan ${periodText}susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!`
-                    : `Alhamdulillah, laporan ${periodText}harian berhasil disimpan!`
+                    ? `Alhamdulillah, laporan PPP susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!`
+                    : `Alhamdulillah, laporan harian PPP & rencana kerja besok berhasil disimpan!`
                 );
                 await Promise.all([fetchMyReport(), fetchMyStats(), fetchPlans()]);
             }
@@ -447,10 +596,10 @@ const LaporanStaff = () => {
         }
     };
 
-    const handlePhotoUpload = async (index, fileOrDataUrl, period = 'morning') => {
+    const handlePhotoUpload = async (index, fileOrDataUrl, section = 'completed') => {
         if (!fileOrDataUrl) return;
         try {
-            setUploadingPhotoIndex(`${period}-${index}`);
+            setUploadingPhotoIndex(`${section}-${index}`);
             const compressedBase64 = await compressImage(fileOrDataUrl);
             const res = await api.post('/laporan/upload-photo', { base64: compressedBase64 });
             const photoUrl = res.data.url || compressedBase64;
@@ -460,16 +609,21 @@ const LaporanStaff = () => {
                 timestamp: new Date().toISOString()
             };
 
-            if (period === 'morning') {
-                const newPts = [...morningPoints];
-                if ((newPts[index].photos || []).length >= 5) return alert('Maksimal 5 foto per butir kegiatan!');
-                newPts[index].photos = [...(newPts[index].photos || []), photoObj];
-                setMorningPoints(newPts);
-            } else {
-                const newPts = [...afternoonPoints];
-                if ((newPts[index].photos || []).length >= 5) return alert('Maksimal 5 foto per butir kegiatan!');
-                newPts[index].photos = [...(newPts[index].photos || []), photoObj];
-                setAfternoonPoints(newPts);
+            if (section === 'completed' || section === 'morning') {
+                const updated = [...completedItems];
+                if ((updated[index].photos || []).length >= 5) return alert('Maksimal 5 foto per butir pekerjaan!');
+                updated[index].photos = [...(updated[index].photos || []), photoObj];
+                setCompletedItems(updated);
+            } else if (section === 'inprogress' || section === 'afternoon') {
+                const updated = [...inProgressItems];
+                if ((updated[index].photos || []).length >= 5) return alert('Maksimal 5 foto per butir pekerjaan!');
+                updated[index].photos = [...(updated[index].photos || []), photoObj];
+                setInProgressItems(updated);
+            } else if (section === 'obstacle') {
+                const updated = [...obstacleItems];
+                if ((updated[index].photos || []).length >= 5) return alert('Maksimal 5 foto per kendala!');
+                updated[index].photos = [...(updated[index].photos || []), photoObj];
+                setObstacleItems(updated);
             }
         } catch (err) {
             console.error('Photo upload error:', err);
@@ -479,55 +633,109 @@ const LaporanStaff = () => {
         }
     };
 
-    const handleRemovePhoto = (pointIndex, photoIndex, period = 'morning') => {
-        if (period === 'morning') {
-            const newPts = [...morningPoints];
-            newPts[pointIndex].photos = newPts[pointIndex].photos.filter((_, i) => i !== photoIndex);
-            setMorningPoints(newPts);
-        } else {
-            const newPts = [...afternoonPoints];
-            newPts[pointIndex].photos = newPts[pointIndex].photos.filter((_, i) => i !== photoIndex);
-            setAfternoonPoints(newPts);
+    const handleRemovePhoto = (pointIndex, photoIndex, section = 'completed') => {
+        if (section === 'completed' || section === 'morning') {
+            const updated = [...completedItems];
+            updated[pointIndex].photos = (updated[pointIndex].photos || []).filter((_, i) => i !== photoIndex);
+            setCompletedItems(updated);
+        } else if (section === 'inprogress' || section === 'afternoon') {
+            const updated = [...inProgressItems];
+            updated[pointIndex].photos = (updated[pointIndex].photos || []).filter((_, i) => i !== photoIndex);
+            setInProgressItems(updated);
+        } else if (section === 'obstacle') {
+            const updated = [...obstacleItems];
+            updated[pointIndex].photos = (updated[pointIndex].photos || []).filter((_, i) => i !== photoIndex);
+            setObstacleItems(updated);
         }
     };
 
-    const applyRoutine = (routineText, categoryKey, period = 'morning') => {
-        const item = {
-            text: routineText,
-            categoryTag: categoryKey,
-            status: 'COMPLETED',
-            obstacleNote: '',
-            isRoutine: true,
-            photos: []
-        };
-        if (period === 'morning') {
-            setMorningPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
-        } else {
-            setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
+    const applyRoutine = (routineText, categoryKey, targetPillar = 'COMPLETED') => {
+        const cat = categoryKey || userDivision || 'UMUM';
+        if (targetPillar === 'COMPLETED') {
+            setCompletedItems(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim() && (!prev[0].photos || prev[0].photos.length === 0);
+                const newItem = {
+                    title: routineText,
+                    output: 'Tuntas dilaksanakan sesuai SOP.',
+                    categoryTag: cat,
+                    isRoutine: true,
+                    photos: []
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
+        } else if (targetPillar === 'IN_PROGRESS') {
+            setInProgressItems(prev => [
+                ...prev,
+                {
+                    title: routineText,
+                    progressPercentage: 50,
+                    targetDate: 'Hari ini',
+                    categoryTag: cat,
+                    isRoutine: true,
+                    photos: []
+                }
+            ]);
+        } else if (targetPillar === 'TOMORROW') {
+            setTomorrowPlans(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim();
+                const newItem = {
+                    title: routineText,
+                    categoryTag: cat,
+                    priority: 'SEDANG'
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
         }
     };
 
-    const convertTaskToReport = (task, period = 'morning') => {
-        const item = {
-            text: `[Tugas: ${task.title}] ${task.description || ''}`,
-            categoryTag: task.category || 'UMUM',
-            status: task.progressPercentage === 100 ? 'COMPLETED' : 'IN_PROGRESS',
-            progressPercentage: task.progressPercentage || 50,
-            sourceType: 'ASSIGNMENT',
-            sourceId: task.id,
-            obstacleNote: '',
-            isRoutine: false,
-            photos: []
-        };
-        if (period === 'morning') {
-            setMorningPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
+    const convertTaskToReport = (task, targetPillar = 'COMPLETED') => {
+        const cat = task.category || userDivision || 'UMUM';
+        const taskTitle = `[Penugasan: ${task.title}] ${task.description || ''}`.trim();
+        const isDone = task.progressPercentage === 100 || targetPillar === 'COMPLETED';
+
+        if (targetPillar === 'TOMORROW') {
+            setTomorrowPlans(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim();
+                const newItem = {
+                    title: `Menyelesaikan penugasan: ${task.title}`,
+                    categoryTag: cat,
+                    priority: task.priority || 'TINGGI',
+                    sourceType: 'ASSIGNMENT',
+                    sourceId: task.id
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
+        } else if (isDone && targetPillar !== 'IN_PROGRESS') {
+            setCompletedItems(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim() && (!prev[0].photos || prev[0].photos.length === 0);
+                const newItem = {
+                    title: taskTitle,
+                    output: task.targetOutput || 'Tugas selesai dilaksanakan 100%.',
+                    categoryTag: cat,
+                    sourceType: 'ASSIGNMENT',
+                    sourceId: task.id,
+                    photos: []
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
         } else {
-            setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [item] : [...prev, item]);
+            setInProgressItems(prev => [
+                ...prev,
+                {
+                    title: taskTitle,
+                    progressPercentage: task.progressPercentage || 50,
+                    targetDate: task.dueDate ? dayjs(task.dueDate).format('YYYY-MM-DD') : 'Hari ini',
+                    categoryTag: cat,
+                    sourceType: 'ASSIGNMENT',
+                    sourceId: task.id,
+                    photos: []
+                }
+            ]);
         }
         setActiveTab('laporan');
     };
 
-    const convertPlanItemToReport = (plan, item, itemIndex, period = 'morning', extraPhotos = []) => {
+    const convertPlanItemToReport = (plan, item, itemIndex, targetPillar = 'COMPLETED', extraPhotos = []) => {
         const itemText = item ? (item.activity || item.text || '') : '';
         const rawTitle = (plan.metadata?.title || plan.content || 'Kegiatan').trim();
         const cleanTitle = rawTitle.replace(/^\[?rencana\s*(kerja)?[^\]:]*\]?[:\s]*/i, '').trim() || rawTitle;
@@ -550,29 +758,55 @@ const LaporanStaff = () => {
 
         const pct = isDone ? 100 : (isSingleGoal ? (plan.metadata?.percentage || 50) : (item?.percentage !== undefined ? item.percentage : 50));
         const cleanItemText = itemText.trim();
-        const formattedText = cleanItemText
-            ? `${cleanTitle} : ${cleanItemText} (${pct}%)`
-            : `${cleanTitle} (${pct}%)`;
-
+        const formattedTitle = cleanItemText ? `${cleanTitle} : ${cleanItemText}` : cleanTitle;
         const isProject = !!plan.metadata?.isProject || plan.metadata?.planType === 'PROJECT';
-        const reportItem = {
-            text: formattedText,
-            categoryTag: plan.metadata?.categoryTag || plan.category || 'UMUM',
-            status: isDone ? 'COMPLETED' : 'IN_PROGRESS',
-            progressPercentage: pct,
-            sourceType: isProject ? 'PROJECT' : 'PLAN',
-            sourceId: plan.id,
-            planItemIndex: isSingleGoal ? undefined : itemIndex,
-            projectId: item?.projectId || (isProject ? plan.id : null),
-            projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
-            obstacleNote: '',
-            isRoutine: false,
-            photos: resolvedPhotos
-        };
-        if (period === 'morning') {
-            setMorningPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [reportItem] : [...prev, reportItem]);
+        const cat = plan.metadata?.categoryTag || plan.category || userDivision || 'UMUM';
+
+        if (targetPillar === 'TOMORROW') {
+            setTomorrowPlans(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim();
+                const newItem = {
+                    title: formattedTitle,
+                    categoryTag: cat,
+                    priority: plan.metadata?.priority || 'SEDANG',
+                    sourceType: isProject ? 'PROJECT' : 'PLAN',
+                    sourceId: plan.id,
+                    planItemIndex: isSingleGoal ? null : itemIndex
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
+        } else if (targetPillar === 'IN_PROGRESS' || (!isDone && targetPillar !== 'COMPLETED')) {
+            setInProgressItems(prev => [
+                ...prev,
+                {
+                    title: formattedTitle,
+                    progressPercentage: pct,
+                    targetDate: item?.targetDate || 'Hari kerja berikutnya',
+                    categoryTag: cat,
+                    sourceType: isProject ? 'PROJECT' : 'PLAN',
+                    sourceId: plan.id,
+                    planItemIndex: isSingleGoal ? null : itemIndex,
+                    projectId: item?.projectId || (isProject ? plan.id : null),
+                    projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
+                    photos: resolvedPhotos
+                }
+            ]);
         } else {
-            setAfternoonPoints(prev => prev[0]?.text === '' && prev[0]?.photos?.length === 0 ? [reportItem] : [...prev, reportItem]);
+            setCompletedItems(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim() && (!prev[0].photos || prev[0].photos.length === 0);
+                const newItem = {
+                    title: formattedTitle,
+                    output: plan.metadata?.targetOutput || 'Tuntas dilaksanakan sesuai target jadwal.',
+                    categoryTag: cat,
+                    sourceType: isProject ? 'PROJECT' : 'PLAN',
+                    sourceId: plan.id,
+                    planItemIndex: isSingleGoal ? null : itemIndex,
+                    projectId: item?.projectId || (isProject ? plan.id : null),
+                    projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
+                    photos: resolvedPhotos
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
         }
         setActiveTab('laporan');
     };
@@ -1511,13 +1745,23 @@ const LaporanStaff = () => {
                         />
                     )}
 
-                    {/* TAB: LAPORAN HARIAN SAYA */}
+                    {/* TAB: LAPORAN HARIAN SAYA (METODE PPP) */}
                     {activeTab === 'laporan' && (
                         <DailyReportFormTab
                             user={user}
                             userDivision={userDivision}
                             selectedDate={selectedDate}
                             setSelectedDate={setSelectedDate}
+                            completedItems={completedItems}
+                            setCompletedItems={setCompletedItems}
+                            inProgressItems={inProgressItems}
+                            setInProgressItems={setInProgressItems}
+                            hasObstacle={hasObstacle}
+                            setHasObstacle={setHasObstacle}
+                            obstacleItems={obstacleItems}
+                            setObstacleItems={setObstacleItems}
+                            tomorrowPlans={tomorrowPlans}
+                            setTomorrowPlans={setTomorrowPlans}
                             morningPoints={morningPoints}
                             setMorningPoints={setMorningPoints}
                             afternoonPoints={afternoonPoints}
