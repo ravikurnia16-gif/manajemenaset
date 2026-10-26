@@ -228,7 +228,7 @@ const DailyPppTab = ({
                             onChange={(e) => setFilterStaff(e.target.value)}
                             className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[240px]"
                         >
-                            <option value="ALL">Semua Staf (Admin Aset)</option>
+                            <option value="ALL">Semua Staf</option>
                             {availableStaff.map((st, idx) => {
                                 const sId = st?.id || st?.userId || st?.name || `staff-${idx}`;
                                 const sName = st?.name || st?.fullName || 'Staf';

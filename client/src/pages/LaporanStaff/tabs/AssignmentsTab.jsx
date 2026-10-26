@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Send, User, Clock, CheckCircle, ExternalLink, Wrench } from 'lucide-react';
+import { Trash2, Send, User, Clock, CheckCircle, ExternalLink, Wrench, Target, CheckSquare } from 'lucide-react';
 import dayjs from 'dayjs';
 import { DIVISION_TAGS } from '../constants';
 
@@ -130,11 +130,16 @@ export default function AssignmentsTab({
                 ) : (
                     assignments.map(task => {
                         let maintenanceMeta = null;
+                        let targetOutput = task.targetOutput || '';
+                        let taskItems = Array.isArray(task.items) ? task.items : [];
                         if (task.notes) {
                             try {
                                 const parsed = JSON.parse(task.notes);
                                 if (parsed.source === 'MAINTENANCE' || parsed.maintenanceId) {
                                     maintenanceMeta = parsed;
+                                }
+                                if (!targetOutput && parsed.targetOutput) {
+                                    targetOutput = parsed.targetOutput;
                                 }
                             } catch (e) {
                                 const match = task.notes.match(/"maintenanceId":\s*(\d+)/);
@@ -158,6 +163,48 @@ export default function AssignmentsTab({
                                         </div>
                                         <h4 className="text-sm font-bold text-slate-800">{task.title}</h4>
                                         <p className="text-xs text-slate-500">{task.description}</p>
+                                        
+                                        {targetOutput && (
+                                            <div className="flex items-center gap-1.5 text-[11px] text-blue-900 bg-blue-50/80 border border-blue-100 rounded-lg px-2.5 py-1 mt-1">
+                                                <Target size={12} className="text-blue-600 shrink-0" />
+                                                <span className="font-bold text-blue-800 shrink-0">Target:</span>
+                                                <span className="font-medium text-slate-700 truncate">{targetOutput}</span>
+                                            </div>
+                                        )}
+
+                                        {taskItems.length > 0 && (
+                                            <div className="space-y-1 pt-1.5 border-t border-slate-100">
+                                                <span className="text-[10px] font-bold text-slate-400 block">
+                                                    Butir Pekerjaan ({taskItems.length}):
+                                                </span>
+                                                <div className="space-y-1">
+                                                    {taskItems.map((it, itIdx) => {
+                                                        const itName = it.activity || it.text || it.name;
+                                                        const isDone = it.percentage === 100 || it.status === 'COMPLETED' || it.status === 'SELESAI';
+                                                        return (
+                                                            <div key={itIdx} className="p-1.5 bg-slate-50 rounded-lg text-[11px] flex items-center justify-between gap-2 border border-slate-100">
+                                                                <span className={`font-medium truncate ${isDone ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                                                                    {itIdx + 1}. {itName}
+                                                                </span>
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    {it.targetDate && (
+                                                                        <span className="text-[9px] text-slate-400">
+                                                                            {dayjs(it.targetDate).format('DD MMM')}
+                                                                        </span>
+                                                                    )}
+                                                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                                                        isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                                                                    }`}>
+                                                                        {it.percentage || 0}%
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {maintenanceMeta?.maintenanceId && (
                                             <div className="pt-0.5">
                                                 <Link 

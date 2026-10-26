@@ -621,30 +621,9 @@ const PlanModal = ({
 
                     {/* Judul Rencana Kerja */}
                     <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                            <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-                                Nama / Target Pokok Rencana Kerja
-                            </label>
-                            <button
-                                type="button"
-                                disabled={loadingAi || !title.trim()}
-                                onClick={handleAiBreakdown}
-                                className="px-2.5 py-1 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow-sm shadow-violet-500/20 active:scale-95 cursor-pointer disabled:opacity-40"
-                                title="Gunakan AI untuk merinci butir pekerjaan secara otomatis"
-                            >
-                                {loadingAi ? (
-                                    <>
-                                        <Loader2 size={12} className="animate-spin text-white" />
-                                        <span>AI Merinci...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles size={12} className="text-amber-300 fill-amber-300" />
-                                        <span>Rinci Butir dg AI</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                            Nama / Target Pokok Rencana Kerja
+                        </label>
                         <input
                             type="text"
                             placeholder="Contoh: Perawatan Rutin AC Sentral & Kalibrasi Panel Listrik..."

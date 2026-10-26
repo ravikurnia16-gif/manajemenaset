@@ -36,10 +36,12 @@ const KinerjaManajemen = () => {
     }
 
     const pos = (currentUser?.position || '').toLowerCase();
-    const isKabidSarana = pos.includes('kepala bidang sarana') || currentUser?.role === 'KABID_SARPRAS' || currentUser?.role === 'SUPER_ADMIN';
+    
+    // Khusus position Kepala Bidang Sarana (MBE dan OKR hanya untuk Kepala Bidang Sarana)
+    const isKabidSarana = pos.includes('kepala bidang sarana');
 
-    // Tabs: MBE, PPP, PDCA, PLANS, OKR
-    const [activeTab, setActiveTab] = useState('MBE');
+    // Tabs: MBE, PPP, PDCA, PLANS, OKR (MBE & OKR hanya untuk Kepala Bidang Sarana)
+    const [activeTab, setActiveTab] = useState(isKabidSarana ? 'MBE' : 'PPP');
 
     // States for MBE Radar
     const [radarData, setRadarData] = useState(null);
@@ -211,12 +213,21 @@ const KinerjaManajemen = () => {
         }
     }, [activeTab, selectedDate, pdcaStartDate, pdcaEndDate]);
 
+    // Fallback jika bukan Kepala Bidang Sarana namun tab berada di MBE atau OKR
+    useEffect(() => {
+        if (!isKabidSarana && (activeTab === 'MBE' || activeTab === 'OKR')) {
+            setActiveTab('PPP');
+        }
+    }, [isKabidSarana, activeTab]);
+
     // Initial setup
     useEffect(() => {
-        fetchMbeRadar();
+        if (isKabidSarana) {
+            fetchMbeRadar();
+        }
         fetchStaffList();
         fetchStaffPlans();
-    }, []);
+    }, [isKabidSarana]);
 
     // Total Exception Count for badge
     const totalExceptions = radarData ? (
@@ -239,15 +250,19 @@ const KinerjaManajemen = () => {
                         </span>
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                                Cockpit Eksekutif • Kepala Bidang Sarana
+                                {isKabidSarana ? 'Cockpit Eksekutif • Kepala Bidang Sarana' : 'Portal Manajemen Operasional • Admin Aset'}
                             </span>
                             <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
-                                Manajemen Kinerja & Strategis (OKR)
+                                Manajemen Kinerja & Operasional Sarpras
                             </h1>
                         </div>
                     </div>
                     <p className="text-xs text-slate-500 font-medium max-w-2xl">
-                        Pusat kendali evaluasi operasional terintegrasi: <b>PPP</b> (Harian), <b>PDCA</b> (Mingguan), <b>MBE</b> (Radar Pengecualian), dan <b>OKR</b> (Sasaran Strategis).
+                        {isKabidSarana ? (
+                            <>Pusat kendali evaluasi operasional terintegrasi: <b>PPP</b> (Harian), <b>PDCA</b> (Mingguan), <b>MBE</b> (Radar Pengecualian), dan <b>OKR</b> (Sasaran Strategis).</>
+                        ) : (
+                            <>Pusat kendali operasional terpadu: <b>PPP</b> (Papan Harian), <b>PDCA</b> (Evaluasi Mingguan), dan <b>Rencana & Penugasan Staf</b>.</>
+                        )}
                     </p>
                 </div>
 
@@ -282,11 +297,11 @@ const KinerjaManajemen = () => {
                     <button
                         type="button"
                         onClick={() => {
-                            if (activeTab === 'MBE') fetchMbeRadar();
+                            if (isKabidSarana && activeTab === 'MBE') fetchMbeRadar();
                             else if (activeTab === 'PPP') fetchDailyPpp();
                             else if (activeTab === 'PDCA') fetchWeeklyPdca();
                             else if (activeTab === 'PLANS') fetchStaffPlans();
-                            else if (activeTab === 'OKR') fetchOkrDashboard();
+                            else if (isKabidSarana && activeTab === 'OKR') fetchOkrDashboard();
                         }}
                         className="p-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl text-slate-600 transition-all shadow-2xs active:scale-95 cursor-pointer"
                         title="Segarkan Data"
@@ -296,25 +311,27 @@ const KinerjaManajemen = () => {
                 </div>
             </div>
 
-            {/* TAB NAVIGATOR (5 TABS) */}
+            {/* TAB NAVIGATOR (MBE & OKR HANYA UNTUK KEPALA BIDANG SARANA) */}
             <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 overflow-x-auto">
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('MBE')}
-                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'MBE'
-                            ? 'bg-white text-rose-700 shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                    <AlertTriangle size={15} className={activeTab === 'MBE' ? 'text-rose-600' : 'text-slate-400'} />
-                    <span>🚨 Radar MBE (Anomali)</span>
-                    {totalExceptions > 0 && (
-                        <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
-                            {totalExceptions}
-                        </span>
-                    )}
-                </button>
+                {isKabidSarana && (
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('MBE')}
+                        className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                            activeTab === 'MBE'
+                                ? 'bg-white text-rose-700 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        <AlertTriangle size={15} className={activeTab === 'MBE' ? 'text-rose-600' : 'text-slate-400'} />
+                        <span>🚨 Radar MBE (Anomali)</span>
+                        {totalExceptions > 0 && (
+                            <span className="w-5 h-5 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                                {totalExceptions}
+                            </span>
+                        )}
+                    </button>
+                )}
 
                 <button
                     type="button"
@@ -355,22 +372,24 @@ const KinerjaManajemen = () => {
                     <span>📋 Rencana & Penugasan Staf</span>
                 </button>
 
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('OKR')}
-                    className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                        activeTab === 'OKR'
-                            ? 'bg-white text-emerald-700 shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                    <Target size={15} className={activeTab === 'OKR' ? 'text-emerald-600' : 'text-slate-400'} />
-                    <span>🎯 Sasaran Strategis (OKR)</span>
-                </button>
+                {isKabidSarana && (
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('OKR')}
+                        className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                            activeTab === 'OKR'
+                                ? 'bg-white text-emerald-700 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        <Target size={15} className={activeTab === 'OKR' ? 'text-emerald-600' : 'text-slate-400'} />
+                        <span>🎯 Sasaran Strategis (OKR)</span>
+                    </button>
+                )}
             </div>
 
             {/* TAB CONTENTS */}
-            {activeTab === 'MBE' && (
+            {isKabidSarana && activeTab === 'MBE' && (
                 <MbeRadarTab 
                     radarData={radarData} 
                     loading={loadingRadar} 
@@ -418,7 +437,7 @@ const KinerjaManajemen = () => {
                 />
             )}
 
-            {activeTab === 'OKR' && (
+            {isKabidSarana && activeTab === 'OKR' && (
                 <OkrDashboardTab 
                     okrData={okrData}
                     loading={loadingOkr}

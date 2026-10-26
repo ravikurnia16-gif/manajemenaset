@@ -3046,6 +3046,11 @@ exports.getSanctionedUsers = async (req, res) => {
 };
 
 exports.getStaffSarpras = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const localData = require('../services/localDataStorage');
+        const staff = localData.getStaffUsers();
+        return res.json({ success: true, staff, data: staff });
+    }
     try {
         const sarprasKeywords = [
             'manajemen aset',
@@ -3087,6 +3092,11 @@ exports.getStaffSarpras = async (req, res) => {
         });
         res.json({ success: true, staff, data: staff });
     } catch (error) {
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const localData = require('../services/localDataStorage');
+            const staff = localData.getStaffUsers();
+            return res.json({ success: true, staff, data: staff });
+        }
         res.status(500).json({ error: error.message });
     }
 };

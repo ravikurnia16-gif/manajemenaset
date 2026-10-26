@@ -90,6 +90,12 @@ const Sidebar = ({ isOpen = true }) => {
     const pos = (user?.position || '').toLowerCase();
     const isOnlyKabidSaranaPosition = pos.includes('kepala bidang sarana');
     const role = user?.role || '';
+    const canAccessKinerjaManajemen = isOnlyKabidSaranaPosition || 
+                                     role === 'ADMIN_ASET' || 
+                                     pos.includes('admin aset') || 
+                                     pos.includes('manajemen aset') ||
+                                     role === 'KABID_SARPRAS' || 
+                                     role === 'SUPER_ADMIN';
     const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => pos.includes(kw));
 
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
@@ -371,17 +377,18 @@ const Sidebar = ({ isOpen = true }) => {
 
 
                 {/* 4. Menu Laporan Terpadu - Hanya untuk Kepala Bidang Sarana dan Admin Aset */}
+                {/* 4. Menu Laporan Terpadu - Hanya untuk Kepala Bidang Sarana dan Admin Aset */}
                 {canViewLaporan && (
                     <Link to="/laporan" className={navItemClass('/laporan')}>
                         <FileText size={18} />
                         <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
-                            {isKabidSarprasPosition ? 'Laporan & Kinerja Staf' : 'Laporan Harian Staf'}
+                            {isKabidSarprasPosition || isAdminAsetRole ? 'Laporan & Kinerja Staf' : 'Laporan Harian Staf'}
                         </span>
                     </Link>
                 )}
 
-                {/* 4.1. Menu Baru: Manajemen Kinerja & Strategis (PPP, PDCA, MBE, OKR) - Khusus Kepala Bidang Sarana */}
-                {isOnlyKabidSaranaPosition && (
+                {/* 4.1. Menu Baru: Manajemen Kinerja & Strategis (PPP, PDCA, MBE, OKR) - Kepala Bidang Sarana & Admin Aset */}
+                {canAccessKinerjaManajemen && (
                     <Link to="/kinerja-manajemen" className={navItemClass('/kinerja-manajemen')}>
                         <Target size={18} />
                         <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>

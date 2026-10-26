@@ -13,6 +13,7 @@ client/dist/
 server/.env
 server/prisma/dev.db
 server/prisma/dev.db-journal
+server/data_local/
 
 # WhatsApp Web & Bot Session Cache
 .wwebjs_auth/

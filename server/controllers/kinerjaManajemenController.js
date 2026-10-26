@@ -6,6 +6,7 @@ const timezone = require('dayjs/plugin/timezone');
 const isoWeek = require('dayjs/plugin/isoWeek');
 const fs = require('fs');
 const path = require('path');
+const localData = require('../services/localDataStorage');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -152,6 +153,25 @@ const SARPRAS_USER_FILTER = {
 };
 
 /**
+ * Helper Verifikasi Role Kabid Sarpras / Super Admin
+ * Mengidentifikasi apakah pengguna memiliki otorisasi kepemimpinan atau staf pelaksana.
+ */
+const isKabidOrSuperAdmin = (user) => {
+    if (!user) return false;
+    const role = (user.role || '').toUpperCase();
+    const pos = (user.position || '').toLowerCase();
+    return role === 'SUPER_ADMIN' || 
+           role === 'KABID_SARPRAS' || 
+           role === 'KEPALA_BIDANG' ||
+           role === 'ADMIN_ASET' ||
+           role === 'ADMIN' ||
+           pos.includes('kepala bidang sarana') || 
+           pos.includes('kabid sarpras') ||
+           pos.includes('admin aset') ||
+           pos.includes('manajemen aset');
+};
+
+/**
  * Helper Sinkronisasi 2 Arah: Assignment -> Plan
  * Memperbarui status dan persentase butir Rencana Kerja jika Penugasan yang bersangkutan diperbarui.
  */
@@ -256,6 +276,26 @@ exports.syncAssignmentToPlan = syncAssignmentToPlan;
  * Radar Pengecualian / Management by Exception (Overdue, Stalled, Overdue Service, Obstacles)
  */
 exports.getMbeRadar = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const radar = localData.getMbeRadar({ startDate: req.query.startDate, endDate: req.query.endDate });
+        return res.json({
+            success: true,
+            totalExceptions: radar.summary.delayed,
+            activeFilter: { startDate: req.query.startDate || null, endDate: req.query.endDate || null, isCustomRange: false },
+            radar: {
+                overdueAssignments: [],
+                pendingExtensions: [],
+                criticalMaintenance: [],
+                overdueVehicleReminders: [],
+                pendingVehicleServices: [],
+                unresolvedObstacles: [],
+                overduePlans: [],
+                missingWeeklyPlans: []
+            },
+            summary: radar.summary,
+            isLocalOffline: true
+        });
+    }
     try {
         const { startDate, endDate } = req.query;
         const nowWib = dayjs().tz('Asia/Jakarta');
@@ -630,6 +670,25 @@ exports.getMbeRadar = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getMbeRadar:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            console.log('[LocalDataStorage] DB offline, generating radar from data_local/staff_plans.json...');
+            const radar = localData.getMbeRadar({ startDate: req.query.startDate, endDate: req.query.endDate });
+            return res.json({
+                success: true,
+                radar: radar.summary,
+                period: radar.period,
+                exceptions: {
+                    overdueAssignments: [],
+                    pendingExtensions: [],
+                    criticalMaintenance: [],
+                    overdueVehicleReminders: [],
+                    unresolvedObstacles: [],
+                    overduePlans: [],
+                    missingWeeklyPlans: []
+                },
+                isLocalOffline: true
+            });
+        }
         return res.status(500).json({ success: false, error: 'Gagal memuat radar pengecualian (MBE).' });
     }
 };
@@ -639,19 +698,32 @@ exports.getMbeRadar = async (req, res) => {
  * Papan PPP Harian (Progress, Plans, Problems) terintegrasi dengan Laporan, Penugasan, dan Pemeliharaan
  */
 exports.getDailyPpp = async (req, res) => {
+    const isManager = isKabidOrSuperAdmin(req.user);
+    const currentUserId = req.user?.id ? parseInt(req.user.id, 10) : null;
+
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const pppData = localData.getDailyPpp(req.query.date, currentUserId, isManager);
+        return res.json(pppData);
+    }
     try {
         const { date } = req.query;
         const targetDate = date ? dayjs.tz(date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta');
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        // 1. Ambil seluruh Laporan Harian Staf pada tanggal ini (Khusus Staf Sarpras Pusat)
+        // 1. Ambil Laporan Harian Staf pada tanggal ini (Jika bukan Kabid, batasi ke staf yang login)
+        const reportsWhere = {
+            type: 'DAILY',
+            date: { gte: startOfDay, lte: endOfDay }
+        };
+        if (isManager) {
+            reportsWhere.user = SARPRAS_USER_FILTER;
+        } else if (currentUserId) {
+            reportsWhere.userId = currentUserId;
+        }
+
         const reports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'DAILY',
-                date: { gte: startOfDay, lte: endOfDay },
-                user: SARPRAS_USER_FILTER
-            },
+            where: reportsWhere,
             include: {
                 user: { select: { id: true, name: true, position: true, phone: true } }
             },
@@ -659,38 +731,58 @@ exports.getDailyPpp = async (req, res) => {
         });
 
         // 2. Ambil Tiket Pemeliharaan yang selesai atau aktif pada tanggal ini
+        const maintenanceWhere = {
+            status: 'COMPLETED',
+            updatedAt: { gte: startOfDay, lte: endOfDay }
+        };
+        if (!isManager && currentUserId) {
+            maintenanceWhere.OR = [
+                { technicianId: currentUserId },
+                { userId: currentUserId }
+            ];
+        }
+
         const maintenanceDone = await prisma.maintenance.findMany({
-            where: {
-                status: 'COMPLETED',
-                updatedAt: { gte: startOfDay, lte: endOfDay }
-            },
+            where: maintenanceWhere,
             include: {
                 unit: { select: { id: true, name: true } },
                 user: { select: { id: true, name: true } }
             }
         });
 
-        // 3. Ambil Penugasan yang tuntas atau aktif pada tanggal ini (Khusus Staf Sarpras Pusat)
+        // 3. Ambil Penugasan yang tuntas atau aktif pada tanggal ini
+        const assignmentsDoneWhere = {
+            status: 'COMPLETED',
+            actualCompletionDate: { gte: startOfDay, lte: endOfDay }
+        };
+        if (isManager) {
+            assignmentsDoneWhere.assignee = SARPRAS_USER_FILTER;
+        } else if (currentUserId) {
+            assignmentsDoneWhere.assigneeId = currentUserId;
+        }
+
         const assignmentsDone = await prisma.personnelAssignment.findMany({
-            where: {
-                status: 'COMPLETED',
-                actualCompletionDate: { gte: startOfDay, lte: endOfDay },
-                assignee: SARPRAS_USER_FILTER
-            },
+            where: assignmentsDoneWhere,
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
         });
 
+        const activeAssignmentsWhere = {
+            status: { in: ['IN_PROGRESS', 'PENDING'] },
+            OR: [
+                { startDate: { lte: endOfDay } },
+                { dueDate: { gte: startOfDay } }
+            ]
+        };
+        if (isManager) {
+            activeAssignmentsWhere.assignee = SARPRAS_USER_FILTER;
+        } else if (currentUserId) {
+            activeAssignmentsWhere.assigneeId = currentUserId;
+        }
+
         const activeAssignments = await prisma.personnelAssignment.findMany({
-            where: {
-                status: { in: ['IN_PROGRESS', 'PENDING'] },
-                OR: [
-                    { startDate: { lte: endOfDay } },
-                    { dueDate: { gte: startOfDay } }
-                ],
-                assignee: SARPRAS_USER_FILTER
-            },
+            where: activeAssignmentsWhere,
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
@@ -850,19 +942,26 @@ exports.getDailyPpp = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getDailyPpp:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const pppData = localData.getDailyPpp(req.query.date);
+            return res.json(pppData);
+        }
         return res.status(500).json({ success: false, error: 'Gagal memuat papan PPP harian.' });
     }
 };
 
 /**
  * GET /api/kinerja-manajemen/weekly-pdca
- * Evaluasi Siklus Mingguan: Plan, Do, Check, Act
- */
-/**
- * GET /api/kinerja-manajemen/weekly-pdca
  * Evaluasi Siklus Mingguan: Plan, Do, Check, Act (Terpadu Penugasan & Rencana Kerja)
  */
 exports.getWeeklyPdca = async (req, res) => {
+    const isManager = isKabidOrSuperAdmin(req.user);
+    const currentUserId = req.user?.id ? parseInt(req.user.id, 10) : null;
+
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const pdcaData = localData.getWeeklyPdca({ startDate: req.query.startDate, endDate: req.query.endDate }, currentUserId, isManager);
+        return res.json(pdcaData);
+    }
     try {
         const { startDate, endDate } = req.query;
         const start = startDate
@@ -873,25 +972,37 @@ exports.getWeeklyPdca = async (req, res) => {
             : dayjs().tz('Asia/Jakarta').startOf('week').add(6, 'day').endOf('day').toDate(); // Sabtu
 
         // 1. PLAN (P): Target Penugasan Resmi & Rencana Kerja Mingguan Staf Sarpras
+        const plannedAssignmentsWhere = {
+            OR: [
+                { dueDate: { gte: start, lte: end } },
+                { startDate: { gte: start, lte: end } }
+            ]
+        };
+        if (isManager) {
+            plannedAssignmentsWhere.assignee = SARPRAS_USER_FILTER;
+        } else if (currentUserId) {
+            plannedAssignmentsWhere.assigneeId = currentUserId;
+        }
+
         const plannedAssignments = await prisma.personnelAssignment.findMany({
-            where: {
-                OR: [
-                    { dueDate: { gte: start, lte: end } },
-                    { startDate: { gte: start, lte: end } }
-                ],
-                assignee: SARPRAS_USER_FILTER
-            },
+            where: plannedAssignmentsWhere,
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
         });
 
         // Ambil Rencana Kerja Staf (Weekly Reports dengan isPlan: true)
+        const allPlanReportsWhere = {
+            type: 'WEEKLY'
+        };
+        if (isManager) {
+            allPlanReportsWhere.user = SARPRAS_USER_FILTER;
+        } else if (currentUserId) {
+            allPlanReportsWhere.userId = currentUserId;
+        }
+
         const allPlanReports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'WEEKLY',
-                user: SARPRAS_USER_FILTER
-            },
+            where: allPlanReportsWhere,
             include: {
                 user: { select: { id: true, name: true, position: true } }
             }
@@ -954,12 +1065,18 @@ exports.getWeeklyPdca = async (req, res) => {
         });
 
         // 2. DO (D): Realisasi seluruh aktivitas laporan harian staf dalam rentang minggu ini
+        const weeklyReportsWhere = {
+            type: 'DAILY',
+            date: { gte: start, lte: end }
+        };
+        if (isManager) {
+            weeklyReportsWhere.user = SARPRAS_USER_FILTER;
+        } else if (currentUserId) {
+            weeklyReportsWhere.userId = currentUserId;
+        }
+
         const weeklyReports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'DAILY',
-                date: { gte: start, lte: end },
-                user: SARPRAS_USER_FILTER
-            },
+            where: weeklyReportsWhere,
             include: {
                 user: { select: { id: true, name: true, position: true } }
             }
@@ -1002,11 +1119,19 @@ exports.getWeeklyPdca = async (req, res) => {
         });
 
         // Tiket Pemeliharaan yang diselesaikan minggu ini
+        const resolvedMaintWhere = {
+            status: 'COMPLETED',
+            updatedAt: { gte: start, lte: end }
+        };
+        if (!isManager && currentUserId) {
+            resolvedMaintWhere.OR = [
+                { technicianId: currentUserId },
+                { userId: currentUserId }
+            ];
+        }
+
         const resolvedMaintenance = await prisma.maintenance.findMany({
-            where: {
-                status: 'COMPLETED',
-                updatedAt: { gte: start, lte: end }
-            }
+            where: resolvedMaintWhere
         });
 
         // 3. CHECK (C): Evaluasi Capaian & Gap Analysis
@@ -1219,6 +1344,10 @@ exports.getWeeklyPdca = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getWeeklyPdca:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const pdcaData = localData.getWeeklyPdca({ startDate: req.query.startDate, endDate: req.query.endDate });
+            return res.json(pdcaData);
+        }
         return res.status(500).json({ success: false, error: 'Gagal memuat evaluasi siklus PDCA mingguan.' });
     }
 };
@@ -1228,6 +1357,10 @@ exports.getWeeklyPdca = async (req, res) => {
  * Dashboard Objectives & Key Results (OKR) terhubung dengan metrik real-time
  */
 exports.getOkrDashboard = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const okrs = localData.getOkrs();
+        return res.json({ success: true, divisionOkrScore: 90, okrs, isLocalOffline: true });
+    }
     try {
         const okrConfig = readOkrConfig();
         const thirtyDaysAgo = dayjs().tz('Asia/Jakarta').subtract(30, 'day').toDate();
@@ -1372,6 +1505,10 @@ exports.getOkrDashboard = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getOkrDashboard:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const okrs = localData.getOkrs();
+            return res.json({ success: true, divisionOkrScore: 90, okrs, isLocalOffline: true });
+        }
         return res.status(500).json({ success: false, error: 'Gagal memuat sasaran strategis OKR.' });
     }
 };
@@ -1381,6 +1518,14 @@ exports.getOkrDashboard = async (req, res) => {
  * Menyimpan / memperbarui konfigurasi OKR
  */
 exports.saveOkr = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const { okrs } = req.body;
+        if (!Array.isArray(okrs)) {
+            return res.status(400).json({ success: false, error: 'Data OKR harus berupa array.' });
+        }
+        localData.saveOkrs(okrs);
+        return res.json({ success: true, message: 'Sasaran strategis OKR berhasil diperbarui (tersimpan lokal).' });
+    }
     try {
         const { okrs } = req.body;
         if (!Array.isArray(okrs)) {
@@ -1399,10 +1544,19 @@ exports.saveOkr = async (req, res) => {
  * Mengambil seluruh staf sarpras beserta daftar rencana kerja (Plans) dan penugasan aktif masing-masing
  */
 exports.getStaffPlansAndAssignments = async (req, res) => {
+    const isManager = isKabidOrSuperAdmin(req.user);
+    const currentUserId = req.user?.id ? parseInt(req.user.id, 10) : null;
+
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const plansData = localData.getStaffPlansAndAssignments(currentUserId, isManager);
+        return res.json(plansData);
+    }
     try {
-        // 1. Ambil seluruh staf Sarpras & Kepala Bidang Sarana (Kecualikan Sarpras Unit)
+        // 1. Ambil staf Sarpras (Jika bukan Kabid, ambil hanya user itu sendiri)
+        const staffWhere = isManager ? SARPRAS_USER_FILTER : { id: currentUserId };
+
         const staffList = await prisma.user.findMany({
-            where: SARPRAS_USER_FILTER,
+            where: staffWhere,
             select: {
                 id: true,
                 name: true,
@@ -1415,28 +1569,43 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
         });
 
         // 2. Ambil seluruh Rencana Kerja aktif (Weekly Reports with isPlan: true)
+        const allPlanReportsWhere = {
+            type: 'WEEKLY'
+        };
+        if (!isManager && currentUserId) {
+            allPlanReportsWhere.userId = currentUserId;
+        }
+
         const allPlanReports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'WEEKLY'
-            },
+            where: allPlanReportsWhere,
             orderBy: { updatedAt: 'desc' }
         });
         const activePlans = allPlanReports.filter(r => r.metadata && r.metadata.isPlan);
 
         // 2b. Ambil rencana kerja (Tomorrow's Plans) dari Laporan Harian 7 hari terakhir
+        const recentDailyReportsWhere = {
+            type: 'DAILY',
+            date: { gte: dayjs().subtract(7, 'day').startOf('day').toDate() }
+        };
+        if (!isManager && currentUserId) {
+            recentDailyReportsWhere.userId = currentUserId;
+        }
+
         const recentDailyReports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'DAILY',
-                date: { gte: dayjs().subtract(7, 'day').startOf('day').toDate() }
-            },
+            where: recentDailyReportsWhere,
             orderBy: { date: 'desc' }
         });
 
         // 3. Ambil seluruh Penugasan Aktif
+        const allAssignmentsWhere = {
+            status: { notIn: ['CANCELLED'] }
+        };
+        if (!isManager && currentUserId) {
+            allAssignmentsWhere.assigneeId = currentUserId;
+        }
+
         const allAssignments = await prisma.personnelAssignment.findMany({
-            where: {
-                status: { notIn: ['CANCELLED'] }
-            },
+            where: allAssignmentsWhere,
             orderBy: { dueDate: 'asc' }
         });
 
@@ -1518,20 +1687,46 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
 
             const myPlans = [...myAllPlans, ...myDailyTomorrowPlans];
 
-            const myAssignments = allAssignments.filter(a => a.assigneeId === st.id).map(a => ({
-                id: a.id,
-                title: a.title,
-                description: a.description,
-                category: a.category,
-                priority: a.priority,
-                status: a.status,
-                dueDate: a.dueDate,
-                progressPercentage: a.progressPercentage || 0,
-                isOverdue: a.status !== 'COMPLETED' && a.dueDate && new Date(a.dueDate) < new Date(),
-                notes: a.notes || null,
-                isFromPlan: !!(a.notes && a.notes.includes('Ditugaskan dari Rencana Kerja')),
-                createdAt: a.createdAt
-            }));
+            const myAssignments = allAssignments.filter(a => a.assigneeId === st.id).map(a => {
+                let parsedItems = [];
+                if (Array.isArray(a.items)) parsedItems = a.items;
+                else if (typeof a.items === 'string') {
+                    try { parsedItems = JSON.parse(a.items || '[]'); } catch (e) { parsedItems = []; }
+                }
+
+                let targetOutput = '';
+                let isFromPlan = false;
+                if (a.notes) {
+                    try {
+                        const parsedNotes = JSON.parse(a.notes);
+                        if (parsedNotes && typeof parsedNotes === 'object') {
+                            if (parsedNotes.targetOutput) targetOutput = parsedNotes.targetOutput;
+                            if (parsedNotes.planId || parsedNotes.fromPlanId) isFromPlan = true;
+                        }
+                    } catch (e) {
+                        const match = a.notes.match(/\[Target:\s*(.*?)\]/i);
+                        if (match) targetOutput = match[1];
+                        if (a.notes.includes('Ditugaskan dari Rencana Kerja')) isFromPlan = true;
+                    }
+                }
+
+                return {
+                    id: a.id,
+                    title: a.title,
+                    description: a.description,
+                    targetOutput,
+                    category: a.category,
+                    priority: a.priority,
+                    status: a.status,
+                    dueDate: a.dueDate,
+                    progressPercentage: a.progressPercentage || 0,
+                    isOverdue: a.status !== 'COMPLETED' && a.dueDate && new Date(a.dueDate) < new Date(),
+                    notes: a.notes || null,
+                    items: parsedItems,
+                    isFromPlan,
+                    createdAt: a.createdAt
+                };
+            });
 
             return {
                 ...st,
@@ -1560,6 +1755,10 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getStaffPlansAndAssignments:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const plansData = localData.getStaffPlansAndAssignments();
+            return res.json(plansData);
+        }
         return res.status(500).json({ success: false, error: 'Gagal memuat rencana dan penugasan staf.' });
     }
 };
@@ -1569,13 +1768,37 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
  * Memberikan penugasan resmi dari Kabid langsung ke staf (bisa bersumber dari butir Plan staf)
  */
 exports.createAssignmentFromPlan = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const assignment = localData.createAssignment({
+            ...req.body,
+            assignerId: parseInt(req.user?.id || 1, 10)
+        });
+        return res.json({
+            success: true,
+            message: `Penugasan resmi berhasil diberikan kepada staf (tersimpan lokal).`,
+            assignment
+        });
+    }
     try {
-        const { assigneeId, title, description, category, priority, dueDate, planId, planItemIndex } = req.body;
-        const assignerId = parseInt(req.user.id, 10);
+        const { assigneeId, title, description, targetOutput, category, priority, dueDate, items, planId, planItemIndex } = req.body;
+        const assignerId = parseInt(req.user?.id || 1, 10);
 
         if (!assigneeId || !title) {
             return res.status(400).json({ success: false, error: 'Staf penerima tugas dan judul tugas wajib diisi.' });
         }
+
+        const formattedItems = Array.isArray(items) ? items.filter(it => it && (it.activity || it.text || it.name)).map(it => ({
+            activity: it.activity || it.text || it.name || '',
+            targetDate: it.targetDate || dueDate || null,
+            status: it.status || 'PENDING',
+            percentage: it.percentage !== undefined ? parseInt(it.percentage, 10) : 0
+        })) : [];
+
+        let notesObj = {
+            targetOutput: targetOutput || '',
+            planId: planId || null,
+            planItemIndex: planItemIndex !== undefined ? planItemIndex : null
+        };
 
         const assignment = await prisma.personnelAssignment.create({
             data: {
@@ -1589,7 +1812,8 @@ exports.createAssignmentFromPlan = async (req, res) => {
                 startDate: new Date(),
                 status: 'PENDING',
                 progressPercentage: 0,
-                notes: planId ? `Ditugaskan dari Rencana Kerja ID: ${planId}` : null
+                items: formattedItems,
+                notes: JSON.stringify(notesObj)
             },
             include: {
                 assignee: { select: { id: true, name: true, phone: true } }
@@ -1604,15 +1828,15 @@ exports.createAssignmentFromPlan = async (req, res) => {
                 });
                 if (planReport && planReport.metadata) {
                     const meta = { ...planReport.metadata };
-                    const items = Array.isArray(meta.items) ? [...meta.items] : [];
-                    if (planItemIndex !== null && planItemIndex !== undefined && items[planItemIndex]) {
-                        items[planItemIndex] = {
-                            ...items[planItemIndex],
+                    const pItems = Array.isArray(meta.items) ? [...meta.items] : [];
+                    if (planItemIndex !== null && planItemIndex !== undefined && pItems[planItemIndex]) {
+                        pItems[planItemIndex] = {
+                            ...pItems[planItemIndex],
                             assigned: true,
                             assignmentId: assignment.id,
                             assignedAt: new Date().toISOString()
                         };
-                        meta.items = items;
+                        meta.items = pItems;
                     } else {
                         meta.assigned = true;
                         meta.assignmentId = assignment.id;
@@ -1635,8 +1859,187 @@ exports.createAssignmentFromPlan = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in createAssignmentFromPlan:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const assignment = localData.createAssignment({
+                ...req.body,
+                assignerId: parseInt(req.user?.id || 1, 10)
+            });
+            return res.json({
+                success: true,
+                message: `Penugasan resmi berhasil diberikan kepada staf (tersimpan lokal).`,
+                assignment
+            });
+        }
         return res.status(500).json({ success: false, error: 'Gagal membuat penugasan.' });
     }
+};
+
+/**
+ * PUT /api/kinerja-manajemen/assignments/:id/item
+ * Memperbarui progres atau status butir kegiatan penugasan resmi (dan sinkronisasi 2 arah ke Plan)
+ */
+exports.updateAssignmentItemStatus = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const updated = localData.updateAssignmentItemStatus(req.params.id, req.body.itemIndex, req.body.percentage, req.body.status);
+        return res.json({ success: true, message: 'Progres butir penugasan berhasil diperbarui (tersimpan lokal).', assignment: updated });
+    }
+    try {
+        const { id } = req.params;
+        const { itemIndex, percentage, status } = req.body;
+
+        const assignment = await prisma.personnelAssignment.findUnique({
+            where: { id: parseInt(id, 10) }
+        });
+        if (!assignment) {
+            return res.status(404).json({ success: false, error: 'Penugasan tidak ditemukan.' });
+        }
+
+        let items = [];
+        if (Array.isArray(assignment.items)) items = [...assignment.items];
+        else if (typeof assignment.items === 'string') {
+            try { items = JSON.parse(assignment.items || '[]'); } catch (e) { items = []; }
+        }
+
+        const idx = parseInt(itemIndex, 10);
+        let newPct = percentage !== undefined ? parseInt(percentage, 10) : 0;
+        let newStatus = status || (newPct === 100 ? 'COMPLETED' : (newPct > 0 ? 'IN_PROGRESS' : 'PENDING'));
+
+        if (items[idx]) {
+            items[idx] = {
+                ...items[idx],
+                percentage: newPct,
+                status: newStatus,
+                isDone: newPct === 100
+            };
+        }
+
+        const avg = items.length > 0
+            ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length)
+            : newPct;
+
+        const allDone = avg === 100;
+        const overallStatus = allDone ? 'COMPLETED' : (avg > 0 ? 'IN_PROGRESS' : 'PENDING');
+
+        const updated = await prisma.personnelAssignment.update({
+            where: { id: assignment.id },
+            data: {
+                items,
+                progressPercentage: avg,
+                status: overallStatus,
+                actualCompletionDate: allDone ? new Date() : (overallStatus === 'COMPLETED' ? assignment.actualCompletionDate : null)
+            }
+        });
+
+        // 2-Way Sync: Update linked Plan if exists
+        let linkedPlanId = null;
+        let linkedPlanItemIndex = null;
+        if (assignment.notes) {
+            try {
+                const parsed = JSON.parse(assignment.notes);
+                if (parsed.planId) linkedPlanId = parseInt(parsed.planId, 10);
+                if (parsed.planItemIndex !== undefined) linkedPlanItemIndex = parseInt(parsed.planItemIndex, 10);
+            } catch (e) {}
+        }
+
+        if (linkedPlanId) {
+            try {
+                const planReport = await prisma.personnelReport.findUnique({ where: { id: linkedPlanId } });
+                if (planReport && planReport.metadata) {
+                    const meta = { ...planReport.metadata };
+                    const pItems = Array.isArray(meta.items) ? [...meta.items] : [];
+                    if (linkedPlanItemIndex !== null && pItems[linkedPlanItemIndex]) {
+                        pItems[linkedPlanItemIndex] = {
+                            ...pItems[linkedPlanItemIndex],
+                            percentage: newPct,
+                            status: newPct === 100 ? 'SELESAI' : 'PENDING'
+                        };
+                        meta.items = pItems;
+                        const planAvg = Math.round(pItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / pItems.length);
+                        meta.percentage = planAvg;
+                        meta.status = planAvg === 100 ? 'SELESAI' : 'PENDING';
+                        await prisma.personnelReport.update({
+                            where: { id: planReport.id },
+                            data: { metadata: meta }
+                        });
+                    }
+                }
+            } catch (errPlanSync) {
+                console.error('[2-Way Sync] Error syncing assignment item to plan:', errPlanSync.message);
+            }
+        }
+
+        return res.json({ success: true, message: 'Progres butir penugasan berhasil diperbarui.', assignment: updated });
+    } catch (error) {
+        console.error('Error in updateAssignmentItemStatus:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const updated = localData.updateAssignmentItemStatus(req.params.id, req.body.itemIndex, req.body.percentage, req.body.status);
+            return res.json({ success: true, message: 'Progres butir penugasan berhasil diperbarui (tersimpan lokal).', assignment: updated });
+        }
+        return res.status(500).json({ success: false, error: 'Gagal memperbarui butir penugasan.' });
+    }
+};
+
+/**
+ * Helper Simpan Rencana Kerja ke Local Storage
+ */
+const handleSaveStaffPlanLocal = (req, res) => {
+    const { id } = req.params;
+    const { userId, title, targetOutput, category, priority, startDate, endDate, items = [], notes = '', planType, isProject, projectId } = req.body;
+    const targetUserId = userId ? parseInt(userId, 10) : parseInt(req.user?.id || 1, 10);
+    const validCategories = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
+    const resolvedCat = validCategories.includes(category) ? category : 'UMUM';
+    const isProjectFlag = !!isProject || planType === 'PROJECT';
+    const resolvedPlanType = isProjectFlag ? 'PROJECT' : 'WEEKLY';
+    const localStaff = localData.getStaffUsers().find(s => s.id === targetUserId);
+
+    const formattedItems = Array.isArray(items) ? items.map(it => ({
+        activity: it.activity || it.text || it.title || '',
+        targetDate: it.targetDate || '',
+        status: it.status || 'PENDING',
+        percentage: it.percentage !== undefined ? parseInt(it.percentage, 10) : 0,
+        assigned: !!it.assigned,
+        assignmentId: it.assignmentId || null,
+        projectId: it.projectId || projectId || null,
+        projectItemIndex: it.projectItemIndex !== undefined && it.projectItemIndex !== null ? parseInt(it.projectItemIndex, 10) : null,
+        isFromProject: !!it.isFromProject
+    })) : [];
+
+    const avgPercentage = formattedItems.length > 0
+        ? Math.round(formattedItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / formattedItems.length)
+        : 0;
+    const isDone = avgPercentage === 100 || (formattedItems.length > 0 && formattedItems.every(i => i.status === 'SELESAI' || i.percentage === 100));
+
+    const localPayload = {
+        type: 'WEEKLY',
+        category: resolvedCat,
+        content: notes || `${isProjectFlag ? 'Rencana Umum (Project)' : 'Rencana Kerja'}: ${(title || '').trim()}`,
+        date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+        metadata: {
+            isPlan: true,
+            isProject: isProjectFlag,
+            planType: resolvedPlanType,
+            projectId: projectId || null,
+            title: (title || '').trim(),
+            targetOutput: (targetOutput || '').trim(),
+            position: localStaff?.position || 'Staff',
+            categoryTag: resolvedCat,
+            priority: priority || 'SEDANG',
+            startDate: startDate || dayjs().format('YYYY-MM-DD'),
+            endDate: endDate || null,
+            status: isDone ? 'SELESAI' : 'PENDING',
+            percentage: avgPercentage,
+            items: formattedItems,
+            lastUpdatedBy: req.user?.name || 'Kepala Bidang Sarana'
+        }
+    };
+
+    const saved = localData.saveStaffPlan(localPayload, targetUserId, id || req.body.id);
+    return res.json({
+        success: true,
+        message: id || req.body.id ? 'Rencana kerja staf berhasil diperbarui (tersimpan lokal).' : 'Rencana kerja staf berhasil dibuat (tersimpan lokal).',
+        plan: saved,
+        isLocalOffline: true
+    });
 };
 
 /**
@@ -1645,6 +2048,9 @@ exports.createAssignmentFromPlan = async (req, res) => {
  * Membuat atau memperbarui Rencana Kerja staf langsung
  */
 exports.saveStaffPlan = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        return handleSaveStaffPlanLocal(req, res);
+    }
     try {
         const { id } = req.params;
         const { userId, title, targetOutput, category, priority, startDate, endDate, items = [], notes = '', planType, isProject, projectId } = req.body;
@@ -1760,6 +2166,9 @@ exports.saveStaffPlan = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in saveStaffPlan:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            return handleSaveStaffPlanLocal(req, res);
+        }
         return res.status(500).json({ success: false, error: 'Gagal menyimpan rencana kerja staf.' });
     }
 };
@@ -1769,6 +2178,10 @@ exports.saveStaffPlan = async (req, res) => {
  * Menghapus Rencana Kerja staf
  */
 exports.deleteStaffPlan = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        localData.deleteStaffPlan(req.params.id);
+        return res.json({ success: true, message: 'Rencana kerja berhasil dihapus (tersimpan lokal).' });
+    }
     try {
         const { id } = req.params;
         await prisma.personnelReport.delete({
@@ -1777,6 +2190,10 @@ exports.deleteStaffPlan = async (req, res) => {
         return res.json({ success: true, message: 'Rencana kerja berhasil dihapus.' });
     } catch (error) {
         console.error('Error in deleteStaffPlan:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            localData.deleteStaffPlan(req.params.id);
+            return res.json({ success: true, message: 'Rencana kerja berhasil dihapus (tersimpan lokal).' });
+        }
         return res.status(500).json({ success: false, error: 'Gagal menghapus rencana kerja.' });
     }
 };
@@ -1786,6 +2203,10 @@ exports.deleteStaffPlan = async (req, res) => {
  * Memperbarui progres atau status butir kegiatan rencana kerja (Sinkron 2-arah ke Penugasan)
  */
 exports.updatePlanItemStatus = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const updated = localData.updatePlanItemStatus(req.params.id, req.body.itemIndex, req.body.percentage, req.body.status);
+        return res.json({ success: true, message: 'Progres butir rencana berhasil diperbarui (tersimpan lokal).', plan: updated });
+    }
     try {
         const { id } = req.params;
         const { itemIndex, percentage, status } = req.body;
@@ -1844,6 +2265,10 @@ exports.updatePlanItemStatus = async (req, res) => {
         return res.json({ success: true, message: 'Progres butir rencana berhasil diperbarui.', plan: updated });
     } catch (error) {
         console.error('Error in updatePlanItemStatus:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const updated = localData.updatePlanItemStatus(req.params.id, req.body.itemIndex, req.body.percentage, req.body.status);
+            return res.json({ success: true, message: 'Progres butir rencana berhasil diperbarui (tersimpan lokal).', plan: updated });
+        }
         return res.status(500).json({ success: false, error: 'Gagal memperbarui butir rencana.' });
     }
 };
@@ -1853,6 +2278,11 @@ exports.updatePlanItemStatus = async (req, res) => {
  * Menyimpan Laporan Harian (PPP) terpadu langsung dari Menu Baru
  */
 exports.saveDailyReportFromPpp = async (req, res) => {
+    if (process.env.USE_LOCAL_STORAGE === 'true') {
+        const targetUserId = req.body.userId ? parseInt(req.body.userId, 10) : parseInt(req.user?.id || 1, 10);
+        const report = localData.saveDailyReport(req.body, targetUserId);
+        return res.json({ success: true, message: 'Laporan harian berhasil disimpan (tersimpan lokal).', report });
+    }
     try {
         const { userId, date, category, completedItems = [], inProgressItems = [], obstacleItems = [], tomorrowPlans = [] } = req.body;
         const targetUserId = userId ? parseInt(userId, 10) : parseInt(req.user.id, 10);
@@ -2322,6 +2752,11 @@ exports.saveDailyReportFromPpp = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in saveDailyReportFromPpp:', error);
+        if (error.message?.includes("reach database") || error.code === 'P1001') {
+            const targetUserId = req.body.userId ? parseInt(req.body.userId, 10) : parseInt(req.user?.id || 1, 10);
+            const report = localData.saveDailyReport(req.body, targetUserId);
+            return res.json({ success: true, message: 'Laporan harian berhasil disimpan (tersimpan lokal).', report });
+        }
         return res.status(500).json({ success: false, error: 'Gagal menyimpan laporan harian.' });
     }
 };

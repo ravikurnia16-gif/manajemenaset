@@ -3511,6 +3511,8 @@ exports.manageSaleItems = async (req, res) => {
                 let oldStatus = item.status;
                 const newStatus = update.status;
                 let isVariantChanged = false;
+                const originalVariantId = item.variantId;
+                const originalSizeName = item.size;
 
                 // 1. Tangani jika ada perubahan ukuran (variantId) untuk item yang belum diambil
                 if (update.variantId && parseInt(update.variantId) !== item.variantId) {
@@ -3577,16 +3579,178 @@ exports.manageSaleItems = async (req, res) => {
                     return `${prefix}/${year}/${nextNum.toString().padStart(3, '0')}`;
                 };
 
+                // KASUS KHUSUS: Ganti ukuran (tukar seragam) saat status awal adalah SEDIA
+                if (isVariantChanged && oldStatus === 'SEDIA') {
+                    // 1. Cari mutasi asal saat varian lama dialokasikan ke gudang transit
+                    const oldMutTrx = await tx.uniformStockTransaction.findFirst({
+                        where: {
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            variantId: originalVariantId,
+                            type: 'MUTATION'
+                        },
+                        orderBy: { id: 'desc' }
+                    });
+
+                    // Kembalikan alokasi varian lama dari transit kembali ke gudang asal
+                    if (oldMutTrx && oldMutTrx.toWarehouseId) {
+                        const transitOldWhId = oldMutTrx.toWarehouseId;
+                        const returnOldWhId = oldMutTrx.warehouseId || oldMutTrx.toWarehouseId;
+
+                        const stockTransitOld = await tx.uniformStock.findUnique({
+                            where: { variantId_warehouseId: { variantId: originalVariantId, warehouseId: transitOldWhId } }
+                        });
+
+                        if (stockTransitOld && stockTransitOld.quantity >= qty) {
+                            await tx.uniformStock.update({
+                                where: { variantId_warehouseId: { variantId: originalVariantId, warehouseId: transitOldWhId } },
+                                data: { quantity: { decrement: qty } }
+                            });
+
+                            await tx.uniformStock.upsert({
+                                where: { variantId_warehouseId: { variantId: originalVariantId, warehouseId: returnOldWhId } },
+                                create: { variantId: originalVariantId, warehouseId: returnOldWhId, quantity: qty, avgCost: stockTransitOld.avgCost || 0 },
+                                update: { quantity: { increment: qty } }
+                            });
+
+                            const trxRevertCode = await generateTrxCode('TRX/SRG');
+                            await tx.uniformStockTransaction.create({
+                                data: {
+                                    code: trxRevertCode + '-MUT-' + Math.floor(Math.random() * 1000),
+                                    type: 'MUTATION',
+                                    variantId: originalVariantId,
+                                    warehouseId: transitOldWhId,
+                                    toWarehouseId: returnOldWhId,
+                                    quantity: qty,
+                                    costPerUnit: stockTransitOld.avgCost || 0,
+                                    totalCost: (stockTransitOld.avgCost || 0) * qty,
+                                    referenceType: 'SALE',
+                                    referenceId: sale.id,
+                                    reason: `Tukar Ukuran: Pengembalian ukuran lama (${originalSizeName}) ke gudang asal karena ditukar ke (${item.size})`,
+                                    note: `Tukar Ukuran untuk Pesanan ${sale.code}`,
+                                    createdById: req.user?.id || null
+                                }
+                            });
+                        }
+                    }
+
+                    // 2. Proses varian baru sesuai status tujuan
+                    if (newStatus === 'DIAMBIL') {
+                        let whId = parseInt(update.sourceWarehouseId) || parseInt(update.transitWarehouseId);
+                        if (!whId && oldMutTrx) whId = oldMutTrx.toWarehouseId;
+
+                        let stock = null;
+                        if (whId) {
+                            stock = await tx.uniformStock.findUnique({
+                                where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
+                            });
+                        }
+                        if (!stock || stock.quantity < qty) {
+                            const altStock = await tx.uniformStock.findFirst({
+                                where: { variantId: item.variantId, quantity: { gte: qty } }
+                            });
+                            if (altStock) {
+                                whId = altStock.warehouseId;
+                                stock = altStock;
+                            }
+                        }
+                        if (!stock || stock.quantity < qty) {
+                            throw new Error(`Stok ukuran baru ${item.itemName} (${item.size}) tidak mencukupi untuk DIAMBIL (Sisa stok: ${stock?.quantity || 0} pcs)`);
+                        }
+
+                        await tx.uniformStock.update({
+                            where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } },
+                            data: { quantity: { decrement: qty } }
+                        });
+
+                        const trxCode = await generateTrxCode('TRX/SRG');
+                        await tx.uniformStockTransaction.create({
+                            data: {
+                                code: trxCode + '-OUT-' + Math.floor(Math.random() * 1000),
+                                type: 'OUT',
+                                variantId: item.variantId,
+                                warehouseId: whId,
+                                quantity: -qty,
+                                costPerUnit: stock.avgCost || 0,
+                                totalCost: (stock.avgCost || 0) * qty,
+                                referenceType: 'SALE',
+                                referenceId: sale.id,
+                                note: `Barang DIAMBIL (Tukar Ukuran dari ${originalSizeName} ke ${item.size}) untuk Pesanan ${sale.code}`,
+                                createdById: req.user?.id || null
+                            }
+                        });
+
+                        await tx.uniformSaleItem.update({
+                            where: { id: item.id },
+                            data: { qtyDelivered: qty }
+                        });
+                    } else if (newStatus === 'SEDIA') {
+                        let sourceWhId = parseInt(update.sourceWarehouseId);
+                        let transitWhId = parseInt(update.transitWarehouseId) || oldMutTrx?.toWarehouseId;
+                        if (!sourceWhId) {
+                            const altStock = await tx.uniformStock.findFirst({
+                                where: { variantId: item.variantId, quantity: { gte: qty } }
+                            });
+                            sourceWhId = altStock?.warehouseId;
+                        }
+                        if (!transitWhId) transitWhId = sourceWhId;
+                        if (!sourceWhId || !transitWhId) {
+                            throw new Error(`Pilih gudang asal dan tujuan untuk ukuran baru ${item.itemName} (${item.size})`);
+                        }
+                        const stockSource = await tx.uniformStock.findUnique({
+                            where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } }
+                        });
+                        if (!stockSource || stockSource.quantity < qty) {
+                            throw new Error(`Stok ukuran baru ${item.itemName} (${item.size}) di gudang asal tidak mencukupi (Sisa: ${stockSource?.quantity || 0} pcs)`);
+                        }
+                        await tx.uniformStock.update({
+                            where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } },
+                            data: { quantity: { decrement: qty } }
+                        });
+                        await tx.uniformStock.upsert({
+                            where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } },
+                            create: { variantId: item.variantId, warehouseId: transitWhId, quantity: qty, avgCost: stockSource.avgCost || 0 },
+                            update: { quantity: { increment: qty } }
+                        });
+                        const trxCode = await generateTrxCode('TRX/SRG');
+                        await tx.uniformStockTransaction.create({
+                            data: {
+                                code: trxCode + '-MUT-' + Math.floor(Math.random() * 1000),
+                                type: 'MUTATION',
+                                variantId: item.variantId,
+                                warehouseId: sourceWhId,
+                                toWarehouseId: transitWhId,
+                                quantity: qty,
+                                costPerUnit: stockSource.avgCost || 0,
+                                totalCost: (stockSource.avgCost || 0) * qty,
+                                referenceType: 'SALE',
+                                referenceId: sale.id,
+                                note: `Pemindahan ke Gudang Transit (Tukar Ukuran dari ${originalSizeName} ke ${item.size}) untuk Pesanan ${sale.code}`,
+                                createdById: req.user?.id || null
+                            }
+                        });
+                    } else if (newStatus === 'BATAL') {
+                        subtotalAdjustment -= item.totalPrice;
+                    }
+                }
+
                 // PENDING/INDENT/BACKORDER/TIDAK_TERSEDIA/BATAL -> SEDIA (Mutation: Source -> Transit)
-                if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'SEDIA') {
-                    const sourceWhId = parseInt(update.sourceWarehouseId);
-                    const transitWhId = parseInt(update.transitWarehouseId);
+                else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'SEDIA') {
+                    let sourceWhId = parseInt(update.sourceWarehouseId);
+                    let transitWhId = parseInt(update.transitWarehouseId);
+                    if (!sourceWhId) {
+                        const altStock = await tx.uniformStock.findFirst({
+                            where: { variantId: item.variantId, quantity: { gte: qty } }
+                        });
+                        sourceWhId = altStock?.warehouseId;
+                    }
+                    if (!transitWhId) transitWhId = sourceWhId;
                     if (!sourceWhId || !transitWhId) throw new Error(`Pilih gudang asal dan gudang transit untuk item ${item.itemName}`);
 
                     const stockSource = await tx.uniformStock.findUnique({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } }
                     });
-                    if (!stockSource || stockSource.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang asal tidak mencukupi`);
+                    if (!stockSource || stockSource.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang asal tidak mencukupi (Sisa: ${stockSource?.quantity || 0} pcs)`);
 
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: sourceWhId } },
@@ -3621,7 +3785,7 @@ exports.manageSaleItems = async (req, res) => {
                 else if (['PENDING', 'INDENT', 'BACKORDER', 'TIDAK_TERSEDIA', 'SEDIA', 'BATAL'].includes(oldStatus) && newStatus === 'DIAMBIL') {
                     let whId;
                     if (oldStatus === 'SEDIA') {
-                        // Find the warehouse from the last mutation when it was set to SEDIA
+                        // Cari mutasi terakhir saat item diset SEDIA
                         const lastMutTrx = await tx.uniformStockTransaction.findFirst({
                             where: {
                                 referenceType: 'SALE',
@@ -3631,17 +3795,60 @@ exports.manageSaleItems = async (req, res) => {
                             },
                             orderBy: { id: 'desc' }
                         });
-                        if (!lastMutTrx) throw new Error(`Tidak dapat menemukan riwayat gudang saat SEDIA untuk item ${item.itemName}. Harap hubungi admin atau gunakan fitur BATAL terlebih dahulu.`);
-                        whId = lastMutTrx.toWarehouseId;
+                        
+                        if (lastMutTrx) {
+                            whId = lastMutTrx.toWarehouseId;
+                        } else if (update.transitWarehouseId || update.sourceWarehouseId) {
+                            whId = parseInt(update.transitWarehouseId || update.sourceWarehouseId);
+                        } else if (item.pickupWarehouseId) {
+                            whId = item.pickupWarehouseId;
+                        } else {
+                            const availableStock = await tx.uniformStock.findFirst({
+                                where: { variantId: item.variantId, quantity: { gte: qty } }
+                            });
+                            if (availableStock) {
+                                whId = availableStock.warehouseId;
+                            } else {
+                                const firstWh = await tx.uniformWarehouse.findFirst();
+                                whId = firstWh?.id;
+                            }
+                        }
                     } else {
-                        whId = parseInt(update.sourceWarehouseId); // Terjual langsung
-                        if (!whId) throw new Error(`Pilih gudang asal untuk penjualan langsung item ${item.itemName}`);
+                        whId = parseInt(update.sourceWarehouseId);
+                        if (!whId) {
+                            const availableStock = await tx.uniformStock.findFirst({
+                                where: { variantId: item.variantId, quantity: { gte: qty } }
+                            });
+                            if (availableStock) {
+                                whId = availableStock.warehouseId;
+                            } else {
+                                const firstWh = await tx.uniformWarehouse.findFirst();
+                                whId = firstWh?.id;
+                            }
+                        }
                     }
 
-                    const stock = await tx.uniformStock.findUnique({
-                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
-                    });
-                    if (!stock || stock.quantity < qty) throw new Error(`Stok ${item.itemName} tidak mencukupi untuk DIAMBIL`);
+                    let stock = null;
+                    if (whId) {
+                        stock = await tx.uniformStock.findUnique({
+                            where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
+                        });
+                    }
+
+                    // Fallback jika stok di whId tidak cukup, cari di gudang lain yang memiliki stok cukup
+                    if (!stock || stock.quantity < qty) {
+                        const altStock = await tx.uniformStock.findFirst({
+                            where: { variantId: item.variantId, quantity: { gte: qty } }
+                        });
+                        if (altStock) {
+                            whId = altStock.warehouseId;
+                            stock = altStock;
+                        }
+                    }
+
+                    if (!stock || stock.quantity < qty) {
+                        throw new Error(`Stok ${item.itemName} (${item.size}) tidak mencukupi untuk DIAMBIL (Sisa stok: ${stock?.quantity || 0} pcs)`);
+                    }
 
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } },
@@ -3656,8 +3863,8 @@ exports.manageSaleItems = async (req, res) => {
                             variantId: item.variantId,
                             warehouseId: whId,
                             quantity: -qty,
-                            costPerUnit: stock.avgCost,
-                            totalCost: stock.avgCost * qty,
+                            costPerUnit: stock.avgCost || 0,
+                            totalCost: (stock.avgCost || 0) * qty,
                             referenceType: 'SALE',
                             referenceId: sale.id,
                             note: `Barang DIAMBIL untuk Pesanan ${sale.code}`,
@@ -3674,14 +3881,34 @@ exports.manageSaleItems = async (req, res) => {
 
                 // SEDIA -> BATAL
                 else if (oldStatus === 'SEDIA' && newStatus === 'BATAL') {
-                    const transitWhId = parseInt(update.transitWarehouseId);
-                    const returnWhId = parseInt(update.returnWarehouseId);
-                    if (!transitWhId || !returnWhId) throw new Error(`Pilih gudang transit dan gudang pengembalian untuk membatalkan item ${item.itemName}`);
+                    let transitWhId = parseInt(update.transitWarehouseId);
+                    let returnWhId = parseInt(update.returnWarehouseId);
+                    if (!transitWhId || !returnWhId) {
+                        const lastMutTrx = await tx.uniformStockTransaction.findFirst({
+                            where: { referenceType: 'SALE', referenceId: sale.id, variantId: item.variantId, type: 'MUTATION' },
+                            orderBy: { id: 'desc' }
+                        });
+                        if (lastMutTrx) {
+                            if (!transitWhId) transitWhId = lastMutTrx.toWarehouseId;
+                            if (!returnWhId) returnWhId = lastMutTrx.warehouseId;
+                        }
+                    }
+                    if (!transitWhId) {
+                        const st = await tx.uniformStock.findFirst({ where: { variantId: item.variantId, quantity: { gte: qty } } });
+                        transitWhId = st?.warehouseId || (await tx.uniformWarehouse.findFirst())?.id;
+                    }
+                    if (!returnWhId) returnWhId = transitWhId;
 
-                    const stockTransit = await tx.uniformStock.findUnique({
+                    let stockTransit = await tx.uniformStock.findUnique({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } }
                     });
-                    if (!stockTransit || stockTransit.quantity < qty) throw new Error(`Stok ${item.itemName} di gudang transit tidak ditemukan untuk dibatalkan`);
+                    if (!stockTransit || stockTransit.quantity < qty) {
+                        const anySt = await tx.uniformStock.findFirst({ where: { variantId: item.variantId, quantity: { gte: qty } } });
+                        if (anySt) {
+                            transitWhId = anySt.warehouseId;
+                            stockTransit = anySt;
+                        }
+                    }
 
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: transitWhId } },

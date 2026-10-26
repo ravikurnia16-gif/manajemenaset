@@ -130,7 +130,7 @@ const LaporanRoute = ({ children }) => {
   return children;
 };
 
-// Guard khusus Laporan Mingguan Kepala Bidang Sarana: HANYA position 'Kepala Bidang Sarana'
+// Guard khusus Kinerja & Laporan Strategis: Kepala Bidang Sarana, Admin Aset, & Super Admin
 const KabidSaranaOnlyRoute = ({ children }) => {
   let currentUser = {};
   try {
@@ -143,7 +143,13 @@ const KabidSaranaOnlyRoute = ({ children }) => {
   }
 
   const uPos = (currentUser?.position || '').toLowerCase();
-  const isAllowed = uPos.includes('kepala bidang sarana');
+  const uRole = currentUser?.role || '';
+  const isAllowed = uPos.includes('kepala bidang sarana') || 
+                    uPos.includes('admin aset') || 
+                    uPos.includes('manajemen aset') ||
+                    uRole === 'ADMIN_ASET' || 
+                    uRole === 'KABID_SARPRAS' || 
+                    uRole === 'SUPER_ADMIN';
 
   if (!isAllowed) {
     return <Navigate to="/dashboard" replace />;

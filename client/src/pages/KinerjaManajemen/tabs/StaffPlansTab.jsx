@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-    Users, User, CheckCircle2, Clock, AlertTriangle, 
-    Plus, ArrowRight, ChevronDown, ChevronRight, 
+import {
+    Users, User, CheckCircle2, Clock, AlertTriangle,
+    Plus, ArrowRight, ChevronDown, ChevronRight,
     Calendar, CheckSquare, Search, Award, ShieldAlert, Sparkles,
     Edit3, Trash2, Target, ExternalLink, Filter, Check
 } from 'lucide-react';
@@ -11,17 +11,18 @@ import api from '../../../lib/axios';
 
 dayjs.locale('id');
 
-const StaffPlansTab = ({ 
-    staffPlansData = [], 
-    loading, 
-    onOpenAssignModal, 
+const StaffPlansTab = ({
+    staffPlansData = [],
+    loading,
+    onOpenAssignModal,
     onOpenPlanModal,
-    onRefresh 
+    onRefresh
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDivision, setSelectedDivision] = useState('ALL');
     const [expandedStaffId, setExpandedStaffId] = useState(null);
     const [updatingItemId, setUpdatingItemId] = useState(null);
+    const [updatingAssignmentItemId, setUpdatingAssignmentItemId] = useState(null);
 
     if (loading) {
         return (
@@ -73,6 +74,24 @@ const StaffPlansTab = ({
             alert('Gagal memperbarui progres butir kegiatan.');
         } finally {
             setUpdatingItemId(null);
+        }
+    };
+
+    // Quick Update Butir Penugasan Resmi
+    const handleQuickUpdateAssignmentItemProgress = async (assignmentId, itemIndex, newPct) => {
+        try {
+            setUpdatingAssignmentItemId(`${assignmentId}_${itemIndex}`);
+            await api.put(`/kinerja-manajemen/assignments/${assignmentId}/item`, {
+                itemIndex,
+                percentage: newPct,
+                status: newPct === 100 ? 'COMPLETED' : (newPct > 0 ? 'IN_PROGRESS' : 'PENDING')
+            });
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            console.error('Error updating assignment item:', err);
+            alert('Gagal memperbarui progres butir penugasan.');
+        } finally {
+            setUpdatingAssignmentItemId(null);
         }
     };
 
@@ -144,11 +163,10 @@ const StaffPlansTab = ({
                     <button
                         key={div.key}
                         onClick={() => setSelectedDivision(div.key)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                            selectedDivision === div.key
-                                ? 'bg-slate-800 text-white shadow-xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${selectedDivision === div.key
+                            ? 'bg-slate-800 text-white shadow-xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                            }`}
                     >
                         {div.label}
                     </button>
@@ -168,8 +186,8 @@ const StaffPlansTab = ({
                         const isExpanded = expandedStaffId === staff.id;
 
                         return (
-                            <div 
-                                key={staff.id} 
+                            <div
+                                key={staff.id}
                                 className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:border-blue-200"
                             >
                                 {/* Card Header / Summary Row */}
@@ -193,12 +211,11 @@ const StaffPlansTab = ({
                                         <span className="px-3 py-1 bg-violet-50 text-violet-800 rounded-xl text-xs font-bold border border-violet-200/60">
                                             📋 {staff.stats.activePlansCount} Rencana Aktif
                                         </span>
-                                        <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
-                                            staff.stats.overdueAssignmentsCount > 0 
-                                                ? 'bg-rose-50 text-rose-800 border-rose-200 animate-pulse' 
-                                                : 'bg-emerald-50 text-emerald-800 border-emerald-200/60'
-                                        }`}>
-                                            📌 {staff.stats.activeAssignmentsCount} Penugasan 
+                                        <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${staff.stats.overdueAssignmentsCount > 0
+                                            ? 'bg-rose-50 text-rose-800 border-rose-200 animate-pulse'
+                                            : 'bg-emerald-50 text-emerald-800 border-emerald-200/60'
+                                            }`}>
+                                            📌 {staff.stats.activeAssignmentsCount} Penugasan
                                             {staff.stats.overdueAssignmentsCount > 0 && ` (${staff.stats.overdueAssignmentsCount} Overdue)`}
                                         </span>
 
@@ -235,7 +252,7 @@ const StaffPlansTab = ({
                                 {isExpanded && (
                                     <div className="p-5 border-t border-slate-100 bg-slate-50/40 space-y-5 animate-in fade-in duration-200">
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                            
+
                                             {/* Sub-Kolom 1: Rencana Kerja Mandiri Staf (Plans) */}
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between">
@@ -267,8 +284,8 @@ const StaffPlansTab = ({
                                                 ) : (
                                                     <div className="space-y-3">
                                                         {staff.plans.map((p) => {
-                                                            const priorityColor = p.priority === 'TINGGI' 
-                                                                ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                                                            const priorityColor = p.priority === 'TINGGI'
+                                                                ? 'bg-rose-50 text-rose-700 border-rose-200'
                                                                 : (p.priority === 'RENDAH' ? 'bg-slate-50 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200');
 
                                                             return (
@@ -315,9 +332,8 @@ const StaffPlansTab = ({
                                                                             >
                                                                                 <Trash2 size={13} />
                                                                             </button>
-                                                                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ml-1 ${
-                                                                                p.isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                                                            }`}>
+                                                                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ml-1 ${p.isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                                                                }`}>
                                                                                 {p.avgPct}%
                                                                             </span>
                                                                         </div>
@@ -325,10 +341,9 @@ const StaffPlansTab = ({
 
                                                                     {/* Progress Bar */}
                                                                     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                        <div 
-                                                                            className={`h-full rounded-full transition-all duration-300 ${
-                                                                                p.avgPct === 100 ? 'bg-emerald-500' : 'bg-violet-500'
-                                                                            }`}
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all duration-300 ${p.avgPct === 100 ? 'bg-emerald-500' : 'bg-violet-500'
+                                                                                }`}
                                                                             style={{ width: `${p.avgPct}%` }}
                                                                         />
                                                                     </div>
@@ -346,8 +361,8 @@ const StaffPlansTab = ({
                                                                                     const isItemAssigned = !!it.assigned || !!it.assignmentId;
 
                                                                                     return (
-                                                                                        <div 
-                                                                                            key={itIdx} 
+                                                                                        <div
+                                                                                            key={itIdx}
                                                                                             className="p-2 bg-slate-50/80 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-slate-100"
                                                                                         >
                                                                                             <div className="space-y-0.5 min-w-0 flex-1">
@@ -367,7 +382,7 @@ const StaffPlansTab = ({
                                                                                                     </span>
                                                                                                 )}
                                                                                             </div>
-                                                                                            
+
                                                                                             {/* Actions per item: Status slider & Angkat Jadi Tugas */}
                                                                                             <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                                                                                                 {/* Quick Progres Dropdown */}
@@ -387,11 +402,18 @@ const StaffPlansTab = ({
                                                                                                     type="button"
                                                                                                     onClick={() => onOpenAssignModal(staff, {
                                                                                                         title: itName,
-                                                                                                        description: `Diangkat dari Rencana Kerja: "${p.title}"`,
+                                                                                                        description: `Diangkat dari butir rencana kerja: "${p.title}"`,
                                                                                                         planTitle: p.title,
                                                                                                         category: p.categoryTag || 'UMUM',
                                                                                                         priority: p.priority || 'SEDANG',
                                                                                                         dueDate: it.targetDate || p.endDate || '',
+                                                                                                        targetOutput: p.targetOutput || '',
+                                                                                                        items: [{
+                                                                                                            activity: itName,
+                                                                                                            targetDate: it.targetDate || p.endDate || '',
+                                                                                                            percentage: it.percentage || 0,
+                                                                                                            status: it.status || 'PENDING'
+                                                                                                        }],
                                                                                                         planId: p.id,
                                                                                                         planItemIndex: itIdx
                                                                                                     })}
@@ -408,26 +430,39 @@ const StaffPlansTab = ({
                                                                         </div>
                                                                     )}
 
-                                                                    {/* Tombol Angkat Master Plan Jika Tidak Ada Butir */}
-                                                                    {(!p.items || p.items.length === 0) && (
-                                                                        <div className="pt-2 border-t border-slate-100 flex justify-end">
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => onOpenAssignModal(staff, {
-                                                                                    title: p.title,
-                                                                                    description: `Diangkat langsung dari Rencana Kerja Staf: "${p.title}"`,
-                                                                                    planTitle: p.title,
-                                                                                    category: p.categoryTag || 'UMUM',
-                                                                                    priority: p.priority || 'SEDANG',
-                                                                                    dueDate: p.endDate || '',
-                                                                                    planId: p.id
-                                                                                })}
-                                                                                className="px-3 py-1 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white text-[11px] font-bold transition-all cursor-pointer"
-                                                                            >
-                                                                                📌 Angkat Seluruh Plan Jadi Penugasan
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
+                                                                    {/* Tombol Angkat Master Plan Jadi Penugasan */}
+                                                                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => onOpenAssignModal(staff, {
+                                                                                title: p.title,
+                                                                                description: `Diangkat langsung dari Rencana Kerja Staf: "${p.title}"`,
+                                                                                planTitle: p.title,
+                                                                                category: p.categoryTag || 'UMUM',
+                                                                                priority: p.priority || 'SEDANG',
+                                                                                dueDate: p.endDate || '',
+                                                                                targetOutput: p.targetOutput || '',
+                                                                                items: (p.items && p.items.length > 0)
+                                                                                    ? p.items.map(it => ({
+                                                                                        activity: it.activity || it.text || it.name || '',
+                                                                                        targetDate: it.targetDate || p.endDate || '',
+                                                                                        percentage: it.percentage || 0,
+                                                                                        status: it.status || 'PENDING'
+                                                                                    }))
+                                                                                    : [{
+                                                                                        activity: p.title,
+                                                                                        targetDate: p.endDate || '',
+                                                                                        percentage: p.avgPct || 0,
+                                                                                        status: 'PENDING'
+                                                                                    }],
+                                                                                planId: p.id
+                                                                            })}
+                                                                            className="px-3 py-1 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white text-[11px] font-bold transition-all cursor-pointer"
+                                                                            title="Jadikan seluruh rencana kerja ini sebagai penugasan resmi"
+                                                                        >
+                                                                            📌 Angkat Seluruh Plan Jadi Penugasan
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             );
                                                         })}
@@ -470,9 +505,8 @@ const StaffPlansTab = ({
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div className="space-y-1 flex-1 min-w-0">
                                                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-                                                                                a.isOverdue ? 'bg-rose-100 text-rose-800 font-black' : 'bg-slate-100 text-slate-700'
-                                                                            }`}>
+                                                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${a.isOverdue ? 'bg-rose-100 text-rose-800 font-black' : 'bg-slate-100 text-slate-700'
+                                                                                }`}>
                                                                                 {a.isOverdue ? '⚠️ Overdue' : (a.category || 'UMUM')}
                                                                             </span>
                                                                             {a.isFromPlan && (
@@ -485,10 +519,16 @@ const StaffPlansTab = ({
                                                                             </span>
                                                                         </div>
                                                                         <h6 className="text-xs font-black text-slate-800 leading-snug">{a.title}</h6>
+                                                                        {a.targetOutput && (
+                                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-blue-50/70 px-2.5 py-1 rounded-xl border border-blue-100/70">
+                                                                                <Target size={12} className="text-blue-600 shrink-0" />
+                                                                                <span className="font-bold text-blue-800">Target Output:</span>
+                                                                                <span className="font-medium text-slate-700 truncate">{a.targetOutput}</span>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase shrink-0 ${
-                                                                        a.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                                                                    }`}>
+                                                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase shrink-0 ${a.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                                                                        }`}>
                                                                         {a.progressPercentage || 0}%
                                                                     </span>
                                                                 </div>
@@ -500,13 +540,67 @@ const StaffPlansTab = ({
                                                                 )}
 
                                                                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div 
-                                                                        className={`h-full rounded-full transition-all duration-300 ${
-                                                                            a.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-blue-500'
-                                                                        }`}
+                                                                    <div
+                                                                        className={`h-full rounded-full transition-all duration-300 ${a.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-blue-500'
+                                                                            }`}
                                                                         style={{ width: `${a.progressPercentage || 0}%` }}
                                                                     />
                                                                 </div>
+
+                                                                {/* Butir-butir aktivitas pekerjaan di dalam penugasan */}
+                                                                {a.items && a.items.length > 0 && (
+                                                                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                                                                        <span className="text-[10px] font-bold text-slate-400 block">
+                                                                            Rincian Butir Pekerjaan ({a.items.length}):
+                                                                        </span>
+                                                                        <div className="space-y-1.5">
+                                                                            {a.items.map((it, itIdx) => {
+                                                                                const isUpdating = updatingAssignmentItemId === `${a.id}_${itIdx}`;
+                                                                                const itName = it.activity || it.text || it.name;
+                                                                                const isDone = it.percentage === 100 || it.status === 'COMPLETED' || it.status === 'SELESAI';
+
+                                                                                return (
+                                                                                    <div
+                                                                                        key={itIdx}
+                                                                                        className="p-2 bg-slate-50/80 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-slate-100"
+                                                                                    >
+                                                                                        <div className="space-y-0.5 min-w-0 flex-1">
+                                                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                                <span className={`font-semibold text-slate-700 truncate ${isDone ? 'line-through text-slate-400' : ''}`}>
+                                                                                                    {itName}
+                                                                                                </span>
+                                                                                                {isDone && (
+                                                                                                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                                                                                                        ✓ Selesai
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            {it.targetDate && (
+                                                                                                <span className="text-[10px] text-slate-400 block">
+                                                                                                    Target: {dayjs(it.targetDate).format('DD MMM YYYY')}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        {/* Quick Progres Dropdown per Butir Penugasan */}
+                                                                                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                                                                                            <select
+                                                                                                value={it.percentage || 0}
+                                                                                                disabled={isUpdating}
+                                                                                                onChange={(e) => handleQuickUpdateAssignmentItemProgress(a.id, itIdx, parseInt(e.target.value, 10))}
+                                                                                                className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-700 outline-none cursor-pointer"
+                                                                                            >
+                                                                                                <option value={0}>0%</option>
+                                                                                                <option value={50}>50%</option>
+                                                                                                <option value={100}>100%</option>
+                                                                                            </select>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>

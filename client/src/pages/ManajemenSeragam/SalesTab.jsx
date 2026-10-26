@@ -29,11 +29,14 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
             initialStatus = totalStock >= i.qty ? 'SEDIA' : 'TIDAK_TERSEDIA';
           }
 
-          // Auto-select warehouse jika hanya ada 1 gudang dengan stok
+          // Auto-select warehouse jika ada gudang dengan stok
           const availableStocks = stocksList.filter(s => (s.quantity || 0) > 0);
           let defWhId = '';
           if (availableStocks.length === 1) {
             defWhId = String(availableStocks[0].warehouseId);
+          } else if (availableStocks.length > 1) {
+            const sorted = [...availableStocks].sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+            defWhId = String(sorted[0].warehouseId);
           }
 
           return {
@@ -107,6 +110,9 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
       let defWhId = item.sourceWarehouseId;
       if (!defWhId && availableStocks.length === 1) {
         defWhId = String(availableStocks[0].warehouseId);
+      } else if (!defWhId && availableStocks.length > 1) {
+        const sorted = [...availableStocks].sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+        defWhId = String(sorted[0].warehouseId);
       }
 
       let newStatus = item.status;
@@ -171,10 +177,14 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
   const handleSetAllDiambil = () => {
     setItemUpdates(prev => prev.map(item => {
       let whId = item.sourceWarehouseId || commonWarehouseId;
+      if (!whId && item.stocks?.length > 0) {
+        const stockWithQty = item.stocks.find(s => s.quantity > 0);
+        if (stockWithQty) whId = String(stockWithQty.warehouseId);
+      }
       return {
         ...item,
         status: 'DIAMBIL',
-        sourceWarehouseId: whId || ''
+        sourceWarehouseId: whId || item.sourceWarehouseId || ''
       };
     }));
   };
@@ -249,8 +259,8 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
         variantId: i.variantId ? parseInt(i.variantId) : null,
         size: i.size,
         status: i.status,
-        sourceWarehouseId: i.sourceWarehouseId,
-        transitWarehouseId: i.isMoved ? i.transitWarehouseId : (i.status === 'SEDIA' ? i.sourceWarehouseId : (i.transitWarehouseId || i.returnWarehouseId)),
+        sourceWarehouseId: i.sourceWarehouseId || commonWarehouseId || '',
+        transitWarehouseId: i.isMoved ? i.transitWarehouseId : (i.status === 'SEDIA' ? (i.sourceWarehouseId || commonWarehouseId) : (i.transitWarehouseId || i.sourceWarehouseId || commonWarehouseId || i.returnWarehouseId)),
         returnWarehouseId: i.returnWarehouseId
       }));
 
@@ -549,13 +559,15 @@ const InlineFulfillPanel = ({ sale, warehouses = [], variants = [], onSave, onCl
                   {/* Case 3: Regular Item -> DIAMBIL */}
                   {!isNd && item.status === 'DIAMBIL' && (
                     <div className="space-y-1.5">
-                      {item.oldStatus === 'SEDIA' ? (
+                      {item.oldStatus === 'SEDIA' && !item.isSizeChanged ? (
                         <p className="text-[11px] text-slate-500 italic bg-white/70 p-2 rounded-lg border border-slate-100">
                           * Stok otomatis terpotong dari gudang yang dipilih saat status diset SEDIA.
                         </p>
                       ) : (
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-                          <label className="text-[11px] font-bold text-slate-600 shrink-0">Gudang Asal Barang:</label>
+                          <label className="text-[11px] font-bold text-slate-600 shrink-0">
+                            {item.isSizeChanged ? 'Gudang Stok Ukuran Baru:' : 'Gudang Asal Barang:'}
+                          </label>
                           <select
                             required
                             className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-medium outline-none focus:border-blue-400"

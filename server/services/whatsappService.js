@@ -102,7 +102,9 @@ const initializeWhatsApp = () => {
     });
 
     waClient.on('qr', async (qr) => {
-        console.log('[WhatsApp Local] Need to scan QR code');
+        if (connectionStatus !== 'SCAN_QR') {
+            console.log('[WhatsApp Local] QR code ready to be scanned in settings/dashboard');
+        }
         try {
             qrCodeData = await qrcode.toDataURL(qr); // Save base64 QR image
             connectionStatus = 'SCAN_QR';

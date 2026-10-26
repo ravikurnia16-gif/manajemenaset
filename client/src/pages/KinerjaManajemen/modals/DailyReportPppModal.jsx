@@ -508,6 +508,14 @@ const DailyReportPppModal = ({
                                                                             >
                                                                                 Kendala
                                                                             </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handlePullItem(a, 'ASSIGNMENT', 'TOMORROW', sIdx, subTitle)}
+                                                                                className="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded text-[9px] font-bold transition-colors cursor-pointer"
+                                                                                title="Jadwalkan butir ini untuk besok"
+                                                                            >
+                                                                                Besok
+                                                                            </button>
                                                                         </div>
                                                                     )}
                                                                 </div>

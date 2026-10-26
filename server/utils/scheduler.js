@@ -42,6 +42,11 @@ const initScheduler = () => {
         const hour = now.getHours();
         const minute = now.getMinutes();
 
+        // Di mode local storage (offline localhost), lewati background scheduler DB
+        if (process.env.USE_LOCAL_STORAGE === 'true') {
+            return;
+        }
+
         // ----------------------------------------------------
         // 0. ROUTINE TASK GENERATION (DISABLED)
         // Routine tasks are now handled directly via 1-Click Templates in Laporan Staff
