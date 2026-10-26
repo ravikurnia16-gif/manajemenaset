@@ -2275,19 +2275,39 @@ exports.getKabidSummary = async (req, res) => {
         const startOfDay = targetStartDate.startOf('day').toDate();
         const endOfDay = targetEndDate.endOf('day').toDate();
 
-        const staffUsers = await prisma.user.findMany({
-            where: STAFF_USER_WHERE,
-            select: { id: true, name: true, position: true }
-        });
+        let staffUsers = [];
+        try {
+            staffUsers = await prisma.user.findMany({
+                where: STAFF_USER_WHERE,
+                select: { id: true, name: true, position: true }
+            });
+        } catch (dbErr) {
+            console.warn('[getKabidSummary] DB error fetching staffUsers, reading local:', dbErr.message);
+            const allUsers = localData.readJson ? localData.readJson('users.json', []) : [];
+            staffUsers = allUsers
+                .filter(u => u.role !== 'KABID_SARPRAS' && !(u.position || '').includes('Kepala Bidang'))
+                .map(u => ({ id: u.id, name: u.name, position: u.position || 'Staf Sarana' }));
+        }
 
-        const reports = await prisma.personnelReport.findMany({
-            where: {
-                type: 'DAILY',
-                NOT: { content: 'SETORAN_HAFALAN' },
-                date: { gte: startOfDay, lte: endOfDay },
-                user: STAFF_USER_WHERE
-            }
-        });
+        let reports = [];
+        try {
+            reports = await prisma.personnelReport.findMany({
+                where: {
+                    type: 'DAILY',
+                    NOT: { content: 'SETORAN_HAFALAN' },
+                    date: { gte: startOfDay, lte: endOfDay },
+                    user: STAFF_USER_WHERE
+                }
+            });
+        } catch (dbErr) {
+            console.warn('[getKabidSummary] DB error fetching reports, reading local:', dbErr.message);
+            const allLocal = localData.readJson ? localData.readJson('daily_reports.json', []) : [];
+            reports = allLocal.filter(r => {
+                if (r.type !== 'DAILY' || r.content === 'SETORAN_HAFALAN') return false;
+                const d = dayjs(r.date);
+                return d.isAfter(targetStartDate.startOf('day').subtract(1, 'second')) && d.isBefore(targetEndDate.endOf('day').add(1, 'second'));
+            });
+        }
 
         const dateRange = [];
         let curr = targetStartDate.startOf('day');
@@ -2315,46 +2335,101 @@ exports.getKabidSummary = async (req, res) => {
                     dayjs(r.date).isBefore(dateEnd.add(1, 'second'))
                 );
 
+                let hasReport = false;
+                let isPppFormat = false;
                 let hasMorning = false;
                 let hasAfternoon = false;
+                let allCompleted = [];
+                let allInProgress = [];
+                let allObstacles = [];
+                let allTomorrowPlans = [];
                 let allMorningPoints = [];
                 let allAfternoonPoints = [];
+                let foundReportId = null;
 
                 for (const r of dailyReports) {
-                    if (r.metadata && r.metadata.manualPoints) {
-                        const pts = r.metadata.manualPoints;
+                    if (!foundReportId) foundReportId = r.id;
+                    const meta = r.metadata || {};
+
+                    const c = Array.isArray(meta.completedItems) ? meta.completedItems.filter(p => p && ((p.title && p.title.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))) : [];
+                    const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems.filter(p => p && ((p.title && p.title.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))) : [];
+                    const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems.filter(p => p && ((p.title && p.title.trim()) || (p.obstacleNote && p.obstacleNote.trim()) || (p.photos && p.photos.length > 0))) : [];
+                    const tp = Array.isArray(meta.tomorrowPlans) ? meta.tomorrowPlans.filter(p => p && ((p.title && p.title.trim()) || (p.text && p.text.trim()))) : [];
+
+                    if (c.length > 0 || ip.length > 0 || obs.length > 0 || tp.length > 0) {
+                        isPppFormat = true;
+                        hasReport = true;
+                        allCompleted.push(...c);
+                        allInProgress.push(...ip);
+                        allObstacles.push(...obs);
+                        allTomorrowPlans.push(...tp);
+                    }
+
+                    if (meta.manualPoints) {
+                        const pts = meta.manualPoints;
                         const m = pts.morningPoints || pts.morning || [];
                         const a = pts.afternoonPoints || pts.afternoon || [];
-                        if (!hasMorning) hasMorning = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-                        if (!hasAfternoon) hasAfternoon = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-                        
-                        if (Array.isArray(m)) allMorningPoints = allMorningPoints.concat(m);
-                        if (Array.isArray(a)) allAfternoonPoints = allAfternoonPoints.concat(a);
+                        const mValid = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+                        const aValid = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+
+                        if (mValid) hasMorning = true;
+                        if (aValid) hasAfternoon = true;
+                        if (mValid || aValid) hasReport = true;
+
+                        if (Array.isArray(m)) allMorningPoints.push(...m);
+                        if (Array.isArray(a)) allAfternoonPoints.push(...a);
+                    } else if (r.content && r.content.trim()) {
+                        hasReport = true;
+                    }
+
+                    if (isReportSubmitted(r)) {
+                        hasReport = true;
                     }
                 }
 
+                // Tentukan status kedisiplinan:
+                // Format Baru PPP: 1 laporan per hari. Setiap laporan yang telah disubmit adalah LENGKAP (✓).
+                // Arsip Lama (sebelum 26 Okt 2026 dan hanya memiliki manualPoints lama):
+                // Jika memiliki 2 sesi -> LENGKAP, jika hanya 1 sesi -> PARSIAL.
                 let status = 'BELUM';
-                if (hasMorning && hasAfternoon) status = 'LENGKAP';
-                else if (hasMorning || hasAfternoon) status = 'PARSIAL';
+                if (hasReport) {
+                    const isNewFormatDate = dateStr >= '2026-10-26';
+                    if (isPppFormat || isNewFormatDate) {
+                        status = 'LENGKAP';
+                    } else if (hasMorning && hasAfternoon) {
+                        status = 'LENGKAP';
+                    } else if (hasMorning || hasAfternoon) {
+                        status = 'PARSIAL';
+                    } else {
+                        status = 'LENGKAP';
+                    }
+                }
 
-                const reportData = (allMorningPoints.length > 0 || allAfternoonPoints.length > 0)
-                    ? { morning: allMorningPoints, afternoon: allAfternoonPoints }
+                const reportData = (allCompleted.length > 0 || allInProgress.length > 0 || allObstacles.length > 0 || allTomorrowPlans.length > 0 || allMorningPoints.length > 0 || allAfternoonPoints.length > 0)
+                    ? {
+                        completedItems: allCompleted,
+                        inProgressItems: allInProgress,
+                        obstacleItems: allObstacles,
+                        tomorrowPlans: allTomorrowPlans,
+                        morning: allMorningPoints,
+                        afternoon: allAfternoonPoints
+                    }
                     : null;
 
                 summaryByDate[dateStr] = {
-                    hasMorning,
-                    hasAfternoon,
+                    hasMorning: status === 'LENGKAP',
+                    hasAfternoon: status === 'LENGKAP',
                     status,
-                    reportId: dailyReports.length > 0 ? dailyReports[0].id : null,
+                    reportId: foundReportId,
                     reportData
                 };
 
                 if (idx === 0) {
-                    rootHasMorning = hasMorning;
-                    rootHasAfternoon = hasAfternoon;
+                    rootHasMorning = status === 'LENGKAP';
+                    rootHasAfternoon = status === 'LENGKAP';
                     rootStatus = status;
                     rootReportData = reportData;
-                    rootReportId = dailyReports.length > 0 ? dailyReports[0].id : null;
+                    rootReportId = foundReportId;
                 }
             });
 

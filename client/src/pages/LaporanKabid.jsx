@@ -405,7 +405,7 @@ const LaporanKabid = () => {
                                                             {user.status === 'LENGKAP' ? (
                                                                 <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full" title="Laporan Lengkap (PPP)"><CheckCircle2 size={16} /></div>
                                                             ) : user.status === 'PARSIAL' ? (
-                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-amber-100 text-amber-600 rounded-full font-bold text-xs" title="Parsial">PPP</div>
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-amber-100 text-amber-600 rounded-full font-bold text-xs" title="Parsial (Arsip Sesi Lama)">1/2</div>
                                                             ) : (
                                                                 <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full" title="Belum Mengirim Laporan"><Clock size={16} /></div>
                                                             )}
