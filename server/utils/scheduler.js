@@ -63,11 +63,13 @@ const initScheduler = () => {
         */
 
         // ----------------------------------------------------
-        // 0.5 REPORT REMINDERS (13:30 & 19:00 - Hari Kerja)
-        // Pemberitahuan tidak dikirimkan pada hari Sabtu, Ahad, dan libur nasional
+        // 0.5 REPORT & WORK PLAN REMINDERS (Sore Hari: 16:30 & 19:00 - Hari Kerja)
+        // Mengingatkan pengisian Laporan Harian (Metode PPP) & Rencana Kerja Besok/Pekan Depan.
+        // Pengingat sesi pagi (13:30) telah ditiadakan.
+        // Pemberitahuan tidak dikirimkan pada hari Sabtu, Ahad, dan libur nasional.
         // ----------------------------------------------------
-        if ((hour === 13 && minute === 30) || (hour === 19 && minute === 0)) {
-            console.log('[Scheduler] Executing Report Reminders at 13:30 / 19:00...');
+        if ((hour === 16 && minute === 30) || (hour === 19 && minute === 0)) {
+            console.log('[Scheduler] Executing Afternoon Report & Work Plan Reminders at 16:30 / 19:00...');
             try {
                 await sendReportReminders();
             } catch (err) {

@@ -1387,8 +1387,8 @@ const DailyReportFormTab = ({
                             <div>
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                                     <span>{isFriday ? 'D. Rencana Pekerjaan Pekan Depan' : 'D. Rencana Kerja Besok / Hari Berikutnya'}</span>
-                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
-                                        Wajib Staf
+                                    <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                        Opsional
                                     </span>
                                     {isFriday && (
                                         <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">

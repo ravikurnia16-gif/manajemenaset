@@ -1981,8 +1981,8 @@ exports.sendReportReminders = async () => {
 
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
-        const hour = targetDate.hour();
-        const isMorningShift = hour < 15; // Triggered at 13:30
+        const isFriday = targetDate.day() === 5;
+        const planSectionName = isFriday ? 'Rencana Pekerjaan Pekan Depan' : 'Rencana Kerja Besok';
 
         // Target ONLY Admin Aset staff (Exclude Kepala Bidang Sarana)
         const staffUsers = await prisma.user.findMany({
@@ -2007,18 +2007,23 @@ exports.sendReportReminders = async () => {
                 // In-App Notification
                 createNotification(
                     user.id,
-                    `Pengingat Laporan Harian`,
-                    `Anda belum mengisi laporan kegiatan harian (Metode PPP) hari ini. Silakan segera lengkapi di menu Laporan Harian.`,
+                    `Pengingat Laporan Harian & ${planSectionName}`,
+                    `Mengingatkan di sore hari ini untuk mengisi Laporan Kegiatan Harian (Metode PPP) serta menyusun ${planSectionName}. Silakan segera lengkapi di menu Laporan Harian.`,
                     'WARNING',
                     '/laporan-staff/laporan'
                 ).catch(err => console.warn('In-app reminder error:', err.message));
 
                 if (user.phone) {
-                    const msg = `*PENGINGAT PENGISIAN LAPORAN HARIAN (METODE PPP)*\n\n` +
+                    const msg = `*PENGINGAT PENGISIAN LAPORAN HARIAN & RENCANA KERJA*\n\n` +
                         `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
                         `Halo *${user.name}*,\n\n` +
-                        `Anda belum mengisi *Laporan Kegiatan Harian* untuk hari ini.\n` +
-                        `Mohon segera melengkapi laporan kegiatan Anda pada menu *Laporan Harian* (Metode PPP) di aplikasi Sistem Manajemen Aset.\n\n` +
+                        `Mengingatkan kembali di sore hari ini untuk mengisi *Laporan Kegiatan Harian (Metode PPP)* serta menyusun *${planSectionName}* pada aplikasi Sistem Manajemen Aset.\n\n` +
+                        `📌 *Panduan Pengisian Laporan Harian (Metode PPP):*\n` +
+                        `1. 🟢 *Pekerjaan Selesai:* Butir tugas yang tuntas 100% hari ini\n` +
+                        `2. 🟡 *Sedang Dikerjakan:* Butir tugas yang masih dalam proses\n` +
+                        `3. 🔴 *Kendala Lapangan:* Kendala dan tindak lanjut (jika ada)\n` +
+                        `4. 🟣 *${planSectionName}:* Rencana tugas hari berikutnya (opsional / dianjurkan)\n\n` +
+                        `Mohon segera melengkapi laporan kegiatan Anda di menu *Laporan Harian*.\n\n` +
                         `Terima kasih atas kerja samanya.\n` +
                         `_Pesan otomatis Sistem Manajemen Aset Yayasan Dar el-Iman_`;
                     await whatsappService.sendMessage(user.phone, msg);
@@ -2086,61 +2091,37 @@ exports.remindStaffMissingReport = async (req, res) => {
 
         const remindedList = [];
 
+        const isFriday = targetDate.day() === 5;
+        const planSectionName = isFriday ? 'Rencana Pekerjaan Pekan Depan' : 'Rencana Kerja Besok';
+
         for (const staff of staffUsers) {
             const userReports = reports.filter(r => r.userId === staff.id);
-            let hasM = false;
-            let hasA = false;
+            const hasReported = userReports.some(r => isReportSubmitted(r));
 
-            for (const r of userReports) {
-                const pts = r.metadata?.manualPoints;
-                const m = pts?.morning || pts?.morningPoints || [];
-                const a = pts?.afternoon || pts?.afternoonPoints || [];
-                if (!hasM) {
-                    hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim() !== '') || (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
-                }
-                if (!hasA) {
-                    hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim() !== '') || (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
-                }
-                if (hasM && hasA) break;
-            }
-
-            // If already complete (both morning and afternoon), skip
-            if (hasM && hasA) {
+            // Jika sudah melaporkan secara utuh, lewati
+            if (hasReported) {
                 continue;
-            }
-
-            let missingDesc = '';
-            let missingSessionShort = '';
-            if (!hasM && !hasA) {
-                missingDesc = 'Sesi Pagi (07.15 - 12.00) dan Sesi Siang (13.00 - 16.15)';
-                missingSessionShort = 'Pagi & Siang';
-            } else if (!hasM) {
-                missingDesc = 'Sesi Pagi (07.15 - 12.00)';
-                missingSessionShort = 'Sesi Pagi';
-            } else {
-                missingDesc = 'Sesi Siang (13.00 - 16.15)';
-                missingSessionShort = 'Sesi Siang';
             }
 
             // 1. Send In-App Notification
             createNotification(
                 staff.id,
-                `Pengingat Laporan Harian (${missingSessionShort})`,
-                `Ustadz Ravi Kurnia mengingatkan Anda untuk segera melengkapi laporan harian (${missingDesc}) tanggal ${targetDate.format('DD/MM/YYYY')}.`,
+                `Pengingat Laporan Harian & ${planSectionName}`,
+                `Ustadz Ravi Kurnia mengingatkan Anda untuk segera melengkapi Laporan Kegiatan Harian (Metode PPP) dan menyusun ${planSectionName} tanggal ${dateFormatted}.`,
                 'WARNING',
                 '/laporan-staff/laporan'
             ).catch(err => console.warn('In-app reminder error:', err.message));
 
             // 2. Send WhatsApp Notification
             if (staff.phone) {
-                const waMessage = `*PENGINGAT PENGISIAN LAPORAN HARIAN*\n\n` +
+                const waMessage = `*PENGINGAT PENGISIAN LAPORAN HARIAN & RENCANA KERJA*\n\n` +
                     `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
                     `Yth. *${staff.name}* (${staff.position || 'Staf Sarana'}),\n\n` +
                     `Pemberitahuan dari Kepala Bidang Sarana (Ustadz Ravi Kurnia):\n\n` +
                     `Anda terpantau belum mengisi / melengkapi laporan kerja untuk:\n` +
                     `📅 *Hari/Tanggal:* ${dateFormatted}\n` +
-                    `⏰ *Kekurangan Sesi:* ${missingDesc}\n\n` +
-                    `Mohon untuk segera mengisi butir kegiatan dan dokumentasi kerja Anda melalui menu *Laporan Harian* pada aplikasi Sistem Manajemen Aset.\n\n` +
+                    `📝 *Agenda:* Laporan Kegiatan Harian (Metode PPP) & ${planSectionName}\n\n` +
+                    `Mohon untuk segera mengisi rincian kegiatan kerja serta rencana kerja Anda melalui menu *Laporan Harian* pada aplikasi Sistem Manajemen Aset.\n\n` +
                     `Terima kasih atas kerja sama dan dedikasinya.\n\n` +
                     `_Pesan resmi Sistem Manajemen Aset Yayasan Dar el-Iman_`;
 
@@ -2154,7 +2135,7 @@ exports.remindStaffMissingReport = async (req, res) => {
                 name: staff.name,
                 position: staff.position,
                 phone: staff.phone,
-                missingSession: missingSessionShort
+                missingSession: 'Laporan Harian (PPP)'
             });
         }
 

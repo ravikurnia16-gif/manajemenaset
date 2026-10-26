@@ -532,13 +532,6 @@ const LaporanStaff = () => {
                 return;
             }
 
-            if (validTomorrow.length === 0) {
-                const isFri = dayjs(selectedDate).day() === 5;
-                const sectionName = isFri ? 'D. Rencana Pekerjaan Pekan Depan' : 'D. Rencana Kerja Besok';
-                alert(`⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "${sectionName}" agar tugas Anda terencana dan otomatis menjadi acuan kerja pada hari berikutnya.`);
-                return;
-            }
-
             setSaving(true);
 
             // Petakan ke manualPoints agar sistem lama (PDF, Monitoring, AI, Export) tetap 100% kompatibel
