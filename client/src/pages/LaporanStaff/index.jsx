@@ -216,11 +216,21 @@ const LaporanStaff = () => {
     const [weeklyEndDate, setWeeklyEndDate] = useState(dayjs().startOf('week').add(6, 'day').format('YYYY-MM-DD'));
     const [customKabidNiy, setCustomKabidNiy] = useState('');
 
-    // Assignments
+    // Assignments: Structured Format (Judul, Target, Butir Langkah, AI Breakdown)
     const [assignments, setAssignments] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [showAssignmentForm, setShowAssignmentForm] = useState(false);
-    const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', assigneeId: '', dueDate: '', category: 'UMUM' });
+    const [assignmentForm, setAssignmentForm] = useState({
+        title: '',
+        targetOutput: '',
+        description: '',
+        assigneeId: '',
+        startDate: dayjs().format('YYYY-MM-DD'),
+        dueDate: dayjs().add(3, 'day').format('YYYY-MM-DD'),
+        category: 'UMUM',
+        priority: 'SEDANG',
+        items: []
+    });
     const [routinePurged, setRoutinePurged] = useState(() => localStorage.getItem('routine_tasks_purged') === 'true');
 
     // Plans / Perencanaan Kerja
@@ -969,21 +979,64 @@ const LaporanStaff = () => {
     };
 
     const handleCreateAssignment = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
+        if (!assignmentForm.title?.trim()) {
+            alert('Judul penugasan wajib diisi.');
+            return;
+        }
+        if (!assignmentForm.assigneeId) {
+            alert('Silakan pilih staf penerima tugas.');
+            return;
+        }
+
         try {
             setSaving(true);
+            const formattedItems = (assignmentForm.items || []).map(it => ({
+                text: it.activity || it.text || '',
+                activity: it.activity || it.text || '',
+                targetDate: it.targetDate || assignmentForm.dueDate,
+                percentage: 0,
+                status: 'PENDING'
+            }));
+
+            const notesData = {
+                targetOutput: assignmentForm.targetOutput || '',
+                description: assignmentForm.description || '',
+                scopeNote: assignmentForm.description || ''
+            };
+
             const res = await api.post('/personnel/assignments', {
-                ...assignmentForm,
-                assigneeId: parseInt(assignmentForm.assigneeId)
+                title: assignmentForm.title.trim(),
+                targetOutput: assignmentForm.targetOutput || '',
+                description: assignmentForm.description || assignmentForm.targetOutput || assignmentForm.title,
+                assigneeId: parseInt(assignmentForm.assigneeId),
+                startDate: assignmentForm.startDate || dayjs().format('YYYY-MM-DD'),
+                dueDate: assignmentForm.dueDate || null,
+                category: assignmentForm.category || 'UMUM',
+                priority: assignmentForm.priority || 'SEDANG',
+                items: formattedItems,
+                notes: JSON.stringify(notesData)
             });
-            if (res.data.success || res.data.data) {
-                alert('Penugasan berhasil dibuat!');
+
+            if (res.data?.success || res.data?.data) {
+                alert('Penugasan berhasil dibuat dan dikirim ke staf!');
                 setShowAssignmentForm(false);
-                setAssignmentForm({ title: '', description: '', assigneeId: '', dueDate: '', category: 'UMUM' });
+                setAssignmentForm({
+                    title: '',
+                    targetOutput: '',
+                    description: '',
+                    assigneeId: '',
+                    startDate: dayjs().format('YYYY-MM-DD'),
+                    dueDate: dayjs().add(3, 'day').format('YYYY-MM-DD'),
+                    category: 'UMUM',
+                    priority: 'SEDANG',
+                    items: []
+                });
                 fetchAssignments();
             }
         } catch (err) {
-            alert('Gagal membuat penugasan.');
+            console.error('Error creating assignment:', err);
+            alert(err.response?.data?.error || 'Gagal membuat penugasan.');
         } finally {
             setSaving(false);
         }
@@ -995,6 +1048,20 @@ const LaporanStaff = () => {
             fetchAssignments();
         } catch (err) {
             alert('Gagal memperbarui progres.');
+        }
+    };
+
+    const handleUpdateAssignmentItem = async (taskId, itemIndex, percentage, status) => {
+        try {
+            await api.put(`/kinerja-manajemen/assignments/${taskId}/item`, {
+                itemIndex,
+                percentage,
+                status
+            });
+            fetchAssignments();
+        } catch (err) {
+            console.error('Error updating task step:', err);
+            alert('Gagal memperbarui butir langkah penugasan.');
         }
     };
 
@@ -1857,6 +1924,7 @@ const LaporanStaff = () => {
                             setAssignmentForm={setAssignmentForm}
                             handleCreateAssignment={handleCreateAssignment}
                             handleUpdateTaskProgress={handleUpdateTaskProgress}
+                            handleUpdateAssignmentItem={handleUpdateAssignmentItem}
                             routinePurged={routinePurged}
                             handlePurgeRoutine={handlePurgeRoutine}
                             saving={saving}

@@ -636,21 +636,24 @@ exports.getReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-    const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar, priority, photos } = req.body;
+    const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar, priority, photos, targetOutput, notes: clientNotes } = req.body;
     const user = req.user;
 
     try {
-        // Initialize notes with initial photos if provided
+        // Initialize notes with targetOutput and initial photos if provided
         let notes = null;
-        if (photos && Array.isArray(photos) && photos.length > 0) {
+        if (clientNotes) {
+            notes = typeof clientNotes === 'string' ? clientNotes : JSON.stringify(clientNotes);
+        } else if (targetOutput || (photos && Array.isArray(photos) && photos.length > 0)) {
             notes = JSON.stringify({
+                targetOutput: targetOutput || '',
                 text: description || '',
-                history: [{
+                history: (photos && Array.isArray(photos) && photos.length > 0) ? [{
                     date: new Date().toISOString(),
                     percentage: 0,
                     note: 'Dokumentasi Awal Penugasan',
                     photos: photos
-                }]
+                }] : []
             });
         }
 
@@ -720,17 +723,20 @@ exports.createAssignment = async (req, res) => {
                 });
 
                 if (assignee?.phone) {
-                    const checklist = Array.isArray(items)
-                        ? items.map((it, idx) => `${idx + 1}. ${it.text}`).join('\n')
+                    const checklist = Array.isArray(items) && items.length > 0
+                        ? items.map((it, idx) => `   ${idx + 1}. ${it.text || it.activity} (${it.targetDate ? new Date(it.targetDate).toLocaleDateString('id-ID') : 'Sesuai jadwal'})`).join('\n')
                         : '';
 
                     const msg = `Bismillah.\n\n` +
-                        `Telah masuk permintaan dari Kepala Bidang Sarana Dengan Rinciannya:\n\n` +
+                        `Telah masuk penugasan resmi dari Kepala Bidang Sarana:\n\n` +
                         `📌 *Judul* : ${title}\n` +
-                        `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
-                        `👤 *Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Admin'}\n\n` +
-                        `*Deskripsi* :\n${checklist || description}\n\n` +
-                        `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
+                        (targetOutput ? `🎯 *Target Capaian* : ${targetOutput}\n` : '') +
+                        `📅 *Batas Waktu* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
+                        `⚡ *Prioritas* : ${priority || 'SEDANG'}\n` +
+                        `👤 *Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Kabid Sarpras'}\n\n` +
+                        (checklist ? `📋 *Langkah-Langkah Pengerjaan* :\n${checklist}\n\n` : '') +
+                        (description ? `📝 *Instruksi Khusus* :\n${description}\n\n` : '') +
+                        `Mohon bantuan untuk segera dilaksanakan dan dilaporkan perkembangannya. Jazaakallahu khairan.`;
 
                     await whatsappService.sendMessage(assignee.phone, msg);
                 }
