@@ -180,6 +180,17 @@ const DailyReportFormTab = ({
     const validObstacleCount = hasObstacle ? obstacleItems.filter(o => (o.title && o.title.trim()) || (o.obstacleNote && o.obstacleNote.trim())).length : 0;
     const validTomorrowCount = tomorrowPlans.filter(t => t.title && t.title.trim()).length;
 
+    // Pastikan format selectedDate selalu string 'YYYY-MM-DD' yang valid
+    const safeSelectedDate = useMemo(() => {
+        if (typeof selectedDate === 'string' && dayjs(selectedDate).isValid()) {
+            return selectedDate;
+        }
+        if (selectedDate && typeof selectedDate === 'object' && selectedDate.date && dayjs(selectedDate.date).isValid()) {
+            return selectedDate.date;
+        }
+        return dayjs().format('YYYY-MM-DD');
+    }, [selectedDate]);
+
     return (
         <div className="space-y-6">
             {/* 1. PERINGATAN TANGGAL KOSONG (LAPORAN SUSULAN) */}
@@ -211,21 +222,35 @@ const DailyReportFormTab = ({
 
                     {showMissedDates && (
                         <div className="mt-4 pt-3 border-t border-rose-200/60 flex flex-wrap gap-2">
-                            {personalStats.missedDates.map(mDate => (
-                                <button
-                                    key={mDate}
-                                    type="button"
-                                    onClick={() => setSelectedDate(mDate)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
-                                        selectedDate === mDate
-                                            ? 'bg-rose-600 text-white ring-2 ring-rose-400 font-black'
-                                            : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-100/70'
-                                    }`}
-                                >
-                                    <Calendar size={12} />
-                                    <span>{dayjs(mDate).format('dddd, DD MMMM YYYY')}</span>
-                                </button>
-                            ))}
+                            {personalStats.missedDates.map((mItem, idx) => {
+                                const actualDateStr = typeof mItem === 'string' ? mItem : (mItem?.date || '');
+                                const labelText = mItem?.formattedDate || 
+                                    (actualDateStr && dayjs(actualDateStr).isValid() 
+                                        ? dayjs(actualDateStr).format('dddd, DD MMMM YYYY') 
+                                        : 'Tanggal Tidak Valid');
+                                const isSelected = safeSelectedDate === actualDateStr;
+
+                                return (
+                                    <button
+                                        key={actualDateStr || idx}
+                                        type="button"
+                                        onClick={() => setSelectedDate(actualDateStr)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                                            isSelected
+                                                ? 'bg-rose-600 text-white ring-2 ring-rose-400 font-black'
+                                                : 'bg-white text-rose-800 border border-rose-200 hover:bg-rose-100/70'
+                                        }`}
+                                    >
+                                        <Calendar size={12} />
+                                        <span>{labelText}</span>
+                                        {mItem?.status === 'PARSIAL' && (
+                                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold ml-0.5">
+                                                Sebagian
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -237,7 +262,7 @@ const DailyReportFormTab = ({
                     <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                         <button
                             type="button"
-                            onClick={() => setSelectedDate(dayjs(selectedDate).subtract(1, 'day').format('YYYY-MM-DD'))}
+                            onClick={() => setSelectedDate(dayjs(safeSelectedDate).subtract(1, 'day').format('YYYY-MM-DD'))}
                             className="p-1.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-all cursor-pointer"
                             title="Hari Sebelumnya"
                         >
@@ -245,12 +270,12 @@ const DailyReportFormTab = ({
                         </button>
                         <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-xl shadow-2xs text-xs font-black text-slate-800">
                             <Calendar size={14} className="text-emerald-600" />
-                            <span>{dayjs(selectedDate).format('dddd, DD MMMM YYYY')}</span>
+                            <span>{dayjs(safeSelectedDate).format('dddd, DD MMMM YYYY')}</span>
                         </div>
                         <button
                             type="button"
-                            onClick={() => setSelectedDate(dayjs(selectedDate).add(1, 'day').format('YYYY-MM-DD'))}
-                            disabled={selectedDate === dayjs().format('YYYY-MM-DD')}
+                            onClick={() => setSelectedDate(dayjs(safeSelectedDate).add(1, 'day').format('YYYY-MM-DD'))}
+                            disabled={safeSelectedDate === dayjs().format('YYYY-MM-DD')}
                             className="p-1.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Hari Berikutnya"
                         >
@@ -258,7 +283,7 @@ const DailyReportFormTab = ({
                         </button>
                     </div>
 
-                    {selectedDate !== dayjs().format('YYYY-MM-DD') && (
+                    {safeSelectedDate !== dayjs().format('YYYY-MM-DD') && (
                         <button
                             type="button"
                             onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}
@@ -395,7 +420,7 @@ const DailyReportFormTab = ({
                                     </div>
                                     <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
                                         <span className="text-[10px] text-slate-400 font-medium">
-                                            {task.dueDate ? `Tenggat: ${dayjs(task.dueDate).format('DD/MM/YYYY')}` : 'Tanpa tenggat'}
+                                            {task.dueDate && dayjs(task.dueDate).isValid() ? `Tenggat: ${dayjs(task.dueDate).format('DD/MM/YYYY')}` : 'Tanpa tenggat'}
                                         </span>
                                         <div className="flex items-center gap-1.5">
                                             <button
@@ -1484,7 +1509,7 @@ const DailyReportFormTab = ({
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span>Metode PPP Terpadu</span>
                         <span className="text-slate-300">|</span>
-                        <span>{dayjs(selectedDate).format('DD/MM/YYYY')}</span>
+                        <span>{dayjs(safeSelectedDate).format('DD/MM/YYYY')}</span>
                     </div>
 
                     <button

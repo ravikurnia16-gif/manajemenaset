@@ -119,6 +119,13 @@ const LaporanStaff = () => {
 
     // General States
     const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const handleSetSelectedDate = (val) => {
+        if (!val) return;
+        const dateStr = typeof val === 'string' ? val : (val.date || val.target?.value || '');
+        if (dateStr && dayjs(dateStr).isValid()) {
+            setSelectedDate(dayjs(dateStr).format('YYYY-MM-DD'));
+        }
+    };
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -344,7 +351,9 @@ const LaporanStaff = () => {
     const fetchMyReport = async () => {
         try {
             setLoading(true);
-            const targetDateToLoad = selectedDate;
+            const targetDateToLoad = typeof selectedDate === 'string' 
+                ? selectedDate 
+                : (selectedDate?.date || dayjs().format('YYYY-MM-DD'));
             const res = await api.get('/laporan', {
                 params: { date: targetDateToLoad }
             });
@@ -1687,7 +1696,7 @@ const LaporanStaff = () => {
                         <ExecutiveDashboardTab
                             dashboardData={dashboardData}
                             selectedDate={selectedDate}
-                            setSelectedDate={setSelectedDate}
+                            setSelectedDate={handleSetSelectedDate}
                             aiRangePreset={aiRangePreset}
                             setAiRangePreset={setAiRangePreset}
                             setAiPreset={setAiPreset}
@@ -1751,7 +1760,7 @@ const LaporanStaff = () => {
                             user={user}
                             userDivision={userDivision}
                             selectedDate={selectedDate}
-                            setSelectedDate={setSelectedDate}
+                            setSelectedDate={handleSetSelectedDate}
                             completedItems={completedItems}
                             setCompletedItems={setCompletedItems}
                             inProgressItems={inProgressItems}
