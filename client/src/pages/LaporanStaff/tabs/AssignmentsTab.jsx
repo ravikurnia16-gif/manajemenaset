@@ -810,8 +810,8 @@ export default function AssignmentsTab({
                                                 ))}
                                             </div>
 
-                                            {/* Salin Tugas ke Butir Laporan Harian (PPP) */}
-                                            {user.id === task.assigneeId && onImportTaskToReport && (
+                                            {/* Salin Tugas ke Butir Laporan Harian (PPP) - Jangan hubungkan jika penugasan dari maintenance */}
+                                            {user.id === task.assigneeId && onImportTaskToReport && !maintenanceMeta && (
                                                 <button
                                                     type="button"
                                                     onClick={() => onImportTaskToReport(task)}

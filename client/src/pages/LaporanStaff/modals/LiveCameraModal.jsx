@@ -201,7 +201,7 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture, pointIndex
                         </div>
                         <div>
                             <h3 className="text-sm font-black tracking-tight">Kamera Langsung</h3>
-                            <p className="text-[10px] text-slate-400">Bukti kegiatan {period === 'morning' ? 'Sesi Pagi' : 'Sesi Siang'}</p>
+                            <p className="text-[10px] text-slate-400">Bukti dokumentasi kegiatan laporan harian</p>
                         </div>
                     </div>
                     <button

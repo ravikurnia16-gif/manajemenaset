@@ -77,13 +77,23 @@ const TeamMonitoringTab = ({
         let totalPhotos = 0;
 
         reportsFeed.forEach(r => {
-            const pts = r.metadata?.manualPoints;
-            const morning = pts?.morning || pts?.morningPoints || [];
-            const afternoon = pts?.afternoon || pts?.afternoonPoints || [];
-            const allPts = [...morning, ...afternoon];
+            const meta = r.metadata || {};
+            const c = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+            const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+            const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems : [];
+            const pts = meta.manualPoints;
+            const m = Array.isArray(pts?.morning || pts?.morningPoints) ? (pts.morning || pts.morningPoints) : [];
+            const a = Array.isArray(pts?.afternoon || pts?.afternoonPoints) ? (pts.afternoon || pts.afternoonPoints) : [];
+
+            let allPts = [];
+            if (c.length > 0 || ip.length > 0 || obs.length > 0) {
+                allPts = [...c, ...ip, ...obs];
+            } else {
+                allPts = [...m, ...a];
+            }
             
             totalActivities += allPts.length;
-            totalObstacles += allPts.filter(p => p.status === 'OBSTACLE' || p.obstacleNote).length;
+            totalObstacles += (obs.length > 0 ? obs.length : allPts.filter(p => p.status === 'OBSTACLE' || p.obstacleNote).length);
             allPts.forEach(p => {
                 totalPhotos += (p.photos || []).length;
             });
@@ -98,6 +108,227 @@ const TeamMonitoringTab = ({
     }, [reportsFeed]);
 
     const isMultiDay = monitoringStartDate !== monitoringEndDate;
+
+    const renderPointCard = (report, p, idx, defaultPeriodKey, badgeClass, statusLabel) => {
+        const periodKey = p._period || defaultPeriodKey;
+        const pointIdx = p._idx !== undefined ? p._idx : idx;
+        const isEditingThisPoint = activePointReview?.reportId === report.id && 
+            activePointReview?.period === periodKey && 
+            activePointReview?.pointIndex === pointIdx;
+
+        return (
+            <div key={`${periodKey}-${idx}`} className="bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 space-y-2">
+                <div className="flex items-start gap-2">
+                    <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[9px] font-black uppercase text-slate-600">
+                                {p.categoryTag || 'UMUM'}
+                            </span>
+                            {p.sourceType === 'MAINTENANCE' && (
+                                <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[9px] font-black uppercase text-indigo-700">
+                                    🔧 Pemeliharaan
+                                </span>
+                            )}
+                            {p.sourceType === 'ASSIGNMENT' && (
+                                <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[9px] font-black uppercase text-blue-700">
+                                    📋 Penugasan
+                                </span>
+                            )}
+                            {p.sourceType === 'PLAN' && (
+                                <span className="px-2 py-0.5 rounded bg-violet-50 border border-violet-200 text-[9px] font-black uppercase text-violet-700">
+                                    🎯 Rencana Kerja
+                                </span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1 ${badgeClass}`}>
+                                {statusLabel}
+                            </span>
+                            {p.status === 'IN_PROGRESS' && p.progressPercentage && (
+                                <div className="w-16 sm:w-20 h-1.5 bg-amber-100 rounded-full overflow-hidden" title={`Progres: ${p.progressPercentage}%`}>
+                                    <div 
+                                        className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${p.progressPercentage}%` }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-800 font-medium leading-relaxed">{p.title || p.text}</p>
+                        
+                        {p.output && (
+                            <div className="mt-1.5 p-2 bg-emerald-50/80 border border-emerald-100 rounded-xl text-[11px] text-emerald-800 font-semibold">
+                                🎯 <span className="font-bold">Output/Hasil:</span> {p.output}
+                            </div>
+                        )}
+                        {p.targetDate && p.status === 'IN_PROGRESS' && (
+                            <div className="mt-1 text-[11px] text-amber-700 font-medium">
+                                📅 Target Selesai: <span className="font-bold">{p.targetDate}</span>
+                            </div>
+                        )}
+                        {(p.obstacleNote || p.status === 'OBSTACLE') && (
+                            <div className="mt-1.5 p-2 bg-rose-50 border border-rose-100 rounded-xl text-[11px] text-rose-800 font-bold space-y-1">
+                                <div>⚠️ Kendala: {p.obstacleNote || p.title || p.text}</div>
+                                {p.actionPlan && (
+                                    <div className="text-[10px] text-rose-700 font-medium pt-0.5 border-t border-rose-100">
+                                        💡 Rencana Tindak Lanjut: {p.actionPlan}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Photos */}
+                {p.photos && p.photos.length > 0 && (
+                    <div className="flex gap-2 pt-1 overflow-x-auto pl-7">
+                        {p.photos.map((ph, pIdx) => (
+                            <img 
+                                key={pIdx} 
+                                src={getMediaUrl(ph.url || ph)} 
+                                alt="Bukti foto"
+                                onClick={() => setLightboxPhoto(getMediaUrl(ph.url || ph))}
+                                className="w-16 h-16 rounded-xl object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity shrink-0" 
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Display Existing Review */}
+                {p.review && (
+                    <div className={`mt-2 p-2.5 rounded-xl border text-xs space-y-1 ${
+                        p.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
+                        p.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
+                        'bg-blue-50/90 border-blue-200 text-blue-900'
+                    }`}>
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold flex items-center gap-1.5 text-[11px]">
+                                {p.review.status === 'APPROVED' ? '✅ Disetujui' :
+                                 p.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan'}
+                                <span className="text-[10px] opacity-75 font-normal">
+                                    oleh {p.review.reviewerName || 'Kabid'} • {dayjs(p.review.reviewedAt).format('HH:mm')}
+                                </span>
+                            </span>
+                            {isKabid && (
+                                <button 
+                                    type="button"
+                                    onClick={() => openPointReviewForm(report.id, periodKey, pointIdx, p.review)}
+                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                                >
+                                    Ubah
+                                </button>
+                            )}
+                        </div>
+                        {p.review.feedbackNote && (
+                            <p className="text-xs font-semibold italic pl-1 leading-snug">
+                                "{p.review.feedbackNote}"
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* Inline Review Form (Khusus Kabid saat aktif) */}
+                {isKabid && isEditingThisPoint && (
+                    <div className="mt-2.5 p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                            <h5 className="text-[11px] font-black text-blue-950 uppercase flex items-center gap-1">
+                                <MessageSquare size={13} className="text-blue-600" /> Ulas Butir #{idx + 1}
+                            </h5>
+                            <button type="button" onClick={() => setActivePointReview(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={14} /></button>
+                        </div>
+
+                        {/* Status Selection Buttons */}
+                        <div className="grid grid-cols-3 gap-1.5">
+                            <button 
+                                type="button" 
+                                onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'APPROVED' }))}
+                                className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                    pointReviewForm.status === 'APPROVED' 
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                ✅ Sesuai
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'REVISION' }))}
+                                className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                    pointReviewForm.status === 'REVISION' 
+                                        ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                ⚠️ Revisi
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'NOTE' }))}
+                                className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                                    pointReviewForm.status === 'NOTE' 
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                💡 Catatan
+                            </button>
+                        </div>
+
+                        <textarea 
+                            rows="2" 
+                            placeholder="Tulis ulasan, arahan, atau catatan perbaikan untuk staf..."
+                            value={pointReviewForm.feedbackNote}
+                            onChange={(e) => setPointReviewForm(prev => ({ ...prev, feedbackNote: e.target.value }))}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                        />
+
+                        <div className="flex items-center gap-2 pt-0.5">
+                            <button 
+                                type="button"
+                                onClick={() => handleSavePointReview(report.id, periodKey, pointIdx)}
+                                disabled={savingPointReview}
+                                className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                                {savingPointReview ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                <span>Kirim Ulasan</span>
+                            </button>
+                            {p.review && (
+                                <button 
+                                    type="button"
+                                    onClick={() => handleDeletePointReview(report.id, periodKey, pointIdx)}
+                                    disabled={savingPointReview}
+                                    className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer"
+                                    title="Hapus ulasan butir ini"
+                                >
+                                    Hapus
+                                </button>
+                            )}
+                            <button 
+                                type="button"
+                                onClick={() => setActivePointReview(null)}
+                                className="py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tombol Ulas Butir Ini jika belum diulas */}
+                {isKabid && !p.review && !isEditingThisPoint && (
+                    <div className="flex justify-end pt-0.5">
+                        <button 
+                            type="button"
+                            onClick={() => openPointReviewForm(report.id, periodKey, pointIdx, null)}
+                            className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                        >
+                            <MessageSquare size={11} /> Ulas Butir Ini
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -332,13 +563,39 @@ const TeamMonitoringTab = ({
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {reportsFeed.map(report => {
-                        const pts = report.metadata?.manualPoints;
-                        const morning = pts?.morning || pts?.morningPoints || [];
-                        const afternoon = pts?.afternoon || pts?.afternoonPoints || [];
+                        const meta = report.metadata || {};
+                        const pts = meta.manualPoints;
+
+                        // Unified PPP Pillars
+                        let completedItems = Array.isArray(meta.completedItems) ? [...meta.completedItems] : [];
+                        let inProgressItems = Array.isArray(meta.inProgressItems) ? [...meta.inProgressItems] : [];
+                        let obstacleItems = Array.isArray(meta.obstacleItems) ? [...meta.obstacleItems] : [];
+                        const tomorrowPlans = Array.isArray(meta.tomorrowPlans) ? [...meta.tomorrowPlans] : [];
+
+                        // Fallback parsing for legacy reports that only have manualPoints (morning / afternoon)
+                        if (completedItems.length === 0 && inProgressItems.length === 0 && obstacleItems.length === 0 && pts) {
+                            const rawMorning = Array.isArray(pts.morning || pts.morningPoints) ? (pts.morning || pts.morningPoints) : [];
+                            const rawAfternoon = Array.isArray(pts.afternoon || pts.afternoonPoints) ? (pts.afternoon || pts.afternoonPoints) : [];
+                            
+                            rawMorning.forEach((p, idx) => {
+                                const enriched = { ...p, _period: 'morning', _idx: idx };
+                                if (p.status === 'OBSTACLE' || p.obstacleNote) obstacleItems.push(enriched);
+                                else if (p.status === 'COMPLETED' || p.percentage === 100) completedItems.push(enriched);
+                                else inProgressItems.push(enriched);
+                            });
+                            rawAfternoon.forEach((p, idx) => {
+                                const enriched = { ...p, _period: 'afternoon', _idx: idx };
+                                if (p.status === 'OBSTACLE' || p.obstacleNote) obstacleItems.push(enriched);
+                                else if (p.status === 'COMPLETED' || p.percentage === 100) completedItems.push(enriched);
+                                else inProgressItems.push(enriched);
+                            });
+                        }
+
                         const verification = report.metadata?.verification;
                         const reportDateStr = report.targetDate || report.date || report.createdAt;
                         const cleanPhone = (report.user?.phone || '').replace(/[^0-9]/g, '');
                         const waUrl = cleanPhone ? `https://wa.me/${cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(`Halo ${report.user?.name}, terkait laporan kerja tanggal ${dayjs(reportDateStr).format('DD/MM/YYYY')}...`)}` : null;
+                        const totalPppItems = completedItems.length + inProgressItems.length + obstacleItems.length;
 
                         return (
                             <div key={report.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-4">
@@ -384,421 +641,65 @@ const TeamMonitoringTab = ({
                                         </div>
                                     </div>
 
-                                    {/* Sesi Pagi */}
-                                    <div>
-                                        <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Clock size={12} /> Sesi Pagi (07.15 - 12.00)
-                                        </h4>
-                                        {morning.length === 0 ? (
-                                            <span className="text-xs text-slate-400 italic block pl-2">- Belum ada butir kegiatan -</span>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {morning.map((p, idx) => (
-                                                    <div key={idx} className="bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 space-y-2">
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[9px] font-black uppercase text-slate-600">
-                                                                        {p.categoryTag || 'UMUM'}
-                                                                    </span>
-                                                                    {p.sourceType === 'MAINTENANCE' && (
-                                                                        <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[9px] font-black uppercase text-indigo-700">
-                                                                            🔧 Pemeliharaan
-                                                                        </span>
-                                                                    )}
-                                                                    {p.sourceType === 'ASSIGNMENT' && (
-                                                                        <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[9px] font-black uppercase text-blue-700">
-                                                                            📋 Penugasan
-                                                                        </span>
-                                                                    )}
-                                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1 ${
-                                                                        p.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                                                                        p.status === 'OBSTACLE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
-                                                                    }`}>
-                                                                        {p.status === 'COMPLETED' ? 'Selesai 100%' : p.status === 'OBSTACLE' ? 'Kendala' : `Proses (${p.progressPercentage || 50}%)`}
-                                                                    </span>
-                                                                    {p.status === 'IN_PROGRESS' && (
-                                                                        <div className="w-16 sm:w-20 h-1.5 bg-amber-100 rounded-full overflow-hidden" title={`Progres: ${p.progressPercentage || 50}%`}>
-                                                                            <div 
-                                                                                className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                                                                                style={{ width: `${p.progressPercentage || 50}%` }}
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-xs text-slate-700 font-medium leading-relaxed">{p.text}</p>
-                                                                {p.obstacleNote && (
-                                                                    <div className="mt-1.5 p-2 bg-rose-50 border border-rose-100 rounded-xl text-[11px] text-rose-800 font-bold">
-                                                                        ⚠️ Kendala: {p.obstacleNote}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Photos */}
-                                                        {p.photos && p.photos.length > 0 && (
-                                                            <div className="flex gap-2 pt-1 overflow-x-auto pl-7">
-                                                                {p.photos.map((ph, pIdx) => (
-                                                                    <img 
-                                                                        key={pIdx} 
-                                                                        src={getMediaUrl(ph.url || ph)} 
-                                                                        alt="Bukti foto"
-                                                                        onClick={() => setLightboxPhoto(getMediaUrl(ph.url || ph))}
-                                                                        className="w-16 h-16 rounded-xl object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity shrink-0" 
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Display Existing Review */}
-                                                        {p.review && (
-                                                            <div className={`mt-2 p-2.5 rounded-xl border text-xs space-y-1 ${
-                                                                p.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
-                                                                p.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
-                                                                'bg-blue-50/90 border-blue-200 text-blue-900'
-                                                            }`}>
-                                                                <div className="flex items-center justify-between gap-1">
-                                                                    <span className="font-bold flex items-center gap-1.5 text-[11px]">
-                                                                        {p.review.status === 'APPROVED' ? '✅ Disetujui' :
-                                                                         p.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan'}
-                                                                        <span className="text-[10px] opacity-75 font-normal">
-                                                                            oleh {p.review.reviewerName || 'Kabid'} • {dayjs(p.review.reviewedAt).format('HH:mm')}
-                                                                        </span>
-                                                                    </span>
-                                                                    {isKabid && (
-                                                                        <button 
-                                                                            type="button"
-                                                                            onClick={() => openPointReviewForm(report.id, 'morning', idx, p.review)}
-                                                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
-                                                                        >
-                                                                            Ubah
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                                {p.review.feedbackNote && (
-                                                                    <p className="text-xs font-semibold italic pl-1 leading-snug">
-                                                                        "{p.review.feedbackNote}"
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Inline Review Form (Khusus Kabid saat aktif) */}
-                                                        {isKabid && activePointReview?.reportId === report.id && activePointReview?.period === 'morning' && activePointReview?.pointIndex === idx && (
-                                                            <div className="mt-2.5 p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-2.5">
-                                                                <div className="flex items-center justify-between">
-                                                                    <h5 className="text-[11px] font-black text-blue-950 uppercase flex items-center gap-1">
-                                                                        <MessageSquare size={13} className="text-blue-600" /> Ulas Butir #{idx + 1} (Sesi Pagi)
-                                                                    </h5>
-                                                                    <button type="button" onClick={() => setActivePointReview(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={14} /></button>
-                                                                </div>
-
-                                                                {/* Status Selection Buttons */}
-                                                                <div className="grid grid-cols-3 gap-1.5">
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'APPROVED' }))}
-                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                                            pointReviewForm.status === 'APPROVED' 
-                                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                                        }`}
-                                                                    >
-                                                                        ✅ Sesuai
-                                                                    </button>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'REVISION' }))}
-                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                                            pointReviewForm.status === 'REVISION' 
-                                                                                ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
-                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                                        }`}
-                                                                    >
-                                                                        ⚠️ Revisi
-                                                                    </button>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'NOTE' }))}
-                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                                            pointReviewForm.status === 'NOTE' 
-                                                                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                                        }`}
-                                                                    >
-                                                                        💡 Catatan
-                                                                    </button>
-                                                                </div>
-
-                                                                <textarea 
-                                                                    rows="2" 
-                                                                    placeholder="Tulis ulasan, arahan, atau catatan perbaikan untuk staf..."
-                                                                    value={pointReviewForm.feedbackNote}
-                                                                    onChange={(e) => setPointReviewForm(prev => ({ ...prev, feedbackNote: e.target.value }))}
-                                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
-                                                                />
-
-                                                                <div className="flex items-center gap-2 pt-0.5">
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => handleSavePointReview(report.id, 'morning', idx)}
-                                                                        disabled={savingPointReview}
-                                                                        className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
-                                                                    >
-                                                                        {savingPointReview ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                                                        <span>Kirim Ulasan</span>
-                                                                    </button>
-                                                                    {p.review && (
-                                                                        <button 
-                                                                            type="button"
-                                                                            onClick={() => handleDeletePointReview(report.id, 'morning', idx)}
-                                                                            disabled={savingPointReview}
-                                                                            className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer"
-                                                                            title="Hapus ulasan butir ini"
-                                                                        >
-                                                                            Hapus
-                                                                        </button>
-                                                                    )}
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => setActivePointReview(null)}
-                                                                        className="py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
-                                                                    >
-                                                                        Batal
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Tombol Ulas Butir Ini jika belum diulas */}
-                                                        {isKabid && !p.review && !(activePointReview?.reportId === report.id && activePointReview?.period === 'morning' && activePointReview?.pointIndex === idx) && (
-                                                            <div className="flex justify-end pt-0.5">
-                                                                <button 
-                                                                    type="button"
-                                                                    onClick={() => openPointReviewForm(report.id, 'morning', idx, null)}
-                                                                    className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
-                                                                >
-                                                                    <MessageSquare size={11} /> Ulas Butir Ini
-                                                                </button>
-                                                            </div>
+                                    {/* 4-Pillar PPP Kegiatan Harian */}
+                                    {totalPppItems === 0 ? (
+                                        <div className="py-4 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400 italic">
+                                            - Belum ada rincian kegiatan terlaporkan -
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {/* A. Pekerjaan Selesai (Progress 100%) */}
+                                            {completedItems.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-[11px] font-black text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                        <CheckCircle2 size={13} className="text-emerald-600" />
+                                                        Pekerjaan Selesai ({completedItems.length})
+                                                    </h4>
+                                                    <div className="space-y-2.5">
+                                                        {completedItems.map((p, idx) => 
+                                                            renderPointCard(report, p, idx, 'completed', 'bg-emerald-100 text-emerald-700', 'Selesai 100%')
                                                         )}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                                </div>
+                                            )}
 
-                                    {/* Sesi Siang */}
-                                    <div>
-                                        <h4 className="text-[11px] font-black text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                            <Clock size={12} /> Sesi Siang (13.00 - 16.15)
-                                        </h4>
-                                        {afternoon.length === 0 ? (
-                                            <span className="text-xs text-slate-400 italic block pl-2">- Belum ada butir kegiatan -</span>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {afternoon.map((p, idx) => (
-                                                    <div key={idx} className="bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 space-y-2">
-                                                        <div className="flex items-start gap-2">
-                                                            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</span>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[9px] font-black uppercase text-slate-600">
-                                                                        {p.categoryTag || 'UMUM'}
-                                                                    </span>
-                                                                    {p.sourceType === 'MAINTENANCE' && (
-                                                                        <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[9px] font-black uppercase text-indigo-700">
-                                                                            🔧 Pemeliharaan
-                                                                        </span>
-                                                                    )}
-                                                                    {p.sourceType === 'ASSIGNMENT' && (
-                                                                        <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[9px] font-black uppercase text-blue-700">
-                                                                            📋 Penugasan
-                                                                        </span>
-                                                                    )}
-                                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                                                                        p.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                                                                        p.status === 'OBSTACLE' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
-                                                                    }`}>
-                                                                        {p.status === 'COMPLETED' ? 'Selesai 100%' : p.status === 'OBSTACLE' ? 'Kendala' : `Proses (${p.progressPercentage || 50}%)`}
-                                                                    </span>
-                                                                    {p.status === 'IN_PROGRESS' && (
-                                                                        <div className="w-16 sm:w-20 h-1.5 bg-amber-100 rounded-full overflow-hidden" title={`Progres: ${p.progressPercentage || 50}%`}>
-                                                                            <div 
-                                                                                className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                                                                                style={{ width: `${p.progressPercentage || 50}%` }}
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-xs text-slate-700 font-medium leading-relaxed">{p.text}</p>
-                                                                {p.obstacleNote && (
-                                                                    <div className="mt-1.5 p-2 bg-rose-50 border border-rose-100 rounded-xl text-[11px] text-rose-800 font-bold">
-                                                                        ⚠️ Kendala: {p.obstacleNote}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Photos */}
-                                                        {p.photos && p.photos.length > 0 && (
-                                                            <div className="flex gap-2 pt-1 overflow-x-auto pl-7">
-                                                                {p.photos.map((ph, pIdx) => (
-                                                                    <img 
-                                                                        key={pIdx} 
-                                                                        src={getMediaUrl(ph.url || ph)} 
-                                                                        alt="Bukti foto"
-                                                                        onClick={() => setLightboxPhoto(getMediaUrl(ph.url || ph))}
-                                                                        className="w-16 h-16 rounded-xl object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity shrink-0" 
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Display Existing Review */}
-                                                        {p.review && (
-                                                            <div className={`mt-2 p-2.5 rounded-xl border text-xs space-y-1 ${
-                                                                p.review.status === 'APPROVED' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900' :
-                                                                p.review.status === 'REVISION' ? 'bg-amber-50/90 border-amber-200 text-amber-900' :
-                                                                'bg-blue-50/90 border-blue-200 text-blue-900'
-                                                            }`}>
-                                                                <div className="flex items-center justify-between gap-1">
-                                                                    <span className="font-bold flex items-center gap-1.5 text-[11px]">
-                                                                        {p.review.status === 'APPROVED' ? '✅ Disetujui' :
-                                                                         p.review.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan'}
-                                                                        <span className="text-[10px] opacity-75 font-normal">
-                                                                            oleh {p.review.reviewerName || 'Kabid'} • {dayjs(p.review.reviewedAt).format('HH:mm')}
-                                                                        </span>
-                                                                    </span>
-                                                                    {isKabid && (
-                                                                        <button 
-                                                                            type="button"
-                                                                            onClick={() => openPointReviewForm(report.id, 'afternoon', idx, p.review)}
-                                                                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-                                                                        >
-                                                                            Ubah
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                                {p.review.feedbackNote && (
-                                                                    <p className="text-xs font-semibold italic pl-1 leading-snug">
-                                                                        "{p.review.feedbackNote}"
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Inline Review Form (Khusus Kabid saat aktif) */}
-                                                        {isKabid && activePointReview?.reportId === report.id && activePointReview?.period === 'afternoon' && activePointReview?.pointIndex === idx && (
-                                                            <div className="mt-2.5 p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-200 space-y-2.5">
-                                                                <div className="flex items-center justify-between">
-                                                                    <h5 className="text-[11px] font-black text-indigo-950 uppercase flex items-center gap-1">
-                                                                        <MessageSquare size={13} className="text-indigo-600" /> Ulas Butir #{idx + 1} (Sesi Siang)
-                                                                    </h5>
-                                                                    <button type="button" onClick={() => setActivePointReview(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={14} /></button>
-                                                                </div>
-
-                                                                {/* Status Selection Buttons */}
-                                                                <div className="grid grid-cols-3 gap-1.5">
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'APPROVED' }))}
-                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                                            pointReviewForm.status === 'APPROVED' 
-                                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                                        }`}
-                                                                    >
-                                                                        ✅ Sesuai
-                                                                    </button>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'REVISION' }))}
-                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                                            pointReviewForm.status === 'REVISION' 
-                                                                                ? 'bg-amber-500 text-white border-amber-500 shadow-xs' 
-                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                                        }`}
-                                                                    >
-                                                                        ⚠️ Revisi
-                                                                    </button>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setPointReviewForm(prev => ({ ...prev, status: 'NOTE' }))}
-                                                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer border ${
-                                                                            pointReviewForm.status === 'NOTE' 
-                                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
-                                                                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                                        }`}
-                                                                    >
-                                                                        💡 Catatan
-                                                                    </button>
-                                                                </div>
-
-                                                                <textarea 
-                                                                    rows="2" 
-                                                                    placeholder="Tulis ulasan, arahan, atau catatan perbaikan untuk staf..."
-                                                                    value={pointReviewForm.feedbackNote}
-                                                                    onChange={(e) => setPointReviewForm(prev => ({ ...prev, feedbackNote: e.target.value }))}
-                                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400"
-                                                                />
-
-                                                                <div className="flex items-center gap-2 pt-0.5">
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => handleSavePointReview(report.id, 'afternoon', idx)}
-                                                                        disabled={savingPointReview}
-                                                                        className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
-                                                                    >
-                                                                        {savingPointReview ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                                                        <span>Kirim Ulasan</span>
-                                                                    </button>
-                                                                    {p.review && (
-                                                                        <button 
-                                                                            type="button"
-                                                                            onClick={() => handleDeletePointReview(report.id, 'afternoon', idx)}
-                                                                            disabled={savingPointReview}
-                                                                            className="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl border border-rose-200 transition-all cursor-pointer"
-                                                                            title="Hapus ulasan butir ini"
-                                                                        >
-                                                                            Hapus
-                                                                        </button>
-                                                                    )}
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => setActivePointReview(null)}
-                                                                        className="py-1.5 px-3 bg-white hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
-                                                                    >
-                                                                        Batal
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Tombol Ulas Butir Ini jika belum diulas */}
-                                                        {isKabid && !p.review && !(activePointReview?.reportId === report.id && activePointReview?.period === 'afternoon' && activePointReview?.pointIndex === idx) && (
-                                                            <div className="flex justify-end pt-0.5">
-                                                                <button 
-                                                                    type="button"
-                                                                    onClick={() => openPointReviewForm(report.id, 'afternoon', idx, null)}
-                                                                    className="px-2.5 py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
-                                                                >
-                                                                    <MessageSquare size={11} /> Ulas Butir Ini
-                                                                </button>
-                                                            </div>
+                                            {/* B. Sedang Dikerjakan (In-Progress) */}
+                                            {inProgressItems.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-[11px] font-black text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                        <Clock size={13} className="text-amber-600" />
+                                                        Sedang Dikerjakan ({inProgressItems.length})
+                                                    </h4>
+                                                    <div className="space-y-2.5">
+                                                        {inProgressItems.map((p, idx) => 
+                                                            renderPointCard(report, p, idx, 'inprogress', 'bg-amber-100 text-amber-700', `Progres (${p.progressPercentage || p.percentage || 50}%)`)
                                                         )}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* C. Kendala Lapangan (Problems) */}
+                                            {obstacleItems.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-[11px] font-black text-rose-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                        <AlertTriangle size={13} className="text-rose-600" />
+                                                        Kendala Lapangan ({obstacleItems.length})
+                                                    </h4>
+                                                    <div className="space-y-2.5">
+                                                        {obstacleItems.map((p, idx) => 
+                                                            renderPointCard(report, p, idx, 'obstacle', 'bg-rose-100 text-rose-700', 'Kendala')
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Rencana Kerja Besok (Metode PPP) */}
                                     {report.metadata?.tomorrowPlans && report.metadata.tomorrowPlans.length > 0 && (
                                         <div className="pt-2 border-t border-slate-100">
                                             <h4 className="text-[11px] font-black text-violet-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                                <Calendar size={12} /> 🎯 Rencana Kerja Besok ({report.metadata.tomorrowPlans.length})
+                                                <Calendar size={12} /> 🎯 {dayjs(report.date).day() === 5 ? 'Rencana Pekerjaan Pekan Depan' : 'Rencana Kerja Besok'} ({report.metadata.tomorrowPlans.length})
                                             </h4>
                                             <div className="space-y-1.5">
                                                 {report.metadata.tomorrowPlans.map((pl, plIdx) => (

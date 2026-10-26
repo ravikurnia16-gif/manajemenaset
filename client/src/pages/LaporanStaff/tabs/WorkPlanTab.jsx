@@ -655,7 +655,7 @@ export default function WorkPlanTab({
                         ...(isSingleGoal && uploadedPhotos.length > 0 ? { photos: uploadedPhotos } : {})
                     }
                 };
-                onImportPlanItemToReport(updatedPlan, updatedItem, itemIndex, sessionPeriod, uploadedPhotos);
+                onImportPlanItemToReport(updatedPlan, updatedItem, itemIndex, isCompleted ? 'COMPLETED' : 'IN_PROGRESS', uploadedPhotos);
             }
 
             // 4. Cleanup and close modal
@@ -1571,26 +1571,16 @@ export default function WorkPlanTab({
                                                                     </button>
                                                                 </div>
 
-                                                                {/* 1-Click Import to Daily Report (Morning / Afternoon) */}
+                                                                {/* 1-Click Import to Daily Report (Metode PPP) */}
                                                                 {isOwner && onImportPlanItemToReport && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => onImportPlanItemToReport(plan, it, idx, 'morning')}
-                                                                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
-                                                                            title="Impor langkah ini ke Laporan Sesi Pagi hari ini"
-                                                                        >
-                                                                            <Plus size={11} /> Pagi
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => onImportPlanItemToReport(plan, it, idx, 'afternoon')}
-                                                                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
-                                                                            title="Impor langkah ini ke Laporan Sesi Siang hari ini"
-                                                                        >
-                                                                            <Plus size={11} /> Siang
-                                                                        </button>
-                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => onImportPlanItemToReport(plan, it, idx, it.percentage === 100 || it.status === 'SELESAI' ? 'COMPLETED' : 'IN_PROGRESS')}
+                                                                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                                                                        title="Impor langkah ini ke Laporan Harian (Metode PPP)"
+                                                                    >
+                                                                        <Plus size={11} /> Laporan Harian
+                                                                    </button>
                                                                 )}
                                                             </div>
                                                         )}
@@ -1692,26 +1682,16 @@ export default function WorkPlanTab({
                                                     )}
                                                 </button>
 
-                                                {/* 1-Click Import to Daily Report */}
+                                                {/* 1-Click Import to Daily Report (Metode PPP) */}
                                                 {isOwner && onImportPlanItemToReport && (
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onImportPlanItemToReport(plan, null, null, 'morning')}
-                                                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
-                                                            title="Impor rencana ini ke Laporan Sesi Pagi hari ini"
-                                                        >
-                                                            <Plus size={12} /> Lapor Pagi
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onImportPlanItemToReport(plan, null, null, 'afternoon')}
-                                                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
-                                                            title="Impor rencana ini ke Laporan Sesi Siang hari ini"
-                                                        >
-                                                            <Plus size={12} /> Lapor Siang
-                                                        </button>
-                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onImportPlanItemToReport(plan, null, null, isDone ? 'COMPLETED' : 'IN_PROGRESS')}
+                                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                                                        title="Impor rencana ini ke Laporan Harian (Metode PPP)"
+                                                    >
+                                                        <Plus size={12} /> + Laporan Harian
+                                                    </button>
                                                 )}
                                             </div>
                                         )}
@@ -2413,34 +2393,11 @@ export default function WorkPlanTab({
                                 </label>
 
                                 {completionModal.syncToDailyReport && (
-                                    <div className="pt-2 border-t border-violet-100/80 space-y-1.5">
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-violet-700 block">
-                                            Pilih Sesi Laporan Harian:
+                                    <div className="pt-2 border-t border-violet-100/80 flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 border border-emerald-200/80">
+                                            <CheckCircle2 size={13} className="text-emerald-600" />
+                                            Otomatis sinkron ke Laporan Harian (Pilar {completionModal.targetPercentage === 100 ? 'Pekerjaan Selesai' : 'Sedang Dikerjakan'})
                                         </span>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setCompletionModal(prev => ({ ...prev, sessionPeriod: 'morning' }))}
-                                                className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer border ${
-                                                    completionModal.sessionPeriod === 'morning'
-                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                                }`}
-                                            >
-                                                ☀️ Sesi Pagi (08:00 - 12:00)
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setCompletionModal(prev => ({ ...prev, sessionPeriod: 'afternoon' }))}
-                                                className={`p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer border ${
-                                                    completionModal.sessionPeriod === 'afternoon'
-                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                                }`}
-                                            >
-                                                🌤️ Sesi Siang (13:00 - 16:30)
-                                            </button>
-                                        </div>
                                     </div>
                                 )}
                             </div>

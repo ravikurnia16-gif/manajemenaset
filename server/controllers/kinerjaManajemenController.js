@@ -2702,12 +2702,13 @@ exports.saveDailyReportFromPpp = async (req, res) => {
         };
 
         // Buat ringkasan teks otomatis
+        const isFriday = reportDate.day() === 5;
         const summaryLines = [
             `[LAPORAN HARIAN PPP]`,
             `A. Tugas Selesai: ${completedItems.length} butir`,
             `B. Dalam Proses: ${inProgressItems.length} butir`,
             `C. Kendala: ${obstacleItems.length > 0 ? obstacleItems.map(o => o.obstacleNote).join('; ') : 'Nihil'}`,
-            `D. Rencana Besok: ${tomorrowPlans.length > 0 ? tomorrowPlans.map(t => t.title).join('; ') : 'Sesuai SOP / Rutinitas'}`
+            `${isFriday ? 'D. Rencana Pekan Depan' : 'D. Rencana Besok'}: ${tomorrowPlans.length > 0 ? tomorrowPlans.map(t => t.title).join('; ') : 'Sesuai SOP / Rutinitas'}`
         ];
         const autoContent = summaryLines.join('\n');
 

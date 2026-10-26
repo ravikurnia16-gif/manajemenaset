@@ -239,6 +239,42 @@ class LocalDataStorage {
                 content: 'Laporan harian sensus dan verifikasi aset sarana prasarana',
                 date: today,
                 metadata: {
+                    completedItems: [
+                        {
+                            title: 'Verifikasi fisik dan penempelan barcode QR Code aset inventaris gedung utama',
+                            categoryTag: 'ASET',
+                            sourceType: 'PLAN',
+                            isRoutine: false,
+                            progressPercentage: 100,
+                            status: 'COMPLETED',
+                            output: '45 unit meja, kursi, dan lemari arsip selesai diverifikasi & terlabel QR Code'
+                        }
+                    ],
+                    inProgressItems: [
+                        {
+                            title: 'Perekaman dan update data aset rusak ringan ke dalam sistem manajemen inventaris',
+                            categoryTag: 'ASET',
+                            sourceType: 'PLAN',
+                            isRoutine: false,
+                            progressPercentage: 60,
+                            status: 'IN_PROGRESS',
+                            targetDate: today
+                        }
+                    ],
+                    obstacleItems: [
+                        {
+                            title: 'Pencetakan ulang label barcode untuk aset perangkat IT lab komputer',
+                            categoryTag: 'ASET',
+                            sourceType: 'INCIDENTAL',
+                            isRoutine: false,
+                            progressPercentage: 30,
+                            status: 'OBSTACLE',
+                            obstacleNote: 'Kertas stiker label thermal 40x30mm habis, menunggu distribusi tambahan'
+                        }
+                    ],
+                    tomorrowPlans: [
+                        { title: 'Sensus lanjutan inventaris perangkat IT di Lab Komputer Lantai 2', categoryTag: 'ASET' }
+                    ],
                     manualPoints: {
                         morning: [
                             {
@@ -271,10 +307,7 @@ class LocalDataStorage {
                                 obstacleNote: 'Kertas stiker label thermal 40x30mm habis, menunggu distribusi tambahan'
                             }
                         ]
-                    },
-                    tomorrowPlans: [
-                        { title: 'Sensus lanjutan inventaris perangkat IT di Lab Komputer Lantai 2', categoryTag: 'ASET' }
-                    ]
+                    }
                 },
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
@@ -287,6 +320,32 @@ class LocalDataStorage {
                 content: 'Laporan perbaikan pipa air dan pengecekan pintu kelas',
                 date: today,
                 metadata: {
+                    completedItems: [
+                        {
+                            title: 'Perbaikan instalasi saluran pipa air & kran wudhu gedung ibadah utama',
+                            categoryTag: 'FASILITAS',
+                            sourceType: 'PLAN',
+                            isRoutine: false,
+                            progressPercentage: 100,
+                            status: 'COMPLETED',
+                            output: 'Saluran air lancar, 2 kran bocor telah diganti baru'
+                        }
+                    ],
+                    inProgressItems: [
+                        {
+                            title: 'Pemeriksaan dan perbaikan engsel pintu ruang kelas lantai 1',
+                            categoryTag: 'FASILITAS',
+                            sourceType: 'PLAN',
+                            isRoutine: false,
+                            progressPercentage: 70,
+                            status: 'IN_PROGRESS',
+                            targetDate: today
+                        }
+                    ],
+                    obstacleItems: [],
+                    tomorrowPlans: [
+                        { title: 'Pengecekan rutin tandon air dan pompa submersible', categoryTag: 'FASILITAS' }
+                    ],
                     manualPoints: {
                         morning: [
                             {
@@ -310,10 +369,7 @@ class LocalDataStorage {
                                 targetDate: today
                             }
                         ]
-                    },
-                    tomorrowPlans: [
-                        { title: 'Pengecekan rutin tandon air dan pompa submersible', categoryTag: 'FASILITAS' }
-                    ]
+                    }
                 },
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
@@ -326,6 +382,32 @@ class LocalDataStorage {
                 content: 'Laporan pemeliharaan AC dan kelistrikan',
                 date: today,
                 metadata: {
+                    completedItems: [
+                        {
+                            title: 'Pembersihan filter dan cuci unit AC di Ruang Kantor Pimpinan & Guru',
+                            categoryTag: 'FASILITAS',
+                            sourceType: 'PLAN',
+                            isRoutine: true,
+                            progressPercentage: 100,
+                            status: 'COMPLETED',
+                            output: '4 Unit AC bersih dan berfungsi dingin optimal'
+                        }
+                    ],
+                    inProgressItems: [],
+                    obstacleItems: [
+                        {
+                            title: 'Pengecekan panel distribusi daya listrik dan pengujian genset otomatis',
+                            categoryTag: 'FASILITAS',
+                            sourceType: 'INCIDENTAL',
+                            isRoutine: false,
+                            progressPercentage: 40,
+                            status: 'OBSTACLE',
+                            obstacleNote: 'Aki starter genset cadangan drop tegangan (perlu penggantian aki)'
+                        }
+                    ],
+                    tomorrowPlans: [
+                        { title: 'Penggantian aki genset dan running test beban penuh', categoryTag: 'FASILITAS' }
+                    ],
                     manualPoints: {
                         morning: [
                             {
@@ -349,10 +431,7 @@ class LocalDataStorage {
                                 obstacleNote: 'Aki starter genset cadangan drop tegangan (perlu penggantian aki)'
                             }
                         ]
-                    },
-                    tomorrowPlans: [
-                        { title: 'Penggantian aki genset dan running test beban penuh', categoryTag: 'FASILITAS' }
-                    ]
+                    }
                 },
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
@@ -365,6 +444,20 @@ class LocalDataStorage {
                 content: 'Laporan penerimaan dan pencatatan barang inventaris logistik',
                 date: today,
                 metadata: {
+                    completedItems: [
+                        {
+                            title: 'Penerimaan dan pencatatan barang logistik masuk (ATK dan perlengkapan sarpras)',
+                            categoryTag: 'LOGISTIK',
+                            sourceType: 'PLAN',
+                            isRoutine: true,
+                            progressPercentage: 100,
+                            status: 'COMPLETED',
+                            output: 'Seluruh surat jalan terverifikasi dan stok terinput di aplikasi'
+                        }
+                    ],
+                    inProgressItems: [],
+                    obstacleItems: [],
+                    tomorrowPlans: [],
                     manualPoints: {
                         morning: [
                             {
@@ -376,7 +469,8 @@ class LocalDataStorage {
                                 status: 'SELESAI',
                                 output: 'Seluruh surat jalan terverifikasi dan stok terinput di aplikasi'
                             }
-                        ]
+                        ],
+                        afternoon: []
                     }
                 },
                 createdAt: new Date().toISOString(),
@@ -794,46 +888,105 @@ class LocalDataStorage {
         filtered.forEach(rep => {
             const meta = rep.metadata || {};
             const staff = staffList.find(s => s.id === rep.userId) || { id: rep.userId, name: 'Staf' };
-            const pts = meta.manualPoints || {};
-            const allPts = [
-                ...(Array.isArray(pts.morning) ? pts.morning : []),
-                ...(Array.isArray(pts.afternoon) ? pts.afternoon : [])
-            ];
 
-            allPts.forEach(p => {
-                if (!p || typeof p !== 'object') return;
-                const baseItem = {
-                    source: 'STAFF_REPORT',
-                    reportId: rep.id,
-                    userId: rep.userId,
-                    user: staff,
-                    categoryTag: p.categoryTag || rep.category || 'UMUM',
-                    title: p.text || 'Dokumentasi Kegiatan',
-                    isPlanned: p.sourceType === 'PLAN' || !!p.isRoutine,
-                    progressPercentage: p.percentage || (p.status === 'SELESAI' ? 100 : 50),
-                    photos: Array.isArray(p.photos) ? p.photos : [],
-                    status: p.status || 'SELESAI'
-                };
+            const hasPppItems = Array.isArray(meta.completedItems) || Array.isArray(meta.inProgressItems) || Array.isArray(meta.obstacleItems);
 
-                if (p.status === 'SELESAI' || p.percentage === 100) {
-                    progressItems.push({ ...baseItem, output: p.output || 'Tuntas' });
-                } else if (p.status === 'KENDALA' || p.obstacleNote) {
-                    problemItems.push({ ...baseItem, obstacleNote: p.obstacleNote || 'Kendala lapangan' });
-                } else {
-                    planItems.push({ ...baseItem, targetDate: p.targetDate || 'Hari ini' });
-                }
-            });
+            if (hasPppItems) {
+                // Unified PPP parsing
+                const completed = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+                const inProgress = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+                const obstacles = Array.isArray(meta.obstacleItems) ? meta.obstacleItems : [];
+
+                completed.forEach(c => {
+                    progressItems.push({
+                        source: 'STAFF_REPORT',
+                        reportId: rep.id,
+                        userId: rep.userId,
+                        user: staff,
+                        categoryTag: c.categoryTag || rep.category || 'UMUM',
+                        title: c.title || c.text || 'Tugas Selesai',
+                        isPlanned: c.sourceType === 'PLAN' || !!c.isRoutine,
+                        progressPercentage: 100,
+                        photos: Array.isArray(c.photos) ? c.photos : [],
+                        status: 'COMPLETED',
+                        output: c.output || 'Tuntas'
+                    });
+                });
+
+                inProgress.forEach(p => {
+                    planItems.push({
+                        source: 'STAFF_REPORT',
+                        reportId: rep.id,
+                        userId: rep.userId,
+                        user: staff,
+                        categoryTag: p.categoryTag || rep.category || 'UMUM',
+                        title: p.title || p.text || 'Tugas Dalam Proses',
+                        isPlanned: p.sourceType === 'PLAN' || !!p.isRoutine,
+                        progressPercentage: p.progressPercentage || 50,
+                        photos: Array.isArray(p.photos) ? p.photos : [],
+                        status: 'IN_PROGRESS',
+                        targetDate: p.targetDate || 'Hari ini'
+                    });
+                });
+
+                obstacles.forEach(obs => {
+                    problemItems.push({
+                        source: 'STAFF_REPORT',
+                        reportId: rep.id,
+                        userId: rep.userId,
+                        user: staff,
+                        categoryTag: obs.categoryTag || rep.category || 'UMUM',
+                        title: obs.title || obs.obstacleNote || 'Kendala Lapangan',
+                        isPlanned: obs.sourceType === 'PLAN' || !!obs.isRoutine,
+                        progressPercentage: obs.progressPercentage || 0,
+                        photos: Array.isArray(obs.photos) ? obs.photos : [],
+                        status: 'OBSTACLE',
+                        obstacleNote: obs.obstacleNote || obs.title || 'Kendala lapangan'
+                    });
+                });
+            } else {
+                // Backward compatibility for legacy manualPoints (morning / afternoon)
+                const pts = meta.manualPoints || {};
+                const allPts = [
+                    ...(Array.isArray(pts.morning) ? pts.morning : []),
+                    ...(Array.isArray(pts.afternoon) ? pts.afternoon : [])
+                ];
+
+                allPts.forEach(p => {
+                    if (!p || typeof p !== 'object') return;
+                    const baseItem = {
+                        source: 'STAFF_REPORT',
+                        reportId: rep.id,
+                        userId: rep.userId,
+                        user: staff,
+                        categoryTag: p.categoryTag || rep.category || 'UMUM',
+                        title: p.text || 'Dokumentasi Kegiatan',
+                        isPlanned: p.sourceType === 'PLAN' || !!p.isRoutine,
+                        progressPercentage: p.percentage || (p.status === 'SELESAI' ? 100 : 50),
+                        photos: Array.isArray(p.photos) ? p.photos : [],
+                        status: p.status || 'SELESAI'
+                    };
+
+                    if (p.status === 'SELESAI' || p.percentage === 100) {
+                        progressItems.push({ ...baseItem, output: p.output || 'Tuntas' });
+                    } else if (p.status === 'KENDALA' || p.obstacleNote) {
+                        problemItems.push({ ...baseItem, obstacleNote: p.obstacleNote || 'Kendala lapangan' });
+                    } else {
+                        planItems.push({ ...baseItem, targetDate: p.targetDate || 'Hari ini' });
+                    }
+                });
+            }
 
             if (Array.isArray(meta.tomorrowPlans)) {
                 meta.tomorrowPlans.forEach(tp => {
-                    if (tp && tp.title) {
+                    if (tp && (tp.title || tp.text)) {
                         planItems.push({
                             source: 'TOMORROW_PLAN',
                             reportId: rep.id,
                             userId: rep.userId,
                             user: staff,
                             categoryTag: tp.categoryTag || 'UMUM',
-                            title: tp.title,
+                            title: tp.title || tp.text,
                             targetDate: 'Hari Berikutnya',
                             isPlanned: true,
                             progressPercentage: 0,
@@ -871,6 +1024,45 @@ class LocalDataStorage {
 
     saveDailyReport(reportData, userId) {
         const reports = readJson('daily_reports.json', []);
+        const meta = reportData.metadata || {};
+        const completedItems = meta.completedItems || reportData.completedItems || [];
+        const inProgressItems = meta.inProgressItems || reportData.inProgressItems || [];
+        const obstacleItems = meta.obstacleItems || reportData.obstacleItems || [];
+        const tomorrowPlans = meta.tomorrowPlans || reportData.tomorrowPlans || [];
+
+        // Build backward-compatible manualPoints for legacy callers
+        let manualPoints = meta.manualPoints || reportData.manualPoints;
+        if (!manualPoints || (!manualPoints.morning && !manualPoints.afternoon)) {
+            manualPoints = {
+                morning: completedItems.map(it => ({
+                    text: it.title || it.text || 'Tugas Selesai',
+                    output: it.output || '',
+                    categoryTag: it.categoryTag || 'UMUM',
+                    status: 'COMPLETED',
+                    percentage: 100,
+                    photos: it.photos || []
+                })),
+                afternoon: [
+                    ...inProgressItems.map(it => ({
+                        text: it.title || it.text || 'Tugas On-Progress',
+                        categoryTag: it.categoryTag || 'UMUM',
+                        status: 'IN_PROGRESS',
+                        percentage: it.progressPercentage || 50,
+                        targetDate: it.targetDate || '',
+                        photos: it.photos || []
+                    })),
+                    ...obstacleItems.map(it => ({
+                        text: it.title || it.obstacleNote || 'Kendala Lapangan',
+                        categoryTag: it.categoryTag || 'UMUM',
+                        status: 'OBSTACLE',
+                        percentage: 0,
+                        obstacleNote: it.obstacleNote || '',
+                        photos: it.photos || []
+                    }))
+                ]
+            };
+        }
+
         const newReport = {
             id: Date.now(),
             userId: parseInt(userId, 10) || 1,
@@ -879,8 +1071,11 @@ class LocalDataStorage {
             content: reportData.content || '',
             date: reportData.date || dayjs().format('YYYY-MM-DD'),
             metadata: {
-                manualPoints: reportData.metadata?.manualPoints || reportData.manualPoints || {},
-                tomorrowPlans: reportData.metadata?.tomorrowPlans || reportData.tomorrowPlans || [],
+                completedItems,
+                inProgressItems,
+                obstacleItems,
+                tomorrowPlans,
+                manualPoints,
                 lastSubmittedAt: new Date().toISOString()
             },
             createdAt: new Date().toISOString(),

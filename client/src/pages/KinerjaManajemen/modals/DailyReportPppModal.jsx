@@ -179,9 +179,10 @@ const DailyReportPppModal = ({
             return;
         }
 
-        // Kewajiban Staf: Wajib membuat rencana kerja besok
+        // Kewajiban Staf: Wajib membuat rencana kerja besok / pekan depan
+        const isFri = dayjs(reportDate).day() === 5;
         if (validTomorrowPlans.length === 0) {
-            alert('⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "D. Rencana Kerja Besok" agar tugas Anda terencana dan otomatis terlacak pada hari berikutnya.');
+            alert(`⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "${isFri ? 'D. Rencana Pekerjaan Pekan Depan' : 'D. Rencana Kerja Besok'}" agar tugas Anda terencana dan otomatis terlacak pada hari berikutnya.`);
             return;
         }
 
@@ -205,7 +206,7 @@ const DailyReportPppModal = ({
             });
 
             if (res.data.success) {
-                alert('Laporan harian berhasil dicatat! Rencana kerja besok otomatis siap ditarik pada laporan berikutnya.');
+                alert(`Laporan harian berhasil dicatat! ${isFri ? 'Rencana pekerjaan pekan depan' : 'Rencana kerja besok'} otomatis siap ditarik pada laporan berikutnya.`);
                 if (onSuccess) onSuccess();
                 onClose();
             }
@@ -885,20 +886,22 @@ const DailyReportPppModal = ({
                         )}
                     </div>
 
-                    {/* PILAR D: Rencana Kerja Besok (Tomorrow's Plan) - ⭐ WAJIB DIISI */}
+                    {/* PILAR D: Rencana Kerja Besok / Pekan Depan - ⭐ WAJIB DIISI */}
                     <div className="p-4 bg-indigo-50/50 border-2 border-indigo-200 rounded-2xl space-y-3">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <div className="space-y-0.5">
                                 <div className="flex items-center gap-2">
                                     <h4 className="text-xs font-black uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
-                                        <Sparkles size={15} className="text-indigo-600" /> D. Rencana Kerja Besok (Tomorrow's Plan)
+                                        <Sparkles size={15} className="text-indigo-600" /> {dayjs(reportDate).day() === 5 ? 'D. Rencana Pekerjaan Pekan Depan' : "D. Rencana Kerja Besok (Tomorrow's Plan)"}
                                     </h4>
                                     <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider">
                                         ⭐ Wajib Diisi
                                     </span>
                                 </div>
                                 <p className="text-[11px] text-indigo-700 font-medium">
-                                    Kewajiban Staf: Rencana ini otomatis tersimpan dan siap ditarik kembali saat mengisi laporan esok hari.
+                                    {dayjs(reportDate).day() === 5
+                                        ? 'Kewajiban Staf: Rencana ini otomatis tersimpan dan siap ditarik kembali saat mengisi laporan hari Senin pekan depan.'
+                                        : 'Kewajiban Staf: Rencana ini otomatis tersimpan dan siap ditarik kembali saat mengisi laporan esok hari.'}
                                 </p>
                             </div>
                             <button
@@ -906,7 +909,7 @@ const DailyReportPppModal = ({
                                 onClick={() => setTomorrowPlans([...tomorrowPlans, { title: '', categoryTag: 'UMUM', priority: 'SEDANG' }])}
                                 className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
                             >
-                                <Plus size={12} /> Tambah Plan Besok
+                                <Plus size={12} /> {dayjs(reportDate).day() === 5 ? 'Tambah Plan Pekan Depan' : 'Tambah Plan Besok'}
                             </button>
                         </div>
 
@@ -916,7 +919,7 @@ const DailyReportPppModal = ({
                                     <div className="flex items-center justify-between gap-2">
                                         <input
                                             type="text"
-                                            placeholder={`Rencana agenda kerja besok #${idx + 1}...`}
+                                            placeholder={dayjs(reportDate).day() === 5 ? `Rencana agenda pekan depan #${idx + 1}...` : `Rencana agenda kerja besok #${idx + 1}...`}
                                             value={item.title}
                                             onChange={(e) => {
                                                 const updated = [...tomorrowPlans];

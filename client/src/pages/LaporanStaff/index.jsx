@@ -533,7 +533,9 @@ const LaporanStaff = () => {
             }
 
             if (validTomorrow.length === 0) {
-                alert('⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "D. Rencana Kerja Besok" agar tugas Anda terencana dan otomatis menjadi acuan kerja pada hari berikutnya.');
+                const isFri = dayjs(selectedDate).day() === 5;
+                const sectionName = isFri ? 'D. Rencana Pekerjaan Pekan Depan' : 'D. Rencana Kerja Besok';
+                alert(`⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "${sectionName}" agar tugas Anda terencana dan otomatis menjadi acuan kerja pada hari berikutnya.`);
                 return;
             }
 
@@ -599,10 +601,11 @@ const LaporanStaff = () => {
 
                 const isOldDate = selectedDate !== dayjs().format('YYYY-MM-DD');
                 const formattedDate = dayjs(selectedDate).format('DD/MM/YYYY');
+                const isFri = dayjs(selectedDate).day() === 5;
 
                 alert(isOldDate
                     ? `Alhamdulillah, laporan PPP susulan untuk tanggal ${formattedDate} (WIB) berhasil disimpan!`
-                    : `Alhamdulillah, laporan harian PPP & rencana kerja besok berhasil disimpan!`
+                    : `Alhamdulillah, laporan harian PPP & ${isFri ? 'rencana pekerjaan pekan depan' : 'rencana kerja besok'} berhasil disimpan!`
                 );
                 await Promise.all([fetchMyReport(), fetchMyStats(), fetchPlans()]);
             }
@@ -713,10 +716,11 @@ const LaporanStaff = () => {
         const isDone = task.progressPercentage === 100 || targetPillar === 'COMPLETED';
 
         if (targetPillar === 'TOMORROW') {
+            const isFri = dayjs(selectedDate).day() === 5;
             setTomorrowPlans(prev => {
                 const isClean = prev.length === 1 && !prev[0].title.trim();
                 const newItem = {
-                    title: `Menyelesaikan penugasan: ${task.title}`,
+                    title: isFri ? `Rencana pekan depan: ${task.title}` : `Menyelesaikan penugasan: ${task.title}`,
                     categoryTag: cat,
                     priority: task.priority || 'TINGGI',
                     sourceType: 'ASSIGNMENT',
@@ -1462,8 +1466,8 @@ const LaporanStaff = () => {
                         </div>
                         <p className="text-slate-400 text-[11px] sm:text-sm font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
                             {isKabid
-                                ? (activeTab === 'laporan' ? 'Catat agenda dan aktivitas kerja harian Kepala Bidang Sarana (Sesi Pagi & Siang), foto bukti lapangan, dan simpan laporan.' : 'Pusat evaluasi kerja, monitoring kendala lapangan, analitik AI, dan rekapitulasi pekanan.')
-                                : 'Catat kegiatan kerja Sesi Pagi & Siang, dokumentasikan bukti foto, dan pantau tugas.'}
+                                ? (activeTab === 'laporan' ? 'Catat agenda dan progres kerja harian Kepala Bidang Sarana (Metode PPP), foto bukti lapangan, dan simpan laporan.' : 'Pusat evaluasi kerja, monitoring kendala lapangan, analitik AI, dan rekapitulasi pekanan.')
+                                : 'Catat capaian kerja harian metode PPP (Progress, Plan, Problem), dokumentasikan bukti foto, dan pantau rencana besok.'}
                         </p>
                     </div>
                 </div>
@@ -1708,12 +1712,16 @@ const LaporanStaff = () => {
                 </div>
             )}
 
-            {/* CARRIED OVER FROM YESTERDAY BANNER */}
+            {/* CARRIED OVER FROM YESTERDAY / FRIDAY BANNER */}
             {hasCarriedOver && activeTab === 'laporan' && (
                 <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-800 flex items-center justify-between animate-in fade-in">
                     <div className="flex items-center gap-2 font-bold">
                         <Sparkles size={16} className="text-emerald-600 shrink-0" />
-                        <span>⚡ Butir rencana dari laporan kemarin sore otomatis dimuat ke agenda kerja hari ini (status: ⏳ Dalam Proses).</span>
+                        <span>
+                            {dayjs(selectedDate).day() === 1
+                                ? '⚡ Butir rencana pekerjaan pekan depan dari laporan hari Jumat otomatis dimuat ke agenda kerja hari ini (status: ⏳ Dalam Proses).'
+                                : '⚡ Butir rencana dari laporan kemarin sore otomatis dimuat ke agenda kerja hari ini (status: ⏳ Dalam Proses).'}
+                        </span>
                     </div>
                     <button
                         onClick={() => setHasCarriedOver(false)}

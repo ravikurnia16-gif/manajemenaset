@@ -164,10 +164,15 @@ const DailyReportFormTab = ({
         });
     };
 
-    // Filtered assignments for drawer
+    // Filtered assignments for drawer (jangan hubungkan penugasan maintenance dengan laporan harian)
     const filteredAssignments = useMemo(() => {
         return (assignments || []).filter(a => {
             if (a.status === 'COMPLETED') return false;
+            // Exclude penugasan from Maintenance
+            const isMaintenance = (a.title && a.title.startsWith('[MT]')) ||
+                (a.notes && (a.notes.includes('"source":"MAINTENANCE"') || a.notes.includes('"maintenanceId"')));
+            if (isMaintenance) return false;
+
             if (!taskSearch) return true;
             const q = taskSearch.toLowerCase();
             return (a.title || '').toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q);
@@ -190,6 +195,12 @@ const DailyReportFormTab = ({
         }
         return dayjs().format('YYYY-MM-DD');
     }, [selectedDate]);
+
+    // Jika laporan hari Jumat (atau akhir pekan), rencana kerja yang diisi adalah untuk Pekan Depan
+    const isFriday = useMemo(() => {
+        const d = dayjs(safeSelectedDate).day();
+        return d === 5; // Hari Jumat
+    }, [safeSelectedDate]);
 
     return (
         <div className="space-y-6">
@@ -443,9 +454,9 @@ const DailyReportFormTab = ({
                                                 type="button"
                                                 onClick={() => { convertTaskToReport(task, 'TOMORROW'); setShowTaskDrawer(false); }}
                                                 className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                                                title="Tarik ke Rencana Kerja Besok"
+                                                title={isFriday ? "Tarik ke Rencana Pekerjaan Pekan Depan" : "Tarik ke Rencana Kerja Besok"}
                                             >
-                                                🟣 Besok
+                                                🟣 {isFriday ? 'Pekan Depan' : 'Besok'}
                                             </button>
                                         </div>
                                     </div>
@@ -702,7 +713,7 @@ const DailyReportFormTab = ({
                         activePillarTab === 'TOMORROW' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500'
                     }`}
                 >
-                    🟣 Rencana Besok ({tomorrowPlans.length})
+                    🟣 {isFriday ? 'Rencana Pekan Depan' : 'Rencana Besok'} ({tomorrowPlans.length})
                 </button>
             </div>
 
@@ -1375,13 +1386,20 @@ const DailyReportFormTab = ({
                             </span>
                             <div>
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                                    <span>D. Rencana Kerja Besok / Hari Berikutnya</span>
+                                    <span>{isFriday ? 'D. Rencana Pekerjaan Pekan Depan' : 'D. Rencana Kerja Besok / Hari Berikutnya'}</span>
                                     <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
                                         Wajib Staf
                                     </span>
+                                    {isFriday && (
+                                        <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                            Edisi Hari Jumat
+                                        </span>
+                                    )}
                                 </h3>
                                 <p className="text-[11px] text-slate-400 font-medium">
-                                    Butir agenda ini akan otomatis ter-carry over pada laporan esok hari
+                                    {isFriday
+                                        ? 'Butir agenda ini akan otomatis ter-carry over pada laporan kerja hari Senin pekan depan'
+                                        : 'Butir agenda ini akan otomatis ter-carry over pada laporan esok hari'}
                                 </p>
                             </div>
                         </div>
@@ -1394,14 +1412,16 @@ const DailyReportFormTab = ({
                             ])}
                             className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
                         >
-                            <Plus size={14} /> <span>Tambah Rencana</span>
+                            <Plus size={14} /> <span>{isFriday ? 'Tambah Rencana Pekan Depan' : 'Tambah Rencana'}</span>
                         </button>
                     </div>
 
                     <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex items-center gap-2.5 text-xs text-indigo-900 font-medium">
                         <Sparkles size={16} className="text-indigo-600 shrink-0" />
                         <span>
-                            Susun target agenda besok agar aktivitas kerja terarah dan otomatis siap dilaporkan pada keesokan harinya.
+                            {isFriday
+                                ? 'Hari Jumat: Susun target agenda pekerjaan untuk pekan depan agar aktivitas kerja hari Senin terarah dan otomatis siap dilaporkan.'
+                                : 'Susun target agenda besok agar aktivitas kerja terarah dan otomatis siap dilaporkan pada keesokan harinya.'}
                         </span>
                     </div>
 
@@ -1462,7 +1482,9 @@ const DailyReportFormTab = ({
 
                                 <div className="space-y-1">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-[11px] font-bold text-slate-600">Rencana Kegiatan Besok:</label>
+                                        <label className="text-[11px] font-bold text-slate-600">
+                                            {isFriday ? 'Rencana Pekerjaan Pekan Depan:' : 'Rencana Kegiatan Besok:'}
+                                        </label>
                                         <button
                                             type="button"
                                             onClick={() => handlePolishText(index, 'TOMORROW')}
@@ -1475,7 +1497,9 @@ const DailyReportFormTab = ({
                                     </div>
                                     <input
                                         type="text"
-                                        placeholder="Contoh: Pengecekan unit genset dan pemeliharaan instalasi air..."
+                                        placeholder={isFriday
+                                            ? 'Contoh: Agenda pekan depan, koordinasi rutin hari Senin, tindak lanjut pemeliharaan...'
+                                            : 'Contoh: Pengecekan unit genset dan pemeliharaan instalasi air...'}
                                         value={plan.title}
                                         onChange={(e) => {
                                             const n = [...tomorrowPlans];
@@ -1496,7 +1520,7 @@ const DailyReportFormTab = ({
                             ])}
                             className="w-full py-2.5 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-800 border border-dashed border-indigo-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
                         >
-                            <Plus size={15} /> Tambah Butir Rencana Besok
+                            <Plus size={15} /> {isFriday ? 'Tambah Butir Rencana Pekan Depan' : 'Tambah Butir Rencana Besok'}
                         </button>
                     </div>
                 </div>

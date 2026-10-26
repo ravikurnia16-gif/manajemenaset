@@ -110,106 +110,13 @@ const updateLinkedAssignmentProgress = async (report, status, progressPercentage
 
 /**
  * Auto-sync Maintenance Activity to Daily Report (PersonnelReport) for Today
+ * (Dinonaktifkan: Penugasan dan aktivitas pemeliharaan tidak lagi dihubungkan ke laporan harian)
  */
-const syncMaintenanceToDailyReport = async ({ userId, report, actionTaken, status, progressPercentage }) => {
-    try {
-        if (!userId) return;
-        const nowWib = dayjs().tz('Asia/Jakarta');
-        const dateStart = nowWib.startOf('day').toDate();
-        const dateEnd = nowWib.endOf('day').toDate();
-        const isMorning = nowWib.hour() < 12;
-
-        const existingReports = await prisma.personnelReport.findMany({
-            where: {
-                userId: parseInt(userId),
-                type: 'DAILY',
-                NOT: { content: 'SETORAN_HAFALAN' },
-                date: {
-                    gte: dateStart,
-                    lte: dateEnd
-                }
-            },
-            orderBy: { updatedAt: 'desc' }
-        });
-
-        let dailyRep = existingReports.find(r => r.metadata && r.metadata.manualPoints) || existingReports[0] || null;
-        let metadata = dailyRep?.metadata || {};
-        if (typeof metadata !== 'object' || metadata === null) metadata = {};
-        
-        let manualPoints = metadata.manualPoints || { morning: [], afternoon: [] };
-        let morning = Array.isArray(manualPoints.morning || manualPoints.morningPoints) ? (manualPoints.morning || manualPoints.morningPoints) : [];
-        let afternoon = Array.isArray(manualPoints.afternoon || manualPoints.afternoonPoints) ? (manualPoints.afternoon || manualPoints.afternoonPoints) : [];
-
-        const matchFn = p => (p.sourceType === 'MAINTENANCE' && parseInt(p.sourceId) === report.id) || (p.text && p.text.includes(report.code));
-        
-        const mIdx = morning.findIndex(matchFn);
-        const aIdx = afternoon.findIndex(matchFn);
-
-        const finalPct = status === 'COMPLETED' ? 100 : (progressPercentage !== undefined ? parseInt(progressPercentage) : 50);
-        const pointTitle = `[Pemeliharaan: ${report.code}] ${report.title}${actionTaken ? ' — ' + actionTaken.trim() : ''}`;
-        const newPoint = {
-            text: pointTitle,
-            categoryTag: 'TEKNISI',
-            status: status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS',
-            progressPercentage: finalPct,
-            sourceType: 'MAINTENANCE',
-            sourceId: report.id,
-            obstacleNote: '',
-            isRoutine: false,
-            photos: [],
-            review: null,
-            updatedAt: new Date().toISOString()
-        };
-
-        if (mIdx !== -1) {
-            morning[mIdx] = { ...morning[mIdx], ...newPoint, photos: morning[mIdx].photos || [] };
-        } else if (aIdx !== -1) {
-            afternoon[aIdx] = { ...afternoon[aIdx], ...newPoint, photos: afternoon[aIdx].photos || [] };
-        } else {
-            if (isMorning) {
-                if (morning.length === 1 && (!morning[0].text || morning[0].text.trim() === '')) {
-                    morning = [newPoint];
-                } else {
-                    morning.push(newPoint);
-                }
-            } else {
-                if (afternoon.length === 1 && (!afternoon[0].text || afternoon[0].text.trim() === '')) {
-                    afternoon = [newPoint];
-                } else {
-                    afternoon.push(newPoint);
-                }
-            }
-        }
-
-        metadata.manualPoints = { morning, afternoon };
-        metadata.lastSubmittedAt = new Date().toISOString();
-
-        if (dailyRep) {
-            await prisma.personnelReport.update({
-                where: { id: dailyRep.id },
-                data: {
-                    metadata,
-                    updatedAt: new Date()
-                }
-            });
-            console.log(`[Maintenance Sync] Updated daily report ID ${dailyRep.id} for user ${userId}`);
-        } else {
-            await prisma.personnelReport.create({
-                data: {
-                    userId: parseInt(userId),
-                    type: 'DAILY',
-                    category: 'TEKNISI',
-                    content: `Laporan kegiatan harian otomatis (${report.code})`,
-                    date: nowWib.toDate(),
-                    metadata
-                }
-            });
-            console.log(`[Maintenance Sync] Created new daily report for user ${userId}`);
-        }
-    } catch (err) {
-        console.error('[Maintenance Sync] Error syncing to daily report:', err);
-    }
+const syncMaintenanceToDailyReport = async () => {
+    // Decoupled from daily reports as requested by user
+    return;
 };
+
 
 // --- Business Day & Working Hours Helpers for SLA Respon Awal (07:15 - 16:15 WIB, Senin - Jumat) ---
 
@@ -1201,36 +1108,15 @@ exports.updateStatus = async (req, res) => {
             }
         }
 
-        // Auto-sync progress to Tab Penugasan & Laporan Harian
+        // Auto-sync progress to Tab Penugasan (Laporan Harian tidak lagi dihubungkan)
         if (['IN_PROGRESS', 'COMPLETED'].includes(status) || actionTaken || progressPercentage !== undefined) {
             try {
                 const finalPct = status === 'COMPLETED' ? 100 : (progressPercentage !== undefined ? parseInt(progressPercentage) : (metadata?.progressPercentage || 50));
                 
-                // 1. Update PersonnelAssignment
+                // Update PersonnelAssignment
                 await updateLinkedAssignmentProgress(report, status, finalPct);
-
-                // 2. Update Daily Report (PersonnelReport)
-                let targetUser = techUser;
-                if (!targetUser && report.technician) {
-                    targetUser = await prisma.user.findFirst({
-                        where: { OR: [{ name: report.technician }, { username: report.technician }] }
-                    });
-                }
-                if (!targetUser && req.user) {
-                    targetUser = req.user;
-                }
-
-                if (targetUser) {
-                    await syncMaintenanceToDailyReport({
-                        userId: targetUser.id,
-                        report,
-                        actionTaken: actionTaken || req.body.progressNote,
-                        status,
-                        progressPercentage: finalPct
-                    });
-                }
             } catch (e) {
-                console.error('[Maintenance] Auto-sync to assignment/daily report error:', e);
+                console.error('[Maintenance] Auto-sync to assignment error:', e);
             }
         }
 

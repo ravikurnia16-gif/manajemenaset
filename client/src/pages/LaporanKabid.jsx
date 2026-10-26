@@ -160,9 +160,26 @@ const LaporanKabid = () => {
             );
         };
 
+        const c = reportData.completedItems || [];
+        const ip = reportData.inProgressItems || [];
+        const obs = reportData.obstacleItems || [];
         const m = reportData.morning || [];
         const a = reportData.afternoon || [];
-        if (m.length === 0 && a.length === 0) return <span className="italic text-slate-400 text-[11px]">- Belum ada isi laporan -</span>;
+
+        if (c.length === 0 && ip.length === 0 && obs.length === 0 && m.length === 0 && a.length === 0) {
+            return <span className="italic text-slate-400 text-[11px]">- Belum ada isi laporan -</span>;
+        }
+
+        if (c.length > 0 || ip.length > 0 || obs.length > 0) {
+            return (
+                <>
+                    {c.length > 0 && renderList('Pekerjaan Selesai (Progress 100%)', c)}
+                    {ip.length > 0 && renderList('Sedang Dikerjakan (In-Progress)', ip)}
+                    {obs.length > 0 && renderList('Kendala Lapangan (Problems)', obs)}
+                </>
+            );
+        }
+
         return (
             <>
                 {renderList('Kegiatan Pagi (07.30 - 12.00)', m)}
@@ -341,8 +358,7 @@ const LaporanKabid = () => {
                                         ) : (
                                             <>
                                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Posisi</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Pagi</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Siang</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Laporan Harian (PPP)</th>
                                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
                                             </>
                                         )}
@@ -386,17 +402,12 @@ const LaporanKabid = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
-                                                            {user.hasMorning ? (
-                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full"><CheckCircle2 size={16} /></div>
+                                                            {user.status === 'LENGKAP' ? (
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full" title="Laporan Lengkap (PPP)"><CheckCircle2 size={16} /></div>
+                                                            ) : user.status === 'PARSIAL' ? (
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-amber-100 text-amber-600 rounded-full font-bold text-xs" title="Parsial">PPP</div>
                                                             ) : (
-                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full"><Clock size={16} /></div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            {user.hasAfternoon ? (
-                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full"><CheckCircle2 size={16} /></div>
-                                                            ) : (
-                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full"><Clock size={16} /></div>
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full" title="Belum Mengirim Laporan"><Clock size={16} /></div>
                                                             )}
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
@@ -411,7 +422,7 @@ const LaporanKabid = () => {
                                             {/* Expanded View (For both single and multi-day modes) */}
                                             {expandedUserId === user.id && (
                                                 <tr>
-                                                    <td colSpan={isMultiDay ? dateRangeStr.length + 2 : 6} className="px-6 py-4 bg-slate-50/80">
+                                                    <td colSpan={isMultiDay ? dateRangeStr.length + 2 : 5} className="px-6 py-4 bg-slate-50/80">
                                                         <div className="p-4 border border-slate-200 rounded-2xl bg-white shadow-sm">
                                                             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
                                                                 <FileText size={16} className="text-blue-500" />

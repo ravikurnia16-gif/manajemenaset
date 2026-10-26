@@ -70,16 +70,35 @@ const getLastWorkingDays = (count = 2, fromDate = dayjs().tz('Asia/Jakarta')) =>
 };
 
 /**
- * Helper to check if a report has submitted manual points (morning or afternoon)
+ * Helper to check if a report has submitted items (PPP items or legacy manual points)
  */
 const isReportSubmitted = (rep) => {
-    if (!rep || !rep.metadata || !rep.metadata.manualPoints) return false;
-    const pts = rep.metadata.manualPoints;
-    const m = pts.morning || pts.morningPoints || [];
-    const a = pts.afternoon || pts.afternoonPoints || [];
-    const hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-    const hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-    return hasM || hasA;
+    if (!rep || !rep.metadata) return false;
+    const meta = rep.metadata;
+
+    // 1. Check unified PPP items
+    const c = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+    const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+    const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems : [];
+    const tp = Array.isArray(meta.tomorrowPlans) ? meta.tomorrowPlans : [];
+
+    const hasPppContent = c.some(p => p && ((p.title && p.title.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)))
+        || ip.some(p => p && ((p.title && p.title.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)))
+        || obs.some(p => p && ((p.title && p.title.trim()) || (p.obstacleNote && p.obstacleNote.trim()) || (p.photos && p.photos.length > 0)))
+        || tp.some(p => p && ((p.title && p.title.trim()) || (p.text && p.text.trim())));
+
+    if (hasPppContent) return true;
+
+    // 2. Fallback to legacy manualPoints
+    if (meta.manualPoints) {
+        const pts = meta.manualPoints;
+        const m = pts.morning || pts.morningPoints || [];
+        const a = pts.afternoon || pts.afternoonPoints || [];
+        const hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+        const hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
+        return hasM || hasA;
+    }
+    return false;
 };
 
 /**
@@ -162,9 +181,27 @@ exports.getReports = async (req, res) => {
                     reportDateFormatted: dateStr,
                     metadata: { 
                         ...r.metadata, 
+                        completedItems: Array.isArray(r.metadata?.completedItems) ? [...r.metadata.completedItems] : [],
+                        inProgressItems: Array.isArray(r.metadata?.inProgressItems) ? [...r.metadata.inProgressItems] : [],
+                        obstacleItems: Array.isArray(r.metadata?.obstacleItems) ? [...r.metadata.obstacleItems] : [],
+                        tomorrowPlans: Array.isArray(r.metadata?.tomorrowPlans) ? [...r.metadata.tomorrowPlans] : [],
                         manualPoints: { morning: [], afternoon: [] } 
                     } 
                 };
+            } else {
+                const targetMeta = userReportsMap[mapKey].metadata;
+                if (Array.isArray(r.metadata?.completedItems)) {
+                    targetMeta.completedItems = targetMeta.completedItems.concat(r.metadata.completedItems);
+                }
+                if (Array.isArray(r.metadata?.inProgressItems)) {
+                    targetMeta.inProgressItems = targetMeta.inProgressItems.concat(r.metadata.inProgressItems);
+                }
+                if (Array.isArray(r.metadata?.obstacleItems)) {
+                    targetMeta.obstacleItems = targetMeta.obstacleItems.concat(r.metadata.obstacleItems);
+                }
+                if (Array.isArray(r.metadata?.tomorrowPlans)) {
+                    targetMeta.tomorrowPlans = targetMeta.tomorrowPlans.concat(r.metadata.tomorrowPlans);
+                }
             }
             
             const targetPts = userReportsMap[mapKey].metadata.manualPoints;
@@ -198,10 +235,14 @@ exports.getReports = async (req, res) => {
         // Optional filtering by category tag, search keyword, or status for Kabid
         if (category && category !== 'ALL') {
             reports = reports.filter(r => {
-                const pts = r.metadata?.manualPoints;
+                const meta = r.metadata || {};
+                const c = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+                const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+                const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems : [];
+                const pts = meta.manualPoints;
                 const m = pts?.morning || [];
                 const a = pts?.afternoon || [];
-                const all = [...m, ...a];
+                const all = [...c, ...ip, ...obs, ...m, ...a];
                 return all.some(p => (p.categoryTag || '').toUpperCase() === category.toUpperCase());
             });
         }
@@ -211,25 +252,29 @@ exports.getReports = async (req, res) => {
             reports = reports.filter(r => {
                 const userName = (r.user?.name || '').toLowerCase();
                 const pos = (r.user?.position || '').toLowerCase();
-                const pts = r.metadata?.manualPoints;
+                const meta = r.metadata || {};
+                const c = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+                const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+                const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems : [];
+                const pts = meta.manualPoints;
                 const m = pts?.morning || [];
                 const a = pts?.afternoon || [];
-                const all = [...m, ...a];
-                const hasMatchText = all.some(p => (p.text || '').toLowerCase().includes(q) || (p.obstacleNote || '').toLowerCase().includes(q));
+                const all = [...c, ...ip, ...obs, ...m, ...a];
+                const hasMatchText = all.some(p => 
+                    (p.title || '').toLowerCase().includes(q) || 
+                    (p.text || '').toLowerCase().includes(q) || 
+                    (p.obstacleNote || '').toLowerCase().includes(q)
+                );
                 return userName.includes(q) || pos.includes(q) || hasMatchText;
             });
         }
 
         if (status && status !== 'ALL') {
             reports = reports.filter(r => {
-                const pts = r.metadata?.manualPoints;
-                const m = pts?.morning || [];
-                const a = pts?.afternoon || [];
-                const hasM = m.length > 0;
-                const hasA = a.length > 0;
-                if (status === 'LENGKAP') return hasM && hasA;
-                if (status === 'PARSIAL') return (hasM && !hasA) || (!hasM && hasA);
-                if (status === 'BELUM') return !hasM && !hasA;
+                const submitted = isReportSubmitted(r);
+                if (status === 'LENGKAP') return submitted;
+                if (status === 'PARSIAL') return submitted;
+                if (status === 'BELUM') return !submitted;
                 return true;
             });
         }
@@ -544,7 +589,8 @@ exports.updateMyReport = async (req, res) => {
         }
 
         if (mergedTomorrowPlans.length > 0) {
-            summaryLines.push('D. RENCANA KERJA BESOK:');
+            const isFriday = reportDate.day() === 5;
+            summaryLines.push(isFriday ? 'D. RENCANA PEKERJAAN PEKAN DEPAN:' : 'D. RENCANA KERJA BESOK:');
             mergedTomorrowPlans.forEach((tp, idx) => {
                 if (tp.title) summaryLines.push(`${idx + 1}. [${tp.categoryTag || category || 'UMUM'}] ${tp.title} [Prioritas: ${tp.priority || 'SEDANG'}]`);
             });
@@ -743,7 +789,7 @@ exports.updateMyReport = async (req, res) => {
 
 /**
  * GET /api/laporan/status
- * Check if the user has reported morning/afternoon today.
+ * Check if the user has reported today (PPP or legacy).
  */
 exports.getReportStatus = async (req, res) => {
     try {
@@ -752,37 +798,28 @@ exports.getReportStatus = async (req, res) => {
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        const reports = await prisma.personnelReport.findMany({
-            where: {
-                userId,
-                type: 'DAILY',
-                NOT: { content: 'SETORAN_HAFALAN' },
-                date: { gte: startOfDay, lte: endOfDay }
-            }
-        });
-
-        let hasMorning = false;
-        let hasAfternoon = false;
-        
-        for (const report of reports) {
-            if (report.metadata && report.metadata.manualPoints) {
-                const pts = report.metadata.manualPoints;
-                const m = pts.morningPoints || pts.morning || [];
-                const a = pts.afternoonPoints || pts.afternoon || [];
-                if (!hasMorning) {
-                    hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
+        let reports = [];
+        try {
+            reports = await prisma.personnelReport.findMany({
+                where: {
+                    userId,
+                    type: 'DAILY',
+                    NOT: { content: 'SETORAN_HAFALAN' },
+                    date: { gte: startOfDay, lte: endOfDay }
                 }
-                if (!hasAfternoon) {
-                    hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
-                }
-            }
-            if (hasMorning && hasAfternoon) break;
+            });
+        } catch (dbErr) {
+            console.warn('[getReportStatus] Database unreachable, checking localDataStorage:', dbErr.message);
+            const localRes = localData.getDailyPpp(targetDate.format('YYYY-MM-DD'), userId, false);
+            reports = localRes.localReports || [];
         }
 
+        const hasReported = reports.some(r => isReportSubmitted(r));
+
         res.json({ 
-            hasReported: hasMorning || hasAfternoon, 
-            hasMorning, 
-            hasAfternoon,
+            hasReported, 
+            hasMorning: hasReported, 
+            hasAfternoon: hasReported,
             isKabid: isKabid(req.user)
         });
     } catch (error) {
@@ -844,26 +881,35 @@ exports.getDashboardAnalytics = async (req, res) => {
 
         const staffStatusList = staffUsers.map(st => {
             const rep = todayReports.find(r => r.userId === st.id);
-            const pts = rep?.metadata?.manualPoints;
-            const m = pts?.morning || pts?.morningPoints || [];
-            const a = pts?.afternoon || pts?.afternoonPoints || [];
-            
-            const hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-            const hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-            
+            const meta = rep?.metadata || {};
+            const isDone = isReportSubmitted(rep);
+
             let status = 'BELUM';
-            if (hasM && hasA) {
+            if (isDone) {
                 status = 'LENGKAP';
                 lengkapCount++;
-            } else if (hasM || hasA) {
-                status = 'PARSIAL';
-                parsialCount++;
             } else {
                 belumCount++;
             }
 
-            // Aggregate items & obstacles
-            const allItems = [...(Array.isArray(m) ? m : []), ...(Array.isArray(a) ? a : [])];
+            // Aggregate items & obstacles from PPP or legacy points
+            const c = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+            const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+            const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems : [];
+            const m = meta.manualPoints?.morning || meta.manualPoints?.morningPoints || [];
+            const a = meta.manualPoints?.afternoon || meta.manualPoints?.afternoonPoints || [];
+
+            let allItems = [];
+            if (c.length > 0 || ip.length > 0 || obs.length > 0) {
+                allItems = [
+                    ...c.map(it => ({ ...it, text: it.title || it.text, status: 'COMPLETED' })),
+                    ...ip.map(it => ({ ...it, text: it.title || it.text, status: 'IN_PROGRESS' })),
+                    ...obs.map(it => ({ ...it, text: it.title || it.obstacleNote, status: 'OBSTACLE' }))
+                ];
+            } else {
+                allItems = [...(Array.isArray(m) ? m : []), ...(Array.isArray(a) ? a : [])];
+            }
+
             allItems.forEach(item => {
                 totalActivitiesToday++;
                 if (item.photos && Array.isArray(item.photos)) totalPhotosToday += item.photos.length;
@@ -876,9 +922,9 @@ exports.getDashboardAnalytics = async (req, res) => {
                     activeObstacles.push({
                         staffName: st.name,
                         position: st.position,
-                        activity: item.text,
+                        activity: item.text || item.title || 'Kendala Lapangan',
                         categoryTag: item.categoryTag || 'UMUM',
-                        obstacleNote: item.obstacleNote || 'Terkendala di lapangan',
+                        obstacleNote: item.obstacleNote || item.text || 'Terkendala di lapangan',
                         photos: item.photos || [],
                         time: item.updatedAt || rep?.updatedAt
                     });
@@ -891,8 +937,8 @@ exports.getDashboardAnalytics = async (req, res) => {
                 position: st.position,
                 phone: st.phone || null,
                 status,
-                hasMorning: hasM,
-                hasAfternoon: hasA,
+                hasMorning: isDone,
+                hasAfternoon: isDone,
                 lastSubmittedAt: rep?.metadata?.lastSubmittedAt || rep?.updatedAt || null
             };
         });
@@ -955,21 +1001,14 @@ exports.getDashboardAnalytics = async (req, res) => {
 
             staffUsers.forEach(st => {
                 const rep = dReports.find(r => r.userId === st.id);
-                const pts = rep?.metadata?.manualPoints;
-                const m = pts?.morning || pts?.morningPoints || [];
-                const a = pts?.afternoon || pts?.afternoonPoints || [];
-                const hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim())));
-                const hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim())));
-
-                if (hasM && hasA) dLengkap++;
-                else if (hasM || hasA) dParsial++;
+                if (isReportSubmitted(rep)) dLengkap++;
                 else dBelum++;
             });
 
             trend7Days.push({
                 date: d.format('DD MMM'),
                 Lengkap: dLengkap,
-                Parsial: dParsial,
+                Parsial: 0,
                 Belum: dBelum
             });
         }
@@ -991,13 +1030,15 @@ exports.getDashboardAnalytics = async (req, res) => {
             let totalTasks = 0;
 
             userReps.forEach(r => {
-                const pts = r.metadata?.manualPoints;
-                const m = pts?.morning || pts?.morningPoints || [];
-                const a = pts?.afternoon || pts?.afternoonPoints || [];
-                const hasM = Array.isArray(m) && m.length > 0;
-                const hasA = Array.isArray(a) && a.length > 0;
-                if (hasM && hasA) completeDays++;
-                totalTasks += (m.length + a.length);
+                if (isReportSubmitted(r)) completeDays++;
+                const meta = r.metadata || {};
+                const c = Array.isArray(meta.completedItems) ? meta.completedItems.length : 0;
+                const ip = Array.isArray(meta.inProgressItems) ? meta.inProgressItems.length : 0;
+                const obs = Array.isArray(meta.obstacleItems) ? meta.obstacleItems.length : 0;
+                const pts = meta.manualPoints;
+                const m = Array.isArray(pts?.morning || pts?.morningPoints) ? (pts.morning || pts.morningPoints).length : 0;
+                const a = Array.isArray(pts?.afternoon || pts?.afternoonPoints) ? (pts.afternoon || pts.afternoonPoints).length : 0;
+                totalTasks += ((c + ip + obs) || (m + a));
             });
 
             const score = Math.min(100, Math.round((completeDays / 26) * 100)); // assuming 26 working days
@@ -1391,8 +1432,9 @@ exports.updatePointReview = async (req, res) => {
         const { id } = req.params;
         const { period, pointIndex, status, feedbackNote } = req.body;
 
-        if (!['morning', 'afternoon'].includes(period)) {
-            return res.status(400).json({ error: 'Periode tidak valid. Harus morning atau afternoon.' });
+        const validPeriods = ['morning', 'afternoon', 'completed', 'inprogress', 'obstacle', 'plans'];
+        if (!validPeriods.includes(period)) {
+            return res.status(400).json({ error: 'Kategori butir tidak valid.' });
         }
 
         const report = await prisma.personnelReport.findUnique({
@@ -1410,14 +1452,27 @@ exports.updatePointReview = async (req, res) => {
 
         const existingMetadata = typeof report.metadata === 'object' && report.metadata !== null ? { ...report.metadata } : {};
         const manualPoints = existingMetadata.manualPoints ? { ...existingMetadata.manualPoints } : { morning: [], afternoon: [] };
-        const pointsList = Array.isArray(manualPoints[period]) ? [...manualPoints[period]] : [];
 
-        if (pointIndex < 0 || pointIndex >= pointsList.length) {
+        // Determine target list to update
+        let targetList = [];
+        let pppKey = null;
+        if (period === 'completed') pppKey = 'completedItems';
+        else if (period === 'inprogress') pppKey = 'inProgressItems';
+        else if (period === 'obstacle') pppKey = 'obstacleItems';
+        else if (period === 'plans') pppKey = 'tomorrowPlans';
+
+        if (pppKey) {
+            targetList = Array.isArray(existingMetadata[pppKey]) ? [...existingMetadata[pppKey]] : [];
+        } else {
+            targetList = Array.isArray(manualPoints[period]) ? [...manualPoints[period]] : [];
+        }
+
+        if (pointIndex < 0 || pointIndex >= targetList.length) {
             return res.status(400).json({ error: 'Indeks butir laporan tidak ditemukan' });
         }
 
-        const targetPoint = { ...pointsList[pointIndex] };
-        const pointText = targetPoint.text || 'Dokumentasi Lapangan';
+        const targetPoint = { ...targetList[pointIndex] };
+        const pointText = targetPoint.title || targetPoint.text || targetPoint.obstacleNote || 'Dokumentasi Lapangan';
         let reviewData = null;
 
         // If status is null and feedbackNote is empty, remove review
@@ -1433,22 +1488,42 @@ exports.updatePointReview = async (req, res) => {
             targetPoint.review = reviewData;
         }
 
-        pointsList[pointIndex] = targetPoint;
-        manualPoints[period] = pointsList;
+        targetList[pointIndex] = targetPoint;
+
+        const updatedMetadata = { ...existingMetadata };
+        if (pppKey) {
+            updatedMetadata[pppKey] = targetList;
+            // Also sync to legacy manualPoints if present so both representations stay synced
+            if (period === 'completed' && Array.isArray(manualPoints.morning) && manualPoints.morning[pointIndex]) {
+                manualPoints.morning[pointIndex] = { ...manualPoints.morning[pointIndex], review: reviewData };
+                updatedMetadata.manualPoints = manualPoints;
+            } else if (period === 'inprogress' && Array.isArray(manualPoints.afternoon) && manualPoints.afternoon[pointIndex]) {
+                manualPoints.afternoon[pointIndex] = { ...manualPoints.afternoon[pointIndex], review: reviewData };
+                updatedMetadata.manualPoints = manualPoints;
+            }
+        } else {
+            manualPoints[period] = targetList;
+            updatedMetadata.manualPoints = manualPoints;
+            // Also sync to corresponding PPP item if present
+            if (period === 'morning' && Array.isArray(updatedMetadata.completedItems) && updatedMetadata.completedItems[pointIndex]) {
+                updatedMetadata.completedItems[pointIndex] = { ...updatedMetadata.completedItems[pointIndex], review: reviewData };
+            } else if (period === 'afternoon' && Array.isArray(updatedMetadata.inProgressItems) && updatedMetadata.inProgressItems[pointIndex]) {
+                updatedMetadata.inProgressItems[pointIndex] = { ...updatedMetadata.inProgressItems[pointIndex], review: reviewData };
+            }
+        }
 
         const updated = await prisma.personnelReport.update({
             where: { id: parseInt(id) },
             data: {
-                metadata: {
-                    ...existingMetadata,
-                    manualPoints
-                }
+                metadata: updatedMetadata
             }
         });
 
         // Beri tahu staf yang diulas via In-App Notification dan WhatsApp
         if (reviewData && report.userId) {
-            const sessionName = period === 'morning' ? 'Sesi Pagi' : 'Sesi Siang';
+            const sessionName = (period === 'completed' || period === 'morning') ? 'Pekerjaan Selesai' 
+                : ((period === 'inprogress' || period === 'afternoon') ? 'Dalam Proses' 
+                : (period === 'obstacle' ? 'Kendala Lapangan' : 'Rencana Kerja'));
             const statusLabel = reviewData.status === 'APPROVED' ? '✅ Disetujui / Sesuai' : (reviewData.status === 'REVISION' ? '⚠️ Perlu Perbaikan' : '💡 Catatan Arahan');
 
             // 1. In-App Notification
@@ -1467,8 +1542,8 @@ exports.updatePointReview = async (req, res) => {
                     `Yth. *${report.user.name}*,\n\n` +
                     `Kepala Bidang Sarana (Ustadz Ravi Kurnia) telah memberikan ulasan pada butir kegiatan Anda:\n\n` +
                     `📅 *Tanggal:* ${dayjs(report.date).tz('Asia/Jakarta').format('dddd, DD MMMM YYYY')}\n` +
-                    `⏰ *Sesi:* ${sessionName} (Butir #${pointIndex + 1})\n` +
-                    `📌 *Kegiatan:* ${pointText}\n` +
+                    `📌 *Kategori:* ${sessionName} (Butir #${pointIndex + 1})\n` +
+                    `📝 *Kegiatan:* ${pointText}\n` +
                     `📊 *Penilaian:* ${statusLabel}\n` +
                     (reviewData.feedbackNote ? `💬 *Catatan / Arahan:* "${reviewData.feedbackNote}"\n\n` : '\n') +
                     `Silakan cek selengkapnya di aplikasi Manajemen Aset pada menu Laporan Harian.\n\n` +
@@ -1538,34 +1613,18 @@ exports.getMyStats = async (req, res) => {
                 
                 // Cari SEMUA laporan pada tanggal tersebut agar tidak tertahan pada baris autoLog
                 const dayReports = monthReports.filter(r => dayjs(r.date).tz('Asia/Jakarta').format('YYYY-MM-DD') === dateStr);
-                
-                let hasM = false;
-                let hasA = false;
-                for (const report of dayReports) {
-                    if (report.metadata && report.metadata.manualPoints) {
-                        const pts = report.metadata.manualPoints;
-                        const m = pts.morning || pts.morningPoints || [];
-                        const a = pts.afternoon || pts.afternoonPoints || [];
-                        if (!hasM) {
-                            hasM = Array.isArray(m) && m.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-                        }
-                        if (!hasA) {
-                            hasA = Array.isArray(a) && a.some(p => p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0)));
-                        }
-                    }
-                    if (hasM && hasA) break;
-                }
+                const hasSubmitted = dayReports.some(r => isReportSubmitted(r));
 
-                if (hasM && hasA) {
+                if (hasSubmitted) {
                     completedDays++;
                 } else {
                     missedDates.push({
                         date: dateStr,
                         formattedDate: curr.format('dddd, DD MMMM YYYY'),
                         shortDate: curr.format('DD MMM'),
-                        hasMorning: hasM,
-                        hasAfternoon: hasA,
-                        status: (!hasM && !hasA) ? 'BELUM' : 'PARSIAL',
+                        hasMorning: false,
+                        hasAfternoon: false,
+                        status: 'BELUM',
                         isToday: dateStr === todayStr
                     });
                 }
@@ -1942,41 +2001,24 @@ exports.sendReportReminders = async () => {
 
         for (const user of staffUsers) {
             const userReports = reports.filter(r => r.userId === user.id);
-            let hasReported = false;
-
-            for (const userReport of userReports) {
-                if (userReport.metadata && userReport.metadata.manualPoints) {
-                    const pts = userReport.metadata.manualPoints;
-                    const m = pts.morningPoints || pts.morning || [];
-                    const a = pts.afternoonPoints || pts.afternoon || [];
-                    if (isMorningShift) {
-                        hasReported = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
-                    } else {
-                        hasReported = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : (p.text && p.text.trim() !== '') || (p.photos && p.photos.length > 0)));
-                    }
-                }
-                if (hasReported) break;
-            }
+            const hasReported = userReports.some(r => isReportSubmitted(r));
 
             if (!hasReported) {
-                const shiftName = isMorningShift ? 'Sesi Pagi (07.15 - 12.00)' : 'Sesi Siang (13.00 - 16.15)';
-                const shiftShort = isMorningShift ? 'Sesi Pagi' : 'Sesi Siang';
-
                 // In-App Notification
                 createNotification(
                     user.id,
-                    `Pengingat Laporan: ${shiftShort}`,
-                    `Anda belum mengisi laporan kegiatan ${shiftName} hari ini. Silakan segera lengkapi di menu Laporan Harian.`,
+                    `Pengingat Laporan Harian`,
+                    `Anda belum mengisi laporan kegiatan harian (Metode PPP) hari ini. Silakan segera lengkapi di menu Laporan Harian.`,
                     'WARNING',
                     '/laporan-staff/laporan'
                 ).catch(err => console.warn('In-app reminder error:', err.message));
 
                 if (user.phone) {
-                    const msg = `*PENGINGAT PENGISIAN LAPORAN HARIAN*\n\n` +
+                    const msg = `*PENGINGAT PENGISIAN LAPORAN HARIAN (METODE PPP)*\n\n` +
                         `Assalamu'alaikum Warahmatullahi Wabarakatuh,\n` +
                         `Halo *${user.name}*,\n\n` +
-                        `Anda belum mengisi *Laporan Kegiatan ${shiftName}* untuk hari ini.\n` +
-                        `Mohon segera melengkapi laporan kegiatan Anda pada menu *Laporan Harian* di aplikasi Sistem Manajemen Aset.\n\n` +
+                        `Anda belum mengisi *Laporan Kegiatan Harian* untuk hari ini.\n` +
+                        `Mohon segera melengkapi laporan kegiatan Anda pada menu *Laporan Harian* (Metode PPP) di aplikasi Sistem Manajemen Aset.\n\n` +
                         `Terima kasih atas kerja samanya.\n` +
                         `_Pesan otomatis Sistem Manajemen Aset Yayasan Dar el-Iman_`;
                     await whatsappService.sendMessage(user.phone, msg);

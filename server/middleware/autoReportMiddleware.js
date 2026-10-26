@@ -21,9 +21,6 @@ const autoReportMiddleware = (req, res, next) => {
             else if (url.includes('/api/warehouse') || url.includes('/api/uniforms')) { 
                 category = 'GUDANG'; target = 'barang/gudang'; shouldLog = true; 
             }
-            else if (url.includes('/api/maintenance')) { 
-                category = 'UMUM'; target = 'pemeliharaan'; shouldLog = true; 
-            }
             else if (url.includes('/api/e-office') || url.includes('/api/office-documents')) {
                 category = 'KEUANGAN'; target = 'dokumen e-office'; shouldLog = true;
             }

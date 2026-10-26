@@ -348,7 +348,7 @@ export default function MaintenanceActionModal({
                                         </div>
                                     </div>
                                     <p className="text-[10.5px] text-amber-800 font-medium italic">
-                                        * Progres ini otomatis terhubung ke Tab Penugasan dan Laporan Harian Anda hari ini.
+                                        * Progres ini otomatis terhubung ke Tab Penugasan Anda.
                                     </p>
                                 </div>
                             )}

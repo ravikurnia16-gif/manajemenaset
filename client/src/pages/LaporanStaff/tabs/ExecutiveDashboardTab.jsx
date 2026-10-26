@@ -53,7 +53,7 @@ const ExecutiveDashboardTab = ({
                                 Pelaporan & Perencanaan Kepala Bidang Sarana
                             </h4>
                             <p className="text-xs text-blue-100">
-                                Sebagai Kepala Bidang Sarana, Anda dapat menyusun rencana kerja strategis (Pekanan/Project) dan mengisi laporan kegiatan harian (Sesi Pagi & Siang).
+                                Sebagai Kepala Bidang Sarana, Anda dapat menyusun rencana kerja strategis (Pekanan/Project) dan mengisi laporan kegiatan harian (Metode PPP).
                             </p>
                         </div>
                     </div>
