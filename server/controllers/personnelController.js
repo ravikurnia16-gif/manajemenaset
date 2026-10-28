@@ -23,7 +23,11 @@ const isKabidSarana = (user) => {
     if (!user) return false;
     const role = user.role || '';
     const pos = (user.position || '').toLowerCase();
-    return role === 'KABID_SARPRAS' || role === 'KEPALA_BIDANG' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    return role === 'KABID_SARPRAS' || 
+           role === 'SUPER_ADMIN' || 
+           (role === 'KEPALA_BIDANG' && (pos.includes('sarana') || pos.includes('sarpras'))) || 
+           pos.includes('kepala bidang sarana') || 
+           pos.includes('kabid sarpras');
 };
 
 // Helper to sync personnel plan to SarprasCalendarEvent
@@ -400,7 +404,7 @@ exports.updateReport = async (req, res) => {
             return res.status(404).json({ error: 'Data tidak ditemukan' });
         }
 
-        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(user.role) && !isKabidSarana(user)) {
+        if (report.userId !== user.id && !['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user.role) && !isKabidSarana(user)) {
             return res.status(403).json({ error: 'Akses ditolak. Anda hanya dapat mengedit rencana Anda sendiri.' });
         }
 
@@ -467,7 +471,7 @@ exports.deleteReport = async (req, res) => {
             return res.status(404).json({ error: 'Data tidak ditemukan' });
         }
 
-        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KEPALA_BIDANG', 'KABID_SARPRAS'].includes(user.role) && !isKabidSarana(user)) {
+        if (report.userId !== user.id && !['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user.role) && !isKabidSarana(user)) {
             return res.status(403).json({ error: 'Akses ditolak. Anda hanya dapat menghapus rencana/laporan Anda sendiri.' });
         }
 
@@ -629,13 +633,11 @@ exports.getReports = async (req, res) => {
         }
 
         // Access Control: 
-        // - SUPER_ADMIN, KEPALA_BIDANG, KABID_SARPRAS, and ADMIN_ASET (within Sarpras) can see all reports or filter by staff.
-        // - All other roles see ONLY their own.
+        // - SUPER_ADMIN, KABID_SARPRAS, dan Kepala Bidang Sarana dapat melihat seluruh laporan tim atau filter per staf.
+        // - Admin Aset dan Staf lainnya HANYA BISA melihat laporannya sendiri (Strict Isolation).
         const canSeeAll = user.role === 'SUPER_ADMIN' ||
-            user.role === 'KEPALA_BIDANG' ||
             user.role === 'KABID_SARPRAS' ||
-            isKabidSarana(user) ||
-            (user.role === 'ADMIN_ASET' && await isSarprasUnit(user.unitId));
+            isKabidSarana(user);
 
         if (canSeeAll) {
             if (userId && userId !== 'all' && userId !== 'ALL') {
@@ -663,10 +665,37 @@ exports.getReports = async (req, res) => {
             queryOptions.skip = (page - 1) * take;
         }
 
-        const [reports, total] = await Promise.all([
-            prisma.personnelReport.findMany(queryOptions),
-            prisma.personnelReport.count({ where })
-        ]);
+        let reports = [];
+        let total = 0;
+        try {
+            const [dbReports, dbTotal] = await Promise.all([
+                prisma.personnelReport.findMany(queryOptions),
+                prisma.personnelReport.count({ where })
+            ]);
+            reports = dbReports;
+            total = dbTotal;
+        } catch (dbErr) {
+            console.warn('[personnelController.getReports] Database unreachable, reading local storage:', dbErr.message);
+            const localData = require('../services/localDataStorage');
+            const localPlans = localData.readJson ? localData.readJson('staff_plans.json', []) : [];
+            const localReports = localData.readJson ? localData.readJson('daily_reports.json', []) : [];
+            const staffList = localData.getStaffUsers ? localData.getStaffUsers() : [];
+            
+            const allItems = [...localPlans, ...localReports];
+            const filtered = allItems.filter(r => {
+                if (where.userId && r.userId !== where.userId) return false;
+                if (where.type && r.type !== where.type) return false;
+                return true;
+            }).map(r => {
+                const st = staffList.find(s => s.id === r.userId) || { id: r.userId, name: 'Staf' };
+                return {
+                    ...r,
+                    user: { name: st.name, username: st.username || 'staff', position: st.position || 'Staff' }
+                };
+            });
+            reports = filtered;
+            total = filtered.length;
+        }
 
         res.json({
             data: reports,

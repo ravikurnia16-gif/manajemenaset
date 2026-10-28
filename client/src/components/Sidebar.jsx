@@ -376,23 +376,12 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* 4. Menu Laporan Terpadu - Hanya untuk Kepala Bidang Sarana dan Admin Aset */}
-                {/* 4. Menu Laporan Terpadu - Hanya untuk Kepala Bidang Sarana dan Admin Aset */}
+                {/* 4. Menu Terpadu: Laporan & Kinerja Sarpras */}
                 {canViewLaporan && (
                     <Link to="/laporan" className={navItemClass('/laporan')}>
-                        <FileText size={18} />
-                        <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
-                            {isKabidSarprasPosition || isAdminAsetRole ? 'Laporan & Kinerja Staf' : 'Laporan Harian Staf'}
-                        </span>
-                    </Link>
-                )}
-
-                {/* 4.1. Menu Baru: Manajemen Kinerja & Strategis (PPP, PDCA, MBE, OKR) - Kepala Bidang Sarana & Admin Aset */}
-                {canAccessKinerjaManajemen && (
-                    <Link to="/kinerja-manajemen" className={navItemClass('/kinerja-manajemen')}>
                         <Target size={18} />
                         <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
-                            Kinerja & Strategis (OKR)
+                            {isKabidSarprasPosition ? 'Laporan & Kinerja Terpadu' : 'Laporan & Kinerja Staf'}
                         </span>
                     </Link>
                 )}

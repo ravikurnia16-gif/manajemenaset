@@ -782,7 +782,23 @@ export default function AssignmentsTab({
                                         <div className="space-y-2 bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                                             <div className="flex items-center justify-between text-[11px] font-black text-slate-500 uppercase">
                                                 <span>Capaian Total Penugasan</span>
-                                                <span className="text-blue-700 font-black">{task.progressPercentage}%</span>
+                                                <div className="flex items-center gap-1">
+                                                    <input 
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        value={task.progressPercentage ?? 0}
+                                                        onChange={(e) => {
+                                                            const raw = e.target.value;
+                                                            const val = raw === '' ? 0 : Math.min(100, Math.max(0, parseInt(raw) || 0));
+                                                            handleUpdateTaskProgress(task.id, val);
+                                                        }}
+                                                        className="w-14 px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200/80 focus:bg-white border border-blue-300 focus:border-blue-500 rounded text-center text-blue-900 font-black text-xs outline-none transition-all shadow-2xs"
+                                                        placeholder="0"
+                                                        title="Ketik angka progres (0 - 100%)"
+                                                    />
+                                                    <span className="text-blue-700 font-black text-xs">%</span>
+                                                </div>
                                             </div>
                                             <input 
                                                 type="range"

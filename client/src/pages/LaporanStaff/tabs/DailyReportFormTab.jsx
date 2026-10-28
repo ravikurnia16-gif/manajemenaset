@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-    Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, ChevronUp,
+    Calendar, CheckCircle2, AlertCircle, CheckSquare, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
     Plus, X, RotateCcw, Edit2, Trash2, Layers, Clock, AlertTriangle, 
     Camera, Loader2, Save, Target, Sparkles, Wand2, Undo2, Briefcase, FolderGit2,
-    ArrowRight, Search, Filter, Check, Sliders, ShieldAlert, ListTodo, FileText
+    ArrowRight, Search, Filter, Check, Sliders, ShieldAlert, ListTodo, FileText, Lightbulb
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -196,6 +196,86 @@ const DailyReportFormTab = ({
         return dayjs().format('YYYY-MM-DD');
     }, [selectedDate]);
 
+    // Popover Calendar State & Logic
+    const [showDatePickerPopover, setShowDatePickerPopover] = useState(false);
+    const datePickerContainerRef = useRef(null);
+    const nativeDateInputRef = useRef(null);
+    const [calViewDate, setCalViewDate] = useState(() => dayjs(safeSelectedDate));
+
+    useEffect(() => {
+        if (dayjs(safeSelectedDate).isValid()) {
+            setCalViewDate(dayjs(safeSelectedDate));
+        }
+    }, [safeSelectedDate]);
+
+    // Close calendar popover on outside click
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (datePickerContainerRef.current && !datePickerContainerRef.current.contains(event.target)) {
+                setShowDatePickerPopover(false);
+            }
+        };
+        if (showDatePickerPopover) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showDatePickerPopover]);
+
+    // Calculate calendar days grid for calViewDate
+    const calendarDays = useMemo(() => {
+        const startOfMonth = calViewDate.startOf('month');
+        const endOfMonth = calViewDate.endOf('month');
+        const today = dayjs().startOf('day');
+
+        const days = [];
+        const startDay = startOfMonth.day(); // 0 (Minggu) to 6 (Sabtu)
+
+        // Previous month days
+        for (let i = startDay - 1; i >= 0; i--) {
+            const d = startOfMonth.subtract(i + 1, 'day');
+            days.push({
+                date: d.format('YYYY-MM-DD'),
+                dayNum: d.date(),
+                isCurrentMonth: false,
+                isFuture: d.isAfter(today, 'day'),
+                isToday: d.isSame(today, 'day'),
+                isSelected: d.format('YYYY-MM-DD') === safeSelectedDate
+            });
+        }
+
+        // Current month days
+        const totalDays = endOfMonth.date();
+        for (let i = 1; i <= totalDays; i++) {
+            const d = startOfMonth.date(i);
+            days.push({
+                date: d.format('YYYY-MM-DD'),
+                dayNum: i,
+                isCurrentMonth: true,
+                isFuture: d.isAfter(today, 'day'),
+                isToday: d.isSame(today, 'day'),
+                isSelected: d.format('YYYY-MM-DD') === safeSelectedDate
+            });
+        }
+
+        // Next month days to finish grid
+        const remaining = (7 - (days.length % 7)) % 7;
+        for (let i = 1; i <= remaining; i++) {
+            const d = endOfMonth.add(i, 'day');
+            days.push({
+                date: d.format('YYYY-MM-DD'),
+                dayNum: d.date(),
+                isCurrentMonth: false,
+                isFuture: d.isAfter(today, 'day'),
+                isToday: d.isSame(today, 'day'),
+                isSelected: d.format('YYYY-MM-DD') === safeSelectedDate
+            });
+        }
+
+        return days;
+    }, [calViewDate, safeSelectedDate]);
+
     // Jika laporan hari Jumat (atau akhir pekan), rencana kerja yang diisi adalah untuk Pekan Depan
     const isFriday = useMemo(() => {
         const d = dayjs(safeSelectedDate).day();
@@ -275,20 +355,167 @@ const DailyReportFormTab = ({
                             type="button"
                             onClick={() => setSelectedDate(dayjs(safeSelectedDate).subtract(1, 'day').format('YYYY-MM-DD'))}
                             className="p-1.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-all cursor-pointer"
-                            title="Hari Sebelumnya"
+                            title="Hari Sebelumnya (H-1)"
                         >
                             &larr;
                         </button>
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-xl shadow-2xs text-xs font-black text-slate-800">
-                            <Calendar size={14} className="text-emerald-600" />
-                            <span>{dayjs(safeSelectedDate).format('dddd, DD MMMM YYYY')}</span>
+                        
+                        {/* Interactive Calendar Date Picker with Dropdown Popover */}
+                        <div className="relative" ref={datePickerContainerRef}>
+                            <button
+                                type="button"
+                                onClick={() => setShowDatePickerPopover(prev => !prev)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-400 rounded-xl shadow-2xs text-xs font-black text-slate-800 cursor-pointer transition-all group"
+                                title="Klik untuk membuka kalender pemilih tanggal"
+                            >
+                                <Calendar size={14} className="text-emerald-600 group-hover:scale-110 transition-transform shrink-0" />
+                                <span>{dayjs(safeSelectedDate).format('dddd, DD MMMM YYYY')}</span>
+                                <span className="text-[10px] bg-emerald-100/90 text-emerald-800 group-hover:bg-emerald-600 group-hover:text-white px-1.5 py-0.5 rounded-md font-bold transition-colors ml-0.5 flex items-center gap-1">
+                                    Kalender <ChevronDown size={12} className={`transition-transform duration-200 ${showDatePickerPopover ? 'rotate-180' : ''}`} />
+                                </span>
+                            </button>
+
+                            {/* Dropdown Calendar Popover */}
+                            {showDatePickerPopover && (
+                                <div className="absolute top-full left-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-150">
+                                    {/* Header: Month / Year Navigation */}
+                                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCalViewDate(prev => prev.subtract(1, 'month'))}
+                                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                                            title="Bulan Sebelumnya"
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <span className="text-xs font-black text-slate-800 capitalize">
+                                            {calViewDate.format('MMMM YYYY')}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCalViewDate(prev => prev.add(1, 'month'))}
+                                            disabled={calViewDate.isSame(dayjs(), 'month') || calViewDate.isAfter(dayjs(), 'month')}
+                                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                            title="Bulan Berikutnya"
+                                        >
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+
+                                    {/* Days Header */}
+                                    <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
+                                        {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((dName, idx) => (
+                                            <span key={dName} className={`text-[10px] font-black ${idx === 0 ? 'text-rose-500' : idx === 6 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                {dName}
+                                            </span>
+                                        ))}
+                                    </div>
+
+                                    {/* Days Grid */}
+                                    <div className="grid grid-cols-7 gap-1">
+                                        {calendarDays.map((dayObj, dIdx) => {
+                                            const isSelected = dayObj.isSelected;
+                                            const isToday = dayObj.isToday;
+                                            const isFuture = dayObj.isFuture;
+                                            const isCurrMonth = dayObj.isCurrentMonth;
+
+                                            return (
+                                                <button
+                                                    key={dIdx}
+                                                    type="button"
+                                                    disabled={isFuture}
+                                                    onClick={() => {
+                                                        setSelectedDate(dayObj.date);
+                                                        setShowDatePickerPopover(false);
+                                                    }}
+                                                    className={`h-8 w-full rounded-xl text-xs flex items-center justify-center transition-all cursor-pointer relative ${
+                                                        isFuture 
+                                                            ? 'text-slate-300 cursor-not-allowed'
+                                                            : isSelected
+                                                                ? 'bg-emerald-600 text-white font-black shadow-xs ring-2 ring-emerald-300'
+                                                                : isToday
+                                                                    ? 'bg-emerald-50 text-emerald-800 font-black border border-emerald-300 hover:bg-emerald-100'
+                                                                    : isCurrMonth
+                                                                        ? 'text-slate-700 hover:bg-slate-100 font-semibold'
+                                                                        : 'text-slate-400 hover:bg-slate-50 text-[11px]'
+                                                    }`}
+                                                >
+                                                    <span>{dayObj.dayNum}</span>
+                                                    {isToday && !isSelected && (
+                                                        <span className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald-600" />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Quick Shortcuts & Native Picker Fallback */}
+                                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedDate(dayjs().format('YYYY-MM-DD'));
+                                                    setShowDatePickerPopover(false);
+                                                }}
+                                                className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold transition-colors cursor-pointer"
+                                            >
+                                                Hari Ini
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedDate(dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
+                                                    setShowDatePickerPopover(false);
+                                                }}
+                                                className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold transition-colors cursor-pointer"
+                                            >
+                                                Kemarin
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (nativeDateInputRef.current) {
+                                                    if (typeof nativeDateInputRef.current.showPicker === 'function') {
+                                                        nativeDateInputRef.current.showPicker();
+                                                    } else {
+                                                        nativeDateInputRef.current.focus();
+                                                    }
+                                                }
+                                            }}
+                                            className="text-slate-400 hover:text-slate-600 flex items-center gap-1 cursor-pointer font-medium"
+                                            title="Buka pemilih tanggal bawaan sistem/browser"
+                                        >
+                                            <Calendar size={12} />
+                                            <span>Sistem</span>
+                                        </button>
+                                        <input
+                                            ref={nativeDateInputRef}
+                                            type="date"
+                                            value={safeSelectedDate}
+                                            max={dayjs().format('YYYY-MM-DD')}
+                                            onChange={(e) => {
+                                                if (e.target.value) {
+                                                    setSelectedDate(e.target.value);
+                                                    setShowDatePickerPopover(false);
+                                                }
+                                            }}
+                                            className="sr-only"
+                                            tabIndex={-1}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
+
                         <button
                             type="button"
                             onClick={() => setSelectedDate(dayjs(safeSelectedDate).add(1, 'day').format('YYYY-MM-DD'))}
                             disabled={safeSelectedDate === dayjs().format('YYYY-MM-DD')}
                             className="p-1.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Hari Berikutnya"
+                            title="Hari Berikutnya (H+1)"
                         >
                             &rarr;
                         </button>
@@ -452,6 +679,14 @@ const DailyReportFormTab = ({
                                             </button>
                                             <button
                                                 type="button"
+                                                onClick={() => { convertTaskToReport(task, 'OBSTACLE'); setShowTaskDrawer(false); }}
+                                                className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                title="Tarik sebagai Tugas Terkendala"
+                                            >
+                                                🔴 Kendala
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={() => { convertTaskToReport(task, 'TOMORROW'); setShowTaskDrawer(false); }}
                                                 className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                                                 title={isFriday ? "Tarik ke Rencana Pekerjaan Pekan Depan" : "Tarik ke Rencana Kerja Besok"}
@@ -553,6 +788,14 @@ const DailyReportFormTab = ({
                                                             </button>
                                                             <button
                                                                 type="button"
+                                                                onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'OBSTACLE'); setShowPlanDrawer(false); }}
+                                                                className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
+                                                                title="Tarik Langkah sebagai Terkendala"
+                                                            >
+                                                                🔴 Kendala
+                                                            </button>
+                                                            <button
+                                                                type="button"
                                                                 onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'TOMORROW'); setShowPlanDrawer(false); }}
                                                                 className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
                                                                 title="Tarik Langkah ke Rencana Besok"
@@ -578,6 +821,13 @@ const DailyReportFormTab = ({
                                                     className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                                                 >
                                                     🟡 Tarik On-Progress
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'OBSTACLE'); setShowPlanDrawer(false); }}
+                                                    className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                >
+                                                    🔴 Tarik Kendala
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1004,8 +1254,12 @@ const DailyReportFormTab = ({
                                                 ))}
                                             </select>
                                             {item.isFromYesterday && (
-                                                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-lg">
-                                                    ⚡ Dari Rencana Kemarin
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                                                    item.fromInProgress 
+                                                        ? 'text-amber-900 bg-amber-100/90 border-amber-300' 
+                                                        : 'text-indigo-900 bg-indigo-100/90 border-indigo-300'
+                                                }`}>
+                                                    {item.fromInProgress ? '⚡ Lanjutan On-Progress Kemarin' : '⚡ Dari Rencana Kemarin'}
                                                 </span>
                                             )}
                                         </div>
@@ -1051,7 +1305,32 @@ const DailyReportFormTab = ({
                                         <div className="space-y-1.5">
                                             <div className="flex items-center justify-between text-xs font-bold text-slate-700">
                                                 <span className="flex items-center gap-1"><Sliders size={12} /> Estimasi Progres:</span>
-                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md font-black">{item.progressPercentage || 50}%</span>
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="99"
+                                                        value={item.progressPercentage ?? 50}
+                                                        onChange={(e) => {
+                                                            const raw = e.target.value;
+                                                            const val = raw === '' ? '' : Math.min(99, Math.max(1, parseInt(raw) || 0));
+                                                            const n = [...inProgressItems];
+                                                            n[index].progressPercentage = val;
+                                                            setInProgressItems(n);
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            if (!item.progressPercentage || item.progressPercentage < 1) {
+                                                                const n = [...inProgressItems];
+                                                                n[index].progressPercentage = 50;
+                                                                setInProgressItems(n);
+                                                            }
+                                                        }}
+                                                        className="w-14 px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200/80 focus:bg-white border border-amber-300 focus:border-amber-500 rounded-md text-amber-900 font-black text-center text-xs outline-none transition-all shadow-2xs"
+                                                        placeholder="50"
+                                                        title="Ketik angka persentase progres (1 - 99%)"
+                                                    />
+                                                    <span className="text-amber-800 font-black text-xs">%</span>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <input
@@ -1258,14 +1537,39 @@ const DailyReportFormTab = ({
                                         )}
                                     </div>
 
+                                    {/* 1. Apa tugas yang terkendala */}
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                                            <Briefcase size={13} className="text-rose-600 shrink-0" />
+                                            <span>1. Apa Tugas / Rencana yang Terkendala:</span>
+                                            <span className="text-rose-500 font-bold">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Contoh: Perbaikan genset gedung utama / Pengecatan aula..."
+                                            value={obs.title || ''}
+                                            onChange={(e) => {
+                                                const n = [...obstacleItems];
+                                                n[index].title = e.target.value;
+                                                setObstacleItems(n);
+                                            }}
+                                            className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400 shadow-2xs"
+                                        />
+                                    </div>
+
+                                    {/* 2. Apa kendalanya */}
                                     <div className="space-y-1">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-rose-900">Uraian Masalah / Hambatan Lapangan:</label>
+                                            <label className="text-[11px] font-black text-rose-900 flex items-center gap-1.5">
+                                                <AlertTriangle size={13} className="text-rose-600 shrink-0" />
+                                                <span>2. Apa Kendalanya / Masalah di Lapangan:</span>
+                                                <span className="text-rose-500 font-bold">*</span>
+                                            </label>
                                             <button
                                                 type="button"
                                                 onClick={() => handlePolishText(index, 'OBSTACLE')}
                                                 disabled={polishingKey === `OBSTACLE-${index}` || !obs.obstacleNote?.trim()}
-                                                className="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                                                className="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40 border border-rose-200/70"
                                             >
                                                 {polishingKey === `OBSTACLE-${index}` ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
                                                 <span>AI Polish</span>
@@ -1273,32 +1577,33 @@ const DailyReportFormTab = ({
                                         </div>
                                         <textarea
                                             rows="2"
-                                            placeholder="Contoh: Stok kabel UTP Cat6 di gudang habis dan toko langganan tutup..."
+                                            placeholder="Jelaskan secara spesifik kendala yang terjadi (contoh: Sparepart kompresor inden 3 hari, toko langganan tutup)..."
                                             value={obs.obstacleNote || ''}
                                             onChange={(e) => {
                                                 const n = [...obstacleItems];
                                                 n[index].obstacleNote = e.target.value;
-                                                n[index].title = e.target.value;
                                                 setObstacleItems(n);
                                             }}
-                                            className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
+                                            className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400"
                                         />
                                     </div>
 
+                                    {/* 3. Apa solusi yang akan dilakukan */}
                                     <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                                            💡 Tindakan Perbaikan / Solusi yang Diajukan (Action Plan):
+                                        <label className="text-[11px] font-black text-emerald-950 flex items-center gap-1.5">
+                                            <Lightbulb size={13} className="text-amber-500 shrink-0" />
+                                            <span>3. Apa Solusi / Tindakan yang Akan Dilakukan (Action Plan):</span>
                                         </label>
-                                        <input
-                                            type="text"
-                                            placeholder="Contoh: Pengajuan pembelian darurat 1 roll kabel melalui kas kecil atau pinjam dari unit SMA"
+                                        <textarea
+                                            rows="2"
+                                            placeholder="Jelaskan langkah solusi atau kebutuhan bantuan pimpinan (contoh: Menggunakan unit genset portabel cadangan sementara menunggu sparepart tiba)..."
                                             value={obs.actionPlan || ''}
                                             onChange={(e) => {
                                                 const n = [...obstacleItems];
                                                 n[index].actionPlan = e.target.value;
                                                 setObstacleItems(n);
                                             }}
-                                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-rose-500"
+                                            className="w-full px-3 py-2 bg-white border border-emerald-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
                                         />
                                     </div>
 

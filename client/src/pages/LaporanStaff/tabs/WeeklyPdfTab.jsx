@@ -302,8 +302,9 @@ export default function WeeklyPdfTab({
                     <tr style="background-color: #f1f5f9; text-align: left;">
                         <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Tanggal</th>
                         <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Staf / Posisi</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Pekerjaan</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Tugas Terkendala</th>
                         <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Uraian Kendala</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 6px 8px;">Solusi / Tindak Lanjut</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -311,8 +312,9 @@ export default function WeeklyPdfTab({
                         <tr>
                             <td style="border: 1px solid #cbd5e1; padding: 6px 8px;">${obs.date || '-'}</td>
                             <td style="border: 1px solid #cbd5e1; padding: 6px 8px;">${obs.staffName || obs.position || '-'}</td>
-                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px;">${obs.activity || '-'}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px;"><strong>${obs.activity || '-'}</strong></td>
                             <td style="border: 1px solid #cbd5e1; padding: 6px 8px; color: #b91c1c;">${obs.obstacleNote || '-'}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 6px 8px; color: #047857;">${obs.actionPlan || '-'}</td>
                         </tr>
                     `).join('')}
                 </tbody>

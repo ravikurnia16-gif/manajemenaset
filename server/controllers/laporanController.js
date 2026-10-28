@@ -47,7 +47,11 @@ const isKabid = (user) => {
     if (!user) return false;
     const role = user.role || '';
     const pos = (user.position || '').toLowerCase();
-    return role === 'KABID_SARPRAS' || role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || role === 'BIDANG_IT' || role === 'KEPALA_BIDANG' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    return role === 'KABID_SARPRAS' || 
+           role === 'SUPER_ADMIN' || 
+           (role === 'KEPALA_BIDANG' && (pos.includes('sarana') || pos.includes('sarpras'))) || 
+           pos.includes('kepala bidang sarana') || 
+           pos.includes('kabid sarpras');
 };
 
 /**
@@ -156,18 +160,39 @@ exports.getReports = async (req, res) => {
             ];
         }
 
-        const rawReports = await prisma.personnelReport.findMany({
-            where: whereClause,
-            include: {
-                user: {
-                    select: { id: true, name: true, username: true, position: true, role: true, phone: true }
-                }
-            },
-            orderBy: [
-                { date: 'desc' },
-                { updatedAt: 'desc' }
-            ]
-        });
+        let rawReports = [];
+        try {
+            rawReports = await prisma.personnelReport.findMany({
+                where: whereClause,
+                include: {
+                    user: {
+                        select: { id: true, name: true, username: true, position: true, role: true, phone: true }
+                    }
+                },
+                orderBy: [
+                    { date: 'desc' },
+                    { updatedAt: 'desc' }
+                ]
+            });
+        } catch (dbErr) {
+            console.warn('[getReports] Database unreachable, fallback to localDataStorage:', dbErr.message);
+            const allLocal = localData.readJson ? localData.readJson('daily_reports.json', []) : [];
+            const staffList = localData.getStaffUsers ? localData.getStaffUsers() : [];
+            rawReports = allLocal
+                .filter(r => {
+                    // Strict Isolation: Non-Kabid (termasuk Admin Aset) HANYA BISA melihat laporannya sendiri
+                    if (!isUserKabid && r.userId !== reqUserId) return false;
+                    if (isUserKabid && whereClause.userId && r.userId !== whereClause.userId) return false;
+                    return true;
+                })
+                .map(r => {
+                    const st = staffList.find(s => s.id === r.userId) || { id: r.userId, name: 'Staf' };
+                    return {
+                        ...r,
+                        user: { id: st.id, name: st.name, username: st.username || 'staff', position: st.position || 'Staff', role: st.role || 'USER', phone: st.phone || '' }
+                    };
+                });
+        }
 
         // Consolidate reports by userId (or userId + date in multi-day range mode)
         const userReportsMap = {};
@@ -300,24 +325,78 @@ exports.getReports = async (req, res) => {
                     try { yMeta = JSON.parse(yMeta); } catch (e) { yMeta = {}; }
                 }
 
-                if (Array.isArray(yMeta.tomorrowPlans) && yMeta.tomorrowPlans.length > 0) {
-                    suggestedFromYesterday = yMeta.tomorrowPlans
-                        .filter(tp => tp && (tp.title || tp.text))
-                        .map(tp => ({
-                            text: tp.title || tp.text || '',
-                            categoryTag: tp.categoryTag || 'UMUM',
-                            status: 'IN_PROGRESS',
-                            progressPercentage: 50,
-                            sourceType: tp.sourceType || 'PLAN',
-                            sourceId: tp.sourceId || null,
-                            planItemIndex: tp.planItemIndex !== undefined ? tp.planItemIndex : null,
-                            projectId: tp.projectId || null,
-                            projectItemIndex: tp.projectItemIndex !== undefined ? tp.projectItemIndex : null,
-                            obstacleNote: '',
-                            photos: [],
-                            isFromYesterday: true
-                        }));
+                const prevInProgress = [];
+                // 1. Ambil dari inProgressItems hari sebelumnya (Pekerjaan yang masih On Progress / belum 100%)
+                if (Array.isArray(yMeta.inProgressItems) && yMeta.inProgressItems.length > 0) {
+                    yMeta.inProgressItems.forEach(ip => {
+                        const title = (ip.title || ip.text || '').trim();
+                        if (title) {
+                            const pct = ip.progressPercentage !== undefined && ip.progressPercentage !== null 
+                                ? parseInt(ip.progressPercentage) 
+                                : 50;
+                            // Bawa pekerjaan yang belum 100% tuntas
+                            if (pct < 100) {
+                                prevInProgress.push({
+                                    text: title,
+                                    title: title,
+                                    categoryTag: ip.categoryTag || 'UMUM',
+                                    status: 'IN_PROGRESS',
+                                    progressPercentage: pct,
+                                    targetDate: ip.targetDate || 'Hari ini',
+                                    sourceType: ip.sourceType || null,
+                                    sourceId: ip.sourceId || null,
+                                    planItemIndex: ip.planItemIndex !== undefined ? ip.planItemIndex : null,
+                                    projectId: ip.projectId || null,
+                                    projectItemIndex: ip.projectItemIndex !== undefined ? ip.projectItemIndex : null,
+                                    obstacleNote: '',
+                                    photos: [],
+                                    isFromYesterday: true,
+                                    fromInProgress: true
+                                });
+                            }
+                        }
+                    });
                 }
+
+                // 2. Ambil dari tomorrowPlans hari sebelumnya
+                const prevTomorrow = [];
+                if (Array.isArray(yMeta.tomorrowPlans) && yMeta.tomorrowPlans.length > 0) {
+                    yMeta.tomorrowPlans
+                        .filter(tp => tp && (tp.title || tp.text))
+                        .forEach(tp => {
+                            const title = (tp.title || tp.text || '').trim();
+                            if (title) {
+                                prevTomorrow.push({
+                                    text: title,
+                                    title: title,
+                                    categoryTag: tp.categoryTag || 'UMUM',
+                                    status: 'IN_PROGRESS',
+                                    progressPercentage: 50,
+                                    targetDate: 'Hari ini',
+                                    sourceType: tp.sourceType || 'PLAN',
+                                    sourceId: tp.sourceId || null,
+                                    planItemIndex: tp.planItemIndex !== undefined ? tp.planItemIndex : null,
+                                    projectId: tp.projectId || null,
+                                    projectItemIndex: tp.projectItemIndex !== undefined ? tp.projectItemIndex : null,
+                                    obstacleNote: '',
+                                    photos: [],
+                                    isFromYesterday: true,
+                                    fromTomorrowPlan: true
+                                });
+                            }
+                        });
+                }
+
+                // Gabungkan dan hindari duplikasi jika judul pekerjaan sama persis
+                const seenTitles = new Set();
+                suggestedFromYesterday = [];
+                [...prevInProgress, ...prevTomorrow].forEach(item => {
+                    const norm = item.text.toLowerCase().replace(/\s+/g, ' ').trim();
+                    if (!seenTitles.has(norm)) {
+                        seenTitles.add(norm);
+                        suggestedFromYesterday.push(item);
+                    }
+                });
             }
         } catch (errPrev) {
             console.error('Error fetching yesterday report for carry-over:', errPrev);
@@ -367,9 +446,12 @@ exports.getReports = async (req, res) => {
             console.error('Error fetching user projects/weekly plans:', ePlans);
         }
 
+        // Strict Isolation: Non-Kabid (termasuk Admin Aset) HANYA BISA melihat laporannya sendiri
+        const sanitizedReports = isUserKabid ? reports : (myReport ? [myReport] : []);
+
         res.json({ 
             success: true, 
-            reports, 
+            reports: sanitizedReports, 
             myReport,
             suggestedFromYesterday,
             userProjects,
@@ -583,8 +665,9 @@ exports.updateMyReport = async (req, res) => {
         if (mergedObstacleItems.length > 0) {
             summaryLines.push('C. KENDALA LAPANGAN:');
             mergedObstacleItems.forEach((obs, idx) => {
+                const taskPart = obs.title ? `[Tugas: ${obs.title}] ` : '';
                 const act = obs.actionPlan ? ` (Solusi: ${obs.actionPlan})` : '';
-                summaryLines.push(`${idx + 1}. [${obs.categoryTag || category || 'UMUM'}] ${obs.obstacleNote || obs.title || 'Kendala'}${act}`);
+                summaryLines.push(`${idx + 1}. [${obs.categoryTag || category || 'UMUM'}] ${taskPart}Kendala: ${obs.obstacleNote || '-'}${act}`);
             });
         }
 
@@ -1229,12 +1312,14 @@ exports.getWeeklySummary = async (req, res) => {
                                 staffName,
                                 position: posName,
                                 activity: textClean || 'Kendala Lapangan',
-                                obstacleNote: item.obstacleNote || 'Kendala'
+                                obstacleNote: item.obstacleNote || 'Kendala',
+                                actionPlan: item.actionPlan || ''
                             });
                             positionMap[posName].obstacles.push({
                                 date: curr.format('DD/MM/YYYY'),
                                 note: item.obstacleNote || 'Kendala',
-                                task: textClean || 'Tugas operasional'
+                                task: textClean || 'Tugas operasional',
+                                actionPlan: item.actionPlan || ''
                             });
                         }
 
@@ -2269,6 +2354,9 @@ exports.notifyKabidInactiveStaff = async (req, res) => {
  */
 exports.getKabidSummary = async (req, res) => {
     try {
+        if (!isKabid(req.user)) {
+            return res.status(403).json({ error: 'Akses ditolak. Rekapitulasi matrik kedisiplinan hanya untuk Kepala Bidang Sarana.' });
+        }
         const targetStartDate = req.query.startDate ? dayjs.tz(req.query.startDate, 'Asia/Jakarta') : (req.query.date ? dayjs.tz(req.query.date, 'Asia/Jakarta') : dayjs().tz('Asia/Jakarta'));
         const targetEndDate = req.query.endDate ? dayjs.tz(req.query.endDate, 'Asia/Jakarta') : targetStartDate;
         

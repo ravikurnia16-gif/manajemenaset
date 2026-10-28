@@ -424,17 +424,9 @@ function App() {
               <ReportPage />
             </KabidSaranaOnlyRoute>
           } />
-          {/* Menu Baru: Kinerja & Manajemen Strategis (PPP, PDCA, MBE, OKR) - Khusus Kepala Bidang Sarana */}
-          <Route path="kinerja-manajemen" element={
-            <KabidSaranaOnlyRoute>
-              <KinerjaManajemen />
-            </KabidSaranaOnlyRoute>
-          } />
-          <Route path="kinerja-manajemen/:tab" element={
-            <KabidSaranaOnlyRoute>
-              <KinerjaManajemen />
-            </KabidSaranaOnlyRoute>
-          } />
+          {/* Redirect /kinerja-manajemen ke menu terpadu /laporan */}
+          <Route path="kinerja-manajemen" element={<Navigate to="/laporan" replace />} />
+          <Route path="kinerja-manajemen/:tab" element={<Navigate to="/laporan" replace />} />
 
           {/* Module: E-Office */}
           <Route path="e-office" element={

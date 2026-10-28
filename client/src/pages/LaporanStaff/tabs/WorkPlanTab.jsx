@@ -2266,9 +2266,27 @@ export default function WorkPlanTab({
                                         <Target size={14} className="text-violet-600" />
                                         Capaian Progres Saat Ini
                                     </label>
-                                    <span className="text-[10px] font-bold text-slate-400">
-                                        {completionModal.targetPercentage === 50 ? 'Sedang Dikerjakan' : 'Selesai Sepenuhnya'}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-slate-400">
+                                            {completionModal.targetPercentage >= 100 ? 'Selesai Sepenuhnya' : 'Sedang Dikerjakan'}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="100"
+                                                value={completionModal.targetPercentage ?? 50}
+                                                onChange={(e) => {
+                                                    const raw = e.target.value;
+                                                    const val = raw === '' ? 50 : Math.min(100, Math.max(1, parseInt(raw) || 0));
+                                                    setCompletionModal(prev => ({ ...prev, targetPercentage: val }));
+                                                }}
+                                                className="w-14 px-1.5 py-0.5 bg-violet-50 hover:bg-violet-100/80 focus:bg-white border border-violet-300 focus:border-violet-500 rounded text-center text-violet-900 font-black text-xs outline-none transition-all shadow-2xs"
+                                                title="Ketik angka persentase progres (1 - 100%)"
+                                            />
+                                            <span className="text-violet-700 font-black text-xs">%</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button

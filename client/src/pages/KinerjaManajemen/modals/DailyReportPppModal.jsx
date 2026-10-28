@@ -36,6 +36,7 @@ const DailyReportPppModal = ({
     ]);
     const [inProgressItems, setInProgressItems] = useState([]);
     const [hasObstacle, setHasObstacle] = useState(false);
+    const [obstacleTaskTitle, setObstacleTaskTitle] = useState('');
     const [obstacleNote, setObstacleNote] = useState('');
     const [actionPlan, setActionPlan] = useState('');
     const [tomorrowPlans, setTomorrowPlans] = useState([
@@ -144,8 +145,7 @@ const DailyReportPppModal = ({
             });
         } else if (targetPillar === 'OBSTACLE') {
             setHasObstacle(true);
-            const obstaclePrefix = `[Kendala ${type === 'ASSIGNMENT' ? 'Penugasan' : (isProject ? 'Project' : 'Rencana')}] ${titleText}: `;
-            setObstacleNote(prev => prev ? `${prev}\n${obstaclePrefix}` : obstaclePrefix);
+            setObstacleTaskTitle(titleText);
         } else if (targetPillar === 'TOMORROW') {
             setTomorrowPlans(prev => {
                 const cleaned = prev.filter(i => i.title.trim());
@@ -186,8 +186,8 @@ const DailyReportPppModal = ({
             return;
         }
 
-        const obstacleItems = hasObstacle && obstacleNote.trim() ? [{
-            title: 'Hambatan Lapangan',
+        const obstacleItems = hasObstacle && (obstacleNote.trim() || obstacleTaskTitle.trim()) ? [{
+            title: obstacleTaskTitle.trim() || 'Tugas Terkendala',
             obstacleNote: obstacleNote.trim(),
             actionPlan: actionPlan.trim(),
             categoryTag: 'UMUM'
@@ -867,21 +867,45 @@ const DailyReportPppModal = ({
                         </div>
 
                         {hasObstacle && (
-                            <div className="space-y-2 pt-1 animate-in fade-in duration-200">
-                                <input
-                                    type="text"
-                                    placeholder="Uraian hambatan teknis/lapangan..."
-                                    value={obstacleNote}
-                                    onChange={(e) => setObstacleNote(e.target.value)}
-                                    className="w-full px-3 py-1.5 bg-white border border-rose-200 rounded-lg text-xs font-bold text-rose-900 outline-none"
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Tindak lanjut / Butuh arahan pimpinan (solusi yang dibutuhkan)..."
-                                    value={actionPlan}
-                                    onChange={(e) => setActionPlan(e.target.value)}
-                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 outline-none"
-                                />
+                            <div className="space-y-2.5 pt-1 animate-in fade-in duration-200">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1">
+                                        <span>1. Apa tugas yang terkendala:</span>
+                                        <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: Perbaikan genset gedung utama / Pengecatan aula..."
+                                        value={obstacleTaskTitle}
+                                        onChange={(e) => setObstacleTaskTitle(e.target.value)}
+                                        className="w-full px-3 py-1.5 bg-white border border-rose-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-rose-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-rose-900 tracking-wider flex items-center gap-1">
+                                        <span>2. Apa kendalanya:</span>
+                                        <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: Sparepart belum tersedia, cuaca hujan deras..."
+                                        value={obstacleNote}
+                                        onChange={(e) => setObstacleNote(e.target.value)}
+                                        className="w-full px-3 py-1.5 bg-white border border-rose-200 rounded-lg text-xs font-bold text-rose-900 outline-none focus:ring-1 focus:ring-rose-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-emerald-900 tracking-wider">
+                                        3. Apa solusi yang akan dilakukan (Action Plan):
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: Menggunakan unit cadangan atau koordinasi dengan pimpinan..."
+                                        value={actionPlan}
+                                        onChange={(e) => setActionPlan(e.target.value)}
+                                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 outline-none focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>

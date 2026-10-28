@@ -5,7 +5,7 @@ import {
     Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles,
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight,
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
-    BookOpen, Target, GraduationCap
+    BookOpen, Target, GraduationCap, Activity, Layers, Zap
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/axios';
@@ -24,6 +24,11 @@ import WeeklyPdfTab from './tabs/WeeklyPdfTab';
 import AssignmentsTab from './tabs/AssignmentsTab';
 import WorkPlanTab from './tabs/WorkPlanTab';
 import TrainingTab from './tabs/TrainingTab';
+
+// Subcomponents Kinerja & Strategis (Digabung dari KinerjaManajemen)
+import MbeRadarTab from '../KinerjaManajemen/tabs/MbeRadarTab';
+import WeeklyPdcaTab from '../KinerjaManajemen/tabs/WeeklyPdcaTab';
+import OkrDashboardTab from '../KinerjaManajemen/tabs/OkrDashboardTab';
 
 // Modals
 import LiveCameraModal from './modals/LiveCameraModal';
@@ -80,17 +85,25 @@ const LaporanStaff = () => {
         }
     }, []);
 
-    const isKabid = useMemo(() => {
-        const role = user.role || '';
-        const pos = (user.position || '').toLowerCase();
-        return role === 'KABID_SARPRAS' || role === 'KEPALA_BIDANG' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
-    }, [user]);
-
+    // Posisi Kepala Bidang Sarana: Akses SEMUANYA (Strategis, OKR, Monitoring Tim, PDF, dll)
     const isOnlyKabidSarana = useMemo(() => {
         const role = user.role || '';
         const pos = (user.position || '').toLowerCase();
-        return pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras') || role === 'KABID_SARPRAS';
+        return pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras') || role === 'KABID_SARPRAS' || role === 'SUPER_ADMIN';
     }, [user.position, user.role]);
+
+    // Backward-compatibility untuk komponen tab turunan
+    const isKabid = isOnlyKabidSarana;
+
+    // Deteksi role Admin Aset
+    const isAdminAset = useMemo(() => {
+        const role = user.role || '';
+        const pos = (user.position || '').toLowerCase();
+        return role === 'ADMIN_ASET' || pos.includes('admin aset') || pos.includes('manajemen aset');
+    }, [user.position, user.role]);
+
+    // 5 Tab yang dibatasi untuk Admin Aset dan Staf Non-Kabid: Laporan Harian, Penugasan, Rencana, Setoran Hafalan, Pelatihan
+    const STAFF_ALLOWED_TABS = useMemo(() => ['laporan', 'penugasan', 'perencanaan', 'hafalan', 'pelatihan'], []);
 
     const userDivision = useMemo(() => {
         const pos = (user.position || '').toLowerCase();
@@ -107,15 +120,31 @@ const LaporanStaff = () => {
 
     // Active Navigation Tab
     const [activeTab, setActiveTab] = useState(() => {
-        if (tab) return tab;
-        return isKabid ? 'dashboard' : 'laporan';
+        if (tab) {
+            if (!isOnlyKabidSarana && !STAFF_ALLOWED_TABS.includes(tab)) {
+                return 'laporan';
+            }
+            return tab;
+        }
+        return isOnlyKabidSarana ? 'dashboard' : 'laporan';
     });
 
     useEffect(() => {
         if (tab && tab !== activeTab) {
-            setActiveTab(tab);
+            if (!isOnlyKabidSarana && !STAFF_ALLOWED_TABS.includes(tab)) {
+                setActiveTab('laporan');
+            } else {
+                setActiveTab(tab);
+            }
         }
-    }, [tab]);
+    }, [tab, isOnlyKabidSarana, STAFF_ALLOWED_TABS]);
+
+    // Guard: Admin Aset & Staf terbatas hanya pada 5 tab
+    useEffect(() => {
+        if (!isOnlyKabidSarana && !STAFF_ALLOWED_TABS.includes(activeTab)) {
+            setActiveTab('laporan');
+        }
+    }, [isOnlyKabidSarana, activeTab, STAFF_ALLOWED_TABS]);
 
     // General States
     const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -240,11 +269,100 @@ const LaporanStaff = () => {
     // Lightbox modal for photos
     const [lightboxPhoto, setLightboxPhoto] = useState(null);
 
+    // States for MBE Radar (Strategis Kabid)
+    const [radarData, setRadarData] = useState(null);
+    const [loadingRadar, setLoadingRadar] = useState(false);
+    const [mbeStartDate, setMbeStartDate] = useState('');
+    const [mbeEndDate, setMbeEndDate] = useState('');
+
+    // States for Weekly PDCA (Mutu Pekanan Kabid)
+    const [pdcaStartDate, setPdcaStartDate] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD')); // Senin
+    const [pdcaEndDate, setPdcaEndDate] = useState(dayjs().startOf('week').add(6, 'day').format('YYYY-MM-DD')); // Sabtu
+    const [pdcaData, setPdcaData] = useState(null);
+    const [loadingPdca, setLoadingPdca] = useState(false);
+
+    // States for OKR Dashboard (Sasaran Strategis Kabid)
+    const [okrData, setOkrData] = useState(null);
+    const [loadingOkr, setLoadingOkr] = useState(false);
+
+    // Category Filter for Kabid Tabs (ALL | STRATEGIS | MONITORING | OPERASIONAL)
+    const [kabidTabCategory, setKabidTabCategory] = useState('ALL');
+
+    // Strategic Fetchers
+    const fetchMbeRadar = async (overrideStart, overrideEnd) => {
+        try {
+            setLoadingRadar(true);
+            const start = overrideStart !== undefined ? overrideStart : mbeStartDate;
+            const end = overrideEnd !== undefined ? overrideEnd : mbeEndDate;
+            const params = {};
+            if (start) params.startDate = start;
+            if (end) params.endDate = end;
+
+            const res = await api.get('/kinerja-manajemen/mbe-radar', { params });
+            if (res.data.success) {
+                setRadarData(res.data.radar);
+            }
+        } catch (err) {
+            console.error('Failed to fetch MBE radar:', err);
+        } finally {
+            setLoadingRadar(false);
+        }
+    };
+
+    const fetchWeeklyPdca = async () => {
+        try {
+            setLoadingPdca(true);
+            const res = await api.get('/kinerja-manajemen/weekly-pdca', {
+                params: { startDate: pdcaStartDate, endDate: pdcaEndDate }
+            });
+            if (res.data.success) {
+                setPdcaData(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch weekly PDCA:', err);
+        } finally {
+            setLoadingPdca(false);
+        }
+    };
+
+    const fetchOkrDashboard = async () => {
+        try {
+            setLoadingOkr(true);
+            const res = await api.get('/kinerja-manajemen/okr');
+            if (res.data.success) {
+                setOkrData(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch OKR dashboard:', err);
+        } finally {
+            setLoadingOkr(false);
+        }
+    };
+
+    const handleSaveOkr = async (updatedOkrs) => {
+        try {
+            const res = await api.post('/kinerja-manajemen/okr', { okrs: updatedOkrs });
+            if (res.data.success) {
+                await fetchOkrDashboard();
+                alert('Target sasaran strategis OKR berhasil diperbarui.');
+            }
+        } catch (err) {
+            console.error('Failed to save OKR:', err);
+            alert('Gagal menyimpan perubahan OKR.');
+        }
+    };
+
     // Initial Load & Tab switching
     useEffect(() => {
-        if (activeTab === 'dashboard' && isKabid) {
+        if (activeTab === 'okr' && isOnlyKabidSarana) {
+            fetchOkrDashboard();
+        } else if ((activeTab === 'mbe' || activeTab === 'radar') && isOnlyKabidSarana) {
+            fetchMbeRadar();
+        } else if (activeTab === 'pdca' && isOnlyKabidSarana) {
+            fetchWeeklyPdca();
+        } else if (activeTab === 'dashboard' && isOnlyKabidSarana) {
             fetchDashboardAnalytics();
-        } else if (activeTab === 'monitoring' && isKabid) {
+        } else if (activeTab === 'monitoring' && isOnlyKabidSarana) {
             fetchReportsFeed();
             fetchStaffList();
         } else if (activeTab === 'laporan') {
@@ -252,22 +370,22 @@ const LaporanStaff = () => {
             fetchMyStats();
             fetchAssignments();
             fetchPlans();
-        } else if (activeTab === 'matrix' && isKabid) {
+        } else if (activeTab === 'matrix' && isOnlyKabidSarana) {
             fetchMatrixData();
-        } else if (activeTab === 'weekly-pdf' && isKabid) {
+        } else if (activeTab === 'weekly-pdf' && isOnlyKabidSarana) {
             fetchWeeklySummary();
         } else if (activeTab === 'penugasan') {
             fetchAssignments();
-            if (isKabid) fetchStaffList();
+            if (isOnlyKabidSarana) fetchStaffList();
         } else if (activeTab === 'perencanaan') {
             fetchPlans();
-            if (isKabid) fetchStaffList();
+            if (isOnlyKabidSarana) fetchStaffList();
         } else if (activeTab === 'hafalan') {
-            if (isKabid) fetchStaffList();
+            if (isOnlyKabidSarana) fetchStaffList();
         } else if (activeTab === 'pelatihan') {
             fetchStaffList();
         }
-    }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate]);
+    }, [activeTab, selectedDate, matrixMonth, weeklyStartDate, weeklyEndDate, pdcaStartDate, pdcaEndDate, isOnlyKabidSarana]);
 
     // Fetch reports feed whenever filters/dates change in monitoring tab
     useEffect(() => {
@@ -473,18 +591,23 @@ const LaporanStaff = () => {
                     }
 
                     // Auto Carry-Over dari Laporan Rencana Kemarin (suggestedFromYesterday)
+                    // Auto Carry-Over dari Laporan Rencana & On-Progress Kemarin (suggestedFromYesterday)
                     if (Array.isArray(res.data.suggestedFromYesterday) && res.data.suggestedFromYesterday.length > 0) {
                         setCompletedItems([{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
                         setInProgressItems(res.data.suggestedFromYesterday.map(item => ({
                             title: item.text || item.title || '',
-                            progressPercentage: item.progressPercentage || 50,
-                            targetDate: 'Hari ini',
+                            progressPercentage: item.progressPercentage !== undefined ? parseInt(item.progressPercentage) : 50,
+                            targetDate: item.targetDate || 'Hari ini',
                             categoryTag: item.categoryTag || userDivision || 'UMUM',
                             photos: [],
                             sourceType: item.sourceType || 'PLAN',
                             sourceId: item.sourceId || null,
                             planItemIndex: item.planItemIndex !== undefined ? item.planItemIndex : null,
-                            isFromYesterday: true
+                            projectId: item.projectId || null,
+                            projectItemIndex: item.projectItemIndex !== undefined ? item.projectItemIndex : null,
+                            isFromYesterday: true,
+                            fromInProgress: !!item.fromInProgress,
+                            fromTomorrowPlan: !!item.fromTomorrowPlan
                         })));
                         setHasObstacle(false);
                         setObstacleItems([{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
@@ -708,7 +831,22 @@ const LaporanStaff = () => {
         const taskTitle = `[Penugasan: ${task.title}] ${task.description || ''}`.trim();
         const isDone = task.progressPercentage === 100 || targetPillar === 'COMPLETED';
 
-        if (targetPillar === 'TOMORROW') {
+        if (targetPillar === 'OBSTACLE') {
+            setHasObstacle(true);
+            setObstacleItems(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim() && !prev[0].obstacleNote.trim();
+                const newItem = {
+                    title: `[Penugasan] ${task.title}`.trim(),
+                    obstacleNote: '',
+                    actionPlan: '',
+                    categoryTag: cat,
+                    sourceType: 'ASSIGNMENT',
+                    sourceId: task.id,
+                    photos: []
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
+        } else if (targetPillar === 'TOMORROW') {
             const isFri = dayjs(selectedDate).day() === 5;
             setTomorrowPlans(prev => {
                 const isClean = prev.length === 1 && !prev[0].title.trim();
@@ -778,7 +916,25 @@ const LaporanStaff = () => {
         const isProject = !!plan.metadata?.isProject || plan.metadata?.planType === 'PROJECT';
         const cat = plan.metadata?.categoryTag || plan.category || userDivision || 'UMUM';
 
-        if (targetPillar === 'TOMORROW') {
+        if (targetPillar === 'OBSTACLE') {
+            setHasObstacle(true);
+            setObstacleItems(prev => {
+                const isClean = prev.length === 1 && !prev[0].title.trim() && !prev[0].obstacleNote.trim();
+                const newItem = {
+                    title: formattedTitle,
+                    obstacleNote: '',
+                    actionPlan: '',
+                    categoryTag: cat,
+                    sourceType: isProject ? 'PROJECT' : 'PLAN',
+                    sourceId: plan.id,
+                    planItemIndex: isSingleGoal ? null : itemIndex,
+                    projectId: item?.projectId || (isProject ? plan.id : null),
+                    projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
+                    photos: resolvedPhotos
+                };
+                return isClean ? [newItem] : [...prev, newItem];
+            });
+        } else if (targetPillar === 'TOMORROW') {
             setTomorrowPlans(prev => {
                 const isClean = prev.length === 1 && !prev[0].title.trim();
                 const newItem = {
@@ -1451,16 +1607,22 @@ const LaporanStaff = () => {
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                             <h1 className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight truncate">
-                                {isKabid ? (activeTab === 'laporan' ? 'Laporan Harian Kepala Bidang' : 'Manajemen & Kinerja Staf') : 'Laporan Harian Staf'}
+                                {isOnlyKabidSarana 
+                                    ? (activeTab === 'laporan' ? 'Laporan Harian Kepala Bidang' : 'Laporan & Kinerja Terpadu') 
+                                    : (activeTab === 'laporan' ? 'Laporan Harian Saya' : 'Laporan & Kinerja Staf')}
                             </h1>
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${isKabid ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {isKabid ? 'Kepala Bidang Sarana' : (user.position || 'Staff Manajemen Aset')}
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${
+                                isOnlyKabidSarana ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                                {isOnlyKabidSarana ? 'Kepala Bidang Sarana' : (isAdminAset ? 'Admin Aset' : (user.position || 'Staff Sarpras'))}
                             </span>
                         </div>
                         <p className="text-slate-400 text-[11px] sm:text-sm font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
-                            {isKabid
-                                ? (activeTab === 'laporan' ? 'Catat agenda dan progres kerja harian Kepala Bidang Sarana (Metode PPP), foto bukti lapangan, dan simpan laporan.' : 'Pusat evaluasi kerja, monitoring kendala lapangan, analitik AI, dan rekapitulasi pekanan.')
-                                : 'Catat capaian kerja harian metode PPP (Progress, Plan, Problem), dokumentasikan bukti foto, dan pantau rencana besok.'}
+                            {isOnlyKabidSarana
+                                ? (activeTab === 'laporan' 
+                                    ? 'Catat agenda dan progres kerja harian Kepala Bidang Sarana (Metode PPP), foto bukti lapangan, dan simpan laporan.' 
+                                    : 'Pusat kendali kinerja terpadu: Sasaran strategis (OKR), radar kendala (MBE), siklus mutu PDCA, monitoring tim, dan rekapitulasi pekanan.')
+                                : 'Kelola laporan harian capaian kerja metode PPP (Progress, Plan, Problem), penugasan, rencana, setoran hafalan, dan pelatihan.'}
                         </p>
                     </div>
                 </div>
@@ -1498,7 +1660,10 @@ const LaporanStaff = () => {
                     )}
                     <button
                         onClick={() => {
-                            if (activeTab === 'dashboard') fetchDashboardAnalytics();
+                            if (activeTab === 'okr') fetchOkrDashboard();
+                            else if (activeTab === 'mbe' || activeTab === 'radar') fetchMbeRadar();
+                            else if (activeTab === 'pdca') fetchWeeklyPdca();
+                            else if (activeTab === 'dashboard') fetchDashboardAnalytics();
                             else if (activeTab === 'monitoring') fetchReportsFeed();
                             else if (activeTab === 'laporan') { fetchMyReport(); fetchMyStats(); fetchPlans(); }
                             else if (activeTab === 'matrix') fetchMatrixData();
@@ -1509,9 +1674,9 @@ const LaporanStaff = () => {
                         className="p-2 sm:p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer shrink-0"
                         title="Segarkan Data"
                     >
-                        <RefreshCw size={16} className={loading ? 'animate-spin text-blue-600' : ''} />
+                        <RefreshCw size={16} className={loading || loadingRadar || loadingPdca || loadingOkr ? 'animate-spin text-blue-600' : ''} />
                     </button>
-                    {isKabid && (
+                    {isOnlyKabidSarana && (
                         <button
                             onClick={async () => {
                                 if (!window.confirm('Kirim rangkuman laporan harian staf hari ini ke WhatsApp Kepala Bidang Sarana?')) return;
@@ -1531,158 +1696,259 @@ const LaporanStaff = () => {
                 </div>
             </div>
 
-            {/* TAB NAVIGATION - Sticky & Responsive Wrap */}
-            <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-2.5 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-2.5 border-b border-slate-200/90 print:hidden no-print">
-                {isKabid ? (
-                    <>
-                        <button
-                            onClick={() => setActiveTab('dashboard')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'dashboard'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <TrendingUp size={16} /> Executive Dashboard
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('laporan')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'laporan'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <FileText size={16} /> Isi Laporan Harian
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('monitoring')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'monitoring'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <Eye size={16} /> Monitoring Feed Tim
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('matrix')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'matrix'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <Calendar size={16} /> Matriks Kedisiplinan
-                        </button>
-                        {isOnlyKabidSarana && (
+            {/* TAB NAVIGATION: KABID SARANA (SEMUA 12 TAB) vs ADMIN ASET (TERBATAS 5 TAB) */}
+            {isOnlyKabidSarana ? (
+                <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-2 sm:py-2.5 space-y-2 border-b border-slate-200/90 print:hidden no-print">
+                    {/* Category Filter Pills for Kabid */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider mr-1 hidden sm:inline">Kategori:</span>
+                        {[
+                            { key: 'ALL', label: 'Semua Tab (12)' },
+                            { key: 'STRATEGIS', label: '🎯 Sasaran Strategis & Mutu (3)' },
+                            { key: 'MONITORING', label: '📊 Monitoring & Rekap (4)' },
+                            { key: 'OPERASIONAL', label: '📝 Operasional & Tim (5)' }
+                        ].map(cat => (
+                            <button
+                                key={cat.key}
+                                type="button"
+                                onClick={() => setKabidTabCategory(cat.key)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                    kabidTabCategory === cat.key
+                                        ? 'bg-slate-800 text-white shadow-xs'
+                                        : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200/80'
+                                }`}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* All 12 Tabs Button List */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
+                        {/* 1. Dashboard Executive */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'MONITORING') && (
+                            <button
+                                onClick={() => setActiveTab('dashboard')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'dashboard'
+                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <TrendingUp size={15} /> Executive Dashboard
+                            </button>
+                        )}
+
+                        {/* 2. OKR Dashboard */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'STRATEGIS') && (
+                            <button
+                                onClick={() => setActiveTab('okr')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'okr'
+                                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <Target size={15} /> OKR Sasaran Strategis
+                            </button>
+                        )}
+
+                        {/* 3. Radar Kendala & MBE */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'STRATEGIS') && (
+                            <button
+                                onClick={() => setActiveTab('mbe')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'mbe' || activeTab === 'radar'
+                                        ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <AlertTriangle size={15} /> Radar Kendala (MBE)
+                            </button>
+                        )}
+
+                        {/* 4. Siklus Mutu PDCA */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'STRATEGIS') && (
+                            <button
+                                onClick={() => setActiveTab('pdca')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'pdca'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 ring-2 ring-indigo-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <Activity size={15} /> Siklus Mutu PDCA
+                            </button>
+                        )}
+
+                        {/* 5. Monitoring Feed Tim */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'MONITORING') && (
+                            <button
+                                onClick={() => setActiveTab('monitoring')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'monitoring'
+                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <Eye size={15} /> Monitoring Feed Tim
+                            </button>
+                        )}
+
+                        {/* 6. Matriks Kedisiplinan */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'MONITORING') && (
+                            <button
+                                onClick={() => setActiveTab('matrix')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'matrix'
+                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <Calendar size={15} /> Matriks Kedisiplinan
+                            </button>
+                        )}
+
+                        {/* 7. Laporan Mingguan Kabid (PDF) */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'MONITORING') && (
                             <button
                                 onClick={() => setActiveTab('weekly-pdf')}
-                                className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
                                     activeTab === 'weekly-pdf'
                                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 ring-2 ring-indigo-600/20'
                                         : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
                                 }`}
                             >
-                                <Printer size={16} /> Laporan Mingguan Kabid (PDF)
+                                <Printer size={15} /> Laporan Mingguan PDF
                             </button>
                         )}
-                        <button
-                            onClick={() => setActiveTab('penugasan')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'penugasan'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <CheckSquare size={16} /> Delegasi Penugasan
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('perencanaan')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'perencanaan'
-                                    ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <Target size={16} /> Perencanaan Kerja
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('hafalan')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'hafalan'
-                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <BookOpen size={16} /> Setoran Hafalan
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('pelatihan')}
-                            className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'pelatihan'
-                                    ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <GraduationCap size={16} /> Pelatihan Karyawan
-                        </button>
-                    </>
-                ) : (
-                    <>
-                        <button
-                            onClick={() => setActiveTab('laporan')}
-                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'laporan'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <FileText size={16} /> Laporan Harian Saya
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('penugasan')}
-                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'penugasan'
-                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <CheckSquare size={16} /> Penugasan Saya
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('perencanaan')}
-                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'perencanaan'
-                                    ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <Target size={16} /> Perencanaan Kerja
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('hafalan')}
-                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'hafalan'
-                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <BookOpen size={16} /> Setoran Hafalan
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('pelatihan')}
-                            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
-                                activeTab === 'pelatihan'
-                                    ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
-                            }`}
-                        >
-                            <GraduationCap size={16} /> Pelatihan Karyawan
-                        </button>
-                    </>
-                )}
-            </div>
+
+                        {/* 8. Isi Laporan Harian Kabid */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'OPERASIONAL') && (
+                            <button
+                                onClick={() => setActiveTab('laporan')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'laporan'
+                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <FileText size={15} /> Isi Laporan Harian
+                            </button>
+                        )}
+
+                        {/* 9. Delegasi Penugasan */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'OPERASIONAL') && (
+                            <button
+                                onClick={() => setActiveTab('penugasan')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'penugasan'
+                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <CheckSquare size={15} /> Delegasi Penugasan
+                            </button>
+                        )}
+
+                        {/* 10. Perencanaan Kerja */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'OPERASIONAL') && (
+                            <button
+                                onClick={() => setActiveTab('perencanaan')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'perencanaan'
+                                        ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <Target size={15} /> Perencanaan Kerja
+                            </button>
+                        )}
+
+                        {/* 11. Setoran Hafalan */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'OPERASIONAL') && (
+                            <button
+                                onClick={() => setActiveTab('hafalan')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'hafalan'
+                                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <BookOpen size={15} /> Setoran Hafalan
+                            </button>
+                        )}
+
+                        {/* 12. Pelatihan Karyawan */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'OPERASIONAL') && (
+                            <button
+                                onClick={() => setActiveTab('pelatihan')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'pelatihan'
+                                        ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <GraduationCap size={15} /> Pelatihan Karyawan
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                /* TAB NAVIGATION: ADMIN ASET & STAF (TERBATAS DI 5 TAB) */
+                <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-2.5 overflow-x-auto border-b border-slate-200/90 print:hidden no-print scrollbar-none">
+                    <button
+                        onClick={() => setActiveTab('laporan')}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                            activeTab === 'laporan'
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                        }`}
+                    >
+                        <FileText size={16} /> Laporan Harian
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('penugasan')}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                            activeTab === 'penugasan'
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600/20'
+                                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                        }`}
+                    >
+                        <CheckSquare size={16} /> Penugasan
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('perencanaan')}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                            activeTab === 'perencanaan'
+                                ? 'bg-violet-600 text-white shadow-md shadow-violet-500/25 ring-2 ring-violet-600/20'
+                                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                        }`}
+                    >
+                        <Target size={16} /> Rencana
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('hafalan')}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                            activeTab === 'hafalan'
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-600/20'
+                                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                        }`}
+                    >
+                        <BookOpen size={16} /> Setoran Hafalan
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('pelatihan')}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                            activeTab === 'pelatihan'
+                                ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-600/20'
+                                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                        }`}
+                    >
+                        <GraduationCap size={16} /> Pelatihan
+                    </button>
+                </div>
+            )}
 
             {/* RESTORED DRAFT BANNER */}
             {hasRestoredDraft && activeTab === 'laporan' && (
@@ -1712,8 +1978,8 @@ const LaporanStaff = () => {
                         <Sparkles size={16} className="text-emerald-600 shrink-0" />
                         <span>
                             {dayjs(selectedDate).day() === 1
-                                ? '⚡ Butir rencana pekerjaan pekan depan dari laporan hari Jumat otomatis dimuat ke agenda kerja hari ini (status: ⏳ Dalam Proses).'
-                                : '⚡ Butir rencana dari laporan kemarin sore otomatis dimuat ke agenda kerja hari ini (status: ⏳ Dalam Proses).'}
+                                ? '⚡ Pekerjaan On-Progress & rencana kerja pekan depan otomatis dimuat ke agenda hari ini (status: ⏳ Dalam Proses).'
+                                : '⚡ Pekerjaan On-Progress & rencana kerja kemarin otomatis dimuat ke agenda hari ini (status: ⏳ Dalam Proses).'}
                         </span>
                     </div>
                     <button
@@ -1743,7 +2009,7 @@ const LaporanStaff = () => {
                     </div>
                     <button
                         type="button"
-                        onClick={() => setActiveTab('plans')}
+                        onClick={() => setActiveTab('perencanaan')}
                         className="px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-xl text-xs shrink-0 transition-all shadow-xs cursor-pointer active:scale-95 text-center"
                     >
                         ➕ Susun Rencana Pekan Depan
@@ -1752,15 +2018,64 @@ const LaporanStaff = () => {
             )}
 
             {/* TAB CONTENT */}
-            {loading && !dashboardData && !reportsFeed.length && !morningPoints[0]?.text ? (
+            {loading && !dashboardData && !reportsFeed.length && !morningPoints[0]?.text && !okrData && !radarData && !pdcaData ? (
                 <div className="h-72 flex flex-col items-center justify-center gap-3 bg-white rounded-3xl border border-slate-100 shadow-sm">
                     <Loader2 className="animate-spin text-blue-600" size={36} />
                     <span className="text-slate-400 text-sm font-bold">Memuat data kinerja...</span>
                 </div>
             ) : (
                 <>
+                    {/* TAB: OKR SASARAN STRATEGIS (KABID) */}
+                    {isOnlyKabidSarana && activeTab === 'okr' && (
+                        <TabErrorBoundary>
+                            <OkrDashboardTab
+                                okrData={okrData}
+                                loading={loadingOkr}
+                                onSaveOkr={handleSaveOkr}
+                                onRefresh={fetchOkrDashboard}
+                            />
+                        </TabErrorBoundary>
+                    )}
+
+                    {/* TAB: RADAR KENDALA & MBE (KABID) */}
+                    {isOnlyKabidSarana && (activeTab === 'mbe' || activeTab === 'radar') && (
+                        <TabErrorBoundary>
+                            <MbeRadarTab
+                                radarData={radarData}
+                                loading={loadingRadar}
+                                onRefresh={fetchMbeRadar}
+                                onNavigateTab={(targetTab) => {
+                                    if (targetTab === 'PLANS') setActiveTab('perencanaan');
+                                    else if (targetTab === 'ASSIGNMENTS') setActiveTab('penugasan');
+                                    else if (targetTab === 'PPP') setActiveTab('laporan');
+                                    else setActiveTab(targetTab);
+                                }}
+                                startDate={mbeStartDate}
+                                setStartDate={setMbeStartDate}
+                                endDate={mbeEndDate}
+                                setEndDate={setMbeEndDate}
+                                onApplyDateFilter={(s, e) => fetchMbeRadar(s, e)}
+                            />
+                        </TabErrorBoundary>
+                    )}
+
+                    {/* TAB: SIKLUS MUTU PDCA (KABID) */}
+                    {isOnlyKabidSarana && activeTab === 'pdca' && (
+                        <TabErrorBoundary>
+                            <WeeklyPdcaTab
+                                pdcaData={pdcaData}
+                                loading={loadingPdca}
+                                startDate={pdcaStartDate}
+                                setStartDate={setPdcaStartDate}
+                                endDate={pdcaEndDate}
+                                setEndDate={setPdcaEndDate}
+                                onRefresh={fetchWeeklyPdca}
+                            />
+                        </TabErrorBoundary>
+                    )}
+
                     {/* TAB: KABID DASHBOARD */}
-                    {isKabid && activeTab === 'dashboard' && dashboardData && (
+                    {isOnlyKabidSarana && activeTab === 'dashboard' && dashboardData && (
                         <ExecutiveDashboardTab
                             dashboardData={dashboardData}
                             selectedDate={selectedDate}

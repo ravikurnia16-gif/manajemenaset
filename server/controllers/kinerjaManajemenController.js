@@ -162,13 +162,9 @@ const isKabidOrSuperAdmin = (user) => {
     const pos = (user.position || '').toLowerCase();
     return role === 'SUPER_ADMIN' || 
            role === 'KABID_SARPRAS' || 
-           role === 'KEPALA_BIDANG' ||
-           role === 'ADMIN_ASET' ||
-           role === 'ADMIN' ||
+           (role === 'KEPALA_BIDANG' && (pos.includes('sarana') || pos.includes('sarpras'))) ||
            pos.includes('kepala bidang sarana') || 
-           pos.includes('kabid sarpras') ||
-           pos.includes('admin aset') ||
-           pos.includes('manajemen aset');
+           pos.includes('kabid sarpras');
 };
 
 /**
