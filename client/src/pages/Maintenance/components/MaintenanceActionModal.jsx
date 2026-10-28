@@ -5,7 +5,10 @@ import {
     Info, 
     Trash2, 
     Plus, 
-    Search 
+    Search,
+    CalendarClock,
+    Calendar,
+    Clock
 } from 'lucide-react';
 
 export default function MaintenanceActionModal({
@@ -53,7 +56,14 @@ export default function MaintenanceActionModal({
     setReceiptFile,
     setCompletionPhoto,
     onToggleSelectAllAssets,
-    onApplyToSelectedAssets
+    onApplyToSelectedAssets,
+    // Estimation schedule states
+    estimatedStartDate,
+    setEstimatedStartDate,
+    estimatedCompletionDate,
+    setEstimatedCompletionDate,
+    estimationNote,
+    setEstimationNote
 }) {
     if (!actionModal.show) return null;
 
@@ -658,11 +668,58 @@ export default function MaintenanceActionModal({
 
                     {/* START MODE */}
                     {isStart && (
-                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 flex items-start gap-3">
-                            <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
-                            <p className="text-xs text-blue-800 leading-relaxed">
-                                Status laporan akan berubah menjadi <strong>Sedang Dikerjakan</strong>. Pelapor dan tim akan menerima notifikasi bahwa perbaikan telah dimulai.
-                            </p>
+                        <div className="space-y-3.5">
+                            <div className="bg-blue-50 p-3.5 rounded-2xl border border-blue-200 flex items-start gap-2.5">
+                                <Info size={17} className="text-blue-600 shrink-0 mt-0.5" />
+                                <p className="text-xs text-blue-800 leading-relaxed">
+                                    Status laporan akan berubah menjadi <strong>Sedang Dikerjakan</strong>. Silakan konfirmasi atau sesuaikan estimasi pengerjaan di bawah ini:
+                                </p>
+                            </div>
+
+                            {/* Form Input Estimasi Pengerjaan */}
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                        <Calendar size={13} className="text-blue-600" />
+                                        <span>Estimasi Mulai Pengerjaan *</span>
+                                    </label>
+                                    <input
+                                        type="datetime-local"
+                                        value={estimatedStartDate || ''}
+                                        onChange={e => setEstimatedStartDate && setEstimatedStartDate(e.target.value)}
+                                        className="w-full px-3 py-2.5 bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">
+                                            <Calendar size={13} className="text-emerald-600" />
+                                            <span>Estimasi Target Selesai (Tanggal Saja) *</span>
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-semibold lowercase">
+                                            (tanpa jam)
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={estimatedCompletionDate ? (estimatedCompletionDate.includes('T') ? estimatedCompletionDate.split('T')[0] : estimatedCompletionDate) : ''}
+                                        onChange={e => setEstimatedCompletionDate && setEstimatedCompletionDate(e.target.value)}
+                                        className="w-full px-3 py-2.5 bg-white border border-slate-200 focus:border-emerald-500 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                                        Catatan Rencana / Tahapan Awal (Opsional)
+                                    </label>
+                                    <textarea
+                                        value={estimationNote || ''}
+                                        onChange={e => setEstimationNote && setEstimationNote(e.target.value)}
+                                        placeholder="Contoh: Menunggu suku cadang dibeli, pengerjaan di luar jam sekolah..."
+                                        rows={2}
+                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 resize-none outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
 

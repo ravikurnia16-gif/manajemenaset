@@ -258,25 +258,6 @@ export default function AssignmentsTab({
                                             {polishingTitle ? <RotateCcw size={11} className="animate-spin text-blue-600" /> : <Sparkles size={11} className="text-blue-600" />}
                                             <span>Rapikan Judul (AI)</span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            disabled={loadingAiBreakdown || !assignmentForm.title?.trim()}
-                                            onClick={handleAiBreakdown}
-                                            className="px-3 py-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white rounded-xl text-[11px] font-black transition flex items-center gap-1.5 shadow-sm shadow-indigo-500/25 active:scale-95 cursor-pointer disabled:opacity-50"
-                                            title="AI akan otomatis merinci langkah pengerjaan, target capaian, dan prioritas tugas"
-                                        >
-                                            {loadingAiBreakdown ? (
-                                                <>
-                                                    <RotateCcw size={12} className="animate-spin" />
-                                                    <span>AI Sedang Merinci Langkah...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles size={12} className="text-amber-300 fill-amber-300" />
-                                                    <span>✨ AI Rinci Langkah Otomatis</span>
-                                                </>
-                                            )}
-                                        </button>
                                     </div>
                                 </div>
                                 <input 
@@ -441,7 +422,7 @@ export default function AssignmentsTab({
                                             Belum ada butir langkah ditambahkan.
                                         </p>
                                         <p className="text-[11px] text-slate-400">
-                                            Klik tombol <span className="font-bold text-indigo-600">"✨ AI Rinci Langkah Otomatis"</span> di atas atau <span className="font-bold text-blue-600">"+ Tambah Butir Langkah"</span> untuk merinci pengerjaan secara bertahap.
+                                            Klik tombol <span className="font-bold text-blue-600">"+ Tambah Butir Langkah"</span> untuk merinci pengerjaan secara bertahap.
                                         </p>
                                     </div>
                                 ) : (

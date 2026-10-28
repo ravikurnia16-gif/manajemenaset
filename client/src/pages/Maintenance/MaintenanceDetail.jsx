@@ -5,8 +5,12 @@ import {
     XCircle, 
     Sparkles, 
     Edit2, 
-    Wrench 
+    Wrench,
+    CalendarClock,
+    Calendar,
+    Clock
 } from 'lucide-react';
+import dayjs from 'dayjs';
 import api from '../../lib/axios';
 
 // Modular Components
@@ -19,6 +23,7 @@ import MaintenanceActionModal from './components/MaintenanceActionModal';
 import MaintenanceSingleAssetModal from './components/MaintenanceSingleAssetModal';
 import MaintenanceSPKModal from './components/MaintenanceSPKModal';
 import MaintenanceAssetHistoryModal from './components/MaintenanceAssetHistoryModal';
+import MaintenanceEstimationModal from './components/MaintenanceEstimationModal';
 
 const MaintenanceDetail = () => {
     const { id } = useParams();
@@ -44,6 +49,13 @@ const MaintenanceDetail = () => {
     const [singleAssetModal, setSingleAssetModal] = useState({ show: false, asset: null, actionTaken: '', condition: 'BAIK', saving: false });
     const [showSPKModal, setShowSPKModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+
+    // Estimation Schedule States
+    const [showEstimationModal, setShowEstimationModal] = useState(false);
+    const [estimatedStartDate, setEstimatedStartDate] = useState('');
+    const [estimatedCompletionDate, setEstimatedCompletionDate] = useState('');
+    const [estimationNote, setEstimationNote] = useState('');
+    const [savingEstimation, setSavingEstimation] = useState(false);
 
     // Form States for Workflow Actions
     const [actionNote, setActionNote] = useState('');
@@ -81,6 +93,17 @@ const MaintenanceDetail = () => {
             setLoading(true);
             const res = await api.get(`/maintenance/${id}`);
             setReport(res.data);
+            if (res.data?.aiDiagnosis) {
+                if (res.data.aiDiagnosis.estimatedStartDate) {
+                    setEstimatedStartDate(dayjs(res.data.aiDiagnosis.estimatedStartDate).format('YYYY-MM-DDTHH:mm'));
+                }
+                if (res.data.aiDiagnosis.estimatedCompletionDate) {
+                    setEstimatedCompletionDate(dayjs(res.data.aiDiagnosis.estimatedCompletionDate).format('YYYY-MM-DD'));
+                }
+                if (res.data.aiDiagnosis.estimationNote) {
+                    setEstimationNote(res.data.aiDiagnosis.estimationNote);
+                }
+            }
         } catch (err) {
             console.error("Failed to fetch maintenance report:", err);
             showToast('Gagal memuat detail laporan', 'error');
@@ -264,6 +287,18 @@ const MaintenanceDetail = () => {
     // --- Action Modal Handlers ---
     const handleOpenActionModal = (type, nextStatus) => {
         setActionModal({ show: true, type, nextStatus });
+        if (type === 'start') {
+            if (!estimatedStartDate) {
+                setEstimatedStartDate(report?.aiDiagnosis?.estimatedStartDate 
+                    ? dayjs(report.aiDiagnosis.estimatedStartDate).format('YYYY-MM-DDTHH:mm') 
+                    : dayjs().format('YYYY-MM-DDTHH:mm'));
+            }
+            if (!estimatedCompletionDate) {
+                setEstimatedCompletionDate(report?.aiDiagnosis?.estimatedCompletionDate 
+                    ? dayjs(report.aiDiagnosis.estimatedCompletionDate).format('YYYY-MM-DD') 
+                    : dayjs().add(1, 'day').format('YYYY-MM-DD'));
+            }
+        }
         if (type === 'assignment') {
             setTechnicianName(report?.technician || '');
             setTechnicianPhone(report?.technicianPhone || '');
@@ -335,6 +370,12 @@ const MaintenanceDetail = () => {
                 payload.technicianId = technicianId;
                 payload.technicianPhone = technicianPhone ? technicianPhone.trim() : undefined;
                 payload.approvalNote = actionNote;
+            }
+
+            if (actionModal.type === 'start' || estimatedStartDate || estimatedCompletionDate) {
+                if (estimatedStartDate) payload.estimatedStartDate = estimatedStartDate;
+                if (estimatedCompletionDate) payload.estimatedCompletionDate = estimatedCompletionDate;
+                if (estimationNote) payload.estimationNote = estimationNote;
             }
 
             if (actionModal.type === 'completion' || actionModal.type === 'progress') {
@@ -439,6 +480,27 @@ const MaintenanceDetail = () => {
         }
     };
 
+    // Save estimation directly from estimation modal
+    const handleSaveEstimation = async (estimationData) => {
+        try {
+            setSavingEstimation(true);
+            await api.put(`/maintenance/${id}/status`, {
+                status: report.status,
+                estimatedStartDate: estimationData.estimatedStartDate,
+                estimatedCompletionDate: estimationData.estimatedCompletionDate,
+                estimationNote: estimationData.estimationNote
+            });
+            showToast('Estimasi pengerjaan berhasil disimpan!');
+            setShowEstimationModal(false);
+            fetchReport();
+        } catch (err) {
+            console.error('Failed to save estimation:', err);
+            showToast(err.response?.data?.error || 'Gagal menyimpan estimasi pengerjaan', 'error');
+        } finally {
+            setSavingEstimation(false);
+        }
+    };
+
     if (loading) return <div className="p-10 text-center text-slate-400">Memuat...</div>;
     if (!report) return <div className="p-10 text-center text-slate-400">Laporan tidak ditemukan.</div>;
 
@@ -517,60 +579,124 @@ const MaintenanceDetail = () => {
 
             {/* Banner Khusus Teknisi / User yang Ditugaskan */}
             {isAssignedTechnician && ['ASSIGNED', 'IN_PROGRESS'].includes(report.status) && (
-                <div className="bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-blue-500/10 border border-blue-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                            <Wrench size={18} />
+                <div className="bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-blue-500/10 border border-blue-200/80 rounded-2xl p-4 flex flex-col gap-3 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <Wrench size={18} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                    <span>Anda Ditugaskan pada Laporan Ini</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                        report.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                    }`}>
+                                        {report.status === 'ASSIGNED' ? 'Menunggu Dimulai' : 'Sedang Dikerjakan'}
+                                    </span>
+                                </h4>
+                                <p className="text-xs text-slate-600 mt-0.5">
+                                    {report.status === 'ASSIGNED'
+                                        ? 'Silakan tentukan estimasi waktu pengerjaan dan mulai perbaikan ketika sudah siap.'
+                                        : 'Pekerjaan perbaikan sedang berjalan. Anda dapat memperbarui progres atau menyelesaikan pekerjaan.'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                                <span>Anda Ditugaskan pada Laporan Ini</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                                    report.status === 'ASSIGNED' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-700 border border-blue-200'
-                                }`}>
-                                    {report.status === 'ASSIGNED' ? 'Menunggu Dimulai' : 'Sedang Dikerjakan'}
-                                </span>
-                            </h4>
-                            <p className="text-xs text-slate-600 mt-0.5">
-                                {report.status === 'ASSIGNED'
-                                    ? 'Silakan mulai pengerjaan atau langsung selesaikan jika pekerjaan telah tuntas.'
-                                    : 'Pekerjaan perbaikan sedang berjalan. Anda dapat memperbarui progres atau menyelesaikan pekerjaan.'}
-                            </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {report.status === 'ASSIGNED' ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEstimationModal(true)}
+                                        className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                        title="Atur perkiraan mulai dan selesai"
+                                    >
+                                        <CalendarClock size={14} /> Atur Estimasi
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenActionModal('start', 'IN_PROGRESS')}
+                                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <CheckCircle size={14} /> Mulai Pengerjaan
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenActionModal('completion', 'COMPLETED')}
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <CheckCircle size={14} /> Selesaikan
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEstimationModal(true)}
+                                        className="px-3.5 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <CalendarClock size={14} /> Jadwal Estimasi
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenActionModal('progress', 'IN_PROGRESS')}
+                                        className="px-3.5 py-2 bg-white border border-orange-400 text-orange-600 hover:bg-orange-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Sparkles size={14} /> Update Progres
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenActionModal('completion', 'COMPLETED')}
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <CheckCircle size={14} /> Selesaikan
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {report.status === 'ASSIGNED' ? (
-                            <>
-                                <button
-                                    onClick={() => handleOpenActionModal('start', 'IN_PROGRESS')}
-                                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <CheckCircle size={14} /> Mulai Pengerjaan
-                                </button>
-                                <button
-                                    onClick={() => handleOpenActionModal('completion', 'COMPLETED')}
-                                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <CheckCircle size={14} /> Selesaikan
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={() => handleOpenActionModal('progress', 'IN_PROGRESS')}
-                                    className="px-3.5 py-2 bg-white border border-orange-400 text-orange-600 hover:bg-orange-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <Sparkles size={14} /> Update Progres
-                                </button>
-                                <button
-                                    onClick={() => handleOpenActionModal('completion', 'COMPLETED')}
-                                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <CheckCircle size={14} /> Selesaikan
-                                </button>
-                            </>
-                        )}
-                    </div>
+
+                    {/* Banner Card Status Estimasi */}
+                    {report.aiDiagnosis?.estimatedStartDate && report.aiDiagnosis?.estimatedCompletionDate ? (
+                        <div className="pt-2.5 border-t border-blue-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white/80 p-3 rounded-xl border border-blue-100">
+                            <div className="flex items-center gap-2.5">
+                                <CalendarClock size={18} className="text-blue-600 shrink-0" />
+                                <div className="text-xs">
+                                    <div className="font-extrabold text-slate-800">
+                                        Estimasi Pengerjaan: <span className="text-blue-700">{dayjs(report.aiDiagnosis.estimatedStartDate).format('D MMMM YYYY, HH:mm')}</span> s/d <span className="text-blue-700">{dayjs(report.aiDiagnosis.estimatedCompletionDate).format('D MMMM YYYY')}</span>
+                                    </div>
+                                    {report.aiDiagnosis.estimationNote && (
+                                        <p className="text-[11px] text-slate-500 italic mt-0.5">"{report.aiDiagnosis.estimationNote}"</p>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowEstimationModal(true)}
+                                className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors shrink-0 cursor-pointer"
+                            >
+                                Ubah Estimasi
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="pt-2.5 border-t border-amber-300/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/90 p-3 rounded-xl border border-amber-200 animate-in fade-in">
+                            <div className="flex items-start gap-2.5">
+                                <CalendarClock size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                                <div className="text-xs text-amber-900">
+                                    <div className="font-extrabold">Harap Atur Estimasi Mulai & Selesai</div>
+                                    <p className="text-[11px] text-amber-800 mt-0.5">
+                                        Sebagai teknisi internal yang ditugaskan, Anda diminta menetapkan perkiraan jadwal pengerjaan ini.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowEstimationModal(true)}
+                                className="px-3 py-1.5 text-xs font-black text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer"
+                            >
+                                <CalendarClock size={13} /> Atur Sekarang
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -587,6 +713,9 @@ const MaintenanceDetail = () => {
                 report={report} 
                 onOpenSingleAssetModal={handleOpenSingleAssetModal} 
                 onFetchAssetHistory={fetchAssetHistory} 
+                onOpenEstimationModal={() => setShowEstimationModal(true)}
+                isAssignedTechnician={isAssignedTechnician}
+                isAdmin={isAdmin}
             />
 
             {/* Media Gallery & Documentation */}
@@ -760,6 +889,23 @@ const MaintenanceDetail = () => {
                 setCompletionPhoto={setCompletionPhoto}
                 onToggleSelectAllAssets={handleToggleSelectAllAssets}
                 onApplyToSelectedAssets={handleApplyToSelectedAssets}
+                estimatedStartDate={estimatedStartDate}
+                setEstimatedStartDate={setEstimatedStartDate}
+                estimatedCompletionDate={estimatedCompletionDate}
+                setEstimatedCompletionDate={setEstimatedCompletionDate}
+                estimationNote={estimationNote}
+                setEstimationNote={setEstimationNote}
+            />
+
+            <MaintenanceEstimationModal 
+                show={showEstimationModal}
+                onClose={() => setShowEstimationModal(false)}
+                onSave={handleSaveEstimation}
+                saving={savingEstimation}
+                report={report}
+                initialStartDate={estimatedStartDate}
+                initialCompletionDate={estimatedCompletionDate}
+                initialNote={estimationNote}
             />
 
             <MaintenanceSingleAssetModal 

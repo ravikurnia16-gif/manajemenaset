@@ -912,7 +912,7 @@ const PlanModal = ({
                             <div className="space-y-0.5">
                                 <span className="font-bold text-emerald-900 block">Penyusunan Rencana Umum (Master Project) Baru</span>
                                 <p className="text-[11px] text-emerald-700 font-medium">
-                                    Rencana Umum disusun mandiri dari awal sebagai acuan inisiatif/proyek baru (bukan mengambil dari butir rencana lain). Susun butir-butir langkah kerja baru di bawah atau gunakan tombol <b>"Rinci dg AI"</b>.
+                                    Rencana Umum disusun mandiri dari awal sebagai acuan inisiatif/proyek baru (bukan mengambil dari butir rencana lain). Susun butir-butir langkah kerja baru di bawah menggunakan tombol <b>"+ Tambah Butir"</b>.
                                 </p>
                             </div>
                         </div>
@@ -925,25 +925,6 @@ const PlanModal = ({
                                 <CheckCircle2 size={13} className="text-violet-600" /> Butir-Butir Aktivitas Pekerjaan ({items.length})
                             </label>
                             <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    disabled={loadingAi}
-                                    onClick={handleAiBreakdown}
-                                    className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm shadow-violet-500/20 active:scale-95 cursor-pointer disabled:opacity-50"
-                                    title="Gunakan AI untuk membuat rincian butir pekerjaan otomatis"
-                                >
-                                    {loadingAi ? (
-                                        <>
-                                            <Loader2 size={12} className="animate-spin" />
-                                            <span>Merinci...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles size={12} className="text-amber-300 fill-amber-300" />
-                                            <span>Rinci dg AI</span>
-                                        </>
-                                    )}
-                                </button>
                                 <button
                                     type="button"
                                     onClick={handleAddItem}

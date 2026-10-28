@@ -105,6 +105,49 @@ const isReportSubmitted = (rep) => {
     return false;
 };
 
+const isSamePppItemServer = (a, b) => {
+    if (!a || !b) return false;
+    if (a.planRefId && b.planRefId && a.planRefId === b.planRefId) return true;
+    if (a.sourceType && b.sourceType && a.sourceId && b.sourceId) {
+        if (a.sourceType === b.sourceType && String(a.sourceId) === String(b.sourceId)) {
+            if (a.planItemIndex !== undefined && a.planItemIndex !== null && b.planItemIndex !== undefined && b.planItemIndex !== null) {
+                return parseInt(a.planItemIndex) === parseInt(b.planItemIndex);
+            }
+            return true;
+        }
+    }
+    const clean = (s) => (s || '')
+        .toLowerCase()
+        .replace(/\[penugasan:[^\]]*\]/gi, '')
+        .replace(/\[penugasan\]/gi, '')
+        .replace(/\[rencana[^\]]*\]/gi, '')
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+    const na = clean(a.title || a.text);
+    const nb = clean(b.title || b.text);
+    if (na && nb) {
+        if (na === nb) return true;
+        if (na.length > 8 && nb.length > 8 && (na.includes(nb) || nb.includes(na))) return true;
+    }
+    return false;
+};
+
+const deduplicatePppItemsServer = (items) => {
+    if (!Array.isArray(items)) return [];
+    const result = [];
+    for (const item of items) {
+        if (!item) continue;
+        const title = (item.title || item.text || '').trim();
+        const hasPhotos = Array.isArray(item.photos) && item.photos.length > 0;
+        const hasObstacle = (item.obstacleNote && item.obstacleNote.trim()) || (item.actionPlan && item.actionPlan.trim());
+        if (!title && !hasPhotos && !hasObstacle) continue;
+        if (!result.some(existing => isSamePppItemServer(existing, item))) {
+            result.push(item);
+        }
+    }
+    return result;
+};
+
 /**
  * GET /api/laporan
  * Fetch daily reports.
@@ -194,11 +237,11 @@ exports.getReports = async (req, res) => {
                 });
         }
 
-        // Consolidate reports by userId (or userId + date in multi-day range mode)
+        // Consolidate reports by userId + date (prevents duplicate db rows from doubling items)
         const userReportsMap = {};
         for (const r of rawReports) {
             const dateStr = dayjs(r.date).format('YYYY-MM-DD');
-            const mapKey = isMultiDay ? `${r.userId}_${dateStr}` : `${r.userId}`;
+            const mapKey = `${r.userId}_${dateStr}`;
 
             if (!userReportsMap[mapKey]) {
                 userReportsMap[mapKey] = { 
@@ -243,6 +286,30 @@ exports.getReports = async (req, res) => {
 
             if (r.metadata?.verification) {
                 userReportsMap[mapKey].metadata.verification = r.metadata.verification;
+            }
+        }
+
+        // Deduplicate and enforce mutually exclusive pillars for all consolidated reports
+        for (const mapKey of Object.keys(userReportsMap)) {
+            const targetMeta = userReportsMap[mapKey].metadata;
+            targetMeta.completedItems = deduplicatePppItemsServer(targetMeta.completedItems);
+            // Tugas Selesai mengambil prioritas mutlak; hapus dari Sedang Dikerjakan & Rencana Besok
+            targetMeta.inProgressItems = deduplicatePppItemsServer(targetMeta.inProgressItems).filter(
+                p => !targetMeta.completedItems.some(c => isSamePppItemServer(c, p))
+            );
+            targetMeta.obstacleItems = deduplicatePppItemsServer(targetMeta.obstacleItems).filter(
+                o => !targetMeta.completedItems.some(c => isSamePppItemServer(c, o))
+            );
+            targetMeta.tomorrowPlans = deduplicatePppItemsServer(targetMeta.tomorrowPlans).filter(
+                t => !targetMeta.completedItems.some(c => isSamePppItemServer(c, t))
+            );
+
+            // Deduplikasi manualPoints
+            if (targetMeta.manualPoints) {
+                targetMeta.manualPoints.morning = deduplicatePppItemsServer(targetMeta.manualPoints.morning);
+                targetMeta.manualPoints.afternoon = deduplicatePppItemsServer(targetMeta.manualPoints.afternoon).filter(
+                    p => !targetMeta.manualPoints.morning.some(m => isSamePppItemServer(m, p))
+                );
             }
         }
 
@@ -505,6 +572,18 @@ exports.updateMyReport = async (req, res) => {
         // Pilih laporan yang sudah punya manualPoints, atau rekaman pertama
         let report = existingReports.find(r => r.metadata && r.metadata.manualPoints) || existingReports[0] || null;
 
+        // Bersihkan rekaman ganda jika database sebelumnya terisi multiple rows pada hari yang sama
+        if (existingReports.length > 1 && report) {
+            const extraIds = existingReports.filter(r => r.id !== report.id).map(r => r.id);
+            if (extraIds.length > 0) {
+                try {
+                    await prisma.personnelReport.deleteMany({ where: { id: { in: extraIds } } });
+                } catch (delErr) {
+                    console.error('Failed to cleanup duplicate report rows:', delErr.message);
+                }
+            }
+        }
+
         // Ambil data lama jika ada untuk smart merge
         const existingMetadata = typeof report?.metadata === 'object' && report?.metadata !== null ? report.metadata : {};
         const oldPoints = existingMetadata.manualPoints || {};
@@ -518,9 +597,13 @@ exports.updateMyReport = async (req, res) => {
         let finalAfternoon = [];
 
         if (hasPppPayload) {
-            const safeCompleted = Array.isArray(completedItems) ? completedItems : [];
-            const safeInProgress = Array.isArray(inProgressItems) ? inProgressItems : [];
-            const safeObstacles = Array.isArray(obstacleItems) ? obstacleItems : [];
+            const safeCompleted = deduplicatePppItemsServer(Array.isArray(completedItems) ? completedItems : []);
+            const safeInProgress = deduplicatePppItemsServer(Array.isArray(inProgressItems) ? inProgressItems : []).filter(
+                p => !safeCompleted.some(c => isSamePppItemServer(c, p))
+            );
+            const safeObstacles = deduplicatePppItemsServer(Array.isArray(obstacleItems) ? obstacleItems : []).filter(
+                o => !safeCompleted.some(c => isSamePppItemServer(c, o))
+            );
 
             // A. Pekerjaan Selesai Hari Ini -> ke Morning points (status COMPLETED, 100%)
             safeCompleted.forEach(c => {
@@ -618,18 +701,29 @@ exports.updateMyReport = async (req, res) => {
             afternoon: finalAfternoon
         };
 
-        const mergedCompletedItems = completedItems !== undefined 
+        const rawCompleted = completedItems !== undefined 
             ? (Array.isArray(completedItems) ? completedItems : []) 
             : (existingMetadata.completedItems || []);
-        const mergedInProgressItems = inProgressItems !== undefined 
+        const rawInProgress = inProgressItems !== undefined 
             ? (Array.isArray(inProgressItems) ? inProgressItems : []) 
             : (existingMetadata.inProgressItems || []);
-        const mergedObstacleItems = obstacleItems !== undefined 
+        const rawObstacles = obstacleItems !== undefined 
             ? (Array.isArray(obstacleItems) ? obstacleItems : []) 
             : (existingMetadata.obstacleItems || []);
-        const mergedTomorrowPlans = tomorrowPlans !== undefined 
+        const rawTomorrowPlans = tomorrowPlans !== undefined 
             ? (Array.isArray(tomorrowPlans) ? tomorrowPlans : []) 
             : (existingMetadata.tomorrowPlans || []);
+
+        const mergedCompletedItems = deduplicatePppItemsServer(rawCompleted);
+        const mergedInProgressItems = deduplicatePppItemsServer(rawInProgress).filter(
+            p => !mergedCompletedItems.some(c => isSamePppItemServer(c, p))
+        );
+        const mergedObstacleItems = deduplicatePppItemsServer(rawObstacles).filter(
+            o => !mergedCompletedItems.some(c => isSamePppItemServer(c, o))
+        );
+        const mergedTomorrowPlans = deduplicatePppItemsServer(rawTomorrowPlans).filter(
+            t => !mergedCompletedItems.some(c => isSamePppItemServer(c, t))
+        );
 
         // Buat ringkasan teks otomatis ke kolom content
         const summaryLines = ['[LAPORAN HARIAN PPP]'];

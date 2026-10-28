@@ -83,6 +83,53 @@ const DailyReportFormTab = ({
     // Filter view for mobile (ALL, COMPLETED, IN_PROGRESS, OBSTACLE, TOMORROW)
     const [activePillarTab, setActivePillarTab] = useState('ALL');
 
+    // Helper: Cek apakah task penugasan sudah ada di salah satu pilar laporan
+    const getReportPillarForTask = (task) => {
+        if (!task) return null;
+        const taskId = task.id;
+        const clean = (s) => (s || '')
+            .toLowerCase()
+            .replace(/\[penugasan:[^\]]*\]/gi, '')
+            .replace(/\[penugasan\]/gi, '')
+            .replace(/\[rencana[^\]]*\]/gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+        const nt = clean(task.title);
+
+        const checkIn = (arr) => Array.isArray(arr) && arr.some(item => {
+            if (item.sourceType === 'ASSIGNMENT' && String(item.sourceId) === String(taskId)) return true;
+            const ni = clean(item.title || item.text);
+            return nt && ni && (nt === ni || (nt.length > 8 && ni.length > 8 && (nt.includes(ni) || ni.includes(nt))));
+        });
+
+        if (checkIn(completedItems)) return 'COMPLETED';
+        if (checkIn(inProgressItems)) return 'IN_PROGRESS';
+        if (checkIn(obstacleItems)) return 'OBSTACLE';
+        if (checkIn(tomorrowPlans)) return 'TOMORROW';
+        return null;
+    };
+
+    // Helper: Cek apakah rencana kerja / langkah sudah ada di salah satu pilar laporan
+    const getReportPillarForPlanItem = (plan, subIndex = null) => {
+        if (!plan) return null;
+        const planId = plan.id;
+        const checkIn = (arr) => Array.isArray(arr) && arr.some(item => {
+            if (item.sourceId && String(item.sourceId) === String(planId)) {
+                if (subIndex !== null) {
+                    return item.planItemIndex === subIndex || item.projectItemIndex === subIndex;
+                }
+                return true;
+            }
+            return false;
+        });
+
+        if (checkIn(completedItems)) return 'COMPLETED';
+        if (checkIn(inProgressItems)) return 'IN_PROGRESS';
+        if (checkIn(obstacleItems)) return 'OBSTACLE';
+        if (checkIn(tomorrowPlans)) return 'TOMORROW';
+        return null;
+    };
+
     // Polish activity text with Gemini AI
     const handlePolishText = async (index, targetPillar = 'COMPLETED') => {
         let item = null;
@@ -642,13 +689,37 @@ const DailyReportFormTab = ({
                         <p className="text-xs text-slate-400 italic py-3 text-center">Tidak ada penugasan pimpinan yang aktif saat ini.</p>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                            {filteredAssignments.map(task => (
-                                <div key={task.id} className="p-3 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-2xl space-y-2 transition-all">
+                            {filteredAssignments.map(task => {
+                                const taskPillar = getReportPillarForTask(task);
+                                return (
+                                <div key={task.id} className={`p-3 bg-slate-50 hover:bg-blue-50/50 border rounded-2xl space-y-2 transition-all ${taskPillar === 'COMPLETED' ? 'border-emerald-300 bg-emerald-50/30' : (taskPillar === 'IN_PROGRESS' ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200/80')}`}>
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="space-y-0.5 flex-1 min-w-0">
-                                            <span className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded text-[9px] font-black uppercase">
-                                                {task.category || 'UMUM'}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded text-[9px] font-black uppercase">
+                                                    {task.category || 'UMUM'}
+                                                </span>
+                                                {taskPillar === 'COMPLETED' && (
+                                                    <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded text-[9px] font-black">
+                                                        ✓ Sudah di Selesai
+                                                    </span>
+                                                )}
+                                                {taskPillar === 'IN_PROGRESS' && (
+                                                    <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 rounded text-[9px] font-black">
+                                                        ⏳ Sudah On-Progress
+                                                    </span>
+                                                )}
+                                                {taskPillar === 'OBSTACLE' && (
+                                                    <span className="px-2 py-0.5 bg-rose-100 border border-rose-300 text-rose-800 rounded text-[9px] font-black">
+                                                        ⚠️ Sudah di Kendala
+                                                    </span>
+                                                )}
+                                                {taskPillar === 'TOMORROW' && (
+                                                    <span className="px-2 py-0.5 bg-indigo-100 border border-indigo-300 text-indigo-800 rounded text-[9px] font-black">
+                                                        📅 Sudah di Rencana
+                                                    </span>
+                                                )}
+                                            </div>
                                             <h5 className="text-xs font-bold text-slate-800 leading-snug line-clamp-1">{task.title}</h5>
                                             {task.description && <p className="text-[11px] text-slate-500 line-clamp-1">{task.description}</p>}
                                         </div>
@@ -664,7 +735,7 @@ const DailyReportFormTab = ({
                                             <button
                                                 type="button"
                                                 onClick={() => { convertTaskToReport(task, 'COMPLETED'); setShowTaskDrawer(false); }}
-                                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                className={`px-2 py-1 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${taskPillar === 'COMPLETED' ? 'bg-emerald-700 ring-2 ring-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                                                 title="Tarik ke Pekerjaan Selesai (100%)"
                                             >
                                                 🟢 Selesai
@@ -672,7 +743,7 @@ const DailyReportFormTab = ({
                                             <button
                                                 type="button"
                                                 onClick={() => { convertTaskToReport(task, 'IN_PROGRESS'); setShowTaskDrawer(false); }}
-                                                className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                className={`px-2 py-1 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${taskPillar === 'IN_PROGRESS' ? 'bg-amber-600 ring-2 ring-amber-400' : 'bg-amber-500 hover:bg-amber-600'}`}
                                                 title="Tarik ke Pekerjaan On-Progress"
                                             >
                                                 🟡 Proses
@@ -696,7 +767,8 @@ const DailyReportFormTab = ({
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -764,16 +836,40 @@ const DailyReportFormTab = ({
                                         {/* Sub-item langkah jika ada */}
                                         {items.length > 0 ? (
                                             <div className="space-y-1.5 pt-1.5 border-t border-slate-200/70">
-                                                {items.map((sub, sIdx) => (
-                                                    <div key={sIdx} className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-medium text-slate-700 truncate flex-1">
-                                                            {sIdx + 1}. {sub.activity || sub.text || sub.title}
-                                                        </span>
+                                                {items.map((sub, sIdx) => {
+                                                    const stepPillar = getReportPillarForPlanItem(plan, sIdx);
+                                                    return (
+                                                    <div key={sIdx} className={`p-2 bg-white rounded-xl border flex items-center justify-between gap-2 ${stepPillar === 'COMPLETED' ? 'border-emerald-300 bg-emerald-50/20' : (stepPillar === 'IN_PROGRESS' ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200')}`}>
+                                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                            <span className="text-[11px] font-medium text-slate-700 truncate">
+                                                                {sIdx + 1}. {sub.activity || sub.text || sub.title}
+                                                            </span>
+                                                            {stepPillar === 'COMPLETED' && (
+                                                                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-black shrink-0">
+                                                                    ✓ Selesai
+                                                                </span>
+                                                            )}
+                                                            {stepPillar === 'IN_PROGRESS' && (
+                                                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[9px] font-black shrink-0">
+                                                                    ⏳ On-Progress
+                                                                </span>
+                                                            )}
+                                                            {stepPillar === 'OBSTACLE' && (
+                                                                <span className="px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded text-[9px] font-black shrink-0">
+                                                                    ⚠️ Kendala
+                                                                </span>
+                                                            )}
+                                                            {stepPillar === 'TOMORROW' && (
+                                                                <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-black shrink-0">
+                                                                    📅 Rencana
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="flex items-center gap-1 shrink-0">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'COMPLETED'); setShowPlanDrawer(false); }}
-                                                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
+                                                                className={`px-2 py-0.5 text-white rounded text-[9px] font-bold transition-all cursor-pointer ${stepPillar === 'COMPLETED' ? 'bg-emerald-700 ring-1 ring-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                                                                 title="Tarik Langkah ke Selesai"
                                                             >
                                                                 🟢 Selesai
@@ -781,7 +877,7 @@ const DailyReportFormTab = ({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => { convertPlanItemToReport(plan, sub, sIdx, 'IN_PROGRESS'); setShowPlanDrawer(false); }}
-                                                                className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[9px] font-bold transition-all cursor-pointer"
+                                                                className={`px-2 py-0.5 text-white rounded text-[9px] font-bold transition-all cursor-pointer ${stepPillar === 'IN_PROGRESS' ? 'bg-amber-600 ring-1 ring-amber-400' : 'bg-amber-500 hover:bg-amber-600'}`}
                                                                 title="Tarik Langkah ke On-Progress"
                                                             >
                                                                 🟡 Proses
@@ -804,40 +900,52 @@ const DailyReportFormTab = ({
                                                             </button>
                                                         </div>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
-                                        ) : (
-                                            <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-200/60">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'COMPLETED'); setShowPlanDrawer(false); }}
-                                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                                                >
-                                                    🟢 Tarik Selesai
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'IN_PROGRESS'); setShowPlanDrawer(false); }}
-                                                    className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                                                >
-                                                    🟡 Tarik On-Progress
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'OBSTACLE'); setShowPlanDrawer(false); }}
-                                                    className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                                                >
-                                                    🔴 Tarik Kendala
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { convertPlanItemToReport(plan, null, null, 'TOMORROW'); setShowPlanDrawer(false); }}
-                                                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                                                >
-                                                    🟣 Tarik Rencana Besok
-                                                </button>
+                                        ) : (() => {
+                                            const planPillar = getReportPillarForPlanItem(plan, null);
+                                            return (
+                                            <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-200/60">
+                                                <div>
+                                                    {planPillar === 'COMPLETED' && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-black">✓ Sudah di Selesai</span>}
+                                                    {planPillar === 'IN_PROGRESS' && <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[9px] font-black">⏳ Sudah On-Progress</span>}
+                                                    {planPillar === 'OBSTACLE' && <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded text-[9px] font-black">⚠️ Sudah di Kendala</span>}
+                                                    {planPillar === 'TOMORROW' && <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-black">📅 Sudah di Rencana</span>}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { convertPlanItemToReport(plan, null, null, 'COMPLETED'); setShowPlanDrawer(false); }}
+                                                        className={`px-2 py-1 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer ${planPillar === 'COMPLETED' ? 'bg-emerald-700 ring-2 ring-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                                                    >
+                                                        🟢 Tarik Selesai
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { convertPlanItemToReport(plan, null, null, 'IN_PROGRESS'); setShowPlanDrawer(false); }}
+                                                        className={`px-2 py-1 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer ${planPillar === 'IN_PROGRESS' ? 'bg-amber-600 ring-2 ring-amber-400' : 'bg-amber-500 hover:bg-amber-600'}`}
+                                                    >
+                                                        🟡 Tarik On-Progress
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { convertPlanItemToReport(plan, null, null, 'OBSTACLE'); setShowPlanDrawer(false); }}
+                                                        className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                    >
+                                                        🔴 Tarik Kendala
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { convertPlanItemToReport(plan, null, null, 'TOMORROW'); setShowPlanDrawer(false); }}
+                                                        className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                                    >
+                                                        🟣 Tarik Rencana Besok
+                                                    </button>
+                                                </div>
                                             </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 );
                             })}

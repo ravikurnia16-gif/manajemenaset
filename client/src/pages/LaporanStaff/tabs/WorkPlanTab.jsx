@@ -1802,25 +1802,6 @@ export default function WorkPlanTab({
                                                 </>
                                             )}
                                         </button>
-                                        <button
-                                            type="button"
-                                            disabled={loadingAiBreakdown}
-                                            onClick={handleAiBreakdown}
-                                            className="px-2.5 py-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow-xs shadow-violet-600/25 active:scale-95 cursor-pointer disabled:opacity-50"
-                                            title="Gunakan Google Gemini untuk merinci langkah kerja secara logis & otomatis"
-                                        >
-                                            {loadingAiBreakdown ? (
-                                                <>
-                                                    <RotateCcw size={12} className="animate-spin" />
-                                                    <span>AI Sedang Merinci...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles size={12} className="text-amber-300 fill-amber-300" />
-                                                    <span>AI Rinci Langkah Otomatis</span>
-                                                </>
-                                            )}
-                                        </button>
                                     </div>
                                 </div>
                                 <input
@@ -1960,7 +1941,7 @@ export default function WorkPlanTab({
                                             Belum ada point langkah ditambahkan (Rencana Mandiri).
                                         </p>
                                         <p className="text-[11px] text-slate-400">
-                                            Gunakan tombol <span className="font-bold text-violet-600">"✨ AI Rinci Langkah Otomatis"</span>, <span className="font-bold text-emerald-600">"📁 Tarik dari Project"</span>, atau klik <span className="font-bold text-violet-600">"+ Tambah Langkah"</span> di atas.
+                                            Gunakan tombol <span className="font-bold text-emerald-600">"📁 Tarik dari Project"</span> atau klik <span className="font-bold text-violet-600">"+ Tambah Langkah"</span> di atas.
                                         </p>
                                     </div>
                                 ) : (

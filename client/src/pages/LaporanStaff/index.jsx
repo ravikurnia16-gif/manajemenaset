@@ -650,16 +650,61 @@ const LaporanStaff = () => {
             const validObstacles = hasObstacle ? obstacleItems.filter(o => (o.title && o.title.trim()) || (o.obstacleNote && o.obstacleNote.trim())) : [];
             const validTomorrow = tomorrowPlans.filter(t => t.title && t.title.trim());
 
-            if (validCompleted.length === 0 && validInProgress.length === 0 && validObstacles.length === 0) {
+            // De-duplicate completed items
+            const dedupCompleted = [];
+            for (const item of validCompleted) {
+                if (!dedupCompleted.some(existing => isSamePppItem(existing, item))) {
+                    dedupCompleted.push(item);
+                }
+            }
+
+            // De-duplicate in-progress items and ensure mutually exclusive from completed
+            const dedupInProgress = [];
+            for (const item of validInProgress) {
+                const inCompleted = dedupCompleted.some(comp => isSamePppItem(comp, item));
+                const alreadyAdded = dedupInProgress.some(existing => isSamePppItem(existing, item));
+                if (!inCompleted && !alreadyAdded) {
+                    dedupInProgress.push(item);
+                }
+            }
+
+            // De-duplicate obstacles and ensure mutually exclusive from completed & in-progress
+            const dedupObstacles = [];
+            for (const item of validObstacles) {
+                const inCompleted = dedupCompleted.some(comp => isSamePppItem(comp, item));
+                const inProgress = dedupInProgress.some(prog => isSamePppItem(prog, item));
+                const alreadyAdded = dedupObstacles.some(existing => isSamePppItem(existing, item));
+                if (!inCompleted && !inProgress && !alreadyAdded) {
+                    dedupObstacles.push(item);
+                }
+            }
+
+            // De-duplicate tomorrow plans and ensure completed items aren't planned again unless explicitly specified
+            const dedupTomorrow = [];
+            for (const item of validTomorrow) {
+                const inCompleted = dedupCompleted.some(comp => isSamePppItem(comp, item));
+                const alreadyAdded = dedupTomorrow.some(existing => isSamePppItem(existing, item));
+                if (!inCompleted && !alreadyAdded) {
+                    dedupTomorrow.push(item);
+                }
+            }
+
+            if (dedupCompleted.length === 0 && dedupInProgress.length === 0 && dedupObstacles.length === 0) {
                 alert('Mohon isi minimal satu butir pekerjaan hari ini (Pekerjaan Selesai, Dalam Proses, atau Kendala).');
                 return;
             }
+
+            // Perbarui state lokal jika ada pembersihan duplikat
+            if (dedupCompleted.length !== completedItems.length) setCompletedItems(dedupCompleted);
+            if (dedupInProgress.length !== inProgressItems.length) setInProgressItems(dedupInProgress);
+            if (dedupObstacles.length !== obstacleItems.length) setObstacleItems(dedupObstacles);
+            if (dedupTomorrow.length !== tomorrowPlans.length) setTomorrowPlans(dedupTomorrow);
 
             setSaving(true);
 
             // Petakan ke manualPoints agar sistem lama (PDF, Monitoring, AI, Export) tetap 100% kompatibel
             const morningPoints = [
-                ...validCompleted.map(c => ({
+                ...dedupCompleted.map(c => ({
                     text: c.title,
                     output: c.output || '',
                     categoryTag: c.categoryTag || userDivision || 'UMUM',
@@ -673,7 +718,7 @@ const LaporanStaff = () => {
                     projectItemIndex: c.projectItemIndex,
                     isRoutine: !!c.isRoutine
                 })),
-                ...validObstacles.map(o => ({
+                ...dedupObstacles.map(o => ({
                     text: o.title || 'Kendala Lapangan',
                     categoryTag: o.categoryTag || userDivision || 'UMUM',
                     status: 'OBSTACLE',
@@ -683,7 +728,7 @@ const LaporanStaff = () => {
                 }))
             ];
 
-            const afternoonPoints = validInProgress.map(p => ({
+            const afternoonPoints = dedupInProgress.map(p => ({
                 text: p.title,
                 categoryTag: p.categoryTag || userDivision || 'UMUM',
                 status: 'IN_PROGRESS',
@@ -700,10 +745,10 @@ const LaporanStaff = () => {
             const res = await api.post('/laporan/my', {
                 targetDate: selectedDate,
                 category: userDivision || 'UMUM',
-                completedItems: validCompleted,
-                inProgressItems: validInProgress,
-                obstacleItems: validObstacles,
-                tomorrowPlans: validTomorrow,
+                completedItems: dedupCompleted,
+                inProgressItems: dedupInProgress,
+                obstacleItems: dedupObstacles,
+                tomorrowPlans: dedupTomorrow,
                 manualPoints: {
                     morning: morningPoints.length > 0 ? morningPoints : [{ text: 'Pekerjaan Selesai', status: 'COMPLETED' }],
                     afternoon: afternoonPoints
@@ -787,42 +832,84 @@ const LaporanStaff = () => {
         }
     };
 
+    // Helper: Periksa apakah 2 item PPP merujuk ke tugas/pekerjaan yang sama
+    const isSamePppItem = (a, b) => {
+        if (!a || !b) return false;
+        // 1. Cek kecocokan sumber data (sourceType & sourceId)
+        if (a.sourceType && b.sourceType && a.sourceType === b.sourceType) {
+            if (a.sourceId && b.sourceId && String(a.sourceId) === String(b.sourceId)) {
+                if (a.planItemIndex !== undefined && a.planItemIndex !== null &&
+                    b.planItemIndex !== undefined && b.planItemIndex !== null) {
+                    return Number(a.planItemIndex) === Number(b.planItemIndex);
+                }
+                return true;
+            }
+        }
+        // 2. Cek kecocokan teks judul yang dinormalisasi
+        const clean = (s) => (s || '')
+            .toLowerCase()
+            .replace(/\[penugasan:[^\]]*\]/gi, '')
+            .replace(/\[penugasan\]/gi, '')
+            .replace(/\[rencana[^\]]*\]/gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+        const na = clean(a.title || a.text);
+        const nb = clean(b.title || b.text);
+        if (na && nb) {
+            if (na === nb) return true;
+            if (na.length > 8 && nb.length > 8 && (na.includes(nb) || nb.includes(na))) return true;
+        }
+        return false;
+    };
+
     const applyRoutine = (routineText, categoryKey, targetPillar = 'COMPLETED') => {
         const cat = categoryKey || userDivision || 'UMUM';
+        const candidate = { title: routineText, isRoutine: true };
+
         if (targetPillar === 'COMPLETED') {
+            const newItem = {
+                title: routineText,
+                output: 'Tuntas dilaksanakan sesuai SOP.',
+                categoryTag: cat,
+                isRoutine: true,
+                photos: []
+            };
             setCompletedItems(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim() && (!prev[0].photos || prev[0].photos.length === 0);
-                const newItem = {
-                    title: routineText,
-                    output: 'Tuntas dilaksanakan sesuai SOP.',
-                    categoryTag: cat,
-                    isRoutine: true,
-                    photos: []
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+                const filtered = prev.filter(p => (p.title?.trim() || p.photos?.length > 0) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            // Bersihkan dari pilar On-Progress & Rencana Besok agar tidak ganda
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         } else if (targetPillar === 'IN_PROGRESS') {
-            setInProgressItems(prev => [
-                ...prev,
-                {
-                    title: routineText,
-                    progressPercentage: 50,
-                    targetDate: 'Hari ini',
-                    categoryTag: cat,
-                    isRoutine: true,
-                    photos: []
-                }
-            ]);
-        } else if (targetPillar === 'TOMORROW') {
-            setTomorrowPlans(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim();
-                const newItem = {
-                    title: routineText,
-                    categoryTag: cat,
-                    priority: 'SEDANG'
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+            const newItem = {
+                title: routineText,
+                progressPercentage: 50,
+                targetDate: 'Hari ini',
+                categoryTag: cat,
+                isRoutine: true,
+                photos: []
+            };
+            setInProgressItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.photos?.length > 0) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            // Bersihkan dari pilar Selesai & Rencana Besok agar tidak ganda
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else if (targetPillar === 'TOMORROW') {
+            const newItem = {
+                title: routineText,
+                categoryTag: cat,
+                priority: 'SEDANG',
+                isRoutine: true
+            };
+            setTomorrowPlans(prev => {
+                const filtered = prev.filter(p => p.title?.trim() && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         }
     };
 
@@ -831,60 +918,82 @@ const LaporanStaff = () => {
         const taskTitle = `[Penugasan: ${task.title}] ${task.description || ''}`.trim();
         const isDone = task.progressPercentage === 100 || targetPillar === 'COMPLETED';
 
+        const candidate = {
+            sourceType: 'ASSIGNMENT',
+            sourceId: task.id,
+            title: taskTitle
+        };
+
         if (targetPillar === 'OBSTACLE') {
             setHasObstacle(true);
+            const newItem = {
+                title: `[Penugasan] ${task.title}`.trim(),
+                obstacleNote: '',
+                actionPlan: '',
+                categoryTag: cat,
+                sourceType: 'ASSIGNMENT',
+                sourceId: task.id,
+                photos: []
+            };
             setObstacleItems(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim() && !prev[0].obstacleNote.trim();
-                const newItem = {
-                    title: `[Penugasan] ${task.title}`.trim(),
-                    obstacleNote: '',
-                    actionPlan: '',
-                    categoryTag: cat,
-                    sourceType: 'ASSIGNMENT',
-                    sourceId: task.id,
-                    photos: []
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+                const filtered = prev.filter(p => (p.title?.trim() || p.obstacleNote?.trim()) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            // Bersihkan dari pilar lain agar tidak double input
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         } else if (targetPillar === 'TOMORROW') {
             const isFri = dayjs(selectedDate).day() === 5;
+            const newItem = {
+                title: isFri ? `Rencana pekan depan: ${task.title}` : `Menyelesaikan penugasan: ${task.title}`,
+                categoryTag: cat,
+                priority: task.priority || 'TINGGI',
+                sourceType: 'ASSIGNMENT',
+                sourceId: task.id
+            };
             setTomorrowPlans(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim();
-                const newItem = {
-                    title: isFri ? `Rencana pekan depan: ${task.title}` : `Menyelesaikan penugasan: ${task.title}`,
-                    categoryTag: cat,
-                    priority: task.priority || 'TINGGI',
-                    sourceType: 'ASSIGNMENT',
-                    sourceId: task.id
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+                const filtered = prev.filter(p => p.title?.trim() && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         } else if (isDone && targetPillar !== 'IN_PROGRESS') {
+            const newItem = {
+                title: taskTitle,
+                output: task.targetOutput || 'Tugas selesai dilaksanakan 100%.',
+                categoryTag: cat,
+                sourceType: 'ASSIGNMENT',
+                sourceId: task.id,
+                photos: []
+            };
             setCompletedItems(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim() && (!prev[0].photos || prev[0].photos.length === 0);
-                const newItem = {
-                    title: taskTitle,
-                    output: task.targetOutput || 'Tugas selesai dilaksanakan 100%.',
-                    categoryTag: cat,
-                    sourceType: 'ASSIGNMENT',
-                    sourceId: task.id,
-                    photos: []
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+                const filtered = prev.filter(p => (p.title?.trim() || (p.photos && p.photos.length > 0)) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            // KRUSIAL: Hapus dari On-Progress jika ditarik ke Selesai
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         } else {
-            setInProgressItems(prev => [
-                ...prev,
-                {
-                    title: taskTitle,
-                    progressPercentage: task.progressPercentage || 50,
-                    targetDate: task.dueDate ? dayjs(task.dueDate).format('YYYY-MM-DD') : 'Hari ini',
-                    categoryTag: cat,
-                    sourceType: 'ASSIGNMENT',
-                    sourceId: task.id,
-                    photos: []
-                }
-            ]);
+            const newItem = {
+                title: taskTitle,
+                progressPercentage: task.progressPercentage || 50,
+                targetDate: task.dueDate ? dayjs(task.dueDate).format('YYYY-MM-DD') : 'Hari ini',
+                categoryTag: cat,
+                sourceType: 'ASSIGNMENT',
+                sourceId: task.id,
+                photos: []
+            };
+            setInProgressItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || (p.photos && p.photos.length > 0)) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            // KRUSIAL: Hapus dari Selesai jika dipindahkan ke On-Progress
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         }
         setActiveTab('laporan');
     };
@@ -916,69 +1025,91 @@ const LaporanStaff = () => {
         const isProject = !!plan.metadata?.isProject || plan.metadata?.planType === 'PROJECT';
         const cat = plan.metadata?.categoryTag || plan.category || userDivision || 'UMUM';
 
+        const candidate = {
+            sourceType: isProject ? 'PROJECT' : 'PLAN',
+            sourceId: plan.id,
+            planItemIndex: isSingleGoal ? null : itemIndex,
+            title: formattedTitle
+        };
+
         if (targetPillar === 'OBSTACLE') {
             setHasObstacle(true);
+            const newItem = {
+                title: formattedTitle,
+                obstacleNote: '',
+                actionPlan: '',
+                categoryTag: cat,
+                sourceType: isProject ? 'PROJECT' : 'PLAN',
+                sourceId: plan.id,
+                planItemIndex: isSingleGoal ? null : itemIndex,
+                projectId: item?.projectId || (isProject ? plan.id : null),
+                projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
+                photos: resolvedPhotos
+            };
             setObstacleItems(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim() && !prev[0].obstacleNote.trim();
-                const newItem = {
-                    title: formattedTitle,
-                    obstacleNote: '',
-                    actionPlan: '',
-                    categoryTag: cat,
-                    sourceType: isProject ? 'PROJECT' : 'PLAN',
-                    sourceId: plan.id,
-                    planItemIndex: isSingleGoal ? null : itemIndex,
-                    projectId: item?.projectId || (isProject ? plan.id : null),
-                    projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
-                    photos: resolvedPhotos
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+                const filtered = prev.filter(p => (p.title?.trim() || p.obstacleNote?.trim()) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         } else if (targetPillar === 'TOMORROW') {
+            const newItem = {
+                title: formattedTitle,
+                categoryTag: cat,
+                priority: plan.metadata?.priority || 'SEDANG',
+                sourceType: isProject ? 'PROJECT' : 'PLAN',
+                sourceId: plan.id,
+                planItemIndex: isSingleGoal ? null : itemIndex
+            };
             setTomorrowPlans(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim();
-                const newItem = {
-                    title: formattedTitle,
-                    categoryTag: cat,
-                    priority: plan.metadata?.priority || 'SEDANG',
-                    sourceType: isProject ? 'PROJECT' : 'PLAN',
-                    sourceId: plan.id,
-                    planItemIndex: isSingleGoal ? null : itemIndex
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+                const filtered = prev.filter(p => p.title?.trim() && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         } else if (targetPillar === 'IN_PROGRESS' || (!isDone && targetPillar !== 'COMPLETED')) {
-            setInProgressItems(prev => [
-                ...prev,
-                {
-                    title: formattedTitle,
-                    progressPercentage: pct,
-                    targetDate: item?.targetDate || 'Hari kerja berikutnya',
-                    categoryTag: cat,
-                    sourceType: isProject ? 'PROJECT' : 'PLAN',
-                    sourceId: plan.id,
-                    planItemIndex: isSingleGoal ? null : itemIndex,
-                    projectId: item?.projectId || (isProject ? plan.id : null),
-                    projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
-                    photos: resolvedPhotos
-                }
-            ]);
-        } else {
-            setCompletedItems(prev => {
-                const isClean = prev.length === 1 && !prev[0].title.trim() && (!prev[0].photos || prev[0].photos.length === 0);
-                const newItem = {
-                    title: formattedTitle,
-                    output: plan.metadata?.targetOutput || 'Tuntas dilaksanakan sesuai target jadwal.',
-                    categoryTag: cat,
-                    sourceType: isProject ? 'PROJECT' : 'PLAN',
-                    sourceId: plan.id,
-                    planItemIndex: isSingleGoal ? null : itemIndex,
-                    projectId: item?.projectId || (isProject ? plan.id : null),
-                    projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
-                    photos: resolvedPhotos
-                };
-                return isClean ? [newItem] : [...prev, newItem];
+            const newItem = {
+                title: formattedTitle,
+                progressPercentage: pct,
+                targetDate: item?.targetDate || 'Hari kerja berikutnya',
+                categoryTag: cat,
+                sourceType: isProject ? 'PROJECT' : 'PLAN',
+                sourceId: plan.id,
+                planItemIndex: isSingleGoal ? null : itemIndex,
+                projectId: item?.projectId || (isProject ? plan.id : null),
+                projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
+                photos: resolvedPhotos
+            };
+            setInProgressItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || (p.photos && p.photos.length > 0)) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
             });
+            // Hapus dari Selesai jika dipindahkan ke On-Progress
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else {
+            const newItem = {
+                title: formattedTitle,
+                output: plan.metadata?.targetOutput || 'Tuntas dilaksanakan sesuai target jadwal.',
+                categoryTag: cat,
+                sourceType: isProject ? 'PROJECT' : 'PLAN',
+                sourceId: plan.id,
+                planItemIndex: isSingleGoal ? null : itemIndex,
+                projectId: item?.projectId || (isProject ? plan.id : null),
+                projectItemIndex: item?.projectItemIndex !== undefined ? item.projectItemIndex : (isProject ? itemIndex : null),
+                photos: resolvedPhotos
+            };
+            setCompletedItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || (p.photos && p.photos.length > 0)) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            // KRUSIAL: Hapus dari InProgress jika ditarik ke Completed!
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
         }
         setActiveTab('laporan');
     };

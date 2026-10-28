@@ -89,6 +89,33 @@ const DailyReportPppModal = ({
         rawAssignments.filter(a => a.status === 'COMPLETED' || (a.progressPercentage !== undefined && a.progressPercentage >= 100)).length +
         rawPlans.filter(p => p.isDone || p.status === 'SELESAI' || (p.avgPct !== undefined && p.avgPct >= 100)).length;
 
+    const isSameModalItem = (a, b) => {
+        if (!a || !b) return false;
+        if (a.planRefId && b.planRefId && a.planRefId === b.planRefId) return true;
+        if (a.sourceType && b.sourceType && a.sourceId && b.sourceId) {
+            if (a.sourceType === b.sourceType && String(a.sourceId) === String(b.sourceId)) {
+                if (a.planItemIndex !== undefined && a.planItemIndex !== null && b.planItemIndex !== undefined && b.planItemIndex !== null) {
+                    return a.planItemIndex === b.planItemIndex;
+                }
+                return true;
+            }
+        }
+        const clean = (s) => (s || '')
+            .toLowerCase()
+            .replace(/\[penugasan:[^\]]*\]/gi, '')
+            .replace(/\[penugasan\]/gi, '')
+            .replace(/\[rencana[^\]]*\]/gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+        const na = clean(a.title);
+        const nb = clean(b.title);
+        if (na && nb) {
+            if (na === nb) return true;
+            if (na.length > 8 && nb.length > 8 && (na.includes(nb) || nb.includes(na))) return true;
+        }
+        return false;
+    };
+
     // Helper: Tarik Cepat Item atau Sub-Item Langkah ke salah satu dari 4 Pilar
     const handlePullItem = (item, type = 'PLAN', targetPillar = 'COMPLETED', subItemIndex = null, subItemTitle = null) => {
         const itemKey = subItemIndex !== null ? `${type}-${item.id}-step-${subItemIndex}` : `${type}-${item.id}`;
@@ -99,89 +126,125 @@ const DailyReportPppModal = ({
         const linkedProjectId = subItem?.projectId || (isProject ? item.id : null);
         const linkedProjectItemIndex = subItem?.projectItemIndex !== undefined ? subItem.projectItemIndex : (isProject ? subItemIndex : null);
 
+        const candidate = {
+            title: titleText,
+            sourceType: isProject ? 'PROJECT' : type,
+            sourceId,
+            planItemIndex: subItemIndex,
+            planRefId: itemKey
+        };
+
         // Tandai status tarikan
         setPulledMap(prev => ({ ...prev, [itemKey]: targetPillar }));
 
         if (targetPillar === 'COMPLETED') {
+            const newItem = {
+                title: titleText,
+                output: item.targetOutput || 'Tuntas dilaksanakan sesuai target jadwal.',
+                categoryTag: 'UMUM',
+                isPlanned: true,
+                sourceType: isProject ? 'PROJECT' : type,
+                sourceId,
+                planItemIndex: subItemIndex,
+                projectId: linkedProjectId,
+                projectItemIndex: linkedProjectItemIndex,
+                planRefId: itemKey
+            };
             setCompletedItems(prev => {
-                const cleaned = prev.filter(i => i.title.trim());
-                if (cleaned.some(i => i.planRefId === itemKey)) return prev;
-                return [
-                    ...cleaned,
-                    {
-                        title: titleText,
-                        output: item.targetOutput || 'Tuntas dilaksanakan sesuai target jadwal.',
-                        categoryTag: 'UMUM',
-                        isPlanned: true,
-                        sourceType: isProject ? 'PROJECT' : type,
-                        sourceId,
-                        planItemIndex: subItemIndex,
-                        projectId: linkedProjectId,
-                        projectItemIndex: linkedProjectItemIndex,
-                        planRefId: itemKey
-                    }
-                ];
+                const cleaned = prev.filter(i => i.title?.trim() && !isSameModalItem(i, candidate));
+                return [...cleaned, newItem];
             });
+            // Bersihkan dari On-Progress & Rencana Besok agar tidak double input
+            setInProgressItems(prev => prev.filter(i => !isSameModalItem(i, candidate)));
+            setTomorrowPlans(prev => prev.filter(i => !isSameModalItem(i, candidate)));
         } else if (targetPillar === 'IN_PROGRESS') {
+            const newItem = {
+                title: titleText,
+                progressPercentage: item.progressPercentage || 50,
+                targetDate: 'Hari kerja berikutnya',
+                categoryTag: 'UMUM',
+                isPlanned: true,
+                sourceType: isProject ? 'PROJECT' : type,
+                sourceId,
+                planItemIndex: subItemIndex,
+                projectId: linkedProjectId,
+                projectItemIndex: linkedProjectItemIndex,
+                planRefId: itemKey
+            };
             setInProgressItems(prev => {
-                const cleaned = prev.filter(i => i.title.trim());
-                if (cleaned.some(i => i.planRefId === itemKey)) return prev;
-                return [
-                    ...cleaned,
-                    {
-                        title: titleText,
-                        progressPercentage: item.progressPercentage || 50,
-                        targetDate: 'Hari kerja berikutnya',
-                        categoryTag: 'UMUM',
-                        isPlanned: true,
-                        sourceType: isProject ? 'PROJECT' : type,
-                        sourceId,
-                        planItemIndex: subItemIndex,
-                        projectId: linkedProjectId,
-                        projectItemIndex: linkedProjectItemIndex,
-                        planRefId: itemKey
-                    }
-                ];
+                const cleaned = prev.filter(i => i.title?.trim() && !isSameModalItem(i, candidate));
+                return [...cleaned, newItem];
             });
+            // Bersihkan dari Selesai & Rencana Besok agar tidak double input
+            setCompletedItems(prev => prev.filter(i => !isSameModalItem(i, candidate)));
+            setTomorrowPlans(prev => prev.filter(i => !isSameModalItem(i, candidate)));
         } else if (targetPillar === 'OBSTACLE') {
             setHasObstacle(true);
             setObstacleTaskTitle(titleText);
+            setCompletedItems(prev => prev.filter(i => !isSameModalItem(i, candidate)));
+            setInProgressItems(prev => prev.filter(i => !isSameModalItem(i, candidate)));
+            setTomorrowPlans(prev => prev.filter(i => !isSameModalItem(i, candidate)));
         } else if (targetPillar === 'TOMORROW') {
+            const newItem = {
+                title: titleText,
+                categoryTag: 'UMUM',
+                priority: item.priority || 'SEDANG',
+                sourceType: isProject ? 'PROJECT' : type,
+                sourceId,
+                planItemIndex: subItemIndex,
+                projectId: linkedProjectId,
+                projectItemIndex: linkedProjectItemIndex,
+                planRefId: itemKey
+            };
             setTomorrowPlans(prev => {
-                const cleaned = prev.filter(i => i.title.trim());
-                if (cleaned.some(i => i.planRefId === itemKey)) return prev;
-                return [
-                    ...cleaned,
-                    {
-                        title: titleText,
-                        categoryTag: 'UMUM',
-                        priority: item.priority || 'SEDANG',
-                        sourceType: isProject ? 'PROJECT' : type,
-                        sourceId,
-                        planItemIndex: subItemIndex,
-                        projectId: linkedProjectId,
-                        projectItemIndex: linkedProjectItemIndex,
-                        planRefId: itemKey
-                    }
-                ];
+                const cleaned = prev.filter(i => i.title?.trim() && !isSameModalItem(i, candidate));
+                return [...cleaned, newItem];
             });
+            setCompletedItems(prev => prev.filter(i => !isSameModalItem(i, candidate)));
+            setInProgressItems(prev => prev.filter(i => !isSameModalItem(i, candidate)));
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const validCompleted = completedItems.filter(i => i.title.trim());
-        const validInProgress = inProgressItems.filter(i => i.title.trim());
+        const validCompleted = completedItems.filter(i => i.title && i.title.trim());
+        const validInProgress = inProgressItems.filter(i => i.title && i.title.trim());
         const validTomorrowPlans = tomorrowPlans.filter(i => i.title && i.title.trim());
 
-        if (validCompleted.length === 0 && validInProgress.length === 0 && !hasObstacle) {
+        // Deduplikasi dan pastikan mutually exclusive antar pilar
+        const dedupCompleted = [];
+        for (const item of validCompleted) {
+            if (!dedupCompleted.some(existing => isSameModalItem(existing, item))) {
+                dedupCompleted.push(item);
+            }
+        }
+
+        const dedupInProgress = [];
+        for (const item of validInProgress) {
+            const inCompleted = dedupCompleted.some(comp => isSameModalItem(comp, item));
+            const alreadyAdded = dedupInProgress.some(existing => isSameModalItem(existing, item));
+            if (!inCompleted && !alreadyAdded) {
+                dedupInProgress.push(item);
+            }
+        }
+
+        const dedupTomorrowPlans = [];
+        for (const item of validTomorrowPlans) {
+            const inCompleted = dedupCompleted.some(comp => isSameModalItem(comp, item));
+            const alreadyAdded = dedupTomorrowPlans.some(existing => isSameModalItem(existing, item));
+            if (!inCompleted && !alreadyAdded) {
+                dedupTomorrowPlans.push(item);
+            }
+        }
+
+        if (dedupCompleted.length === 0 && dedupInProgress.length === 0 && !hasObstacle) {
             alert('Mohon isi minimal satu butir pekerjaan hari ini (Selesai, Dalam Proses, atau Kendala).');
             return;
         }
 
         // Kewajiban Staf: Wajib membuat rencana kerja besok / pekan depan
         const isFri = dayjs(reportDate).day() === 5;
-        if (validTomorrowPlans.length === 0) {
+        if (dedupTomorrowPlans.length === 0) {
             alert(`⚠️ KEWAJIBAN STAF:\nMohon isi minimal 1 butir pada bagian "${isFri ? 'D. Rencana Pekerjaan Pekan Depan' : 'D. Rencana Kerja Besok'}" agar tugas Anda terencana dan otomatis terlacak pada hari berikutnya.`);
             return;
         }
@@ -199,10 +262,10 @@ const DailyReportPppModal = ({
                 userId: parseInt(selectedStaffId),
                 date: reportDate,
                 category: 'UMUM',
-                completedItems: validCompleted,
-                inProgressItems: validInProgress,
+                completedItems: dedupCompleted,
+                inProgressItems: dedupInProgress,
                 obstacleItems,
-                tomorrowPlans: validTomorrowPlans
+                tomorrowPlans: dedupTomorrowPlans
             });
 
             if (res.data.success) {

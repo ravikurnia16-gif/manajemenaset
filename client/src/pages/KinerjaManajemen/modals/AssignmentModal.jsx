@@ -371,25 +371,6 @@ const AssignmentModal = ({
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
-                                    disabled={loadingAi}
-                                    onClick={handleAiBreakdown}
-                                    className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95 cursor-pointer disabled:opacity-50"
-                                    title="Gunakan AI untuk membuat rincian butir pekerjaan otomatis"
-                                >
-                                    {loadingAi ? (
-                                        <>
-                                            <Loader2 size={12} className="animate-spin" />
-                                            <span>Merinci...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles size={12} className="text-amber-300 fill-amber-300" />
-                                            <span>Rinci dg AI</span>
-                                        </>
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
                                     onClick={handleAddItem}
                                     className="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                                 >

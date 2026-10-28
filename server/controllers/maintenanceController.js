@@ -41,6 +41,12 @@ const syncMaintenanceToAssignment = async (report, techUser, assignerUser = null
 
         const category = (techUser.position || '').toLowerCase().includes('teknisi') ? 'TEKNISI' : 'UMUM';
 
+        const meta = report.aiDiagnosis || {};
+        const startDate = meta.estimatedStartDate ? new Date(meta.estimatedStartDate) : null;
+        const dueDate = meta.estimatedCompletionDate 
+            ? new Date(meta.estimatedCompletionDate) 
+            : (report.completionDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+
         if (existingAssignment) {
             await prisma.personnelAssignment.update({
                 where: { id: existingAssignment.id },
@@ -51,6 +57,8 @@ const syncMaintenanceToAssignment = async (report, techUser, assignerUser = null
                     category,
                     priority: ['EMERGENCY', 'URGENT'].includes(report.urgency) ? 'HIGH' : 'MEDIUM',
                     status: 'PENDING',
+                    startDate,
+                    dueDate,
                     notes: notesData
                 }
             });
@@ -65,7 +73,8 @@ const syncMaintenanceToAssignment = async (report, techUser, assignerUser = null
                     priority: ['EMERGENCY', 'URGENT'].includes(report.urgency) ? 'HIGH' : 'MEDIUM',
                     status: 'PENDING',
                     progressPercentage: 0,
-                    dueDate: report.completionDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                    startDate,
+                    dueDate,
                     notes: notesData
                 }
             });
@@ -909,7 +918,24 @@ exports.addMedia = async (req, res) => {
 // Update Status (Workflow Transitions)
 exports.updateStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, technicianId, progressPercentage, actionTaken, completionNote, cost, costDetails, assetActions } = req.body;
+    const { 
+        status, 
+        approvalNote, 
+        validationNote, 
+        rejectionReason, 
+        technician, 
+        technicianPhone, 
+        technicianId, 
+        progressPercentage, 
+        actionTaken, 
+        completionNote, 
+        cost, 
+        costDetails, 
+        assetActions,
+        estimatedStartDate,
+        estimatedCompletionDate,
+        estimationNote
+    } = req.body;
 
     try {
         const oldReport = await prisma.maintenance.findUnique({ 
@@ -918,7 +944,7 @@ exports.updateStatus = async (req, res) => {
         });
         if (!oldReport) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
 
-        const updateData = { status };
+        const updateData = { status: status || oldReport.status };
         if (approvalNote) updateData.approvalNote = approvalNote;
         if (validationNote) updateData.validationNote = validationNote;
         if (rejectionReason) updateData.rejectionReason = rejectionReason;
@@ -932,7 +958,7 @@ exports.updateStatus = async (req, res) => {
             updateData.quickToken = null; // Clear token after use
         }
 
-        // Process assetActions (Tindakan per-aset / massal per kelompok)
+        // Process assetActions and metadata
         let metadata = oldReport.aiDiagnosis || {};
         if (typeof metadata !== 'object' || Array.isArray(metadata) || !metadata) {
             metadata = {};
@@ -946,6 +972,18 @@ exports.updateStatus = async (req, res) => {
         } else if (status === 'COMPLETED') {
             metadata.progressPercentage = 100;
         }
+
+        // Technician schedule estimation
+        if (estimatedStartDate !== undefined) {
+            metadata.estimatedStartDate = estimatedStartDate ? new Date(estimatedStartDate).toISOString() : null;
+        }
+        if (estimatedCompletionDate !== undefined) {
+            metadata.estimatedCompletionDate = estimatedCompletionDate ? new Date(estimatedCompletionDate).toISOString() : null;
+        }
+        if (estimationNote !== undefined) {
+            metadata.estimationNote = estimationNote ? estimationNote.trim() : '';
+        }
+        updateData.aiDiagnosis = metadata;
 
         const completedAssetIds = new Set(Array.isArray(metadata.completedAssets) ? metadata.completedAssets : []);
         const newlyCompletedAssetIds = [];
@@ -1117,6 +1155,41 @@ exports.updateStatus = async (req, res) => {
                 await updateLinkedAssignmentProgress(report, status, finalPct);
             } catch (e) {
                 console.error('[Maintenance] Auto-sync to assignment error:', e);
+            }
+        }
+
+        // Auto-sync estimation schedule to Tab Penugasan & record timeline message
+        if (estimatedStartDate || estimatedCompletionDate) {
+            try {
+                const assignmentUpdate = {};
+                if (estimatedStartDate) assignmentUpdate.startDate = new Date(estimatedStartDate);
+                if (estimatedCompletionDate) assignmentUpdate.dueDate = new Date(estimatedCompletionDate);
+                if (Object.keys(assignmentUpdate).length > 0) {
+                    await prisma.personnelAssignment.updateMany({
+                        where: {
+                            OR: [
+                                { notes: { contains: `"maintenanceId":${report.id}` } },
+                                { title: { contains: report.code } }
+                            ]
+                        },
+                        data: assignmentUpdate
+                    });
+                }
+
+                // Add timeline message to discussion/progress
+                const startStr = estimatedStartDate ? dayjs(estimatedStartDate).format('DD/MM/YYYY HH:mm') : '-';
+                const endStr = estimatedCompletionDate ? dayjs(estimatedCompletionDate).format('DD/MM/YYYY') : '-';
+                const techDisplayName = techUser?.name || report.technician || req.user?.name || 'Teknisi';
+                const noteText = estimationNote ? ` (${estimationNote.trim()})` : '';
+                await prisma.maintenanceProgress.create({
+                    data: {
+                        maintenanceId: parseInt(id),
+                        userId: req.user?.id || null,
+                        message: `📅 ${techDisplayName} mengatur estimasi pengerjaan: Mulai ${startStr} s/d Selesai ${endStr}${noteText}`
+                    }
+                });
+            } catch (estSyncErr) {
+                console.error('[Maintenance] Sync estimation error:', estSyncErr);
             }
         }
 

@@ -2300,6 +2300,60 @@ exports.saveDailyReportFromPpp = async (req, res) => {
 
         let report = existingReports[0] || null;
 
+        // Bersihkan rekaman ganda jika ada multiple rows untuk user pada hari yang sama
+        if (existingReports.length > 1 && report) {
+            const extraIds = existingReports.filter(r => r.id !== report.id).map(r => r.id);
+            if (extraIds.length > 0) {
+                try {
+                    await prisma.personnelReport.deleteMany({ where: { id: { in: extraIds } } });
+                } catch (delErr) {
+                    console.error('Failed to cleanup duplicate report rows in PPP:', delErr.message);
+                }
+            }
+        }
+
+        const isSamePppItem = (a, b) => {
+            if (!a || !b) return false;
+            if (a.planRefId && b.planRefId && a.planRefId === b.planRefId) return true;
+            if (a.sourceType && b.sourceType && a.sourceId && b.sourceId) {
+                if (a.sourceType === b.sourceType && String(a.sourceId) === String(b.sourceId)) {
+                    if (a.planItemIndex !== undefined && a.planItemIndex !== null && b.planItemIndex !== undefined && b.planItemIndex !== null) {
+                        return parseInt(a.planItemIndex) === parseInt(b.planItemIndex);
+                    }
+                    return true;
+                }
+            }
+            const clean = (s) => (s || '').toLowerCase().replace(/\[penugasan:[^\]]*\]/gi, '').replace(/\[penugasan\]/gi, '').replace(/\[rencana[^\]]*\]/gi, '').replace(/[^a-z0-9]/g, '').trim();
+            const na = clean(a.title || a.text);
+            const nb = clean(b.title || b.text);
+            if (na && nb) {
+                if (na === nb) return true;
+                if (na.length > 8 && nb.length > 8 && (na.includes(nb) || nb.includes(na))) return true;
+            }
+            return false;
+        };
+
+        const dedupList = (items) => {
+            if (!Array.isArray(items)) return [];
+            const res = [];
+            for (const item of items) {
+                if (!item) continue;
+                const title = (item.title || item.text || '').trim();
+                const hasPhotos = Array.isArray(item.photos) && item.photos.length > 0;
+                const hasObstacle = (item.obstacleNote && item.obstacleNote.trim()) || (item.actionPlan && item.actionPlan.trim());
+                if (!title && !hasPhotos && !hasObstacle) continue;
+                if (!res.some(existing => isSamePppItem(existing, item))) {
+                    res.push(item);
+                }
+            }
+            return res;
+        };
+
+        const cleanCompleted = dedupList(completedItems);
+        const cleanInProgress = dedupList(inProgressItems).filter(p => !cleanCompleted.some(c => isSamePppItem(c, p)));
+        const cleanObstacles = dedupList(obstacleItems).filter(o => !cleanCompleted.some(c => isSamePppItem(c, o)));
+        const cleanTomorrow = dedupList(tomorrowPlans).filter(t => !cleanCompleted.some(c => isSamePppItem(c, t)));
+
         // Petakan butir completed (A), inProgress (B), obstacle (C) ke format manualPoints
         const morningPoints = [];
         const afternoonPoints = [];
@@ -2331,7 +2385,7 @@ exports.saveDailyReportFromPpp = async (req, res) => {
             updatedAt: new Date().toISOString()
         });
 
-        for (const it of completedItems) {
+        for (const it of cleanCompleted) {
             morningPoints.push(mapCompleted(it));
 
             // Sinkronisasi 2 arah ke Penugasan
@@ -2541,7 +2595,7 @@ exports.saveDailyReportFromPpp = async (req, res) => {
             }
         }
 
-        for (const it of inProgressItems) {
+        for (const it of cleanInProgress) {
             afternoonPoints.push(mapProgress(it));
             const targetPct = it.progressPercentage !== undefined ? parseInt(it.progressPercentage) : 50;
 
@@ -2678,8 +2732,8 @@ exports.saveDailyReportFromPpp = async (req, res) => {
         }
 
         // Jika ada kendala, sematkan di butir
-        if (obstacleItems && obstacleItems.length > 0) {
-            obstacleItems.forEach(obs => {
+        if (cleanObstacles && cleanObstacles.length > 0) {
+            cleanObstacles.forEach(obs => {
                 morningPoints.push({
                     text: obs.title || obs.activityText || 'Kendala Lapangan',
                     categoryTag: obs.categoryTag || category || 'UMUM',
@@ -2701,10 +2755,10 @@ exports.saveDailyReportFromPpp = async (req, res) => {
         const isFriday = reportDate.day() === 5;
         const summaryLines = [
             `[LAPORAN HARIAN PPP]`,
-            `A. Tugas Selesai: ${completedItems.length} butir`,
-            `B. Dalam Proses: ${inProgressItems.length} butir`,
-            `C. Kendala: ${obstacleItems.length > 0 ? obstacleItems.map(o => o.obstacleNote).join('; ') : 'Nihil'}`,
-            `${isFriday ? 'D. Rencana Pekan Depan' : 'D. Rencana Besok'}: ${tomorrowPlans.length > 0 ? tomorrowPlans.map(t => t.title).join('; ') : 'Sesuai SOP / Rutinitas'}`
+            `A. Tugas Selesai: ${cleanCompleted.length} butir`,
+            `B. Dalam Proses: ${cleanInProgress.length} butir`,
+            `C. Kendala: ${cleanObstacles.length > 0 ? cleanObstacles.map(o => o.obstacleNote).join('; ') : 'Nihil'}`,
+            `${isFriday ? 'D. Rencana Pekan Depan' : 'D. Rencana Besok'}: ${cleanTomorrow.length > 0 ? cleanTomorrow.map(t => t.title).join('; ') : 'Sesuai SOP / Rutinitas'}`
         ];
         const autoContent = summaryLines.join('\n');
 
@@ -2720,7 +2774,10 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                     metadata: {
                         ...(typeof report.metadata === 'object' && report.metadata !== null ? report.metadata : {}),
                         manualPoints: formattedPoints,
-                        tomorrowPlans: Array.isArray(tomorrowPlans) ? tomorrowPlans : [],
+                        completedItems: cleanCompleted,
+                        inProgressItems: cleanInProgress,
+                        obstacleItems: cleanObstacles,
+                        tomorrowPlans: cleanTomorrow,
                         lastSubmittedAt: new Date().toISOString()
                     }
                 }
@@ -2734,7 +2791,10 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                     content: autoContent,
                     metadata: {
                         manualPoints: formattedPoints,
-                        tomorrowPlans: Array.isArray(tomorrowPlans) ? tomorrowPlans : [],
+                        completedItems: cleanCompleted,
+                        inProgressItems: cleanInProgress,
+                        obstacleItems: cleanObstacles,
+                        tomorrowPlans: cleanTomorrow,
                         lastSubmittedAt: new Date().toISOString()
                     },
                     date: normalizedDate

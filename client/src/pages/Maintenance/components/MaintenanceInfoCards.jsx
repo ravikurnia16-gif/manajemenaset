@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneCall, Wrench, Clock, CheckCircle2 } from 'lucide-react';
+import { PhoneCall, Wrench, Clock, CheckCircle2, CalendarClock } from 'lucide-react';
 
 const urgencyLabels = {
     NORMAL: 'Biasa',
@@ -16,7 +16,10 @@ const urgencyColors = {
 export default function MaintenanceInfoCards({
     report,
     onOpenSingleAssetModal,
-    onFetchAssetHistory
+    onFetchAssetHistory,
+    onOpenEstimationModal,
+    isAssignedTechnician = false,
+    isAdmin = false
 }) {
     const isMultiAsset = report.assets && report.assets.length > 1;
     const completedAssets = Array.isArray(report.aiDiagnosis?.completedAssets) ? report.aiDiagnosis.completedAssets : [];
@@ -204,6 +207,49 @@ export default function MaintenanceInfoCards({
                             </span>
                         </div>
                     </div>
+
+                    {/* Estimasi Jadwal Pengerjaan Teknisi */}
+                    {(report.aiDiagnosis?.estimatedStartDate || report.aiDiagnosis?.estimatedCompletionDate || ((isAssignedTechnician || isAdmin) && ['ASSIGNED', 'IN_PROGRESS'].includes(report.status))) && (
+                        <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5 mt-1">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-amber-900 text-[11px] flex items-center gap-1">
+                                    <CalendarClock size={13} className="text-amber-600 shrink-0" /> Estimasi Jadwal Pengerjaan:
+                                </span>
+                                {(isAssignedTechnician || isAdmin) && onOpenEstimationModal && (
+                                    <button
+                                        type="button"
+                                        onClick={onOpenEstimationModal}
+                                        className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                                    >
+                                        {(report.aiDiagnosis?.estimatedStartDate || report.aiDiagnosis?.estimatedCompletionDate) ? 'Ubah' : 'Atur Sekarang'}
+                                    </button>
+                                )}
+                            </div>
+                            <div className="space-y-1 text-[11px]">
+                                <div className="flex justify-between text-slate-700">
+                                    <span className="text-slate-500">Estimasi Mulai:</span>
+                                    <span className="font-semibold text-slate-800">
+                                        {report.aiDiagnosis?.estimatedStartDate 
+                                            ? new Date(report.aiDiagnosis.estimatedStartDate).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+                                            : <span className="text-amber-700 italic">Belum ditentukan</span>}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-slate-700">
+                                    <span className="text-slate-500">Estimasi Selesai:</span>
+                                    <span className="font-semibold text-slate-800">
+                                        {report.aiDiagnosis?.estimatedCompletionDate 
+                                            ? new Date(report.aiDiagnosis.estimatedCompletionDate).toLocaleDateString('id-ID', { dateStyle: 'long' })
+                                            : <span className="text-amber-700 italic">Belum ditentukan</span>}
+                                    </span>
+                                </div>
+                                {report.aiDiagnosis?.estimationNote && (
+                                    <div className="text-[10.5px] text-slate-600 italic bg-white/80 p-1.5 rounded-lg border border-amber-100 mt-1">
+                                        Catatan: "{report.aiDiagnosis.estimationNote}"
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {report.cost > 0 && (
                         <div className="flex justify-between items-center bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
