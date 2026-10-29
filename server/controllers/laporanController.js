@@ -375,8 +375,12 @@ exports.getReports = async (req, res) => {
 
         // Auto Carry-Over: Cari laporan hari kerja sebelumnya untuk menarik rencana besok
         let suggestedFromYesterday = [];
+        // Dideklarasikan di scope fungsi agar bisa dipakai di res.json & pencarian on-progress mandiri
+        let prevInProgress = [];
+        let prevTomorrow = [];
+        let yesterdayReport = null;
         try {
-            const yesterdayReport = await prisma.personnelReport.findFirst({
+            yesterdayReport = await prisma.personnelReport.findFirst({
                 where: {
                     userId: reqUserId,
                     type: 'DAILY',
@@ -392,7 +396,6 @@ exports.getReports = async (req, res) => {
                     try { yMeta = JSON.parse(yMeta); } catch (e) { yMeta = {}; }
                 }
 
-                const prevInProgress = [];
                 // 1. Ambil dari inProgressItems hari sebelumnya (Pekerjaan yang masih On Progress / belum 100%)
                 if (Array.isArray(yMeta.inProgressItems) && yMeta.inProgressItems.length > 0) {
                     yMeta.inProgressItems.forEach(ip => {
@@ -426,7 +429,6 @@ exports.getReports = async (req, res) => {
                 }
 
                 // 2. Ambil dari tomorrowPlans hari sebelumnya
-                const prevTomorrow = [];
                 if (Array.isArray(yMeta.tomorrowPlans) && yMeta.tomorrowPlans.length > 0) {
                     yMeta.tomorrowPlans
                         .filter(tp => tp && (tp.title || tp.text))
