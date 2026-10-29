@@ -20,101 +20,18 @@ const recentAssignmentNotifs = new Map();
 
 /**
  * Auto-sync Maintenance to PersonnelAssignment (Tab Penugasan)
+ * (Dinonaktifkan: Delegasi pemeliharaan tidak lagi dimasukkan ke Tab Penugasan)
  */
-const syncMaintenanceToAssignment = async (report, techUser, assignerUser = null) => {
-    try {
-        if (!techUser) return;
-        const notesData = JSON.stringify({
-            source: 'MAINTENANCE',
-            maintenanceId: report.id,
-            maintenanceCode: report.code
-        });
-
-        const existingAssignment = await prisma.personnelAssignment.findFirst({
-            where: {
-                OR: [
-                    { notes: { contains: `"maintenanceId":${report.id}` } },
-                    { title: { contains: report.code } }
-                ]
-            }
-        });
-
-        const category = (techUser.position || '').toLowerCase().includes('teknisi') ? 'TEKNISI' : 'UMUM';
-
-        const meta = report.aiDiagnosis || {};
-        const startDate = meta.estimatedStartDate ? new Date(meta.estimatedStartDate) : null;
-        const dueDate = meta.estimatedCompletionDate 
-            ? new Date(meta.estimatedCompletionDate) 
-            : (report.completionDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
-
-        if (existingAssignment) {
-            await prisma.personnelAssignment.update({
-                where: { id: existingAssignment.id },
-                data: {
-                    assigneeId: techUser.id,
-                    title: `[MT] ${report.title} (${report.code})`,
-                    description: `${report.description || ''}\nLokasi: ${report.location || report.unit?.name || '-'}`,
-                    category,
-                    priority: ['EMERGENCY', 'URGENT'].includes(report.urgency) ? 'HIGH' : 'MEDIUM',
-                    status: 'PENDING',
-                    startDate,
-                    dueDate,
-                    notes: notesData
-                }
-            });
-        } else {
-            await prisma.personnelAssignment.create({
-                data: {
-                    assignerId: assignerUser?.id || report.userId,
-                    assigneeId: techUser.id,
-                    title: `[MT] ${report.title} (${report.code})`,
-                    description: `${report.description || ''}\nLokasi: ${report.location || report.unit?.name || '-'}`,
-                    category,
-                    priority: ['EMERGENCY', 'URGENT'].includes(report.urgency) ? 'HIGH' : 'MEDIUM',
-                    status: 'PENDING',
-                    progressPercentage: 0,
-                    startDate,
-                    dueDate,
-                    notes: notesData
-                }
-            });
-        }
-        console.log(`[Maintenance Sync] Auto-synced assignment for technician ${techUser.name} (${report.code})`);
-    } catch (e) {
-        console.error('[Maintenance Sync] Auto-sync assignment error:', e);
-    }
+const syncMaintenanceToAssignment = async () => {
+    return;
 };
 
 /**
  * Update Progress on Linked PersonnelAssignment
+ * (Dinonaktifkan: Delegasi pemeliharaan tidak lagi dihubungkan ke Tab Penugasan)
  */
-const updateLinkedAssignmentProgress = async (report, status, progressPercentage) => {
-    try {
-        const finalPct = status === 'COMPLETED' ? 100 : (progressPercentage !== undefined ? parseInt(progressPercentage) : 50);
-        const linkedAssignment = await prisma.personnelAssignment.findFirst({
-            where: {
-                OR: [
-                    { notes: { contains: `"maintenanceId":${report.id}` } },
-                    { title: { contains: report.code } }
-                ]
-            }
-        });
-
-        if (linkedAssignment) {
-            await prisma.personnelAssignment.update({
-                where: { id: linkedAssignment.id },
-                data: {
-                    status: status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS',
-                    progressPercentage: finalPct,
-                    actualStartDate: linkedAssignment.actualStartDate || new Date(),
-                    actualCompletionDate: status === 'COMPLETED' ? new Date() : null
-                }
-            });
-            console.log(`[Maintenance Sync] Updated assignment ${linkedAssignment.id} progress: ${finalPct}%`);
-        }
-    } catch (e) {
-        console.error('[Maintenance Sync] Error updating assignment progress:', e);
-    }
+const updateLinkedAssignmentProgress = async () => {
+    return;
 };
 
 /**
@@ -1158,24 +1075,9 @@ exports.updateStatus = async (req, res) => {
             }
         }
 
-        // Auto-sync estimation schedule to Tab Penugasan & record timeline message
+        // Record estimation schedule timeline message (tidak lagi disinkronkan ke Tab Penugasan)
         if (estimatedStartDate || estimatedCompletionDate) {
             try {
-                const assignmentUpdate = {};
-                if (estimatedStartDate) assignmentUpdate.startDate = new Date(estimatedStartDate);
-                if (estimatedCompletionDate) assignmentUpdate.dueDate = new Date(estimatedCompletionDate);
-                if (Object.keys(assignmentUpdate).length > 0) {
-                    await prisma.personnelAssignment.updateMany({
-                        where: {
-                            OR: [
-                                { notes: { contains: `"maintenanceId":${report.id}` } },
-                                { title: { contains: report.code } }
-                            ]
-                        },
-                        data: assignmentUpdate
-                    });
-                }
-
                 // Add timeline message to discussion/progress
                 const startStr = estimatedStartDate ? dayjs(estimatedStartDate).format('DD/MM/YYYY HH:mm') : '-';
                 const endStr = estimatedCompletionDate ? dayjs(estimatedCompletionDate).format('DD/MM/YYYY') : '-';

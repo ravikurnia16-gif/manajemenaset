@@ -72,7 +72,11 @@ const DailyReportPppModal = ({
     // Ambil rencana & penugasan staf yang sedang dipilih
     const currentStaffProfile = staffPlansData.find(s => s.id === parseInt(selectedStaffId));
     const rawPlans = currentStaffProfile?.plans || [];
-    const rawAssignments = currentStaffProfile?.assignments || [];
+    const rawAssignments = (currentStaffProfile?.assignments || []).filter(a => {
+        const isMaint = (a.title && a.title.startsWith('[MT]')) ||
+            (typeof a.notes === 'string' && (a.notes.includes('"source":"MAINTENANCE"') || a.notes.includes('"maintenanceId"')));
+        return !isMaint;
+    });
 
     // Filter pekerjaan & rencana yang benar-benar MASIH AKTIF (kecuali user mengaktifkan toggle tampilkan selesai)
     const activeStaffPlans = rawPlans.filter(p => {

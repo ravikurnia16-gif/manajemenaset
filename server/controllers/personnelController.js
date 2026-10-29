@@ -30,6 +30,28 @@ const isKabidSarana = (user) => {
            pos.includes('kabid sarpras');
 };
 
+// Helper: Filter NULL-safe untuk mengecualikan tugas otomatis Rutin & delegasi Maintenance ([MT])
+const NON_MAINTENANCE_ASSIGNMENT_CONDITIONS = [
+    { NOT: { title: { startsWith: '[RUTIN]' } } },
+    { NOT: { title: { startsWith: '[MT]' } } },
+    { routineId: null },
+    {
+        OR: [
+            { notes: null },
+            {
+                AND: [
+                    { NOT: { notes: { contains: '"source":"MAINTENANCE"' } } },
+                    { NOT: { notes: { contains: '"maintenanceId":' } } }
+                ]
+            }
+        ]
+    }
+];
+
+const withoutMaintenanceAndRoutine = (baseWhere = {}) => ({
+    AND: [baseWhere, ...NON_MAINTENANCE_ASSIGNMENT_CONDITIONS]
+});
+
 // Helper to sync personnel plan to SarprasCalendarEvent
 const syncPlanToCalendar = async (report, user) => {
     try {
@@ -879,14 +901,11 @@ exports.getAssignments = async (req, res) => {
             where.assigneeId = parseInt(targetUserId);
         }
 
-        // Exclude legacy auto-generated routine tasks
-        where.NOT = [
-            { title: { startsWith: '[RUTIN]' } },
-            { routineId: { not: null } }
-        ];
+        // Exclude legacy auto-generated routine tasks & Maintenance delegations ([MT])
+        const finalWhere = withoutMaintenanceAndRoutine(where);
 
         const queryOptions = {
-            where,
+            where: finalWhere,
             include: {
                 assigner: { select: { name: true } },
                 assignee: { select: { name: true } }
@@ -903,7 +922,7 @@ exports.getAssignments = async (req, res) => {
 
         const [assignments, total] = await Promise.all([
             prisma.personnelAssignment.findMany(queryOptions),
-            prisma.personnelAssignment.count({ where })
+            prisma.personnelAssignment.count({ where: finalWhere })
         ]);
 
         res.json({
@@ -1051,33 +1070,9 @@ exports.updateAssignmentStatus = async (req, res) => {
             data
         });
 
-        // Sync to linked Maintenance if applicable
+        // Sync to today's manualPoints in PersonnelReport (tidak lagi disinkronkan ke Maintenance)
         (async () => {
             try {
-                let mId = null;
-                const sourceNotes = updated.notes || assignment.notes;
-                if (sourceNotes) {
-                    try {
-                        const parsed = JSON.parse(sourceNotes);
-                        if (parsed.maintenanceId) mId = parseInt(parsed.maintenanceId);
-                    } catch (e) {
-                        const match = sourceNotes.match(/"maintenanceId":\s*(\d+)/);
-                        if (match) mId = parseInt(match[1]);
-                    }
-                }
-                if (mId) {
-                    const newMaintStatus = updated.progressPercentage === 100 ? 'COMPLETED' : (updated.progressPercentage > 0 ? 'IN_PROGRESS' : 'PENDING');
-                    await prisma.maintenance.update({
-                        where: { id: mId },
-                        data: {
-                            status: newMaintStatus,
-                            ...(newMaintStatus === 'COMPLETED' ? { completionDate: new Date() } : {})
-                        }
-                    });
-                    console.log(`[Personnel Sync] Synced assignment ${updated.id} to Maintenance #${mId} (${newMaintStatus})`);
-                }
-
-                // Sync to today's manualPoints in PersonnelReport
                 const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
                 const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
                 const todayReport = await prisma.personnelReport.findFirst({
@@ -1092,8 +1087,7 @@ exports.updateAssignmentStatus = async (req, res) => {
                     const mp = todayReport.metadata.manualPoints;
                     let changed = false;
                     const updatePt = (p) => {
-                        const isMatch = (p.sourceType === 'ASSIGNMENT' && parseInt(p.sourceId) === assignment.id) ||
-                            (mId && p.sourceType === 'MAINTENANCE' && parseInt(p.sourceId) === mId);
+                        const isMatch = p.sourceType === 'ASSIGNMENT' && parseInt(p.sourceId) === assignment.id;
                         if (isMatch) {
                             p.progressPercentage = updated.progressPercentage;
                             p.status = updated.progressPercentage === 100 ? 'COMPLETED' : (updated.progressPercentage > 0 ? 'IN_PROGRESS' : 'PENDING');
@@ -1424,7 +1418,7 @@ exports.getPersonnelDashboard = async (req, res) => {
         const targetYear = now.getFullYear();
 
         const [activeAssignments, todayAgenda, pendingReports, totalRoutines] = await Promise.all([
-            prisma.personnelAssignment.count({ where: { status: { notIn: ['COMPLETED', 'CANCELLED'] } } }),
+            prisma.personnelAssignment.count({ where: withoutMaintenanceAndRoutine({ status: { notIn: ['COMPLETED', 'CANCELLED'] } }) }),
             prisma.sarprasCalendarEvent.count({ where: { date: { gte: startOfToday, lt: new Date(new Date().setDate(now.getDate() + 1)) } } }),
             prisma.personnelReport.count({ where: { date: { gte: new Date(new Date().setDate(now.getDate() - 7)) } } }),
             prisma.personnelRoutine.count({ where: { isActive: true } })
@@ -1452,7 +1446,7 @@ exports.getPersonnelDashboard = async (req, res) => {
             let maxScore = -1;
             for (const s of staff) {
                 const count = await prisma.personnelAssignment.count({
-                    where: { assigneeId: s.id, status: 'COMPLETED', actualCompletionDate: { gte: new Date(targetYear, targetMonth - 1, 1) } }
+                    where: withoutMaintenanceAndRoutine({ assigneeId: s.id, status: 'COMPLETED', actualCompletionDate: { gte: new Date(targetYear, targetMonth - 1, 1) } })
                 });
                 if (count > maxScore) {
                     maxScore = count;
@@ -1464,6 +1458,7 @@ exports.getPersonnelDashboard = async (req, res) => {
         // Assignment Status Distribution
         const statusGroups = await prisma.personnelAssignment.groupBy({
             by: ['status'],
+            where: withoutMaintenanceAndRoutine(),
             _count: { _all: true }
         });
 
@@ -1512,15 +1507,14 @@ exports.checkAssignmentDeadlines = async () => {
 
     try {
         const assignments = await prisma.personnelAssignment.findMany({
-            where: {
+            where: withoutMaintenanceAndRoutine({
                 status: { in: ['PENDING', 'IN_PROGRESS'] },
                 dueDate: { not: null },
-                routineId: null,
                 OR: [
                     { lastReminderSent: null },
                     { lastReminderSent: { lt: today } }
                 ]
-            },
+            }),
             include: {
                 assignee: true,
                 assigner: true
@@ -1927,14 +1921,14 @@ exports.getKPILeaderboard = async (req, res) => {
             // 2. Due in this month, OR
             // 3. Still active (IN_PROGRESS/PENDING) regardless of when created
             const assignments = await prisma.personnelAssignment.findMany({
-                where: {
+                where: withoutMaintenanceAndRoutine({
                     assigneeId: s.id,
                     OR: [
                         { dueDate: { gte: startDate, lte: endDate } },
                         { createdAt: { gte: startDate, lte: endDate } },
                         { status: { in: ['IN_PROGRESS', 'PENDING'] } }
                     ]
-                }
+                })
             });
 
             // Get plans (Rencana)
@@ -2824,10 +2818,9 @@ exports.getPersonnelAISummary = async (req, res) => {
 
         // A. Recent Assignments
         const assignments = await prisma.personnelAssignment.findMany({
-            where: {
-                createdAt: { gte: last7Days },
-                routineId: null // Skip routines here, handle separately
-            },
+            where: withoutMaintenanceAndRoutine({
+                createdAt: { gte: last7Days }
+            }),
             include: { assignee: { select: { name: true } } },
             orderBy: { createdAt: 'desc' },
             take: 15
@@ -2908,10 +2901,9 @@ exports.generateSummary = async (req, res) => {
 
         // A. Recent Assignments
         const assignments = await prisma.personnelAssignment.findMany({
-            where: {
-                createdAt: { gte: last7Days },
-                routineId: null // Skip routines here, handle separately
-            },
+            where: withoutMaintenanceAndRoutine({
+                createdAt: { gte: last7Days }
+            }),
             include: { assignee: { select: { name: true } } },
             orderBy: { createdAt: 'desc' },
             take: 15

@@ -14,6 +14,31 @@ dayjs.extend(isoWeek);
 
 const OKR_STORE_PATH = path.join(__dirname, '../data/okr_store.json');
 
+// Filter untuk mengecualikan tugas rutin otomatis & delegasi tiket Maintenance dari Penugasan
+const NON_MAINTENANCE_ASSIGNMENT_CONDITIONS = [
+    { NOT: { title: { startsWith: '[RUTIN]' } } },
+    { NOT: { title: { startsWith: '[MT]' } } },
+    { routineId: null },
+    {
+        OR: [
+            { notes: null },
+            {
+                AND: [
+                    { NOT: { notes: { contains: '"source":"MAINTENANCE"' } } },
+                    { NOT: { notes: { contains: '"maintenanceId":' } } }
+                ]
+            }
+        ]
+    }
+];
+
+const withoutMaintenanceAndRoutine = (baseWhere = {}) => ({
+    AND: [
+        baseWhere,
+        ...NON_MAINTENANCE_ASSIGNMENT_CONDITIONS
+    ]
+});
+
 // Ensure data directory exists
 const ensureDataDir = () => {
     const dir = path.dirname(OKR_STORE_PATH);
@@ -323,7 +348,7 @@ exports.getMbeRadar = async (req, res) => {
         }
 
         const overdueAssignments = await prisma.personnelAssignment.findMany({
-            where: assignmentWhere,
+            where: withoutMaintenanceAndRoutine(assignmentWhere),
             include: {
                 assignee: { select: { id: true, name: true, position: true, phone: true } },
                 assigner: { select: { id: true, name: true, position: true } }
@@ -344,7 +369,7 @@ exports.getMbeRadar = async (req, res) => {
             };
         }
         const pendingExtensions = await prisma.personnelAssignment.findMany({
-            where: extensionWhere,
+            where: withoutMaintenanceAndRoutine(extensionWhere),
             include: {
                 assignee: { select: { id: true, name: true, position: true, phone: true } }
             },
@@ -758,7 +783,7 @@ exports.getDailyPpp = async (req, res) => {
         }
 
         const assignmentsDone = await prisma.personnelAssignment.findMany({
-            where: assignmentsDoneWhere,
+            where: withoutMaintenanceAndRoutine(assignmentsDoneWhere),
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
@@ -778,7 +803,7 @@ exports.getDailyPpp = async (req, res) => {
         }
 
         const activeAssignments = await prisma.personnelAssignment.findMany({
-            where: activeAssignmentsWhere,
+            where: withoutMaintenanceAndRoutine(activeAssignmentsWhere),
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
@@ -981,7 +1006,7 @@ exports.getWeeklyPdca = async (req, res) => {
         }
 
         const plannedAssignments = await prisma.personnelAssignment.findMany({
-            where: plannedAssignmentsWhere,
+            where: withoutMaintenanceAndRoutine(plannedAssignmentsWhere),
             include: {
                 assignee: { select: { id: true, name: true, position: true } }
             }
@@ -1409,11 +1434,11 @@ exports.getOkrDashboard = async (req, res) => {
 
         // Metric 5: Assignment Ontime Rate
         const completedAssignments = await prisma.personnelAssignment.findMany({
-            where: {
+            where: withoutMaintenanceAndRoutine({
                 status: 'COMPLETED',
                 updatedAt: { gte: thirtyDaysAgo },
                 assignee: SARPRAS_USER_FILTER
-            },
+            }),
             select: { dueDate: true, actualCompletionDate: true, updatedAt: true }
         });
         let onTimeCount = 0;
@@ -1601,7 +1626,7 @@ exports.getStaffPlansAndAssignments = async (req, res) => {
         }
 
         const allAssignments = await prisma.personnelAssignment.findMany({
-            where: allAssignmentsWhere,
+            where: withoutMaintenanceAndRoutine(allAssignmentsWhere),
             orderBy: { dueDate: 'asc' }
         });
 

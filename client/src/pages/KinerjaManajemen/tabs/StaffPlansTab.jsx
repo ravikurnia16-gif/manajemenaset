@@ -43,7 +43,27 @@ const StaffPlansTab = ({
         { key: 'UMUM', label: 'Umum' }
     ];
 
-    const filteredStaff = staffPlansData.filter(st => {
+    const isMaintenanceAssignment = (a) => (
+        (a?.title && a.title.startsWith('[MT]')) ||
+        (typeof a?.notes === 'string' && (a.notes.includes('"source":"MAINTENANCE"') || a.notes.includes('"maintenanceId"')))
+    );
+
+    const sanitizedStaffPlans = staffPlansData.map(st => {
+        const cleanAssignments = (st.assignments || []).filter(a => !isMaintenanceAssignment(a));
+        const activeCount = cleanAssignments.filter(a => a.status !== 'COMPLETED' && (a.progressPercentage || 0) < 100).length;
+        const overdueCount = cleanAssignments.filter(a => a.isOverdue).length;
+        return {
+            ...st,
+            assignments: cleanAssignments,
+            stats: {
+                ...(st.stats || {}),
+                activeAssignmentsCount: activeCount,
+                overdueAssignmentsCount: overdueCount
+            }
+        };
+    });
+
+    const filteredStaff = sanitizedStaffPlans.filter(st => {
         const q = searchQuery.toLowerCase();
         const matchesQuery = (
             (st.name || '').toLowerCase().includes(q) ||

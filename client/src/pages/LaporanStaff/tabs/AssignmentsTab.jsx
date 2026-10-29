@@ -150,8 +150,15 @@ export default function AssignmentsTab({
         }
     };
 
+    // Exclude legacy Maintenance delegations ([MT]) from Penugasan
+    const nonMaintenanceAssignments = assignments.filter(task => {
+        const isMaint = (task.title && task.title.startsWith('[MT]')) ||
+            (typeof task.notes === 'string' && (task.notes.includes('"source":"MAINTENANCE"') || task.notes.includes('"maintenanceId"')));
+        return !isMaint;
+    });
+
     // Filter assignments
-    const filteredAssignments = assignments.filter(task => {
+    const filteredAssignments = nonMaintenanceAssignments.filter(task => {
         const matchesCat = filterCategory === 'ALL' || task.category === filterCategory;
         const isCompleted = task.progressPercentage === 100 || task.status === 'COMPLETED';
         const matchesStatus = filterStatus === 'ALL' 
@@ -516,7 +523,7 @@ export default function AssignmentsTab({
                                 filterStatus === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                             }`}
                         >
-                            Semua ({assignments.length})
+                            Semua ({nonMaintenanceAssignments.length})
                         </button>
                         <button
                             type="button"
