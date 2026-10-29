@@ -67,6 +67,7 @@ model User {
   personnelReports         PersonnelReport[]
   setoranHafalan           SetoranHafalan[]
   staffTrainings           StaffTraining[]
+  kehadiranKajian          KehadiranKajian[]
   assignedAssignments      PersonnelAssignment[]  @relation("Assignee")
   createdAssignments       PersonnelAssignment[]  @relation("Assigner")
   assignedProcurementItems ProcurementItem[]      @relation("ItemAssignee")
@@ -1045,6 +1046,23 @@ model StaffTraining {
   @@index([userId])
   @@index([scheduleDate])
   @@index([method])
+}
+
+model KehadiranKajian {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  title     String
+  speaker   String
+  location  String
+  summary   String?  @db.Text
+  photoUrl  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
 }
 
 enum AssignmentStatus {

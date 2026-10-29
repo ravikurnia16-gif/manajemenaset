@@ -5,7 +5,7 @@ import {
     Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Sparkles,
     Search, Filter, Download, Printer, Award, TrendingUp, ChevronRight,
     ChevronDown, MessageSquare, Send, CheckSquare, Eye, ShieldCheck, Tag,
-    BookOpen, Target, GraduationCap, Activity, Layers, Zap
+    BookOpen, Target, GraduationCap, Activity, Layers, Zap, BookCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/axios';
@@ -24,6 +24,7 @@ import WeeklyPdfTab from './tabs/WeeklyPdfTab';
 import AssignmentsTab from './tabs/AssignmentsTab';
 import WorkPlanTab from './tabs/WorkPlanTab';
 import TrainingTab from './tabs/TrainingTab';
+import KajianTab from './tabs/KajianTab';
 
 // Subcomponents Kinerja & Strategis (Digabung dari KinerjaManajemen)
 import MbeRadarTab from '../KinerjaManajemen/tabs/MbeRadarTab';
@@ -102,8 +103,8 @@ const LaporanStaff = () => {
         return role === 'ADMIN_ASET' || pos.includes('admin aset') || pos.includes('manajemen aset');
     }, [user.position, user.role]);
 
-    // 5 Tab yang dibatasi untuk Admin Aset dan Staf Non-Kabid: Laporan Harian, Penugasan, Rencana, Setoran Hafalan, Pelatihan
-    const STAFF_ALLOWED_TABS = useMemo(() => ['laporan', 'penugasan', 'perencanaan', 'hafalan', 'pelatihan'], []);
+    // 6 Tab yang dibatasi untuk Admin Aset dan Staf Non-Kabid: Laporan Harian, Penugasan, Rencana, Setoran Hafalan, Pelatihan, Kehadiran Kajian
+    const STAFF_ALLOWED_TABS = useMemo(() => ['laporan', 'penugasan', 'perencanaan', 'hafalan', 'pelatihan', 'kajian'], []);
 
     const userDivision = useMemo(() => {
         const pos = (user.position || '').toLowerCase();
@@ -2148,6 +2149,20 @@ const LaporanStaff = () => {
                                 <GraduationCap size={15} /> Pelatihan Karyawan
                             </button>
                         )}
+
+                        {/* 13. Kehadiran Kajian */}
+                        {(kabidTabCategory === 'ALL' || kabidTabCategory === 'OPERASIONAL') && (
+                            <button
+                                onClick={() => setActiveTab('kajian')}
+                                className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                                    activeTab === 'kajian'
+                                        ? 'bg-teal-600 text-white shadow-md shadow-teal-500/25 ring-2 ring-teal-600/20'
+                                        : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                                }`}
+                            >
+                                <BookCheck size={15} /> Kehadiran Kajian
+                            </button>
+                        )}
                     </div>
                 </div>
             ) : (
@@ -2202,6 +2217,16 @@ const LaporanStaff = () => {
                         }`}
                     >
                         <GraduationCap size={16} /> Pelatihan
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('kajian')}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer shadow-xs ${
+                            activeTab === 'kajian'
+                                ? 'bg-teal-600 text-white shadow-md shadow-teal-500/25 ring-2 ring-teal-600/20'
+                                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100/90 border border-slate-200'
+                        }`}
+                    >
+                        <BookCheck size={16} /> Kehadiran Kajian
                     </button>
                 </div>
             )}
@@ -2541,6 +2566,17 @@ const LaporanStaff = () => {
                     {activeTab === 'pelatihan' && (
                         <TabErrorBoundary>
                             <TrainingTab
+                                isKabid={isKabid}
+                                user={user}
+                                staffList={staffList}
+                            />
+                        </TabErrorBoundary>
+                    )}
+
+                    {/* TAB: KEHADIRAN KAJIAN */}
+                    {activeTab === 'kajian' && (
+                        <TabErrorBoundary>
+                            <KajianTab
                                 isKabid={isKabid}
                                 user={user}
                                 staffList={staffList}

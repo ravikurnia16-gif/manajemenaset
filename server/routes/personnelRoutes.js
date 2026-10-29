@@ -65,4 +65,12 @@ router.post('/trainings', handleMultipleUploads(['file', 'moduleFile'], 'trainin
 router.put('/trainings/:id', handleMultipleUploads(['file', 'moduleFile'], 'trainings'), staffTrainingController.updateTraining);
 router.delete('/trainings/:id', staffTrainingController.deleteTraining);
 
+// Kehadiran Kajian
+const staffKajianController = require('../controllers/staffKajianController');
+router.get('/kajian', staffKajianController.getKajianList);
+router.get('/kajian/stats', staffKajianController.getKajianStats);
+router.post('/kajian', handleUpload('photo', 'kajian'), staffKajianController.createKajian);
+router.put('/kajian/:id', handleUpload('photo', 'kajian'), staffKajianController.updateKajian);
+router.delete('/kajian/:id', staffKajianController.deleteKajian);
+
 module.exports = router;
