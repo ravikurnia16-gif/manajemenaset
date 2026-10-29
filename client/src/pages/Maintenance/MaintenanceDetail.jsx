@@ -33,7 +33,6 @@ const MaintenanceDetail = () => {
     const [report, setReport] = useState(null);
     const [units, setUnits] = useState([]);
     const [users, setUsers] = useState([]);
-    const [contractors, setContractors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploadingMedia, setUploadingMedia] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
@@ -133,20 +132,10 @@ const MaintenanceDetail = () => {
         }
     };
 
-    const fetchContractors = async () => {
-        try {
-            const res = await api.get('/contractors', { params: { limit: 'all' } });
-            setContractors(res.data.data || []);
-        } catch (err) {
-            console.error("Failed to fetch contractors:", err);
-        }
-    };
-
     useEffect(() => {
         fetchReport();
         fetchUsers();
         if (isAdmin) {
-            fetchContractors();
             fetchUnits();
         }
     }, [id]);
@@ -852,7 +841,6 @@ const MaintenanceDetail = () => {
                 report={report}
                 units={units}
                 users={users}
-                contractors={contractors}
                 actionNote={actionNote}
                 setActionNote={setActionNote}
                 technicianType={technicianType}

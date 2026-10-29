@@ -2372,6 +2372,67 @@ exports.deleteVendor = async (req, res) => {
     }
 };
 
+// Helper: Ekstrak jenjang pendidikan (SD, SMP, SMA, PONPES, TK, TAUD, MIT) dari teks unit/pesanan
+const EDUCATION_LEVEL_MATCHERS = [
+    { key: 'SD', label: 'SD / SDIT', regex: /\b(sd|sdit|sekolah\s+dasar)\b/i },
+    { key: 'SMP', label: 'SMP / SMPIT', regex: /\b(smp|smpit|sekolah\s+menengah\s+pertama)\b/i },
+    { key: 'SMA', label: 'SMA / SMAIT', regex: /\b(sma|smait|sekolah\s+menengah\s+atas)\b/i },
+    { key: 'PONPES', label: 'Pondok Pesantren', regex: /\b(ponpes|pondok\s*pesantren|pesantren)\b/i },
+    { key: 'TK', label: 'TK / TKIT', regex: /\b(tk|tkit|taman\s+kanak)\b/i },
+    { key: 'TAUD', label: 'TAUD', regex: /\b(taud)\b/i },
+    { key: 'MIT', label: 'MIT', regex: /\b(mit|madrasah\s+ibtidaiyah)\b/i }
+];
+
+const extractEducationLevels = (text) => {
+    if (!text || typeof text !== 'string') return [];
+    return EDUCATION_LEVEL_MATCHERS
+        .filter(m => m.regex.test(text))
+        .map(m => m.key);
+};
+
+const extractSaleEducationLevels = (sale) => {
+    if (!sale) return [];
+    const explicitSources = [
+        sale.targetUnit,
+        sale.package?.targetUnit,
+        ...(sale.salePackages || []).map(sp => sp.package?.targetUnit),
+        ...(sale.items || []).map(i => i.variant?.item?.unit?.name)
+    ].filter(Boolean);
+
+    const explicitLevels = [...new Set(explicitSources.flatMap(extractEducationLevels))];
+    if (explicitLevels.length > 0) return explicitLevels;
+
+    const fallbackSources = [
+        sale.package?.name,
+        ...(sale.salePackages || []).map(sp => sp.package?.name),
+        ...(sale.items || []).map(i => i.itemName),
+        sale.studentClass,
+        sale.customerName
+    ].filter(Boolean);
+
+    return [...new Set(fallbackSources.flatMap(extractEducationLevels))];
+};
+
+const getUserUnitFilterInfo = async (reqUser) => {
+    if (!reqUser) return { isGlobalOrSarpras: false, userLevels: [], unitName: '' };
+    const globalRoles = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'BIDANG_IT', 'AUDITOR'];
+    const pos = (reqUser.position || '').toLowerCase();
+    const sarprasKeywords = ['sarana dan prasarana', 'manajemen aset', 'gudang', 'logistik'];
+
+    let unitName = reqUser.unit?.name || '';
+    if (!unitName && reqUser.unitId) {
+        const u = await prisma.unit.findUnique({ where: { id: parseInt(reqUser.unitId) }, select: { name: true } });
+        unitName = u?.name || '';
+    }
+    const unitLower = unitName.toLowerCase();
+    const isGlobalOrSarpras = globalRoles.includes(reqUser.role) ||
+        sarprasKeywords.some(kw => pos.includes(kw) || unitLower.includes(kw));
+
+    const combinedText = `${unitName} ${reqUser.position || ''} ${reqUser.name || ''}`;
+    const userLevels = extractEducationLevels(combinedText);
+    return { isGlobalOrSarpras, userLevels, unitName };
+};
+
 // ========== SALES (POS / SPMB / UNIT ORDER) ==========
 
 exports.getSales = async (req, res) => {
@@ -2403,18 +2464,30 @@ exports.getSales = async (req, res) => {
             orderBy = [{ completedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }];
         }
 
-        const data = await prisma.uniformSale.findMany({
+        const { isGlobalOrSarpras, userLevels, unitName } = await getUserUnitFilterInfo(req.user);
+
+        let data = await prisma.uniformSale.findMany({
             where,
             include: {
                 warehouse: { select: { id: true, name: true } },
-                package: { select: { id: true, name: true } }, // Legacy
-                salePackages: { include: { package: { select: { id: true, name: true } } } },
-                items: { include: { variant: { include: { item: true, stocks: true } } } },
+                package: { select: { id: true, name: true, targetUnit: true } }, // Legacy
+                salePackages: { include: { package: { select: { id: true, name: true, targetUnit: true } } } },
+                items: { include: { variant: { include: { item: { include: { unit: true } }, stocks: true } } } },
                 schedule: { select: { id: true, title: true, date: true } }
             },
             orderBy,
-            take: 200
+            take: isGlobalOrSarpras ? 200 : 500
         });
+
+        if (!isGlobalOrSarpras && userLevels.length > 0) {
+            data = data.filter(sale => {
+                const saleLevels = extractSaleEducationLevels(sale);
+                if (saleLevels.some(lvl => userLevels.includes(lvl))) return true;
+                if (unitName && sale.targetUnit && sale.targetUnit.toLowerCase() === unitName.toLowerCase()) return true;
+                return false;
+            });
+        }
+
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -2456,16 +2529,27 @@ exports.exportSalesToExcel = async (req, res) => {
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
 
+        const { isGlobalOrSarpras, userLevels, unitName } = await getUserUnitFilterInfo(req.user);
+
         let data = await prisma.uniformSale.findMany({
             where,
             include: {
                 warehouse: { select: { id: true, name: true } },
-                package: { select: { id: true, name: true } },
-                salePackages: { include: { package: { select: { id: true, name: true } } } },
-                items: { include: { variant: { include: { item: true } } } }
+                package: { select: { id: true, name: true, targetUnit: true } },
+                salePackages: { include: { package: { select: { id: true, name: true, targetUnit: true } } } },
+                items: { include: { variant: { include: { item: { include: { unit: true } } } } } }
             },
             orderBy: { createdAt: 'desc' }
         });
+
+        if (!isGlobalOrSarpras && userLevels.length > 0) {
+            data = data.filter(sale => {
+                const saleLevels = extractSaleEducationLevels(sale);
+                if (saleLevels.some(lvl => userLevels.includes(lvl))) return true;
+                if (unitName && sale.targetUnit && sale.targetUnit.toLowerCase() === unitName.toLowerCase()) return true;
+                return false;
+            });
+        }
 
         if (isOverdue30Days === 'true') {
             data = data.filter(s => {

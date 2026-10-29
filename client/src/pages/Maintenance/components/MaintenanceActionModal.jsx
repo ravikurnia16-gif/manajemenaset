@@ -19,7 +19,6 @@ export default function MaintenanceActionModal({
     report,
     units = [],
     users = [],
-    contractors = [],
     // Form States
     actionNote,
     setActionNote,
@@ -250,32 +249,14 @@ export default function MaintenanceActionModal({
                                     <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                                         Nama Teknisi / Vendor Eksternal *
                                     </label>
-                                    {report?.targetDept === 'PEMBANGUNAN' ? (
-                                        <select
-                                            value={technicianName}
-                                            onChange={e => {
-                                                const selectedName = e.target.value;
-                                                setTechnicianName(selectedName);
-                                                const c = contractors.find(ct => ct.name === selectedName);
-                                                setTechnicianPhone(c?.phone || '');
-                                            }}
-                                            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="">-- Pilih Tukang dari Database --</option>
-                                            {contractors.map(c => (
-                                                <option key={c.id} value={c.name}>{c.name} {c.specialty ? `(${c.specialty})` : ''}</option>
-                                            ))}
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={technicianName}
-                                            onChange={e => setTechnicianName(e.target.value)}
-                                            placeholder="Misal: CV Mitra Mandiri / Pak Ahmad"
-                                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-                                            required
-                                        />
-                                    )}
+                                    <input
+                                        type="text"
+                                        value={technicianName}
+                                        onChange={e => setTechnicianName(e.target.value)}
+                                        placeholder="Misal: CV Mitra Mandiri / Pak Ahmad"
+                                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                        required
+                                    />
 
                                     <div>
                                         <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">

@@ -901,6 +901,45 @@ const PaymentManagementModal = ({ sale, isOpen, onClose, onSave }) => {
   );
 };
 
+// Helper deteksi jenjang unit sekolah (SD, SMP, SMA, PONPES, TK, TAUD, MIT)
+const EDUCATION_LEVEL_MATCHERS = [
+  { key: 'SD', label: 'SD / SDIT', regex: /\b(sd|sdit|sekolah\s+dasar)\b/i },
+  { key: 'SMP', label: 'SMP / SMPIT', regex: /\b(smp|smpit|sekolah\s+menengah\s+pertama)\b/i },
+  { key: 'SMA', label: 'SMA / SMAIT', regex: /\b(sma|smait|sekolah\s+menengah\s+atas)\b/i },
+  { key: 'PONPES', label: 'Pondok Pesantren', regex: /\b(ponpes|pondok\s*pesantren|pesantren)\b/i },
+  { key: 'TK', label: 'TK / TKIT', regex: /\b(tk|tkit|taman\s+kanak)\b/i },
+  { key: 'TAUD', label: 'TAUD', regex: /\b(taud)\b/i },
+  { key: 'MIT', label: 'MIT', regex: /\b(mit|madrasah\s+ibtidaiyah)\b/i },
+];
+
+const extractEducationLevels = (text) => {
+  if (!text || typeof text !== 'string') return [];
+  return EDUCATION_LEVEL_MATCHERS.filter(m => m.regex.test(text)).map(m => m.key);
+};
+
+const extractSaleEducationLevels = (sale) => {
+  if (!sale) return [];
+  const explicitSources = [
+    sale.targetUnit,
+    sale.package?.targetUnit,
+    ...(sale.salePackages || []).map(sp => sp.package?.targetUnit),
+    ...(sale.items || []).map(i => i.variant?.item?.unit?.name)
+  ].filter(Boolean);
+
+  const explicitLevels = [...new Set(explicitSources.flatMap(extractEducationLevels))];
+  if (explicitLevels.length > 0) return explicitLevels;
+
+  const fallbackSources = [
+    sale.package?.name,
+    ...(sale.salePackages || []).map(sp => sp.package?.name),
+    ...(sale.items || []).map(i => i.itemName),
+    sale.studentClass,
+    sale.customerName
+  ].filter(Boolean);
+
+  return [...new Set(fallbackSources.flatMap(extractEducationLevels))];
+};
+
 export const SalesTab = ({ 
   sales = [], 
   type = 'ALL',
@@ -909,6 +948,7 @@ export const SalesTab = ({
   setSearch, 
   openModal, 
   canFulfill, 
+  isViewOnly: isViewOnlyProp,
   warehouses = [], 
   variants = [], 
   onFulfillSale, 
@@ -918,6 +958,30 @@ export const SalesTab = ({
 }) => {
   const currentUser = JSON.parse(localStorage.getItem('user')) || {};
   const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(currentUser.role);
+  const isViewOnly = isViewOnlyProp !== undefined ? isViewOnlyProp : !isAdmin;
+  const userUnitName = currentUser?.unit?.name || currentUser?.unitName || '';
+  const userLevels = useMemo(() => {
+    const combined = `${userUnitName} ${currentUser?.position || ''} ${currentUser?.name || ''}`;
+    return extractEducationLevels(combined);
+  }, [userUnitName, currentUser?.position, currentUser?.name]);
+
+  const userLevelLabels = useMemo(() => {
+    return EDUCATION_LEVEL_MATCHERS.filter(m => userLevels.includes(m.key)).map(m => m.label);
+  }, [userLevels]);
+
+  // Filter pesanan berdasarkan jenjang unit user jika user bukan Admin Aset/Super Admin
+  const unitFilteredSales = useMemo(() => {
+    const safeSales = Array.isArray(sales) ? sales : [];
+    if (isAdmin) return safeSales;
+    if (userLevels.length === 0) return safeSales;
+    return safeSales.filter(sale => {
+      const saleLevels = extractSaleEducationLevels(sale);
+      if (saleLevels.some(lvl => userLevels.includes(lvl))) return true;
+      if (userUnitName && sale?.targetUnit && sale.targetUnit.toLowerCase() === userUnitName.toLowerCase()) return true;
+      return false;
+    });
+  }, [sales, isAdmin, userLevels, userUnitName]);
+
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'INDENT' | 'PROSES' | 'COMPLETED'
   const [copied, setCopied] = useState(false);
@@ -1004,7 +1068,7 @@ export const SalesTab = ({
     let completed = 0;
     let overdue30 = 0;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const safeSales = Array.isArray(sales) ? sales : [];
+    const safeSales = Array.isArray(unitFilteredSales) ? unitFilteredSales : [];
 
     safeSales.forEach(s => {
       if (!s) return;
@@ -1025,12 +1089,12 @@ export const SalesTab = ({
     });
 
     return { all: safeSales.length, pending, indent, proses, completed, overdue30 };
-  }, [sales]);
+  }, [unitFilteredSales]);
 
   // Urutkan data: PENDING paling atas, INDENT berikutnya, PROSES, dan SELESAI paling bawah
   // Khusus status SELESAI diurutkan berdasarkan waktu selesai (completedAt) terbaru
   const sortedAndFilteredSales = useMemo(() => {
-    let list = Array.isArray(sales) ? [...sales] : [];
+    let list = Array.isArray(unitFilteredSales) ? [...unitFilteredSales] : [];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Filter status jika dipilih
@@ -1075,7 +1139,7 @@ export const SalesTab = ({
 
       return new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0);
     });
-  }, [sales, statusFilter]);
+  }, [unitFilteredSales, statusFilter]);
 
   const handleExportExcel = async () => {
     setIsExporting(true);
@@ -1116,6 +1180,26 @@ export const SalesTab = ({
 
   return (
     <div className="space-y-4 max-w-full overflow-x-hidden">
+      {/* Banner Informasi Mode View-Only untuk User Unit (SD, SMP, SMA, Ponpes, TK, TAUD, MIT) */}
+      {isViewOnly && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-900">
+          <div className="flex items-center gap-2 font-semibold">
+            <span className="px-2 py-0.5 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider">
+              View Only
+            </span>
+            <span>
+              Menampilkan daftar pesanan seragam sesuai jenjang unit Anda
+              {userLevelLabels.length > 0 ? `: ${userLevelLabels.join(', ')}` : (userUnitName ? ` (${userUnitName})` : '')}.
+            </span>
+          </div>
+          {userUnitName && (
+            <span className="text-[11px] font-bold text-blue-700 bg-white px-2.5 py-0.5 rounded-full border border-blue-200">
+              Unit: {userUnitName}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Top Search, Public Link Buttons & Create Bar */}
       <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3">
         <div className="flex flex-wrap gap-2 items-center flex-1 w-full max-w-lg">
@@ -1178,24 +1262,28 @@ export const SalesTab = ({
             )}
           </button>
 
-          {/* Tombol Tukar Ukuran */}
-          <button
-            type="button"
-            onClick={() => openModal('exchange')}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-sm text-center"
-            title="Tukar Ukuran Seragam (Retur / Ganti Ukuran)"
-          >
-            <RefreshCw size={13} className="text-amber-600 shrink-0" />
-            <span className="truncate">Tukar Ukuran</span>
-          </button>
+          {/* Tombol Tukar Ukuran (Khusus Admin) */}
+          {!isViewOnly && openModal && (
+            <button
+              type="button"
+              onClick={() => openModal('exchange')}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition shadow-sm text-center"
+              title="Tukar Ukuran Seragam (Retur / Ganti Ukuran)"
+            >
+              <RefreshCw size={13} className="text-amber-600 shrink-0" />
+              <span className="truncate">Tukar Ukuran</span>
+            </button>
+          )}
 
-          {/* Tombol Buat Pesanan (Admin) */}
-          <button 
-            onClick={() => openModal('sale')} 
-            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer text-center"
-          >
-            <ShoppingCart size={14} className="shrink-0" /> <span>Buat Pesanan</span>
-          </button>
+          {/* Tombol Buat Pesanan (Khusus Admin) */}
+          {!isViewOnly && openModal && (
+            <button 
+              onClick={() => openModal('sale')} 
+              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer text-center"
+            >
+              <ShoppingCart size={14} className="shrink-0" /> <span>Buat Pesanan</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1359,8 +1447,15 @@ export const SalesTab = ({
 
                 {/* Pelanggan & Siswa */}
                 <div className="space-y-0.5">
-                  <div className="font-bold text-slate-800 text-sm leading-snug break-words">
-                    {s.customerName}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-slate-800 text-sm leading-snug break-words">
+                      {s.customerName}
+                    </span>
+                    {(s.targetUnit || s.package?.targetUnit) && (
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
+                        {s.targetUnit || s.package?.targetUnit}
+                      </span>
+                    )}
                   </div>
                   {s.studentName && (
                     <div className="text-xs text-slate-500 font-medium">
@@ -1565,7 +1660,7 @@ export const SalesTab = ({
                     Invoice <ExternalLink size={11} />
                   </a>
 
-                  {s.type === 'SPMB' && (
+                  {!isViewOnly && s.type === 'SPMB' && (
                     <button
                       type="button"
                       onClick={async () => {
@@ -1591,7 +1686,7 @@ export const SalesTab = ({
                     </button>
                   )}
 
-                  {openModal && (
+                  {!isViewOnly && openModal && (
                     <button 
                       type="button"
                       onClick={() => openModal('exchange', s)} 
@@ -1601,7 +1696,7 @@ export const SalesTab = ({
                     </button>
                   )}
 
-                  {s.status === 'PENDING' && onDelete && (
+                  {!isViewOnly && s.status === 'PENDING' && onDelete && (
                     <button 
                       onClick={() => onDelete(s.id)} 
                       className="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 py-1.5 px-2.5 rounded-xl inline-flex items-center justify-center gap-1 text-center cursor-pointer" 
@@ -1611,8 +1706,8 @@ export const SalesTab = ({
                   )}
                 </div>
 
-                {/* Kelola Item Accordion Button */}
-                {canFulfill && s.status !== 'CANCELLED' && (
+                {/* Kelola / Lihat Item Accordion Button */}
+                {s.status !== 'CANCELLED' && (
                   <button 
                     onClick={() => toggleExpand(s.id)} 
                     className={`w-full text-xs font-bold py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
@@ -1625,31 +1720,58 @@ export const SalesTab = ({
                   >
                     {isExpanded ? (
                       <>
-                        <ChevronUp size={14} /> Tutup Kelola Item
+                        <ChevronUp size={14} /> {canFulfill ? 'Tutup Kelola Item' : 'Tutup Rincian Item'}
                       </>
                     ) : (
                       <>
-                        <ChevronDown size={14} /> Kelola {itemCount} Item Seragam
+                        <ChevronDown size={14} /> {canFulfill ? `Kelola ${itemCount} Item Seragam` : `Lihat ${itemCount} Item Seragam`}
                       </>
                     )}
                   </button>
                 )}
 
-                {/* Inline Fulfill Panel inside Mobile Card */}
+                {/* Inline Fulfill Panel or Read-Only Item List inside Mobile Card */}
                 {isExpanded && (
                   <div className="pt-2 border-t border-indigo-100">
-                    <InlineFulfillPanel 
-                      sale={s} 
-                      warehouses={warehouses} 
-                      variants={variants}
-                      onSave={async (fulfillments) => {
-                        if (onFulfillSale) {
-                          await onFulfillSale(s.id, fulfillments);
-                          toggleExpand(s.id);
-                        }
-                      }} 
-                      onClose={() => toggleExpand(s.id)} 
-                    />
+                    {canFulfill ? (
+                      <InlineFulfillPanel 
+                        sale={s} 
+                        warehouses={warehouses} 
+                        variants={variants}
+                        onSave={async (fulfillments) => {
+                          if (onFulfillSale) {
+                            await onFulfillSale(s.id, fulfillments);
+                            toggleExpand(s.id);
+                          }
+                        }} 
+                        onClose={() => toggleExpand(s.id)} 
+                      />
+                    ) : (
+                      <div className="bg-slate-50/90 p-3 rounded-xl border border-slate-200 space-y-2">
+                        <div className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                          <span>Rincian Item Pesanan ({sAllItems.length} Item)</span>
+                          <span className="text-[10px] font-semibold text-slate-500">Mode Lihat Saja</span>
+                        </div>
+                        <div className="divide-y divide-slate-200/70">
+                          {sAllItems.map((item, iIdx) => (
+                            <div key={item.id || iIdx} className="py-1.5 flex items-center justify-between gap-2 text-xs">
+                              <div className="min-w-0">
+                                <span className="font-semibold text-slate-800 block truncate">{item.itemName}</span>
+                                <span className="text-[11px] text-slate-500">Ukuran: <b>{item.size || '-'}</b> • Qty: <b>{item.qty}</b></span>
+                              </div>
+                              <Badge color={
+                                item.status === 'DIAMBIL' || item.status === 'DELIVERED' ? 'green' :
+                                item.status === 'SEDIA' ? 'blue' :
+                                item.status === 'INDENT' || item.status === 'TIDAK_TERSEDIA' ? 'orange' :
+                                item.status === 'BATAL' ? 'red' : 'yellow'
+                              }>
+                                {item.status || 'PENDING'}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1767,7 +1889,14 @@ export const SalesTab = ({
 
                     {/* Pelanggan */}
                     <td className="p-3">
-                      <div className="font-bold text-slate-800">{s.customerName}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-800">{s.customerName}</span>
+                        {(s.targetUnit || s.package?.targetUnit) && (
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
+                            {s.targetUnit || s.package?.targetUnit}
+                          </span>
+                        )}
+                      </div>
                       {s.studentName && <div className="text-[11px] text-slate-500">Siswa: <span className="font-semibold text-slate-700">{s.studentName}</span> {s.studentClass ? `(${s.studentClass})` : ''}</div>}
                     </td>
 
@@ -1918,7 +2047,7 @@ export const SalesTab = ({
                         )}
                       </div>
 
-                      {canFulfill && s.status !== 'CANCELLED' && (
+                      {s.status !== 'CANCELLED' && (
                         <button 
                           onClick={() => toggleExpand(s.id)} 
                           className={`mt-1.5 text-xs font-bold px-2.5 py-1 rounded-xl transition-all flex items-center justify-center gap-1 mx-auto whitespace-nowrap cursor-pointer ${
@@ -1928,15 +2057,15 @@ export const SalesTab = ({
                               ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
                               : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60'
                           }`}
-                          title="Buka / Tutup Kelola Item Langsung"
+                          title={canFulfill ? "Buka / Tutup Kelola Item Langsung" : "Lihat Rincian Item Pesanan"}
                         >
                           {isExpanded ? (
                             <>
-                              <ChevronUp size={13} /> Tutup Item
+                              <ChevronUp size={13} /> {canFulfill ? 'Tutup Item' : 'Tutup Rincian'}
                             </>
                           ) : (
                             <>
-                              <ChevronDown size={13} /> Kelola {itemCount} Item
+                              <ChevronDown size={13} /> {canFulfill ? `Kelola ${itemCount} Item` : `Lihat ${itemCount} Item`}
                             </>
                           )}
                         </button>
@@ -2016,7 +2145,7 @@ export const SalesTab = ({
                         >
                           Invoice <ExternalLink size={10} />
                         </a>
-                        {s.type === 'SPMB' && (
+                        {!isViewOnly && s.type === 'SPMB' && (
                           <button
                             type="button"
                             onClick={async () => {
@@ -2042,7 +2171,7 @@ export const SalesTab = ({
                             <Send size={10} /> WA Tagihan
                           </button>
                         )}
-                        {openModal && (
+                        {!isViewOnly && openModal && (
                           <button 
                             type="button"
                             onClick={() => openModal('exchange', s)} 
@@ -2052,7 +2181,7 @@ export const SalesTab = ({
                             <RefreshCw size={10} /> Tukar
                           </button>
                         )}
-                        {s.status === 'PENDING' && onDelete && (
+                        {!isViewOnly && s.status === 'PENDING' && onDelete && (
                           <button 
                             onClick={() => onDelete(s.id)} 
                             className="text-[10px] font-bold text-red-500 hover:text-red-700 p-1 bg-red-50 rounded" 
@@ -2065,22 +2194,71 @@ export const SalesTab = ({
                     </td>
                   </tr>
 
-                  {/* Accordion Expandable Row for Inline Fulfill */}
+                  {/* Accordion Expandable Row for Inline Fulfill or Read-Only Item View */}
                   {isExpanded && (
                     <tr className="bg-blue-50/20 border-b border-indigo-100">
                       <td colSpan="7" className="p-3 sm:p-4">
-                        <InlineFulfillPanel 
-                          sale={s} 
-                          warehouses={warehouses} 
-                          variants={variants}
-                          onSave={async (fulfillments) => {
-                            if (onFulfillSale) {
-                              await onFulfillSale(s.id, fulfillments);
-                              toggleExpand(s.id);
-                            }
-                          }} 
-                          onClose={() => toggleExpand(s.id)} 
-                        />
+                        {canFulfill ? (
+                          <InlineFulfillPanel 
+                            sale={s} 
+                            warehouses={warehouses} 
+                            variants={variants}
+                            onSave={async (fulfillments) => {
+                              if (onFulfillSale) {
+                                await onFulfillSale(s.id, fulfillments);
+                                toggleExpand(s.id);
+                              }
+                            }} 
+                            onClose={() => toggleExpand(s.id)} 
+                          />
+                        ) : (
+                          <div className="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                              <div className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-2">
+                                <Package size={15} className="text-blue-600" />
+                                <span>Rincian Item Pesanan: <span className="font-mono text-blue-700">{s.code}</span></span>
+                              </div>
+                              <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                                Mode Lihat Saja (View Only)
+                              </span>
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead className="bg-slate-50 text-slate-500 uppercase">
+                                  <tr>
+                                    <th className="p-2 text-left">Nama Seragam / Item</th>
+                                    <th className="p-2 text-center">Ukuran</th>
+                                    <th className="p-2 text-center">Jumlah</th>
+                                    <th className="p-2 text-right">Harga Satuan</th>
+                                    <th className="p-2 text-center">Status Item</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {sAllItems.map((item, iIdx) => (
+                                    <tr key={item.id || iIdx}>
+                                      <td className="p-2 font-semibold text-slate-800">{item.itemName}</td>
+                                      <td className="p-2 text-center font-bold text-slate-700">{item.size || '-'}</td>
+                                      <td className="p-2 text-center font-bold text-slate-700">{item.qty} pcs</td>
+                                      <td className="p-2 text-right text-slate-600">
+                                        Rp {(Number(item.unitPrice) || 0).toLocaleString('id-ID')}
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <Badge color={
+                                          item.status === 'DIAMBIL' || item.status === 'DELIVERED' ? 'green' :
+                                          item.status === 'SEDIA' ? 'blue' :
+                                          item.status === 'INDENT' || item.status === 'TIDAK_TERSEDIA' ? 'orange' :
+                                          item.status === 'BATAL' ? 'red' : 'yellow'
+                                        }>
+                                          {item.status || 'PENDING'}
+                                        </Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )}

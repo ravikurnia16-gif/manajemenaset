@@ -24,10 +24,11 @@ export default function SalesPage() {
         { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
         { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
     ] : [
+        { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> },
         { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> }
     ];
 
-    const [activeTab, setActiveTab] = useState(isSuperOrAdminAset ? 'sales_retail' : 'sales_spmb');
+    const [activeTab, setActiveTab] = useState('sales_retail');
     
     // Data states
     const [sales, setSales] = useState([]);
@@ -200,13 +201,14 @@ export default function SalesPage() {
                             loading={loading} 
                             search={search} 
                             setSearch={setSearch} 
-                            openModal={openModal} 
+                            openModal={isSuperOrAdminAset ? openModal : undefined} 
                             canFulfill={canFulfill}
+                            isViewOnly={!isSuperOrAdminAset}
                             warehouses={warehouses}
                             variants={variants}
-                            onFulfillSale={handleFulfillSale}
-                            onDelete={handleDeleteSale}
-                            onUpdatePayment={handleUpdatePayment}
+                            onFulfillSale={isSuperOrAdminAset ? handleFulfillSale : undefined}
+                            onDelete={isSuperOrAdminAset ? handleDeleteSale : undefined}
+                            onUpdatePayment={isSuperOrAdminAset ? handleUpdatePayment : undefined}
                             onRefresh={fetchData}
                         />
                     )}
@@ -217,13 +219,14 @@ export default function SalesPage() {
                             loading={loading} 
                             search={search} 
                             setSearch={setSearch} 
-                            openModal={openModal} 
+                            openModal={isSuperOrAdminAset ? openModal : undefined} 
                             canFulfill={canFulfill}
+                            isViewOnly={!isSuperOrAdminAset}
                             warehouses={warehouses}
                             variants={variants}
-                            onFulfillSale={handleFulfillSale}
-                            onDelete={handleDeleteSale}
-                            onUpdatePayment={handleUpdatePayment}
+                            onFulfillSale={isSuperOrAdminAset ? handleFulfillSale : undefined}
+                            onDelete={isSuperOrAdminAset ? handleDeleteSale : undefined}
+                            onUpdatePayment={isSuperOrAdminAset ? handleUpdatePayment : undefined}
                             onRefresh={fetchData}
                         />
                     )}
