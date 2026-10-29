@@ -463,6 +463,7 @@ export default function WorkPlanTab({
     const [loadingAiBreakdown, setLoadingAiBreakdown] = useState(false);
     const [planForm, setPlanForm] = useState({
         title: '',
+        targetOutput: '',
         position: user.position || '',
         category: getUserCategory(user.position, userDivision),
         priority: 'SEDANG',
@@ -512,6 +513,72 @@ export default function WorkPlanTab({
             alert('Gagal merapikan judul rencana.');
         } finally {
             setPolishingPlanTitle(false);
+        }
+    };
+
+    const handleAiActionPlanBreakdown = async () => {
+        if (!planForm.title?.trim()) {
+            alert('Silakan isi "Judul Rencana Kerja" terlebih dahulu agar AI dapat merumuskan Target SMART dan Action Plan bertahap.');
+            return;
+        }
+
+        try {
+            setLoadingAiBreakdown(true);
+            const res = await api.post('/laporan/ai/breakdown-plan', {
+                title: planForm.title.trim(),
+                position: planForm.position || user.position || userDivision || 'Staff Sarpras',
+                category: planForm.category || 'UMUM',
+                startDate: planForm.startDate || dayjs().format('YYYY-MM-DD'),
+                endDate: planForm.endDate || dayjs().add(7, 'day').format('YYYY-MM-DD'),
+                priority: planForm.priority || 'SEDANG'
+            });
+
+            if (res.data?.success && res.data?.data) {
+                const aiData = res.data.data;
+                const newSteps = Array.isArray(aiData.steps) ? aiData.steps : [];
+
+                if (newSteps.length === 0) {
+                    alert('AI belum dapat merumuskan butir langkah. Silakan buat judul yang lebih spesifik.');
+                    return;
+                }
+
+                const mappedItems = newSteps.map((s, idx) => {
+                    let stepTargetDate = s.targetDate || planForm.endDate || dayjs().add(idx + 1, 'day').format('YYYY-MM-DD');
+                    if (planForm.endDate && dayjs(stepTargetDate).isAfter(dayjs(planForm.endDate), 'day')) {
+                        stepTargetDate = planForm.endDate;
+                    }
+                    if (planForm.startDate && dayjs(stepTargetDate).isBefore(dayjs(planForm.startDate), 'day')) {
+                        stepTargetDate = planForm.startDate;
+                    }
+                    return {
+                        activity: s.activity || `Langkah ${idx + 1}`,
+                        targetDate: stepTargetDate,
+                        status: 'PENDING',
+                        percentage: 0
+                    };
+                });
+
+                const hasExisting = planForm.items.some(it => it.activity && it.activity.trim().length > 0);
+                let finalItems = mappedItems;
+                if (hasExisting) {
+                    if (!window.confirm(`✨ AI berhasil merumuskan Target SMART & ${mappedItems.length} butir Action Plan!\n\nKlik "OK" untuk menggantikan butir langkah saat ini, atau "Cancel" untuk menggabungkan dengan butir yang sudah ada.`)) {
+                        finalItems = [...planForm.items.filter(it => it.activity.trim()), ...mappedItems];
+                    }
+                }
+
+                setPlanForm(prev => ({
+                    ...prev,
+                    targetOutput: aiData.targetOutput || prev.targetOutput,
+                    priority: aiData.priority || prev.priority,
+                    notes: aiData.scopeNote || prev.notes,
+                    items: finalItems
+                }));
+            }
+        } catch (err) {
+            console.error('AI Action Plan Error:', err);
+            alert(err.response?.data?.error || 'Gagal menyusun Action Plan dengan AI. Silakan coba lagi.');
+        } finally {
+            setLoadingAiBreakdown(false);
         }
     };
 
@@ -686,6 +753,7 @@ export default function WorkPlanTab({
         const nextWeekEnd = dayjs().add(1, 'week').startOf('isoWeek').add(4, 'day').format('YYYY-MM-DD');
         setPlanForm({
             title: '',
+            targetOutput: '',
             planType: 'WEEKLY',
             isProject: false,
             position: user.position || '',
@@ -717,6 +785,7 @@ export default function WorkPlanTab({
 
         setPlanForm({
             title: meta.title || '',
+            targetOutput: meta.targetOutput || meta.targetPencapaian || '',
             planType: isProj ? 'PROJECT' : 'WEEKLY',
             isProject: isProj,
             position: meta.position || plan.user?.position || user.position || '',
@@ -730,49 +799,8 @@ export default function WorkPlanTab({
         setShowFormModal(true);
     };
 
-    // AI Task Breakdown Handler
-    const handleAiBreakdown = async () => {
-        if (!planForm.title.trim()) {
-            alert('Silakan ketik Judul Rencana Kerja terlebih dahulu agar AI dapat merinci langkah yang sesuai.');
-            return;
-        }
-
-        try {
-            setLoadingAiBreakdown(true);
-            const res = await api.post('/laporan/ai/breakdown-plan', {
-                title: planForm.title,
-                position: planForm.position,
-                category: planForm.category,
-                startDate: planForm.startDate,
-                endDate: planForm.endDate,
-                priority: planForm.priority
-            });
-
-            if (res.data?.success && res.data?.data) {
-                const aiData = res.data.data;
-                const newItems = Array.isArray(aiData.steps) ? aiData.steps.map(s => ({
-                    activity: s.activity || '',
-                    targetDate: s.targetDate || planForm.endDate,
-                    status: 'PENDING',
-                    percentage: 0
-                })) : [];
-
-                setPlanForm(prev => ({
-                    ...prev,
-                    priority: aiData.priority || prev.priority,
-                    items: newItems,
-                    notes: aiData.scopeNote || prev.notes
-                }));
-
-                alert(`✨ AI Berhasil merinci ${newItems.length} langkah pengerjaan dan merekomendasikan prioritas: ${aiData.priority || 'SEDANG'}!`);
-            }
-        } catch (err) {
-            console.error('AI Breakdown error:', err);
-            alert(err.response?.data?.error || 'Gagal merinci langkah dengan AI. Silakan coba lagi.');
-        } finally {
-            setLoadingAiBreakdown(false);
-        }
-    };
+    // AI Task Breakdown Handler (Alias)
+    const handleAiBreakdown = handleAiActionPlanBreakdown;
 
     // Handle Item inputs in Form
     const handleItemChange = (index, field, value) => {
@@ -1323,6 +1351,15 @@ export default function WorkPlanTab({
                                             </h3>
                                         </div>
 
+                                        {/* Target Output (Wujud Hasil Akhir / SMART Output) */}
+                                        {(meta.targetOutput || meta.targetPencapaian) && (
+                                            <div className="flex items-center gap-1.5 text-xs text-violet-900 bg-violet-50/80 border border-violet-100 px-3 py-1.5 rounded-xl font-medium mt-1">
+                                                <Target size={13} className="text-violet-600 shrink-0" />
+                                                <span className="font-bold text-violet-800 shrink-0">Target Output:</span>
+                                                <span className="text-slate-700 truncate">{meta.targetOutput || meta.targetPencapaian}</span>
+                                            </div>
+                                        )}
+
                                         {plan.content && !isCollapsed && (
                                             <p className="text-xs text-slate-500 font-medium line-clamp-2">
                                                 {plan.content}
@@ -1785,6 +1822,25 @@ export default function WorkPlanTab({
                                     <div className="flex items-center gap-1.5 flex-wrap justify-end">
                                         <button
                                             type="button"
+                                            disabled={loadingAiBreakdown || !planForm.title?.trim()}
+                                            onClick={handleAiActionPlanBreakdown}
+                                            className="px-2.5 py-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-xs rounded-xl text-[11px] font-black transition flex items-center gap-1 active:scale-95 cursor-pointer disabled:opacity-40"
+                                            title="Susun Target SMART dan rincian Action Plan bertahap secara otomatis dengan AI"
+                                        >
+                                            {loadingAiBreakdown ? (
+                                                <>
+                                                    <Loader2 size={11} className="animate-spin text-white" />
+                                                    <span>Menyusun SMART...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles size={11} className="text-amber-300" />
+                                                    <span>Susun Action Plan SMART (AI)</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
                                             disabled={polishingPlanTitle || !planForm.title?.trim()}
                                             onClick={handlePolishPlanTitle}
                                             className="px-2.5 py-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-xl text-[11px] font-bold transition flex items-center gap-1 active:scale-95 cursor-pointer disabled:opacity-40"
@@ -1812,6 +1868,28 @@ export default function WorkPlanTab({
                                     onChange={(e) => setPlanForm({ ...planForm, title: e.target.value })}
                                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
                                 />
+                            </div>
+
+                            {/* Target Pencapaian (Output SMART / Wujud Hasil Akhir) */}
+                            <div className="space-y-1.5 p-3.5 bg-violet-50/70 border border-violet-200/80 rounded-2xl">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-black text-violet-900 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Target size={14} className="text-violet-600" /> Target Pencapaian (Output SMART / Wujud Hasil Akhir)
+                                    </label>
+                                    <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">
+                                        Metode SMART
+                                    </span>
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Misal: 1 Dokumen SOP disahkan, 5 Ruangan AC dingin normal 20°C, Instalasi tuntas & aman K3..."
+                                    value={planForm.targetOutput || ''}
+                                    onChange={(e) => setPlanForm({ ...planForm, targetOutput: e.target.value })}
+                                    className="w-full px-3.5 py-2.5 bg-white border border-violet-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                                />
+                                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                                    💡 <b>SMART Target:</b> Wujud fisik/dokumen yang spesifik dan terukur untuk memastikan rencana tuntas 100%. Bisa disusun otomatis dengan tombol <b>"Susun Action Plan SMART (AI)"</b> di atas.
+                                </p>
                             </div>
 
                             {/* Prioritas Rencana Kerja */}

@@ -196,6 +196,8 @@ const LaporanStaff = () => {
     const [hasCarriedOver, setHasCarriedOver] = useState(false);
     const [userProjects, setUserProjects] = useState([]);
     const [userWeeklyPlans, setUserWeeklyPlans] = useState([]);
+    const [standaloneInProgress, setStandaloneInProgress] = useState([]);
+    const [yesterdayTomorrowPlans, setYesterdayTomorrowPlans] = useState([]);
     const [showTemplateAccordion, setShowTemplateAccordion] = useState(false);
     const [showAllTemplates, setShowAllTemplates] = useState(false);
     const [showMissedDates, setShowMissedDates] = useState(false);
@@ -488,6 +490,8 @@ const LaporanStaff = () => {
             if (res.data.success) {
                 if (res.data.userProjects) setUserProjects(res.data.userProjects);
                 if (res.data.userWeeklyPlans) setUserWeeklyPlans(res.data.userWeeklyPlans);
+                if (res.data.standaloneInProgress) setStandaloneInProgress(res.data.standaloneInProgress);
+                if (res.data.yesterdayTomorrowPlans) setYesterdayTomorrowPlans(res.data.yesterdayTomorrowPlans);
 
                 const rep = res.data.myReport;
                 const meta = rep?.metadata || {};
@@ -590,37 +594,15 @@ const LaporanStaff = () => {
                         }
                     }
 
-                    // Auto Carry-Over dari Laporan Rencana Kemarin (suggestedFromYesterday)
-                    // Auto Carry-Over dari Laporan Rencana & On-Progress Kemarin (suggestedFromYesterday)
-                    if (Array.isArray(res.data.suggestedFromYesterday) && res.data.suggestedFromYesterday.length > 0) {
-                        setCompletedItems([{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
-                        setInProgressItems(res.data.suggestedFromYesterday.map(item => ({
-                            title: item.text || item.title || '',
-                            progressPercentage: item.progressPercentage !== undefined ? parseInt(item.progressPercentage) : 50,
-                            targetDate: item.targetDate || 'Hari ini',
-                            categoryTag: item.categoryTag || userDivision || 'UMUM',
-                            photos: [],
-                            sourceType: item.sourceType || 'PLAN',
-                            sourceId: item.sourceId || null,
-                            planItemIndex: item.planItemIndex !== undefined ? item.planItemIndex : null,
-                            projectId: item.projectId || null,
-                            projectItemIndex: item.projectItemIndex !== undefined ? item.projectItemIndex : null,
-                            isFromYesterday: true,
-                            fromInProgress: !!item.fromInProgress,
-                            fromTomorrowPlan: !!item.fromTomorrowPlan
-                        })));
-                        setHasObstacle(false);
-                        setObstacleItems([{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
-                        setTomorrowPlans([{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
-                        setHasCarriedOver(true);
-                    } else {
-                        setCompletedItems([{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
-                        setInProgressItems([]);
-                        setHasObstacle(false);
-                        setObstacleItems([{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
-                        setTomorrowPlans([{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
-                        setHasCarriedOver(false);
-                    }
+                    // Bebas Opsi Tarik: Tidak ada pekerjaan yang otomatis dipaksa masuk ke On-Progress maupun Selesai.
+                    // Seluruh butir on-progress (baik rencana kerja maupun kegiatan baru/mandiri) serta rencana kemarin
+                    // disajikan sebagai OPSI TARIK melalui drawer/banner di formulir, sehingga staf leluasa memilih.
+                    setCompletedItems([{ title: '', output: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                    setInProgressItems([]);
+                    setHasCarriedOver(false);
+                    setHasObstacle(false);
+                    setObstacleItems([{ title: '', obstacleNote: '', actionPlan: '', categoryTag: userDivision || 'UMUM', photos: [] }]);
+                    setTomorrowPlans([{ title: '', categoryTag: userDivision || 'UMUM', priority: 'SEDANG' }]);
                     setHasRestoredDraft(false);
                     currentLoadedDateRef.current = targetDateToLoad;
                 }
@@ -1114,6 +1096,147 @@ const LaporanStaff = () => {
         setActiveTab('laporan');
     };
 
+    // Tarik Cepat Pekerjaan On-Progress Mandiri (Khusus non-rencana & non-penugasan)
+    const convertStandaloneToReport = (item, targetPillar = 'COMPLETED') => {
+        const cat = item.categoryTag || userDivision || 'UMUM';
+        const candidate = {
+            title: item.title,
+            sourceType: 'MANUAL'
+        };
+
+        if (targetPillar === 'COMPLETED') {
+            const newItem = {
+                title: item.title,
+                output: 'Tuntas diselesaikan.',
+                categoryTag: cat,
+                sourceType: 'MANUAL',
+                photos: []
+            };
+            setCompletedItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.photos?.length > 0) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            // Mutual exclusivity: Bersihkan dari On-Progress & Rencana Besok
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else if (targetPillar === 'IN_PROGRESS') {
+            const newItem = {
+                title: item.title,
+                progressPercentage: item.progressPercentage || 50,
+                targetDate: item.targetDate || 'Hari ini',
+                categoryTag: cat,
+                sourceType: 'MANUAL',
+                photos: []
+            };
+            setInProgressItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.photos?.length > 0) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else if (targetPillar === 'OBSTACLE') {
+            setHasObstacle(true);
+            const newItem = {
+                title: item.title,
+                obstacleNote: '',
+                actionPlan: '',
+                categoryTag: cat,
+                sourceType: 'MANUAL',
+                photos: []
+            };
+            setObstacleItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.obstacleNote?.trim()) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setTomorrowPlans(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else if (targetPillar === 'TOMORROW') {
+            const newItem = {
+                title: `Menyelesaikan pekerjaan: ${item.title}`,
+                categoryTag: cat,
+                priority: 'SEDANG',
+                sourceType: 'MANUAL'
+            };
+            setTomorrowPlans(prev => {
+                const filtered = prev.filter(p => p.title?.trim() && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        }
+        setActiveTab('laporan');
+    };
+
+    const convertYesterdayPlanToReport = (item, targetPillar) => {
+        const cat = item.categoryTag || userDivision || 'UMUM';
+        const candidate = {
+            title: item.title || item.text,
+            sourceType: item.sourceType || 'PLAN',
+            sourceId: item.sourceId || null
+        };
+
+        if (targetPillar === 'COMPLETED') {
+            const newItem = {
+                title: item.title || item.text,
+                output: 'Tuntas dilaksanakan 100% sesuai rencana.',
+                categoryTag: cat,
+                sourceType: item.sourceType || 'PLAN',
+                sourceId: item.sourceId || null,
+                photos: [],
+                isFromYesterday: true
+            };
+            setCompletedItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.photos?.length > 0) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else if (targetPillar === 'IN_PROGRESS') {
+            const newItem = {
+                title: item.title || item.text,
+                progressPercentage: item.progressPercentage || 50,
+                targetDate: item.targetDate || 'Hari ini',
+                categoryTag: cat,
+                sourceType: item.sourceType || 'PLAN',
+                sourceId: item.sourceId || null,
+                photos: [],
+                isFromYesterday: true,
+                fromTomorrowPlan: true
+            };
+            setInProgressItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.photos?.length > 0) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setObstacleItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        } else if (targetPillar === 'OBSTACLE') {
+            setHasObstacle(true);
+            const newItem = {
+                title: item.title || item.text,
+                obstacleNote: 'Mengalami kendala dalam pelaksanaan.',
+                actionPlan: '',
+                categoryTag: cat,
+                sourceType: item.sourceType || 'PLAN',
+                sourceId: item.sourceId || null,
+                photos: [],
+                isFromYesterday: true
+            };
+            setObstacleItems(prev => {
+                const filtered = prev.filter(p => (p.title?.trim() || p.obstacleNote?.trim()) && !isSamePppItem(p, candidate));
+                return [...filtered, newItem];
+            });
+            setCompletedItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+            setInProgressItems(prev => prev.filter(p => !isSamePppItem(p, candidate)));
+        }
+
+        // Item tetap ada di yesterdayTomorrowPlans agar user bisa melihat status dan beralih status
+        setActiveTab('laporan');
+    };
+
     const saveStaffTemplates = (templates) => {
         setStaffCustomTemplates(templates);
         try {
@@ -1406,6 +1529,8 @@ const LaporanStaff = () => {
                     planType: resolvedPlanType,
                     projectId: formData.projectId || null,
                     title: formData.title,
+                    targetOutput: (formData.targetOutput || '').trim(),
+                    targetPencapaian: (formData.targetOutput || '').trim(),
                     position: formData.position || userPos,
                     categoryTag: formData.category || userDivision || 'UMUM',
                     priority: formData.priority || 'SEDANG',
@@ -2327,6 +2452,10 @@ const LaporanStaff = () => {
                             userProjects={userProjects}
                             userWeeklyPlans={userWeeklyPlans}
                             convertPlanItemToReport={convertPlanItemToReport}
+                            standaloneInProgress={standaloneInProgress}
+                            convertStandaloneToReport={convertStandaloneToReport}
+                            yesterdayTomorrowPlans={yesterdayTomorrowPlans}
+                            convertYesterdayPlanToReport={convertYesterdayPlanToReport}
                             applyRoutine={applyRoutine}
                         />
                     )}

@@ -513,6 +513,107 @@ exports.getReports = async (req, res) => {
             console.error('Error fetching user projects/weekly plans:', ePlans);
         }
 
+        // Cari pekerjaan on-progress mandiri (BUKAN penugasan & BUKAN rencana kerja/proyek) dari 14 hari terakhir
+        let standaloneInProgress = [];
+        try {
+            const fourteenDaysAgo = dayjs().tz('Asia/Jakarta').subtract(14, 'day').startOf('day').toDate();
+            const recentReports = await prisma.personnelReport.findMany({
+                where: {
+                    userId: reqUserId,
+                    type: 'DAILY',
+                    NOT: { content: 'SETORAN_HAFALAN' },
+                    date: { gte: fourteenDaysAgo }
+                },
+                orderBy: { date: 'desc' }
+            });
+
+            // Catat pekerjaan yang sudah selesai (COMPLETED) di hari mana pun agar tidak dimunculkan lagi
+            const completedNormSet = new Set();
+            recentReports.forEach(rep => {
+                const meta = typeof rep.metadata === 'object' && rep.metadata !== null ? rep.metadata : {};
+                const comp = Array.isArray(meta.completedItems) ? meta.completedItems : [];
+                comp.forEach(c => {
+                    const ct = (c.title || c.text || '').toLowerCase().replace(/\[penugasan:[^\]]*\]/gi, '').replace(/\[penugasan\]/gi, '').replace(/\[rencana[^\]]*\]/gi, '').replace(/[^a-z0-9]/g, '').trim();
+                    if (ct) completedNormSet.add(ct);
+                });
+            });
+
+            const seenStandalone = new Set();
+            recentReports.forEach(rep => {
+                const meta = typeof rep.metadata === 'object' && rep.metadata !== null ? rep.metadata : {};
+                const inProg = Array.isArray(meta.inProgressItems) ? meta.inProgressItems : [];
+                inProg.forEach(ip => {
+                    const title = (ip.title || ip.text || '').trim();
+                    if (!title) return;
+
+                    // FILTER MUTLAK: Pastikan BUKAN Penugasan Pimpinan dan BUKAN Rencana Kerja / Proyek
+                    const isAssignment = ip.sourceType === 'ASSIGNMENT' || !!ip.assignmentId || /^\[?penugasan/i.test(title);
+                    const isPlanOrProject = (ip.sourceType === 'PLAN' && (ip.sourceId || ip.planId || (ip.planItemIndex !== null && ip.planItemIndex !== undefined))) ||
+                        ip.sourceType === 'WEEKLY_PLAN' || ip.sourceType === 'PROJECT' || !!ip.planId || !!ip.projectId ||
+                        /^\[?rencana/i.test(title) || /^\[?program/i.test(title);
+
+                    if (isAssignment || isPlanOrProject) {
+                        return; // Abaikan agar TIDAK PERNAH BERIMPIT dengan drawer penugasan atau rencana!
+                    }
+
+                    const norm = title.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+                    if (completedNormSet.has(norm)) return; // Sudah tuntas di hari setelahnya
+
+                    if (!seenStandalone.has(norm)) {
+                        seenStandalone.add(norm);
+                        const pct = ip.progressPercentage !== undefined && ip.progressPercentage !== null ? parseInt(ip.progressPercentage) : 50;
+                        if (pct < 100) {
+                            standaloneInProgress.push({
+                                title: title,
+                                progressPercentage: pct,
+                                categoryTag: ip.categoryTag || 'UMUM',
+                                targetDate: ip.targetDate || '',
+                                lastReportDate: dayjs(rep.date).format('YYYY-MM-DD'),
+                                lastReportDateFormatted: dayjs(rep.date).format('DD/MM/YYYY'),
+                                sourceType: 'MANUAL',
+                                sourceId: null,
+                                planItemIndex: null,
+                                isStandalone: true
+                            });
+                        }
+                    }
+                });
+            });
+
+            // Pastikan pekerjaan on-progress manual dari kemarin (prevInProgress) juga masuk jika belum tuntas
+            if (Array.isArray(prevInProgress)) {
+                prevInProgress.forEach(pip => {
+                    const title = (pip.title || pip.text || '').trim();
+                    if (!title) return;
+                    const isAssignment = pip.sourceType === 'ASSIGNMENT' || /^\[?penugasan/i.test(title);
+                    const isPlan = (pip.sourceType === 'PLAN' && (pip.sourceId || (pip.planItemIndex !== null && pip.planItemIndex !== undefined))) ||
+                        pip.sourceType === 'WEEKLY_PLAN' || pip.sourceType === 'PROJECT' || pip.projectId || pip.planId ||
+                        /^\[?rencana/i.test(title) || /^\[?program/i.test(title);
+
+                    if (!isAssignment && !isPlan) {
+                        const norm = title.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+                        if (norm && !completedNormSet.has(norm) && !seenStandalone.has(norm)) {
+                            seenStandalone.add(norm);
+                            standaloneInProgress.push({
+                                title: title,
+                                progressPercentage: pip.progressPercentage || 50,
+                                categoryTag: pip.categoryTag || 'UMUM',
+                                targetDate: pip.targetDate || 'Hari ini',
+                                lastReportDate: yesterdayReport ? dayjs(yesterdayReport.date).format('YYYY-MM-DD') : '',
+                                lastReportDateFormatted: yesterdayReport ? dayjs(yesterdayReport.date).format('DD/MM/YYYY') : 'Kemarin',
+                                sourceType: 'MANUAL',
+                                sourceId: null,
+                                planItemIndex: null,
+                                isStandalone: true
+                            });
+                        }
+                    }
+                });
+            }
+        } catch (eStandalone) {
+            console.error('Error fetching standalone in-progress items:', eStandalone);
+        }
+
         // Strict Isolation: Non-Kabid (termasuk Admin Aset) HANYA BISA melihat laporannya sendiri
         const sanitizedReports = isUserKabid ? reports : (myReport ? [myReport] : []);
 
@@ -521,8 +622,11 @@ exports.getReports = async (req, res) => {
             reports: sanitizedReports, 
             myReport,
             suggestedFromYesterday,
+            yesterdayInProgress: prevInProgress,
+            yesterdayTomorrowPlans: prevTomorrow,
             userProjects,
             userWeeklyPlans,
+            standaloneInProgress,
             isKabid: isUserKabid 
         });
 
@@ -2984,19 +3088,23 @@ Rencana kerja yang akan disusun oleh staf:
 - Tanggal Estimasi Selesai (Batas Akhir): ${endStr}
 - Prioritas Awal: ${priority || 'SEDANG'}
 
-TUGAS ANDA:
-1. Analisis urgensi rencana ini dan tentukan "priority": pilih salah satu dari "TINGGI" (kritis/urgent/keamanan/kebocoran/darurat), "SEDANG" (penting/terjadwal standar), atau "RENDAH" (rutin/berkala/kebersihan).
-2. Rincikan pekerjaan ini menjadi 3 sampai 5 butir langkah kerja konkret yang runtut secara kronologis.
-3. Untuk setiap butir langkah dalam array "steps":
+TUGAS ANDA MENGGUNAKAN METODE ACTION PLAN & OUTPUT TERUKUR:
+1. "targetOutput": RUMUSKAN TARGET HASIL AKHIR (Output Fisik/Dokumen Konkret):
+   - Harus berupa 1 kalimat target hasil akhir fisik/dokumen yang spesifik, terukur, dan realistis (Contoh: "1 Dokumen SOP penanganan kerusakan kendaraan disahkan dan disosialisasikan", "5 Unit AC Gedung B dingin normal 20°C dan lolos uji kompresor", "Instalasi jalur kabel panel utama tuntas 100% dan teruji aman K3").
+   - PENTING: Time-bound (tanggal, hari, batas waktu) TIDAK PERLU dicantumkan di dalam kalimat targetOutput. JANGAN mencantumkan tanggal atau batas waktu di dalam teks targetOutput.
+2. "steps": SUSUN ACTION PLAN (Rangkaian tindakan kerja kronologis berbobot):
+   - Rincikan pekerjaan ini menjadi 3 sampai 5 butir langkah kerja konkret yang runtut secara kronologis.
    - "activity": Uraian tindakan kerja teknis yang jelas dan profesional (maksimal 15 kata per langkah).
-   - "targetDate": Tanggal estimasi langkah dalam format YYYY-MM-DD. Tanggal langkah HARUS dimulai dari ${startStr} dan MAKSIMAL ${endStr} (TIDAK BOLEH melebihi ${endStr}). Urutkan tanggal dari awal sampai deadline.
-4. "targetOutput": 1 kalimat wujud hasil akhir/output konkret yang terukur setelah seluruh rencana ini selesai (contoh: "1 Dokumen SOP disahkan", "Unit pendingin normal 20°C", "Instalasi jalur kabel panel utama tuntas & aman").
-5. "scopeNote": 1-2 kalimat ringkasan ruang lingkup pengerjaan atau saran keselamatan kerja (K3).
+   - "targetDate": Tanggal estimasi langkah dalam format YYYY-MM-DD. Tanggal langkah HARUS dimulai dari ${startStr} dan MAKSIMAL ${endStr} (TIDAK BOLEH melebihi ${endStr}). Urutkan tanggal secara bertahap dari awal sampai deadline.
+3. "priority": Analisis urgensi rencana ini dan tentukan "priority": pilih salah satu dari "TINGGI" (kritis/urgent/keamanan/darurat), "SEDANG" (penting/terjadwal standar), atau "RENDAH" (rutin/berkala).
+4. "scopeNote": 1-2 kalimat ringkasan ruang lingkup pengerjaan atau saran keselamatan kerja (K3).
+5. "smartSummary": 1 kalimat penjelasan singkat mengenai tolok ukur keberhasilan output ini.
 
 KEMBALIKAN HANYA FORMAT JSON MURNI TANPA MARKDOWN (tanpa blok backtick json):
 {
   "priority": "TINGGI",
-  "targetOutput": "Wujud hasil akhir terukur...",
+  "targetOutput": "Wujud hasil akhir terukur tanpa tanggal...",
+  "smartSummary": "Tolok ukur keberhasilan adalah...",
   "steps": [
     { "activity": "Langkah pertama...", "targetDate": "${startStr}" }
   ],
@@ -3037,14 +3145,15 @@ KEMBALIKAN HANYA FORMAT JSON MURNI TANPA MARKDOWN (tanpa blok backtick json):
 
             parsedData = {
                 priority: priority || 'SEDANG',
-                targetOutput: `Pekerjaan ${title} tuntas 100%, teruji aman, dan siap digunakan.`,
+                targetOutput: `Hasil pekerjaan ${title} tuntas 100%, teruji aman, dan siap diserahterimakan.`,
+                smartSummary: `Target terukur pada penyelesaian fisik utama dan uji kelayakan.`,
                 steps: [
-                    { activity: `Pemeriksaan awal & identifikasi kebutuhan: ${title}`, targetDate: startD.format('YYYY-MM-DD') },
-                    { activity: `Persiapan material, alat pelindung & suku cadang`, targetDate: midDate },
+                    { activity: `Pemeriksaan awal & identifikasi spesifikasi: ${title}`, targetDate: startD.format('YYYY-MM-DD') },
+                    { activity: `Persiapan material, alat pelindung diri (APD) & suku cadang`, targetDate: midDate },
                     { activity: `Pelaksanaan tindakan pengerjaan fisik utama`, targetDate: endStr },
-                    { activity: `Uji coba fungsi, pembersihan area kerja & serah terima`, targetDate: endStr }
+                    { activity: `Uji coba fungsi menyeluruh, pembersihan area & serah terima`, targetDate: endStr }
                 ],
-                scopeNote: `Pengerjaan target ${title} sesuai SOP pemeliharaan sarana dan keselamatan kerja.`
+                scopeNote: `Pengerjaan target ${title} sesuai SOP pemeliharaan sarana dan kaidah K3.`
             };
         }
 

@@ -68,6 +68,10 @@ const DailyReportFormTab = ({
     userProjects = [],
     userWeeklyPlans = [],
     convertPlanItemToReport,
+    standaloneInProgress = [],
+    convertStandaloneToReport,
+    yesterdayTomorrowPlans = [],
+    convertYesterdayPlanToReport,
     applyRoutine
 }) => {
     // State for AI Polish feature
@@ -77,8 +81,10 @@ const DailyReportFormTab = ({
     // Drawers & Accordions
     const [showTaskDrawer, setShowTaskDrawer] = useState(false);
     const [showPlanDrawer, setShowPlanDrawer] = useState(false);
+    const [showStandaloneDrawer, setShowStandaloneDrawer] = useState(false);
     const [planDrawerFilter, setPlanDrawerFilter] = useState('ALL'); // 'ALL' | 'WEEKLY' | 'PROJECT'
     const [taskSearch, setTaskSearch] = useState('');
+    const [standaloneSearch, setStandaloneSearch] = useState('');
     
     // Filter view for mobile (ALL, COMPLETED, IN_PROGRESS, OBSTACLE, TOMORROW)
     const [activePillarTab, setActivePillarTab] = useState('ALL');
@@ -129,6 +135,99 @@ const DailyReportFormTab = ({
         if (checkIn(tomorrowPlans)) return 'TOMORROW';
         return null;
     };
+
+    // Helper: Cek status pekerjaan berjalan mandiri di pilar hari ini
+    const getReportPillarForStandalone = (item) => {
+        if (!item) return null;
+        const clean = (s) => (s || '')
+            .toLowerCase()
+            .replace(/\[penugasan:[^\]]*\]/gi, '')
+            .replace(/\[penugasan\]/gi, '')
+            .replace(/\[rencana[^\]]*\]/gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+        const nt = clean(item.title);
+
+        const checkIn = (arr) => Array.isArray(arr) && arr.some(it => {
+            const ni = clean(it.title || it.text);
+            return nt && ni && (nt === ni || (nt.length > 8 && ni.length > 8 && (nt.includes(ni) || ni.includes(nt))));
+        });
+
+        if (checkIn(completedItems)) return 'COMPLETED';
+        if (checkIn(inProgressItems)) return 'IN_PROGRESS';
+        if (checkIn(obstacleItems)) return 'OBSTACLE';
+        if (checkIn(tomorrowPlans)) return 'TOMORROW';
+        return null;
+    };
+
+    // Helper: Cek status butir rencana kemarin di pilar hari ini
+    const getReportPillarForYesterdayPlan = (item) => {
+        if (!item) return null;
+        const clean = (s) => (s || '')
+            .toLowerCase()
+            .replace(/\[penugasan:[^\]]*\]/gi, '')
+            .replace(/\[penugasan\]/gi, '')
+            .replace(/\[rencana[^\]]*\]/gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+        const nt = clean(item.title || item.text);
+
+        const checkIn = (arr) => Array.isArray(arr) && arr.some(it => {
+            const ni = clean(it.title || it.text);
+            return nt && ni && (nt === ni || (nt.length > 8 && ni.length > 8 && (nt.includes(ni) || ni.includes(nt))));
+        });
+
+        if (checkIn(completedItems)) return 'COMPLETED';
+        if (checkIn(inProgressItems)) return 'IN_PROGRESS';
+        if (checkIn(obstacleItems)) return 'OBSTACLE';
+        return null;
+    };
+
+    const filteredStandalone = useMemo(() => {
+        if (!Array.isArray(standaloneInProgress)) return [];
+        return standaloneInProgress.filter(it => {
+            if (!standaloneSearch.trim()) return true;
+            return (it.title || '').toLowerCase().includes(standaloneSearch.toLowerCase());
+        });
+    }, [standaloneInProgress, standaloneSearch]);
+
+    // Hitung jumlah butir rencana kerja & project yang sedang On-Progress
+    const inProgressPlansCount = useMemo(() => {
+        const all = [...(userWeeklyPlans || []), ...(userProjects || [])];
+        let count = 0;
+        all.forEach(p => {
+            const items = Array.isArray(p.items) ? p.items : [];
+            if (items.length > 0) {
+                count += items.filter(sub => !((sub.percentage || 0) >= 100 || sub.status === 'COMPLETED' || sub.status === 'SELESAI')).length;
+            } else {
+                if (!((p.percentage || 0) >= 100 || p.status === 'COMPLETED' || p.status === 'SELESAI')) count++;
+            }
+        });
+        return count;
+    }, [userWeeklyPlans, userProjects]);
+
+    // Saring Rencana Kerja & Project berdasarkan filter drawer (Semua, On-Progress, Pekanan, Project)
+    const filteredPlans = useMemo(() => {
+        let list = [];
+        if (planDrawerFilter === 'PROJECT') {
+            list = userProjects;
+        } else if (planDrawerFilter === 'WEEKLY') {
+            list = userWeeklyPlans;
+        } else {
+            list = [...userWeeklyPlans, ...userProjects];
+        }
+
+        if (planDrawerFilter === 'IN_PROGRESS') {
+            list = list.filter(plan => {
+                const items = Array.isArray(plan.items) ? plan.items : [];
+                if (items.length > 0) {
+                    return items.some(sub => !((sub.percentage || 0) >= 100 || sub.status === 'COMPLETED' || sub.status === 'SELESAI'));
+                }
+                return !((plan.percentage || 0) >= 100 || plan.status === 'COMPLETED' || plan.status === 'SELESAI');
+            });
+        }
+        return list;
+    }, [planDrawerFilter, userWeeklyPlans, userProjects]);
 
     // Polish activity text with Gemini AI
     const handlePolishText = async (index, targetPillar = 'COMPLETED') => {
@@ -209,6 +308,59 @@ const DailyReportFormTab = ({
             delete copy[key];
             return copy;
         });
+    };
+
+    // Pindah Pilar Cepat: dari On-Progress ke Selesai (100%)
+    const handleMoveInProgressToCompleted = (index) => {
+        const item = inProgressItems[index];
+        if (!item) return;
+
+        const newCompleted = {
+            title: item.title || item.text || '',
+            output: item.output || 'Tuntas dilaksanakan 100% sesuai target.',
+            categoryTag: item.categoryTag || userDivision || 'UMUM',
+            photos: item.photos || [],
+            sourceType: item.sourceType || null,
+            sourceId: item.sourceId || null,
+            planItemIndex: item.planItemIndex !== undefined ? item.planItemIndex : null,
+            projectId: item.projectId || null,
+            projectItemIndex: item.projectItemIndex !== undefined ? item.projectItemIndex : null,
+            isFromYesterday: !!item.isFromYesterday
+        };
+
+        setCompletedItems(prev => {
+            const filtered = prev.filter(p => (p.title && p.title.trim()) || (p.photos && p.photos.length > 0));
+            return [...filtered, newCompleted];
+        });
+
+        setInProgressItems(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Pindah Pilar Cepat: dari Selesai ke On-Progress (misal belum 100% tuntas)
+    const handleMoveCompletedToInProgress = (index) => {
+        const item = completedItems[index];
+        if (!item) return;
+
+        const newInProgress = {
+            title: item.title || item.text || '',
+            progressPercentage: 80,
+            targetDate: 'Hari ini',
+            categoryTag: item.categoryTag || userDivision || 'UMUM',
+            photos: item.photos || [],
+            sourceType: item.sourceType || null,
+            sourceId: item.sourceId || null,
+            planItemIndex: item.planItemIndex !== undefined ? item.planItemIndex : null,
+            projectId: item.projectId || null,
+            projectItemIndex: item.projectItemIndex !== undefined ? item.projectItemIndex : null,
+            isFromYesterday: !!item.isFromYesterday
+        };
+
+        setInProgressItems(prev => {
+            const filtered = prev.filter(p => (p.title && p.title.trim()) || (p.photos && p.photos.length > 0));
+            return [...filtered, newInProgress];
+        });
+
+        setCompletedItems(prev => prev.filter((_, i) => i !== index));
     };
 
     // Filtered assignments for drawer (jangan hubungkan penugasan maintenance dengan laporan harian)
@@ -598,12 +750,17 @@ const DailyReportFormTab = ({
                 </div>
             </div>
 
-            {/* 3. QUICK ACTIONS: DRAWER TARIK DARI PENUGASAN, RENCANA KERJA & TEMPLATE */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 3. QUICK ACTIONS: DRAWER TARIK DARI PENUGASAN, RENCANA KERJA, ON-PROGRESS MANDIRI & TEMPLATE */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Tombol Buka Penugasan */}
                 <button
                     type="button"
-                    onClick={() => { setShowTaskDrawer(!showTaskDrawer); setShowPlanDrawer(false); setShowTemplateAccordion(false); }}
+                    onClick={() => {
+                        setShowTaskDrawer(!showTaskDrawer);
+                        setShowPlanDrawer(false);
+                        setShowStandaloneDrawer(false);
+                        setShowTemplateAccordion(false);
+                    }}
                     className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
                         showTaskDrawer ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
                     }`}
@@ -613,7 +770,7 @@ const DailyReportFormTab = ({
                             <Briefcase size={16} />
                         </span>
                         <div>
-                            <p className="text-xs font-black">Tarik dari Penugasan</p>
+                            <p className="text-xs font-black">Tarik Penugasan</p>
                             <p className={`text-[10px] ${showTaskDrawer ? 'text-white/80' : 'text-slate-400'}`}>
                                 {filteredAssignments.length} Tugas pimpinan aktif
                             </p>
@@ -625,7 +782,12 @@ const DailyReportFormTab = ({
                 {/* Tombol Buka Rencana Kerja / Project */}
                 <button
                     type="button"
-                    onClick={() => { setShowPlanDrawer(!showPlanDrawer); setShowTaskDrawer(false); setShowTemplateAccordion(false); }}
+                    onClick={() => {
+                        setShowPlanDrawer(!showPlanDrawer);
+                        setShowTaskDrawer(false);
+                        setShowStandaloneDrawer(false);
+                        setShowTemplateAccordion(false);
+                    }}
                     className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
                         showPlanDrawer ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
                     }`}
@@ -635,7 +797,7 @@ const DailyReportFormTab = ({
                             <FolderGit2 size={16} />
                         </span>
                         <div>
-                            <p className="text-xs font-black">Tarik dari Rencana Kerja</p>
+                            <p className="text-xs font-black">Tarik Rencana Kerja</p>
                             <p className={`text-[10px] ${showPlanDrawer ? 'text-white/80' : 'text-slate-400'}`}>
                                 {(userWeeklyPlans.length + userProjects.length)} Program aktif
                             </p>
@@ -644,10 +806,43 @@ const DailyReportFormTab = ({
                     <ChevronDown size={16} className={`transform transition-transform ${showPlanDrawer ? 'rotate-180' : ''}`} />
                 </button>
 
+                {/* Tombol Buka On-Progress Mandiri (Khusus non-rencana & non-penugasan) */}
+                <button
+                    type="button"
+                    onClick={() => {
+                        setShowStandaloneDrawer(!showStandaloneDrawer);
+                        setShowTaskDrawer(false);
+                        setShowPlanDrawer(false);
+                        setShowTemplateAccordion(false);
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
+                        showStandaloneDrawer ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
+                    title="Tarik kegiatan baru / insidental yang masih On-Progress (< 100%) dari hari sebelumnya"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <span className={`p-2 rounded-xl ${showStandaloneDrawer ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-600'}`}>
+                            <Clock size={16} />
+                        </span>
+                        <div>
+                            <p className="text-xs font-black">Tarik On-Progress (Non-Rencana)</p>
+                            <p className={`text-[10px] ${showStandaloneDrawer ? 'text-white/80' : 'text-slate-400'}`}>
+                                {filteredStandalone.length} Kegiatan belum selesai
+                            </p>
+                        </div>
+                    </div>
+                    <ChevronDown size={16} className={`transform transition-transform ${showStandaloneDrawer ? 'rotate-180' : ''}`} />
+                </button>
+
                 {/* Tombol Buka Template Rutin */}
                 <button
                     type="button"
-                    onClick={() => { setShowTemplateAccordion(!showTemplateAccordion); setShowTaskDrawer(false); setShowPlanDrawer(false); }}
+                    onClick={() => {
+                        setShowTemplateAccordion(!showTemplateAccordion);
+                        setShowTaskDrawer(false);
+                        setShowPlanDrawer(false);
+                        setShowStandaloneDrawer(false);
+                    }}
                     className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer ${
                         showTemplateAccordion ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
                     }`}
@@ -791,6 +986,23 @@ const DailyReportFormTab = ({
                             </button>
                             <button
                                 type="button"
+                                onClick={() => setPlanDrawerFilter('IN_PROGRESS')}
+                                className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                                    planDrawerFilter === 'IN_PROGRESS' 
+                                        ? 'bg-amber-500 text-white shadow-2xs font-black' 
+                                        : 'text-amber-800 hover:bg-amber-50'
+                                }`}
+                                title="Tampilkan hanya rencana kerja dan project yang sedang berstatus On-Progress"
+                            >
+                                <span>⏳ On-Progress</span>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                                    planDrawerFilter === 'IN_PROGRESS' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                    {inProgressPlansCount}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setPlanDrawerFilter('WEEKLY')}
                                 className={`px-2 py-1 rounded-lg transition-all ${planDrawerFilter === 'WEEKLY' ? 'bg-white text-indigo-700 shadow-2xs font-black' : 'text-slate-500'}`}
                             >
@@ -806,15 +1018,19 @@ const DailyReportFormTab = ({
                         </div>
                     </div>
 
-                    {((planDrawerFilter === 'PROJECT' ? [] : userWeeklyPlans).length === 0 && (planDrawerFilter === 'WEEKLY' ? [] : userProjects).length === 0) ? (
-                        <p className="text-xs text-slate-400 italic py-3 text-center">Belum ada rencana pekanan atau project yang terdaftar.</p>
+                    {filteredPlans.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-4 text-center">
+                            {planDrawerFilter === 'IN_PROGRESS' 
+                                ? 'Tidak ada butir rencana kerja atau project yang sedang berstatus On-Progress saat ini.' 
+                                : 'Belum ada rencana pekanan atau project yang terdaftar.'}
+                        </p>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                            {[
-                                ...(planDrawerFilter !== 'PROJECT' ? userWeeklyPlans : []),
-                                ...(planDrawerFilter !== 'WEEKLY' ? userProjects : [])
-                            ].map(plan => {
-                                const items = Array.isArray(plan.items) ? plan.items : [];
+                            {filteredPlans.map(plan => {
+                                const allItems = Array.isArray(plan.items) ? plan.items : [];
+                                const items = planDrawerFilter === 'IN_PROGRESS'
+                                    ? allItems.filter(sub => !((sub.percentage || 0) >= 100 || sub.status === 'COMPLETED' || sub.status === 'SELESAI'))
+                                    : allItems;
                                 return (
                                     <div key={plan.id} className="p-3 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200/80 rounded-2xl space-y-2 transition-all">
                                         <div className="flex items-start justify-between gap-2">
@@ -838,29 +1054,51 @@ const DailyReportFormTab = ({
                                             <div className="space-y-1.5 pt-1.5 border-t border-slate-200/70">
                                                 {items.map((sub, sIdx) => {
                                                     const stepPillar = getReportPillarForPlanItem(plan, sIdx);
+                                                    const isDoneInPlan = (sub.percentage || 0) >= 100 || sub.status === 'COMPLETED' || sub.status === 'SELESAI';
+                                                    const isInProgressInPlan = !isDoneInPlan && ((sub.percentage || 0) > 0 || sub.status === 'IN_PROGRESS');
+
                                                     return (
-                                                    <div key={sIdx} className={`p-2 bg-white rounded-xl border flex items-center justify-between gap-2 ${stepPillar === 'COMPLETED' ? 'border-emerald-300 bg-emerald-50/20' : (stepPillar === 'IN_PROGRESS' ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200')}`}>
-                                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                                            <span className="text-[11px] font-medium text-slate-700 truncate">
+                                                    <div
+                                                        key={sIdx}
+                                                        className={`p-2 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                                                            stepPillar === 'COMPLETED' ? 'border-emerald-300 bg-emerald-50/30' :
+                                                            isDoneInPlan ? 'border-emerald-200 bg-emerald-50/20' :
+                                                            stepPillar === 'IN_PROGRESS' ? 'border-amber-300 bg-amber-50/30' :
+                                                            isInProgressInPlan ? 'border-amber-200 bg-amber-50/20' :
+                                                            'bg-white border-slate-200'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
+                                                            <span className={`text-[11px] font-medium truncate ${isDoneInPlan ? 'text-emerald-950 font-semibold' : 'text-slate-700'}`}>
                                                                 {sIdx + 1}. {sub.activity || sub.text || sub.title}
                                                             </span>
                                                             {stepPillar === 'COMPLETED' && (
-                                                                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-black shrink-0">
+                                                                <span className="px-1.5 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded text-[9px] font-black shrink-0">
+                                                                    ✓ Di Laporan Selesai
+                                                                </span>
+                                                            )}
+                                                            {!stepPillar && isDoneInPlan && (
+                                                                <span className="px-1.5 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded text-[9px] font-black shrink-0">
                                                                     ✓ Selesai
                                                                 </span>
                                                             )}
                                                             {stepPillar === 'IN_PROGRESS' && (
-                                                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[9px] font-black shrink-0">
-                                                                    ⏳ On-Progress
+                                                                <span className="px-1.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 rounded text-[9px] font-black shrink-0">
+                                                                    ⏳ Di Laporan Proses
+                                                                </span>
+                                                            )}
+                                                            {!stepPillar && isInProgressInPlan && (
+                                                                <span className="px-1.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 rounded text-[9px] font-black shrink-0">
+                                                                    ⏳ On-Progress ({sub.percentage || 0}%)
                                                                 </span>
                                                             )}
                                                             {stepPillar === 'OBSTACLE' && (
-                                                                <span className="px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded text-[9px] font-black shrink-0">
+                                                                <span className="px-1.5 py-0.5 bg-rose-100 border border-rose-300 text-rose-800 rounded text-[9px] font-black shrink-0">
                                                                     ⚠️ Kendala
                                                                 </span>
                                                             )}
                                                             {stepPillar === 'TOMORROW' && (
-                                                                <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-black shrink-0">
+                                                                <span className="px-1.5 py-0.5 bg-indigo-100 border border-indigo-300 text-indigo-800 rounded text-[9px] font-black shrink-0">
                                                                     📅 Rencana
                                                                 </span>
                                                             )}
@@ -905,10 +1143,12 @@ const DailyReportFormTab = ({
                                             </div>
                                         ) : (() => {
                                             const planPillar = getReportPillarForPlanItem(plan, null);
+                                            const isPlanDone = (plan.percentage || 0) >= 100 || plan.status === 'COMPLETED' || plan.status === 'SELESAI';
                                             return (
                                             <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-200/60">
                                                 <div>
                                                     {planPillar === 'COMPLETED' && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-black">✓ Sudah di Selesai</span>}
+                                                    {!planPillar && isPlanDone && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[9px] font-black">✓ Selesai (100%)</span>}
                                                     {planPillar === 'IN_PROGRESS' && <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[9px] font-black">⏳ Sudah On-Progress</span>}
                                                     {planPillar === 'OBSTACLE' && <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded text-[9px] font-black">⚠️ Sudah di Kendala</span>}
                                                     {planPillar === 'TOMORROW' && <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-black">📅 Sudah di Rencana</span>}
@@ -946,6 +1186,176 @@ const DailyReportFormTab = ({
                                             </div>
                                             );
                                         })()}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* EXPANDABLE DRAWER: TARIK ON-PROGRESS MANDIRI (NON-RENCANA & NON-PENUGASAN) */}
+            {showStandaloneDrawer && (
+                <div className="bg-white p-4 sm:p-5 rounded-3xl border border-amber-200 shadow-md space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Clock size={14} className="text-amber-600" /> Tarik Kegiatan On-Progress (Non-Rencana / Kegiatan Baru)
+                        </h4>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                            Kegiatan belum tuntas (&lt; 100%) dari hari sebelumnya
+                        </span>
+                    </div>
+
+                    {/* Shortcut jika mencari On-Progress dari Rencana Kerja */}
+                    {inProgressPlansCount > 0 && (
+                        <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-2xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                            <div className="flex items-center gap-2">
+                                <span className="p-1.5 bg-indigo-100 text-indigo-700 rounded-xl shrink-0">
+                                    <FolderGit2 size={15} />
+                                </span>
+                                <div>
+                                    <p className="text-xs font-bold text-indigo-950">
+                                        Ada {inProgressPlansCount} butir On-Progress dari Rencana Kerja / Project
+                                    </p>
+                                    <p className="text-[10px] text-indigo-700">
+                                        Klik untuk melihat dan menarik butir rencana yang sedang berjalan
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowStandaloneDrawer(false);
+                                    setPlanDrawerFilter('IN_PROGRESS');
+                                    setShowPlanDrawer(true);
+                                }}
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer shadow-xs active:scale-95 flex items-center justify-center gap-1.5 self-start sm:self-auto"
+                            >
+                                <span>Tarik On-Progress Rencana</span>
+                                <ArrowRight size={13} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Search */}
+                    <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={standaloneSearch}
+                            onChange={(e) => setStandaloneSearch(e.target.value)}
+                            placeholder="Cari kegiatan berjalan / insidental..."
+                            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-amber-400"
+                        />
+                    </div>
+
+                    {filteredStandalone.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                            Tidak ada pekerjaan berjalan mandiri / insidental yang aktif (&lt; 100%).
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                            {filteredStandalone.map((item, idx) => {
+                                const itemPillar = getReportPillarForStandalone(item);
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`p-3 rounded-2xl border transition-all flex flex-col gap-2 ${
+                                            itemPillar === 'COMPLETED' ? 'bg-emerald-50/30 border-emerald-200' :
+                                            itemPillar === 'IN_PROGRESS' ? 'bg-amber-50/30 border-amber-200' :
+                                            'bg-slate-50/60 border-slate-200 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="space-y-1 min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[9px] font-black uppercase">
+                                                        MANDIRI / INSIDENTAL
+                                                    </span>
+                                                    {item.lastReportDateFormatted && (
+                                                        <span className="text-[10px] text-slate-400 font-medium">
+                                                            Terakhir: {item.lastReportDateFormatted}
+                                                        </span>
+                                                    )}
+                                                    {itemPillar === 'COMPLETED' && (
+                                                        <span className="px-1.5 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded text-[9px] font-black">
+                                                            ✓ Sudah di Selesai
+                                                        </span>
+                                                    )}
+                                                    {itemPillar === 'IN_PROGRESS' && (
+                                                        <span className="px-1.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 rounded text-[9px] font-black">
+                                                            ⏳ Sudah On-Progress
+                                                        </span>
+                                                    )}
+                                                    {itemPillar === 'OBSTACLE' && (
+                                                        <span className="px-1.5 py-0.5 bg-rose-100 border border-rose-300 text-rose-800 rounded text-[9px] font-black">
+                                                            ⚠️ Sudah di Kendala
+                                                        </span>
+                                                    )}
+                                                    {itemPillar === 'TOMORROW' && (
+                                                        <span className="px-1.5 py-0.5 bg-indigo-100 border border-indigo-300 text-indigo-800 rounded text-[9px] font-black">
+                                                            📅 Sudah di Rencana
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h5 className="text-xs font-bold text-slate-800 leading-snug">{item.title}</h5>
+                                                {item.notes && <p className="text-[11px] text-slate-500 line-clamp-1">{item.notes}</p>}
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black shrink-0">
+                                                {item.progressPercentage || 0}%
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-200/60">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (convertStandaloneToReport) convertStandaloneToReport(item, 'COMPLETED');
+                                                    setShowStandaloneDrawer(false);
+                                                }}
+                                                className={`px-2 py-1 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                                    itemPillar === 'COMPLETED' ? 'bg-emerald-700 ring-2 ring-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'
+                                                }`}
+                                                title="Tarik ke Pekerjaan Selesai (100%)"
+                                            >
+                                                🟢 Selesai
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (convertStandaloneToReport) convertStandaloneToReport(item, 'IN_PROGRESS');
+                                                    setShowStandaloneDrawer(false);
+                                                }}
+                                                className={`px-2 py-1 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                                    itemPillar === 'IN_PROGRESS' ? 'bg-amber-600 ring-2 ring-amber-400' : 'bg-amber-500 hover:bg-amber-600'
+                                                }`}
+                                                title="Tarik ke Pekerjaan On-Progress"
+                                            >
+                                                🟡 Proses
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (convertStandaloneToReport) convertStandaloneToReport(item, 'OBSTACLE');
+                                                    setShowStandaloneDrawer(false);
+                                                }}
+                                                className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                title="Tarik sebagai Tugas Terkendala"
+                                            >
+                                                🔴 Kendala
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (convertStandaloneToReport) convertStandaloneToReport(item, 'TOMORROW');
+                                                    setShowStandaloneDrawer(false);
+                                                }}
+                                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                title={isFriday ? "Tarik ke Rencana Pekan Depan" : "Tarik ke Rencana Besok"}
+                                            >
+                                                🟣 {isFriday ? 'Pekan Depan' : 'Besok'}
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -1075,6 +1485,139 @@ const DailyReportFormTab = ({
                 </button>
             </div>
 
+            {/* BANNER RENCANA KEMARIN UNTUK HARI INI */}
+            {yesterdayTomorrowPlans && yesterdayTomorrowPlans.length > 0 && (
+                <div className="bg-gradient-to-r from-indigo-50/90 via-blue-50/80 to-purple-50/90 border border-indigo-200/90 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100/90 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
+                                <Sparkles size={16} />
+                            </span>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                                    <span>Rencana yang Dijadwalkan Kemarin untuk Hari Ini</span>
+                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
+                                        {yesterdayTomorrowPlans.length} Butir
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                    Pilih status aktual butir rencana kemarin: apakah sudah <b>Selesai 100%</b>, masih <b>On-Progress</b>, atau mengalami <b>Kendala</b>.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        {yesterdayTomorrowPlans.map((plan, idx) => {
+                            const currentPillar = getReportPillarForYesterdayPlan(plan);
+                            return (
+                                <div 
+                                    key={`y-plan-${idx}`} 
+                                    className={`p-3 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                        currentPillar === 'COMPLETED'
+                                            ? 'bg-emerald-50/70 border-emerald-300'
+                                            : currentPillar === 'IN_PROGRESS'
+                                            ? 'bg-amber-50/70 border-amber-300'
+                                            : currentPillar === 'OBSTACLE'
+                                            ? 'bg-rose-50/70 border-rose-300'
+                                            : 'bg-white border-slate-200/90 shadow-2xs'
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                        <span className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 mt-0.5 ${
+                                            currentPillar === 'COMPLETED'
+                                                ? 'bg-emerald-600 text-white'
+                                                : currentPillar === 'IN_PROGRESS'
+                                                ? 'bg-amber-500 text-white'
+                                                : currentPillar === 'OBSTACLE'
+                                                ? 'bg-rose-600 text-white'
+                                                : 'bg-indigo-100 text-indigo-700'
+                                        }`}>
+                                            {idx + 1}
+                                        </span>
+                                        <div className="space-y-1 min-w-0 flex-1">
+                                            <p className="text-xs font-bold text-slate-800 leading-snug break-words">
+                                                {plan.title || plan.text}
+                                            </p>
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                {plan.categoryTag && (
+                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                                                        {plan.categoryTag}
+                                                    </span>
+                                                )}
+                                                {currentPillar === 'COMPLETED' && (
+                                                    <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                        <CheckCircle2 size={11} /> Masuk di Pilar Selesai (100%)
+                                                    </span>
+                                                )}
+                                                {currentPillar === 'IN_PROGRESS' && (
+                                                    <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                        <Clock size={11} /> Masuk di Pilar On-Progress
+                                                    </span>
+                                                )}
+                                                {currentPillar === 'OBSTACLE' && (
+                                                    <span className="text-[10px] font-black text-rose-700 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                        <AlertCircle size={11} /> Masuk di Pilar Kendala
+                                                    </span>
+                                                )}
+                                                {!currentPillar && (
+                                                    <span className="text-[10px] font-semibold text-slate-400 italic">
+                                                        Belum dimasukkan ke laporan hari ini
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => convertYesterdayPlanToReport && convertYesterdayPlanToReport(plan, 'COMPLETED')}
+                                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                                currentPillar === 'COMPLETED'
+                                                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
+                                                    : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200'
+                                            }`}
+                                            title="Tandai pekerjaan ini tuntas 100% hari ini"
+                                        >
+                                            <CheckCircle2 size={13} />
+                                            <span>Selesai</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => convertYesterdayPlanToReport && convertYesterdayPlanToReport(plan, 'IN_PROGRESS')}
+                                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                                currentPillar === 'IN_PROGRESS'
+                                                    ? 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-300'
+                                                    : 'bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-200'
+                                            }`}
+                                            title="Masukkan ke pekerjaan sedang berjalan (On-Progress)"
+                                        >
+                                            <Clock size={13} />
+                                            <span>Proses</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => convertYesterdayPlanToReport && convertYesterdayPlanToReport(plan, 'OBSTACLE')}
+                                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                                currentPillar === 'OBSTACLE'
+                                                    ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-300'
+                                                    : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200'
+                                            }`}
+                                            title="Tandai pekerjaan ini mengalami kendala"
+                                        >
+                                            <AlertTriangle size={13} />
+                                            <span>Kendala</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* 4. FORMULIR 4 PILAR METODE PPP */}
             <div className="space-y-6">
                 {/* ============================================================== */}
@@ -1150,17 +1693,33 @@ const DailyReportFormTab = ({
                                                 📅 Dari Rencana Pekanan
                                             </span>
                                         )}
+                                        {item.isFromYesterday && (
+                                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-1 rounded-xl">
+                                                ⚡ Dari Rencana Kemarin
+                                            </span>
+                                        )}
                                     </div>
-                                    {completedItems.length > 1 && (
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                         <button
                                             type="button"
-                                            onClick={() => setCompletedItems(completedItems.filter((_, i) => i !== index))}
-                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
-                                            title="Hapus butir pekerjaan ini"
+                                            onClick={() => handleMoveCompletedToInProgress(index)}
+                                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                                            title="Pindahkan butir ini ke On-Progress jika belum 100% tuntas"
                                         >
-                                            <Trash2 size={15} />
+                                            <Clock size={11} className="text-amber-600" />
+                                            <span>🟡 Pindah ke On-Progress</span>
                                         </button>
-                                    )}
+                                        {completedItems.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCompletedItems(completedItems.filter((_, i) => i !== index))}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                                                title="Hapus butir pekerjaan ini"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Baris 2: Input Aktivitas + AI Polish */}
@@ -1371,14 +1930,25 @@ const DailyReportFormTab = ({
                                                 </span>
                                             )}
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setInProgressItems(inProgressItems.filter((_, i) => i !== index))}
-                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
-                                            title="Hapus butir on-progress ini"
-                                        >
-                                            <Trash2 size={15} />
-                                        </button>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleMoveInProgressToCompleted(index)}
+                                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                                                title="Pindahkan butir ini ke Selesai 100%"
+                                            >
+                                                <CheckCircle2 size={11} className="text-emerald-600" />
+                                                <span>🟢 Pindah ke Selesai</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setInProgressItems(inProgressItems.filter((_, i) => i !== index))}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                                                title="Hapus butir on-progress ini"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Baris 2: Input Aktivitas */}

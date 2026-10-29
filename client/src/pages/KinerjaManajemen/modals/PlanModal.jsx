@@ -621,9 +621,30 @@ const PlanModal = ({
 
                     {/* Judul Rencana Kerja */}
                     <div className="space-y-1.5">
-                        <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                            Nama / Target Pokok Rencana Kerja
-                        </label>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                                Nama / Target Pokok Rencana Kerja <span className="text-rose-500">*</span>
+                            </label>
+                            <button
+                                type="button"
+                                disabled={loadingAi || !title?.trim()}
+                                onClick={handleAiBreakdown}
+                                className="px-2.5 py-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-xs rounded-xl text-[11px] font-black transition flex items-center gap-1 active:scale-95 cursor-pointer disabled:opacity-40"
+                                title="Susun Target SMART dan rincian Action Plan bertahap secara otomatis dengan AI"
+                            >
+                                {loadingAi ? (
+                                    <>
+                                        <Loader2 size={11} className="animate-spin text-white" />
+                                        <span>Menyusun SMART...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles size={11} className="text-amber-300" />
+                                        <span>Susun Action Plan SMART (AI)</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                         <input
                             type="text"
                             placeholder="Contoh: Perawatan Rutin AC Sentral & Kalibrasi Panel Listrik..."
@@ -634,25 +655,25 @@ const PlanModal = ({
                         />
                     </div>
 
-                    {/* Target Pencapaian (Output / Definisi Tuntas) */}
-                    <div className="space-y-1.5 p-3.5 bg-violet-50/50 border border-violet-100 rounded-2xl">
+                    {/* Target Pencapaian (Output / Definisi Tuntas SMART) */}
+                    <div className="space-y-1.5 p-3.5 bg-violet-50/70 border border-violet-200/80 rounded-2xl">
                         <div className="flex items-center justify-between">
                             <label className="text-xs font-black text-violet-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <Target size={14} className="text-violet-600" /> Target Pencapaian (Output / Wujud Hasil Akhir)
+                                <Target size={14} className="text-violet-600" /> Target Pencapaian (Output SMART / Wujud Hasil Akhir)
                             </label>
-                            <span className="text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
-                                Tolok Ukur Keberhasilan
+                            <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">
+                                Metode SMART
                             </span>
                         </div>
                         <input
                             type="text"
-                            placeholder="Misal: 1 Dokumen SOP disahkan, 5 Ruangan AC dingin normal, BA serah terima ditandatangani..."
+                            placeholder="Misal: 1 Dokumen SOP disahkan, 5 Ruangan AC dingin normal 20°C, BA serah terima ditandatangani..."
                             value={targetOutput}
                             onChange={(e) => setTargetOutput(e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-white border border-violet-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 transition-all"
+                            className="w-full px-3.5 py-2.5 bg-white border border-violet-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 transition-all placeholder:text-slate-400 placeholder:font-normal"
                         />
-                        <p className="text-[10px] text-slate-500 font-medium">
-                            💡 Cantumkan output fisik/dokumen yang terukur agar pimpinan dan staf memiliki kesepakatan jelas kapan rencana ini dianggap tuntas 100%.
+                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                            💡 <b>SMART Target:</b> Cantumkan output fisik/dokumen yang terukur (Specific & Measurable) agar pimpinan dan staf memiliki kesepakatan jelas kapan rencana ini dianggap tuntas 100%. Bisa disusun otomatis via tombol AI di atas.
                         </p>
                     </div>
 

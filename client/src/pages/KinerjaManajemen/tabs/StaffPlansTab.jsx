@@ -305,11 +305,11 @@ const StaffPlansTab = ({
                                                                                 </span>
                                                                             </div>
                                                                             <h6 className="text-xs font-black text-slate-800 leading-snug">{p.title}</h6>
-                                                                            {p.targetOutput && (
+                                                                            {(p.targetOutput || p.metadata?.targetOutput || p.metadata?.targetPencapaian) && (
                                                                                 <div className="flex items-center gap-1.5 text-[11px] text-violet-900 bg-violet-50/80 border border-violet-100 rounded-lg px-2 py-0.5 mt-1 max-w-full">
                                                                                     <Target size={11} className="text-violet-600 shrink-0" />
                                                                                     <span className="font-bold text-violet-700 shrink-0">Target:</span>
-                                                                                    <span className="font-medium text-slate-700 truncate">{p.targetOutput}</span>
+                                                                                    <span className="font-medium text-slate-700 truncate">{p.targetOutput || p.metadata?.targetOutput || p.metadata?.targetPencapaian}</span>
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -359,19 +359,27 @@ const StaffPlansTab = ({
                                                                                     const isUpdating = updatingItemId === `${p.id}_${itIdx}`;
                                                                                     const itName = it.activity || it.text || it.name;
                                                                                     const isItemAssigned = !!it.assigned || !!it.assignmentId;
+                                                                                    const isDone = (it.percentage || 0) >= 100 || it.status === 'COMPLETED' || it.status === 'SELESAI';
 
                                                                                     return (
                                                                                         <div
                                                                                             key={itIdx}
-                                                                                            className="p-2 bg-slate-50/80 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-slate-100"
+                                                                                            className={`p-2 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 border transition-all ${
+                                                                                                isDone ? 'bg-emerald-50/30 border-emerald-200' : 'bg-slate-50/80 border-slate-100'
+                                                                                            }`}
                                                                                         >
                                                                                             <div className="space-y-0.5 min-w-0 flex-1">
                                                                                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                                                                                    <span className="font-semibold text-slate-700 truncate">
+                                                                                                    <span className={`font-semibold text-slate-700 truncate ${isDone ? 'line-through text-slate-400' : ''}`}>
                                                                                                         {itName}
                                                                                                     </span>
-                                                                                                    {isItemAssigned && (
+                                                                                                    {isDone && (
                                                                                                         <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                                                                                                            ✓ Selesai
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                    {isItemAssigned && (
+                                                                                                        <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 text-[9px] font-black uppercase">
                                                                                                             ✓ Ditugaskan Resmi
                                                                                                         </span>
                                                                                                     )}
@@ -383,19 +391,35 @@ const StaffPlansTab = ({
                                                                                                 )}
                                                                                             </div>
 
-                                                                                            {/* Actions per item: Status slider & Angkat Jadi Tugas */}
+                                                                                            {/* Actions per item: Input Angka Progres & Angkat Jadi Tugas */}
                                                                                             <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                                                                {/* Quick Progres Dropdown */}
-                                                                                                <select
-                                                                                                    value={it.percentage || 0}
-                                                                                                    disabled={isUpdating}
-                                                                                                    onChange={(e) => handleQuickUpdateItemProgress(p.id, itIdx, parseInt(e.target.value, 10))}
-                                                                                                    className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-700 outline-none cursor-pointer"
-                                                                                                >
-                                                                                                    <option value={0}>0%</option>
-                                                                                                    <option value={50}>50%</option>
-                                                                                                    <option value={100}>100%</option>
-                                                                                                </select>
+                                                                                                {/* Quick Progres Input Bebas Ketik */}
+                                                                                                <div className="flex items-center gap-0.5 bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 shadow-2xs hover:border-indigo-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-400 transition-all">
+                                                                                                    <input
+                                                                                                        type="number"
+                                                                                                        min="0"
+                                                                                                        max="100"
+                                                                                                        defaultValue={it.percentage || 0}
+                                                                                                        key={`${p.id}_${itIdx}_${it.percentage}`}
+                                                                                                        disabled={isUpdating}
+                                                                                                        onKeyDown={(e) => {
+                                                                                                            if (e.key === 'Enter') {
+                                                                                                                e.target.blur();
+                                                                                                            }
+                                                                                                        }}
+                                                                                                        onBlur={(e) => {
+                                                                                                            let val = parseInt(e.target.value, 10);
+                                                                                                            if (isNaN(val)) val = 0;
+                                                                                                            val = Math.max(0, Math.min(100, val));
+                                                                                                            if (val !== (it.percentage || 0)) {
+                                                                                                                handleQuickUpdateItemProgress(p.id, itIdx, val);
+                                                                                                            }
+                                                                                                        }}
+                                                                                                        className="w-8 text-center text-xs font-black text-slate-800 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                                                        title="Ketik angka progres 0 - 100% (tekan Enter)"
+                                                                                                    />
+                                                                                                    <span className="text-[10px] font-black text-slate-400 select-none">%</span>
+                                                                                                </div>
 
                                                                                                 {/* Tombol Angkat Menjadi Penugasan Resmi */}
                                                                                                 <button
@@ -582,18 +606,34 @@ const StaffPlansTab = ({
                                                                                             )}
                                                                                         </div>
 
-                                                                                        {/* Quick Progres Dropdown per Butir Penugasan */}
+                                                                                        {/* Quick Progres Input Bebas Ketik per Butir Penugasan */}
                                                                                         <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                                                                                            <select
-                                                                                                value={it.percentage || 0}
-                                                                                                disabled={isUpdating}
-                                                                                                onChange={(e) => handleQuickUpdateAssignmentItemProgress(a.id, itIdx, parseInt(e.target.value, 10))}
-                                                                                                className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-700 outline-none cursor-pointer"
-                                                                                            >
-                                                                                                <option value={0}>0%</option>
-                                                                                                <option value={50}>50%</option>
-                                                                                                <option value={100}>100%</option>
-                                                                                            </select>
+                                                                                            <div className="flex items-center gap-0.5 bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 shadow-2xs hover:border-indigo-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-400 transition-all">
+                                                                                                <input
+                                                                                                    type="number"
+                                                                                                    min="0"
+                                                                                                    max="100"
+                                                                                                    defaultValue={it.percentage || 0}
+                                                                                                    key={`${a.id}_${itIdx}_${it.percentage}`}
+                                                                                                    disabled={isUpdating}
+                                                                                                    onKeyDown={(e) => {
+                                                                                                        if (e.key === 'Enter') {
+                                                                                                            e.target.blur();
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    onBlur={(e) => {
+                                                                                                        let val = parseInt(e.target.value, 10);
+                                                                                                        if (isNaN(val)) val = 0;
+                                                                                                        val = Math.max(0, Math.min(100, val));
+                                                                                                        if (val !== (it.percentage || 0)) {
+                                                                                                            handleQuickUpdateAssignmentItemProgress(a.id, itIdx, val);
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    className="w-8 text-center text-xs font-black text-slate-800 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                                                    title="Ketik angka progres 0 - 100% (tekan Enter)"
+                                                                                                />
+                                                                                                <span className="text-[10px] font-black text-slate-400 select-none">%</span>
+                                                                                            </div>
                                                                                         </div>
                                                                                     </div>
                                                                                 );
