@@ -312,7 +312,7 @@ const upsertPointToDailyReport = async (userId, dailyReport, newPoint, currentHo
             data: {
                 userId: parseInt(userId),
                 type: 'DAILY',
-                category: newPoint.categoryTag || 'UMUM',
+                category: ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'].includes(newPoint.categoryTag) ? newPoint.categoryTag : 'UMUM',
                 content: autoContent,
                 date: normalizedDate,
                 metadata: {
@@ -564,7 +564,7 @@ exports.createReport = async (req, res) => {
             data: {
                 userId: user.id,
                 type,
-                category: category || 'UMUM',
+                category: ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'].includes(category) ? category : 'UMUM',
                 content,
                 metadata: metadata || null,
                 date: date ? new Date(date) : new Date()

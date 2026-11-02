@@ -2788,16 +2788,21 @@ exports.saveDailyReportFromPpp = async (req, res) => {
         const autoContent = summaryLines.join('\n');
 
         const normalizedDate = reportDate.hour(12).minute(0).second(0).toDate();
+        const validReportCategories = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
+        const resolvedCategory = validReportCategories.includes(category)
+            ? category
+            : (report && validReportCategories.includes(report.category) ? report.category : 'UMUM');
 
         if (report) {
             report = await prisma.personnelReport.update({
                 where: { id: report.id },
                 data: {
                     content: autoContent,
-                    category: category || report.category || 'UMUM',
+                    category: resolvedCategory,
                     date: normalizedDate,
                     metadata: {
                         ...(typeof report.metadata === 'object' && report.metadata !== null ? report.metadata : {}),
+                        categoryTag: category || 'UMUM',
                         manualPoints: formattedPoints,
                         completedItems: cleanCompleted,
                         inProgressItems: cleanInProgress,
@@ -2812,9 +2817,10 @@ exports.saveDailyReportFromPpp = async (req, res) => {
                 data: {
                     userId: targetUserId,
                     type: 'DAILY',
-                    category: category || 'UMUM',
+                    category: resolvedCategory,
                     content: autoContent,
                     metadata: {
+                        categoryTag: category || 'UMUM',
                         manualPoints: formattedPoints,
                         completedItems: cleanCompleted,
                         inProgressItems: cleanInProgress,

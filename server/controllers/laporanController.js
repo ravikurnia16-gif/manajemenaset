@@ -884,8 +884,14 @@ exports.updateMyReport = async (req, res) => {
         // Simpan pada tengah hari (12:00:00 WIB) agar aman dari pergeseran batas hari UTC vs WIB
         const normalizedDate = reportDate.hour(12).minute(0).second(0).toDate();
 
+        const VALID_REPORT_CATEGORIES = ['KEUANGAN', 'ASET', 'GUDANG', 'KENDARAAN', 'UMUM', 'TEKNISI'];
+        const resolvedCategory = VALID_REPORT_CATEGORIES.includes(category)
+            ? category
+            : (report && VALID_REPORT_CATEGORIES.includes(report.category) ? report.category : 'UMUM');
+
         const newMetadata = {
             ...existingMetadata,
+            categoryTag: category || 'UMUM',
             manualPoints: formattedPoints,
             completedItems: mergedCompletedItems,
             inProgressItems: mergedInProgressItems,
@@ -899,7 +905,7 @@ exports.updateMyReport = async (req, res) => {
                 where: { id: report.id },
                 data: { 
                     content: autoContent || report.content || '',
-                    category: category || report.category || 'UMUM',
+                    category: resolvedCategory,
                     date: normalizedDate,
                     metadata: newMetadata
                 }
@@ -909,7 +915,7 @@ exports.updateMyReport = async (req, res) => {
                 data: {
                     userId,
                     type: 'DAILY',
-                    category: category || 'UMUM',
+                    category: resolvedCategory,
                     content: autoContent, 
                     metadata: newMetadata,
                     date: normalizedDate
