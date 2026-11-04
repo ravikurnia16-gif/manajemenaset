@@ -57,6 +57,7 @@ router.get('/all-users', personnelController.getAllUsersForSelection);
 // Sanctions
 router.get('/sanctions', personnelController.getSanctionedUsers);
 router.post('/sanctions/propose', personnelController.proposeSanctionLift);
+router.post('/sanctions/review', personnelController.reviewSanctionLift);
 // Staff Trainings (Pelatihan Karyawan)
 const staffTrainingController = require('../controllers/staffTrainingController');
 router.get('/trainings', staffTrainingController.getTrainings);
