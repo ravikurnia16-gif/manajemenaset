@@ -201,6 +201,20 @@ const ExecutiveDashboardTab = ({
 
                     <div className="ml-auto flex flex-wrap items-center gap-2">
                         <button
+                            onClick={async () => {
+                                try {
+                                    const res = await api.post('/laporan/send-daily-summary');
+                                    alert(res.data?.message || 'Rangkuman harian metode PPP berhasil dikirim ke WhatsApp Kabid!');
+                                } catch (e) {
+                                    alert(e.response?.data?.error || 'Gagal mengirim rangkuman ke Kabid.');
+                                }
+                            }}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-emerald-400/30 cursor-pointer shadow-md shadow-emerald-600/20"
+                            title="Kirim Rangkuman Laporan Harian Metode PPP ke WhatsApp Kepala Bidang Sarana"
+                        >
+                            <Send size={14} /> 📲 Kirim PPP ke WA Kabid
+                        </button>
+                        <button
                             onClick={() => runAiAnalysis('DAILY_DIGEST')}
                             className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
                         >

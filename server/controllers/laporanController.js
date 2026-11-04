@@ -2699,6 +2699,23 @@ exports.getKabidSummary = async (req, res) => {
                     }
                 }
 
+                // Konversi butir legacy morning & afternoon langsung ke format PPP agar tampilan Kabid konsisten Metode PPP
+                if (allCompleted.length === 0 && allInProgress.length === 0 && allObstacles.length === 0) {
+                    const legacyCombined = [...allMorningPoints, ...allAfternoonPoints];
+                    legacyCombined.forEach(p => {
+                        if (!p) return;
+                        if (p.status === 'OBSTACLE') {
+                            allObstacles.push(p);
+                        } else if (p.status === 'IN_PROGRESS' || p.status === 'PROSES') {
+                            allInProgress.push(p);
+                        } else if (p.status === 'PLAN') {
+                            allTomorrowPlans.push(p);
+                        } else {
+                            allCompleted.push(p);
+                        }
+                    });
+                }
+
                 const reportData = (allCompleted.length > 0 || allInProgress.length > 0 || allObstacles.length > 0 || allTomorrowPlans.length > 0 || allMorningPoints.length > 0 || allAfternoonPoints.length > 0)
                     ? {
                         completedItems: allCompleted,

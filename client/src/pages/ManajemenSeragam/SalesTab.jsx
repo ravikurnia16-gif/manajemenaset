@@ -1185,11 +1185,12 @@ export const SalesTab = ({
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-900">
           <div className="flex items-center gap-2 font-semibold">
             <span className="px-2 py-0.5 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider">
-              View Only
+              Unit Sekolah
             </span>
             <span>
               Menampilkan daftar pesanan seragam sesuai jenjang unit Anda
               {userLevelLabels.length > 0 ? `: ${userLevelLabels.join(', ')}` : (userUnitName ? ` (${userUnitName})` : '')}.
+              {openModal && ' Anda dapat membuat pesanan seragam SPMB baru untuk unit sekolah.'}
             </span>
           </div>
           {userUnitName && (
@@ -1275,14 +1276,24 @@ export const SalesTab = ({
             </button>
           )}
 
-          {/* Tombol Buat Pesanan (Khusus Admin) */}
-          {!isViewOnly && openModal && (
-            <button 
-              onClick={() => openModal('sale')} 
-              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer text-center"
-            >
-              <ShoppingCart size={14} className="shrink-0" /> <span>Buat Pesanan</span>
-            </button>
+          {/* Tombol Buat Pesanan (Admin: Buat Pesanan / User Unit: Buat Pesanan SPMB) */}
+          {openModal && (
+            !isViewOnly ? (
+              <button 
+                onClick={() => openModal('sale')} 
+                className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer text-center"
+              >
+                <ShoppingCart size={14} className="shrink-0" /> <span>Buat Pesanan</span>
+              </button>
+            ) : (type === 'SPMB' || type === 'ALL') ? (
+              <button 
+                onClick={() => openModal('sale')} 
+                className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer text-center"
+                title="Pesan Seragam SPMB untuk Unit Sekolah"
+              >
+                <ShoppingCart size={14} className="shrink-0" /> <span>Buat Pesanan SPMB</span>
+              </button>
+            ) : null
           )}
         </div>
       </div>

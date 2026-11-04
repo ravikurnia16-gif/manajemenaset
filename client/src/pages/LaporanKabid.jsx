@@ -180,10 +180,16 @@ const LaporanKabid = () => {
             );
         }
 
+        const legacyCombined = [...m, ...a];
+        const legComp = legacyCombined.filter(p => !p.status || p.status === 'COMPLETED' || p.status === 'SELESAI');
+        const legProg = legacyCombined.filter(p => p.status === 'IN_PROGRESS' || p.status === 'PROSES');
+        const legObs = legacyCombined.filter(p => p.status === 'OBSTACLE');
+
         return (
             <>
-                {renderList('Kegiatan Pagi (07.30 - 12.00)', m)}
-                {renderList('Kegiatan Siang (13.00 - 16.15)', a)}
+                {legComp.length > 0 && renderList('Pekerjaan Selesai (Progress 100%)', legComp)}
+                {legProg.length > 0 && renderList('Sedang Dikerjakan (In-Progress)', legProg)}
+                {legObs.length > 0 && renderList('Kendala Lapangan (Problems)', legObs)}
             </>
         );
     };

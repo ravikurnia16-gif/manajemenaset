@@ -431,7 +431,7 @@ Jika pesan yang dirujuk adalah pertanyaan, permohonan, atau keluhan fasilitas/as
                 },
                 {
                     name: "cek_laporan_kinerja_staff",
-                    description: "Membaca laporan kinerja harian staf sarpras (poin kegiatan pagi & sore, kendala lapangan), memantau siapa staf yang belum mengisi laporan hari ini (fitur monitoring Kepala Bidang), skor KPI staf, dan catatan setoran hafalan Quran staf.",
+                    description: "Membaca laporan kinerja harian staf sarpras metode PPP (Pekerjaan Selesai, Sedang Dikerjakan, Kendala Lapangan, Rencana Lanjutan), memantau siapa staf yang belum mengisi laporan hari ini (fitur monitoring Kepala Bidang), skor KPI staf, dan catatan setoran hafalan Quran staf.",
                     parameters: {
                         type: "OBJECT",
                         properties: {
@@ -504,7 +504,7 @@ PETA FITUR & DOMAIN DATABASE SARPRAS:
 12. LAPORAN KINERJA STAF & MONITORING KABID:
     - Tool: "cek_laporan_kinerja_staff" (model: personnelReport, personnelAssignment, personnelKPI, setoranHafalan)
     - Divisi staf: ASET, GUDANG, TEKNISI, KENDARAAN, KEUANGAN, UMUM.
-    - Membaca poin kegiatan kerja harian staf (pagi & sore), kendala lapangan, memantau siapa saja staf yang BELUM mengisi laporan hari ini (fitur Kabid Sarpras), skor KPI bulanan staf, dan riwayat setoran hafalan Quran staf.
+    - Membaca poin laporan harian staf metode PPP (Pekerjaan Selesai, Sedang Dikerjakan, Kendala Lapangan, Rencana Besok/Pekan Depan), memantau siapa saja staf yang BELUM mengisi laporan hari ini (fitur Kabid Sarpras), skor KPI bulanan staf, dan riwayat setoran hafalan Quran staf.
 
 PANDUAN INTERAKTIF & VALIDASI PEMINJAMAN KENDARAAN:
 1. ATAS NAMA PENGGUNA YANG CHAT:
@@ -1558,8 +1558,22 @@ ATURAN TINDAKAN:
                                 if (typeof meta === 'string') {
                                     try { meta = JSON.parse(meta); } catch(e) {}
                                 }
-                                const morning = meta?.morningPoints || [];
-                                const afternoon = meta?.afternoonPoints || [];
+                                const completed = meta?.completedItems || [];
+                                const inProgress = meta?.inProgressItems || [];
+                                const obstacles = meta?.obstacleItems || [];
+                                const plans = meta?.tomorrowPlans || [];
+
+                                // Fallback jika hanya ada legacy manualPoints
+                                if (completed.length === 0 && inProgress.length === 0 && obstacles.length === 0 && plans.length === 0) {
+                                    const legacy = [...(meta?.morningPoints || meta?.manualPoints?.morning || []), ...(meta?.afternoonPoints || meta?.manualPoints?.afternoon || [])];
+                                    legacy.forEach(p => {
+                                        if (!p) return;
+                                        if (p.status === 'OBSTACLE') obstacles.push(p);
+                                        else if (p.status === 'IN_PROGRESS' || p.status === 'PROSES') inProgress.push(p);
+                                        else if (p.status === 'PLAN') plans.push(p);
+                                        else completed.push(p);
+                                    });
+                                }
 
                                 return {
                                     staf: r.user?.name || '-',
@@ -1567,8 +1581,10 @@ ATURAN TINDAKAN:
                                     kategori: r.category,
                                     tanggal: dayjs(r.date).tz('Asia/Jakarta').format('DD/MM/YYYY'),
                                     ringkasan: r.content,
-                                    kegiatanPagi: morning.map(p => `• [${p.status || 'OK'}] ${p.text}${p.obstacleNote ? ` (Kendala: ${p.obstacleNote})` : ''}`).join('\n') || '-',
-                                    kegiatanSore: afternoon.map(p => `• [${p.status || 'OK'}] ${p.text}${p.obstacleNote ? ` (Kendala: ${p.obstacleNote})` : ''}`).join('\n') || '-'
+                                    pekerjaanSelesai: completed.map(p => `• ${p.title || p.text || 'Selesai'}`).join('\n') || '-',
+                                    sedangDikerjakan: inProgress.map(p => `• ${p.title || p.text || 'Proses'}${p.progressPercentage !== undefined ? ` (${p.progressPercentage}%)` : ''}`).join('\n') || '-',
+                                    kendalaLapangan: obstacles.map(p => `• ${p.title || p.text || 'Kendala'}${p.obstacleNote ? `: ${p.obstacleNote}` : ''}`).join('\n') || '-',
+                                    rencanaLanjutan: plans.map(p => `• ${p.title || p.text || 'Rencana'}`).join('\n') || '-'
                                 };
                             });
                         }

@@ -24,11 +24,11 @@ export default function SalesPage() {
         { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
         { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
     ] : [
-        { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> },
-        { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> }
+        { key: 'sales_spmb', label: 'Pesanan SPMB', icon: <ShoppingCart size={16} /> },
+        { key: 'sales_retail', label: 'Pesanan Warid', icon: <ShoppingCart size={16} /> }
     ];
 
-    const [activeTab, setActiveTab] = useState('sales_retail');
+    const [activeTab, setActiveTab] = useState('sales_spmb');
     
     // Data states
     const [sales, setSales] = useState([]);
@@ -201,7 +201,7 @@ export default function SalesPage() {
                             loading={loading} 
                             search={search} 
                             setSearch={setSearch} 
-                            openModal={isSuperOrAdminAset ? openModal : undefined} 
+                            openModal={openModal} 
                             canFulfill={canFulfill}
                             isViewOnly={!isSuperOrAdminAset}
                             warehouses={warehouses}

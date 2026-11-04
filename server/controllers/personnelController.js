@@ -2084,7 +2084,7 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
         // Helper format satu butir point laporan (Metode PPP)
         const formatPppPoint = (p, idx, defaultType = 'COMPLETED') => {
             if (typeof p === 'string') return `${idx + 1}. ${p.trim()}`;
-            const text = (p.text || 'Dokumentasi Foto').trim();
+            const text = (p.title || p.text || 'Dokumentasi Foto').trim();
             const tag = p.categoryTag ? `[${p.categoryTag}] ` : '';
             const photoBadge = (p.photos && p.photos.length > 0) ? ' 📷' : '';
 
@@ -2102,25 +2102,6 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
                 return `${idx + 1}. ${tag}${text} (⏳ Proses${pct})${photoBadge}`;
             }
             return `${idx + 1}. ${tag}${text} (✅ Selesai)${photoBadge}`;
-        };
-
-        // Helper format satu butir point laporan legacy
-        const formatPoint = (p, idx) => {
-            if (typeof p === 'string') return `${idx + 1}. ${p.trim()}`;
-            const text = (p.text || 'Dokumentasi Foto').trim();
-            const tag = p.categoryTag ? `[${p.categoryTag}] ` : '';
-            let statusLabel = '✅ Selesai';
-            if (p.status === 'OBSTACLE') {
-                statusLabel = `⚠️ Kendala${p.obstacleNote ? `: ${p.obstacleNote.trim()}` : ''}`;
-            } else if (p.status === 'IN_PROGRESS') {
-                statusLabel = '⏳ Proses';
-            } else if (p.status === 'COMPLETED' || p.status === 'SELESAI') {
-                statusLabel = '✅ Selesai';
-            } else if (p.status) {
-                statusLabel = p.status;
-            }
-            const photoBadge = (p.photos && p.photos.length > 0) ? ' 📷' : '';
-            return `${idx + 1}. ${tag}${text} (${statusLabel})${photoBadge}`;
         };
 
         // Group by user
@@ -2151,16 +2132,16 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
 
                 // 1. Unified 4-Pillar PPP items
                 const comp = (meta.completedItems || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
+                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()) || (p.photos && p.photos.length > 0))
                 );
                 const inProg = (meta.inProgressItems || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
+                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()) || (p.photos && p.photos.length > 0))
                 );
                 const obst = (meta.obstacleItems || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
+                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()) || (p.photos && p.photos.length > 0))
                 );
                 const plans = (meta.tomorrowPlans || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()))
+                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()))
                 );
 
                 if (comp.length > 0) allCompleted.push(...comp);
@@ -2195,6 +2176,45 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
                 }
             });
 
+            // Konversi poin manualPoints / legacy morning & afternoon langsung ke 4 Pilar PPP
+            // (Tidak ada lagi pembagian 'Sesi Pagi' dan 'Sesi Siang')
+            if (allMorning.length > 0 || allAfternoon.length > 0) {
+                const combinedLegacy = [...allMorning, ...allAfternoon];
+                combinedLegacy.forEach(p => {
+                    if (!p) return;
+                    if (p.status === 'OBSTACLE') {
+                        allObstacles.push(p);
+                    } else if (p.status === 'IN_PROGRESS' || p.status === 'PROSES') {
+                        allInProgress.push(p);
+                    } else if (p.status === 'PLAN') {
+                        allTomorrowPlans.push(p);
+                    } else {
+                        allCompleted.push(p);
+                    }
+                });
+            }
+
+            // Konversi fallbackLines ke 4 Pilar PPP (menghilangkan tag [SESI PAGI] / [SESI SIANG])
+            if (fallbackLines.length > 0) {
+                fallbackLines.forEach(line => {
+                    const clean = line
+                        .replace(/\[SESI PAGI\]/gi, '')
+                        .replace(/\[SESI SIANG\]/gi, '')
+                        .trim();
+                    if (!clean) return;
+
+                    if (clean.includes('(⚠️ Kendala)') || clean.toUpperCase().includes('[OBSTACLE]')) {
+                        allObstacles.push(clean.replace(/\[OBSTACLE\]/gi, '').trim());
+                    } else if (clean.includes('(⏳ Proses)') || clean.toUpperCase().includes('[IN_PROGRESS]') || clean.toUpperCase().includes('[PROSES]')) {
+                        allInProgress.push(clean.replace(/\[IN_PROGRESS\]|\[PROSES\]/gi, '').trim());
+                    } else if (clean.toUpperCase().includes('[PLAN]') || clean.toLowerCase().startsWith('rencana')) {
+                        allTomorrowPlans.push(clean.replace(/\[PLAN\]/gi, '').trim());
+                    } else {
+                        allCompleted.push(clean.replace(/\[COMPLETED\]|\[SELESAI\]/gi, '').trim());
+                    }
+                });
+            }
+
             const hasPpp = (allCompleted.length > 0 || allInProgress.length > 0 || allObstacles.length > 0 || allTomorrowPlans.length > 0);
 
             if (hasPpp) {
@@ -2224,36 +2244,6 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
                         summaryText += `${formatPppPoint(p, idx, 'PLAN')}\n`;
                     });
                 }
-            } else if (allMorning.length > 0 || allAfternoon.length > 0) {
-                if (allMorning.length > 0) {
-                    summaryText += `☀️ *Sesi Pagi:*\n`;
-                    allMorning.forEach((p, idx) => {
-                        summaryText += `${formatPoint(p, idx)}\n`;
-                    });
-                }
-                if (allAfternoon.length > 0) {
-                    if (allMorning.length > 0) summaryText += `\n`;
-                    summaryText += `🌙 *Sesi Siang:*\n`;
-                    allAfternoon.forEach((p, idx) => {
-                        summaryText += `${formatPoint(p, idx)}\n`;
-                    });
-                }
-            } else if (fallbackLines.length > 0) {
-                fallbackLines.forEach(line => {
-                    if (line.toUpperCase().includes('[SESI PAGI]')) {
-                        summaryText += `☀️ *Sesi Pagi:*\n`;
-                    } else if (line.toUpperCase().includes('[SESI SIANG]')) {
-                        summaryText += `🌙 *Sesi Siang:*\n`;
-                    } else {
-                        let formattedLine = line
-                            .replace(/\[COMPLETED\]/gi, '(✅ Selesai)')
-                            .replace(/\[SELESAI\]/gi, '(✅ Selesai)')
-                            .replace(/\[IN_PROGRESS\]/gi, '(⏳ Proses)')
-                            .replace(/\[PROSES\]/gi, '(⏳ Proses)')
-                            .replace(/\[OBSTACLE\]/gi, '(⚠️ Kendala)');
-                        summaryText += `${formattedLine}\n`;
-                    }
-                });
             } else {
                 summaryText += `- _(Belum ada butir kegiatan)_\n`;
             }
@@ -2262,13 +2252,13 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
         }
 
         const dateStr = today.toDate().toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-        let msg = `📊 *RANGKUMAN LAPORAN HARIAN STAF*\n` +
+        let msg = `📊 *RANGKUMAN LAPORAN HARIAN STAF (METODE PPP)*\n` +
             `📅 *Tanggal* : ${dateStr}\n\n` +
             summaryText +
             `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
 
         await whatsappService.sendMessage(kabid.phone, msg);
-        console.log('[Personnel] Daily Summary sent to Kabid.');
+        console.log('[Personnel] Daily Summary (Metode PPP) sent to Kabid.');
 
         // Push Notification to Kabid
         await sendPushToKabid(

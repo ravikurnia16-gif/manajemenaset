@@ -5,7 +5,8 @@ import { getMediaUrl } from '../lib/media';
 import {
     Users, Plus, Search, MapPin, Phone, Mail, Globe,
     MoreVertical, Edit2, Trash2, Package, CheckCircle,
-    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign, HardHat, RefreshCw
+    X, Camera, ExternalLink, Info, Filter, ShoppingBag, Clock, DollarSign, HardHat, RefreshCw,
+    Image as ImageIcon
 } from 'lucide-react';
 
 const VendorManagement = () => {
@@ -280,48 +281,68 @@ const VendorManagement = () => {
     };
 
     const handleImageUpload = (e, target) => {
-        const file = e.target.files[0];
+        const file = e.target?.files?.[0];
         if (file) {
             if (target === 'product') {
                 // Auto crop & process ke rasio 1:1 Postingan Instagram (1080x1080 px)
+                const fallbackToFile = () => {
+                    const previewUrl = URL.createObjectURL(file);
+                    if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
+                        URL.revokeObjectURL(productPhotoPreview);
+                    }
+                    setProductPhotoPreview(previewUrl);
+                    setProductPhotoFile(file);
+                };
+
                 const img = new Image();
                 img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 1080;
-                    canvas.height = 1080;
-                    const ctx = canvas.getContext('2d');
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.imageSmoothingQuality = 'high';
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 1080;
+                        canvas.height = 1080;
+                        const ctx = canvas.getContext('2d');
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
 
-                    const minDim = Math.min(img.width, img.height);
-                    const sx = (img.width - minDim) / 2;
-                    const sy = (img.height - minDim) / 2;
-                    ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 1080, 1080);
+                        const minDim = Math.min(img.width, img.height);
+                        const sx = (img.width - minDim) / 2;
+                        const sy = (img.height - minDim) / 2;
+                        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 1080, 1080);
 
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + "_ig_1x1.jpg", { type: 'image/jpeg' });
-                            const previewUrl = URL.createObjectURL(blob);
-                            if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
-                                URL.revokeObjectURL(productPhotoPreview);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + "_ig_1x1.jpg", { type: 'image/jpeg' });
+                                const previewUrl = URL.createObjectURL(blob);
+                                if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
+                                    URL.revokeObjectURL(productPhotoPreview);
+                                }
+                                setProductPhotoPreview(previewUrl);
+                                setProductPhotoFile(newFile);
+                            } else {
+                                fallbackToFile();
                             }
-                            setProductPhotoPreview(previewUrl);
-                            setProductPhotoFile(newFile);
-                        }
-                    }, 'image/jpeg', 0.92);
+                        }, 'image/jpeg', 0.92);
+                    } catch (err) {
+                        console.error('Gagal crop canvas foto produk, gunakan file asli:', err);
+                        fallbackToFile();
+                    }
+                };
+                img.onerror = () => {
+                    console.warn('Browser gagal render Image() untuk file ini, gunakan file asli:', file.name);
+                    fallbackToFile();
                 };
                 img.src = URL.createObjectURL(file);
-                return;
-            }
-
-            const previewUrl = URL.createObjectURL(file);
-            if (target === 'vendor') {
+            } else if (target === 'vendor') {
+                const previewUrl = URL.createObjectURL(file);
                 if (vendorPhotoPreview && vendorPhotoPreview.startsWith('blob:')) {
                     URL.revokeObjectURL(vendorPhotoPreview);
                 }
                 setVendorPhotoPreview(previewUrl);
                 setVendorPhotoFile(file);
             }
+        }
+        if (e.target) {
+            e.target.value = '';
         }
     };
 
@@ -655,24 +676,52 @@ const VendorManagement = () => {
                                     <label className="block text-sm font-bold text-slate-700">
                                         Logo / Foto Profil <span className="text-xs font-normal text-slate-400">(Ukuran Postingan Instagram / 1:1)</span>
                                     </label>
-                                    <div className="relative group cursor-pointer" onClick={() => document.getElementById('vendor-photo-input').click()}>
-                                        <div className="w-full aspect-square bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-400 group-hover:bg-blue-50">
-                                            {vendorPhotoPreview ? (
-                                                <img src={vendorPhotoPreview} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <Camera className="text-slate-300 group-hover:text-blue-400 transition-colors" size={32} />
-                                            )}
-                                        </div>
-                                        <div className="absolute inset-0 bg-black/40 items-center justify-center hidden group-hover:flex rounded-2xl transition-all">
-                                            <span className="text-white text-xs font-bold">Ganti Foto</span>
-                                        </div>
-                                        <input
-                                            id="vendor-photo-input"
-                                            type="file"
-                                            hidden
-                                            accept="image/*"
-                                            onChange={(e) => handleImageUpload(e, 'vendor')}
-                                        />
+                                    <div className="relative w-full aspect-square bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all">
+                                        {vendorPhotoPreview ? (
+                                            <>
+                                                <img src={vendorPhotoPreview} className="w-full h-full object-cover" alt="Preview Logo" />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (vendorPhotoPreview && vendorPhotoPreview.startsWith('blob:')) {
+                                                            URL.revokeObjectURL(vendorPhotoPreview);
+                                                        }
+                                                        setVendorPhotoPreview(null);
+                                                        setVendorPhotoFile(null);
+                                                    }}
+                                                    className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full shadow hover:bg-red-700 transition-colors z-10"
+                                                    title="Hapus foto"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <Users className="text-slate-300" size={36} />
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 w-full mt-2">
+                                        <label className="flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl cursor-pointer text-xs font-bold transition-all border border-blue-200">
+                                            <ImageIcon size={15} />
+                                            <span>Galeri HP</span>
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="image/*,image/jpeg,image/png,image/webp,image/jpg"
+                                                onChange={(e) => handleImageUpload(e, 'vendor')}
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer text-xs font-bold transition-all border border-slate-200">
+                                            <Camera size={15} />
+                                            <span>Kamera</span>
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={(e) => handleImageUpload(e, 'vendor')}
+                                            />
+                                        </label>
                                     </div>
                                 </div>
 
@@ -937,22 +986,56 @@ const VendorManagement = () => {
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto Produk (Postingan IG)</label>
                                                 <span className="text-[9px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">1:1 Persegi</span>
                                             </div>
-                                            <div className="aspect-square w-full bg-slate-100 rounded-3xl flex items-center justify-center overflow-hidden relative cursor-pointer group border-2 border-dashed border-slate-200 hover:border-pink-300 transition-all" onClick={() => document.getElementById('product-img').click()}>
+                                            <div className="aspect-square w-full bg-slate-100 rounded-3xl flex items-center justify-center overflow-hidden relative border-2 border-dashed border-slate-200">
                                                 {productPhotoPreview ? (
                                                     <>
-                                                        <img src={productPhotoPreview} className="w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 backdrop-blur-xs">
-                                                            <Camera size={14} /> Ganti Foto 1:1
-                                                        </div>
+                                                        <img src={productPhotoPreview} className="w-full h-full object-cover" alt="Preview Produk" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
+                                                                    URL.revokeObjectURL(productPhotoPreview);
+                                                                }
+                                                                setProductPhotoPreview(null);
+                                                                setProductPhotoFile(null);
+                                                            }}
+                                                            className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full shadow hover:bg-red-700 transition-colors z-10"
+                                                            title="Hapus foto"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
                                                     </>
                                                 ) : (
                                                     <div className="flex flex-col items-center gap-1.5 text-slate-400 p-4 text-center">
-                                                        <Camera className="text-slate-300 group-hover:text-pink-500 transition-colors" size={36} />
+                                                        <Package className="text-slate-300" size={36} />
                                                         <span className="text-[10px] font-bold text-slate-500">Pilih Foto 1:1 IG</span>
                                                         <span className="text-[9px] text-slate-400">Otomatis di-crop pas (1080×1080)</span>
                                                     </div>
                                                 )}
-                                                <input id="product-img" type="file" hidden accept="image/*" onChange={(e) => handleImageUpload(e, 'product')} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 w-full mt-1">
+                                                <label className="flex items-center justify-center gap-1.5 py-2 px-3 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-xl cursor-pointer text-xs font-bold transition-all border border-pink-200">
+                                                    <ImageIcon size={15} />
+                                                    <span>Galeri HP</span>
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*,image/jpeg,image/png,image/webp,image/jpg"
+                                                        onChange={(e) => handleImageUpload(e, 'product')}
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer text-xs font-bold transition-all border border-slate-200">
+                                                    <Camera size={15} />
+                                                    <span>Kamera</span>
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        onChange={(e) => handleImageUpload(e, 'product')}
+                                                    />
+                                                </label>
                                             </div>
                                         </div>
                                     </div>

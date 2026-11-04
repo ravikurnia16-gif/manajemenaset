@@ -32,7 +32,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
     const defaultTargetUnit = currentUser?.unit?.name || '';
 
     const [form, setForm] = useState(initialData || {
-        type: currentUser.role === 'ADMIN_UNIT' ? 'SPMB' : 'RETAIL',
+        type: initialData?.type || (!isAssetAdmin ? 'SPMB' : (currentUser.role === 'ADMIN_UNIT' ? 'SPMB' : 'RETAIL')),
         warehouseId: defaultWarehouseId,
         customerName: defaultCustomerName,
         customerPhone: defaultCustomerPhone,
@@ -312,64 +312,79 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         <form onSubmit={handleFormSubmit} className="space-y-4 animate-in fade-in duration-200">
             
             {/* Tipe Pesanan Switcher */}
-            <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Tipe Pesanan</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setForm(f => ({
-                                ...f,
-                                type: 'SPMB',
-                                items: [],
-                                packages: [],
-                                customerName: defaultCustomerName || (f.targetUnit ? `Admin Unit ${f.targetUnit}` : ''),
-                                customerPhone: f.customerPhone || defaultCustomerPhone,
-                                targetUnit: f.targetUnit || defaultTargetUnit,
-                                status: 'PENDING'
-                            }));
-                        }}
-                        className={`p-3 rounded-2xl border flex items-center gap-3 transition-all cursor-pointer text-left ${
-                            form.type === 'SPMB'
-                                ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
-                                : 'bg-white border-slate-200 hover:bg-slate-50 opacity-75'
-                        }`}
-                    >
+            {isAssetAdmin ? (
+                <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Tipe Pesanan</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setForm(f => ({
+                                    ...f,
+                                    type: 'SPMB',
+                                    items: [],
+                                    packages: [],
+                                    customerName: defaultCustomerName || (f.targetUnit ? `Admin Unit ${f.targetUnit}` : ''),
+                                    customerPhone: f.customerPhone || defaultCustomerPhone,
+                                    targetUnit: f.targetUnit || defaultTargetUnit,
+                                    status: 'PENDING'
+                                }));
+                            }}
+                            className={`p-3 rounded-2xl border flex items-center gap-3 transition-all cursor-pointer text-left ${
+                                form.type === 'SPMB'
+                                    ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
+                                    : 'bg-white border-slate-200 hover:bg-slate-50 opacity-75'
+                            }`}
+                        >
+                            <span className="text-2xl">📦</span>
+                            <div>
+                                <span className="font-bold text-sm text-slate-800 block">Pesanan Unit / SPMB</span>
+                                <span className="text-xs text-slate-500">Paket seragam massal untuk siswa baru per unit</span>
+                            </div>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setForm(f => ({
+                                    ...f,
+                                    type: 'RETAIL',
+                                    items: [],
+                                    packages: [],
+                                    customerName: f.customerName || defaultCustomerName,
+                                    customerPhone: f.customerPhone || defaultCustomerPhone,
+                                    targetUnit: f.targetUnit || defaultTargetUnit,
+                                    status: 'PENDING'
+                                }));
+                            }}
+                            className={`p-3 rounded-2xl border flex items-center gap-3 transition-all cursor-pointer text-left ${
+                                form.type === 'RETAIL'
+                                    ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
+                                    : 'bg-white border-slate-200 hover:bg-slate-50 opacity-75'
+                            }`}
+                        >
+                            <span className="text-2xl">🛍️</span>
+                            <div>
+                                <span className="font-bold text-sm text-slate-800 block">Eceran / Satuan</span>
+                                <span className="text-xs text-slate-500">Pembelian satuan untuk siswa atau wali murid</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
                         <span className="text-2xl">📦</span>
                         <div>
-                            <span className="font-bold text-sm text-slate-800 block">Pesanan Unit / SPMB</span>
-                            <span className="text-xs text-slate-500">Paket seragam massal untuk siswa baru per unit</span>
+                            <span className="font-bold text-xs sm:text-sm text-blue-900 block">Pemesanan Seragam SPMB Unit</span>
+                            <span className="text-[11px] text-blue-700">Formulir pemesanan paket seragam siswa baru untuk unit sekolah</span>
                         </div>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setForm(f => ({
-                                ...f,
-                                type: 'RETAIL',
-                                items: [],
-                                packages: [],
-                                customerName: f.customerName || defaultCustomerName,
-                                customerPhone: f.customerPhone || defaultCustomerPhone,
-                                targetUnit: f.targetUnit || defaultTargetUnit,
-                                status: 'PENDING'
-                            }));
-                        }}
-                        className={`p-3 rounded-2xl border flex items-center gap-3 transition-all cursor-pointer text-left ${
-                            form.type === 'RETAIL'
-                                ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
-                                : 'bg-white border-slate-200 hover:bg-slate-50 opacity-75'
-                        }`}
-                    >
-                        <span className="text-2xl">🛍️</span>
-                        <div>
-                            <span className="font-bold text-sm text-slate-800 block">Eceran / Satuan</span>
-                            <span className="text-xs text-slate-500">Pembelian satuan untuk siswa atau wali murid</span>
-                        </div>
-                    </button>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase bg-blue-600 text-white px-2.5 py-1 rounded-lg shrink-0">
+                        Paket SPMB
+                    </span>
                 </div>
-            </div>
+            )}
 
             {/* Identitas Pemesan Card */}
             <div className="bg-slate-50/90 p-4 sm:p-5 rounded-2xl border border-slate-200/90 space-y-3.5 shadow-2xs">

@@ -338,11 +338,10 @@ export default function KajianTab({ isKabid, user, staffList = [] }) {
         <div className="space-y-6">
             {/* TOAST FEEDBACK */}
             {feedback && (
-                <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-sm font-semibold transition-all shadow-sm ${
-                    feedback.type === 'error'
+                <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-sm font-semibold transition-all shadow-sm ${feedback.type === 'error'
                         ? 'bg-rose-50 border-rose-200 text-rose-800'
                         : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                }`}>
+                    }`}>
                     <div className="flex items-center gap-2">
                         {feedback.type === 'error' ? <AlertCircle size={18} className="shrink-0" /> : <CheckCircle2 size={18} className="shrink-0" />}
                         <span>{feedback.message}</span>

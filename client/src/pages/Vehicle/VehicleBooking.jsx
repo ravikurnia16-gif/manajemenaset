@@ -4,7 +4,7 @@ import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock, Edit,
     ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
-    Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History, Camera
+    Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History, Camera, Image as ImageIcon
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import socket from '../../lib/socket';
@@ -4165,40 +4165,76 @@ const VehicleBooking = () => {
                                                             {isDiscrepancy ? "* WAJIB ADA" : "(Opsional)"}
                                                         </span>
                                                     </label>
-                                                    <div className="flex items-center gap-3">
-                                                        <label className={`flex-1 border-2 border-dashed rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer transition-all ${
-                                                            isDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'
-                                                        }`}>
-                                                            <Camera className={isDiscrepancy && !actionData.photo ? "text-red-500 mb-1" : "text-slate-400 mb-1"} size={20} />
-                                                            <span className="text-xs font-bold text-slate-600">
-                                                                {actionData.photo ? actionData.photo.name : "Ambil / Pilih Foto"}
-                                                            </span>
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                capture="environment"
-                                                                className="hidden"
-                                                                onChange={e => {
-                                                                    const file = e.target.files[0];
-                                                                    if (file) {
-                                                                        setActionData({
-                                                                            ...actionData,
-                                                                            photo: file,
-                                                                            photoPreview: URL.createObjectURL(file)
-                                                                        });
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </label>
-                                                        {actionData.photoPreview && (
-                                                            <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-                                                                <img src={actionData.photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                                                    <div className="space-y-2">
+                                                        {actionData.photoPreview ? (
+                                                            <div className={`relative flex items-center gap-3 p-2.5 rounded-xl border ${
+                                                                isDiscrepancy ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-200'
+                                                            }`}>
+                                                                <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-300 shrink-0">
+                                                                    <img src={actionData.photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-bold text-slate-700 truncate">{actionData.photo?.name || 'Foto Terpilih'}</p>
+                                                                    <p className={`text-[10px] font-semibold ${isDiscrepancy ? 'text-red-600' : 'text-slate-500'}`}>
+                                                                        Foto siap diunggah
+                                                                    </p>
+                                                                </div>
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() => setActionData({ ...actionData, photo: null, photoPreview: null })}
-                                                                    className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5"
+                                                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                    title="Hapus foto"
                                                                 >
-                                                                    <X size={12} />
+                                                                    <Trash2 size={16} />
                                                                 </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <label className={`border-2 border-dashed rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                                                                    isDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                                }`}>
+                                                                    <Camera size={18} />
+                                                                    <span className="text-xs font-bold">Kamera</span>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        capture="environment"
+                                                                        className="hidden"
+                                                                        onChange={e => {
+                                                                            const file = e.target.files[0];
+                                                                            if (file) {
+                                                                                setActionData({
+                                                                                    ...actionData,
+                                                                                    photo: file,
+                                                                                    photoPreview: URL.createObjectURL(file)
+                                                                                });
+                                                                            }
+                                                                            e.target.value = '';
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                                <label className={`border-2 border-dashed rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                                                                    isDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                                }`}>
+                                                                    <ImageIcon size={18} />
+                                                                    <span className="text-xs font-bold">Galeri HP</span>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*,image/jpeg,image/png,image/webp,image/jpg"
+                                                                        className="hidden"
+                                                                        onChange={e => {
+                                                                            const file = e.target.files[0];
+                                                                            if (file) {
+                                                                                setActionData({
+                                                                                    ...actionData,
+                                                                                    photo: file,
+                                                                                    photoPreview: URL.createObjectURL(file)
+                                                                                });
+                                                                            }
+                                                                            e.target.value = '';
+                                                                        }}
+                                                                    />
+                                                                </label>
                                                             </div>
                                                         )}
                                                     </div>
@@ -4331,38 +4367,68 @@ const VehicleBooking = () => {
                                                         <span>Foto Bukti Kejadian / Kerusakan</span>
                                                         <span className="text-red-600 font-extrabold">* WAJIB</span>
                                                     </label>
-                                                    <div className="flex items-center gap-3">
-                                                        <label className="flex-1 border-2 border-dashed border-red-300 bg-white rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-red-50/50 transition-colors">
-                                                            <Camera className="text-red-500 mb-1" size={20} />
-                                                            <span className="text-xs font-bold text-slate-700">
-                                                                {actionData.photo ? actionData.photo.name : "Ambil Foto Kejadian"}
-                                                            </span>
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                capture="environment"
-                                                                className="hidden"
-                                                                onChange={e => {
-                                                                    const file = e.target.files[0];
-                                                                    if (file) {
-                                                                        setActionData({
-                                                                            ...actionData,
-                                                                            photo: file,
-                                                                            photoPreview: URL.createObjectURL(file)
-                                                                        });
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </label>
-                                                        {actionData.photoPreview && (
-                                                            <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-red-300 shrink-0">
-                                                                <img src={actionData.photoPreview} alt="Preview Insiden" className="w-full h-full object-cover" />
+                                                    <div className="space-y-2">
+                                                        {actionData.photoPreview ? (
+                                                            <div className="relative flex items-center gap-3 p-2.5 bg-white border border-red-200 rounded-xl">
+                                                                <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-red-300 shrink-0">
+                                                                    <img src={actionData.photoPreview} alt="Preview Insiden" className="w-full h-full object-cover" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-bold text-slate-700 truncate">{actionData.photo?.name || 'Foto Insiden'}</p>
+                                                                    <p className="text-[10px] text-red-600 font-semibold">Foto insiden siap diunggah</p>
+                                                                </div>
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() => setActionData({ ...actionData, photo: null, photoPreview: null })}
-                                                                    className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5"
+                                                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                    title="Hapus foto"
                                                                 >
-                                                                    <X size={12} />
+                                                                    <Trash2 size={16} />
                                                                 </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <label className="border-2 border-dashed border-red-300 bg-white rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50/50 transition-colors text-red-600">
+                                                                    <Camera size={18} />
+                                                                    <span className="text-xs font-bold text-slate-700">Kamera</span>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        capture="environment"
+                                                                        className="hidden"
+                                                                        onChange={e => {
+                                                                            const file = e.target.files[0];
+                                                                            if (file) {
+                                                                                setActionData({
+                                                                                    ...actionData,
+                                                                                    photo: file,
+                                                                                    photoPreview: URL.createObjectURL(file)
+                                                                                });
+                                                                            }
+                                                                            e.target.value = '';
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                                <label className="border-2 border-dashed border-red-300 bg-white rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50/50 transition-colors text-red-600">
+                                                                    <ImageIcon size={18} />
+                                                                    <span className="text-xs font-bold text-slate-700">Galeri HP</span>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*,image/jpeg,image/png,image/webp,image/jpg"
+                                                                        className="hidden"
+                                                                        onChange={e => {
+                                                                            const file = e.target.files[0];
+                                                                            if (file) {
+                                                                                setActionData({
+                                                                                    ...actionData,
+                                                                                    photo: file,
+                                                                                    photoPreview: URL.createObjectURL(file)
+                                                                                });
+                                                                            }
+                                                                            e.target.value = '';
+                                                                        }}
+                                                                    />
+                                                                </label>
                                                             </div>
                                                         )}
                                                     </div>

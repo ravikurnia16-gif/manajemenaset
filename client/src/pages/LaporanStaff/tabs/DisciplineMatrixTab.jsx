@@ -363,26 +363,23 @@ export default function DisciplineMatrixTab({
                                         '🎯'
                                     )}
 
-                                    {/* Legacy Morning / Afternoon (if only legacy exists) */}
+                                    {/* Legacy Morning / Afternoon (if only legacy exists, map to PPP) */}
                                     {(!selectedCell.data.reportData.completedItems?.length &&
                                       !selectedCell.data.reportData.inProgressItems?.length &&
                                       !selectedCell.data.reportData.obstacleItems?.length &&
-                                      !selectedCell.data.reportData.tomorrowPlans?.length) && (
-                                        <>
-                                            {renderPppItemsList(
-                                                'Kegiatan Pagi (Arsip Lama)',
-                                                selectedCell.data.reportData.morning,
-                                                'bg-blue-100 text-blue-800',
-                                                '☀️'
-                                            )}
-                                            {renderPppItemsList(
-                                                'Kegiatan Siang (Arsip Lama)',
-                                                selectedCell.data.reportData.afternoon,
-                                                'bg-amber-100 text-amber-800',
-                                                '🌙'
-                                            )}
-                                        </>
-                                    )}
+                                      !selectedCell.data.reportData.tomorrowPlans?.length) && (() => {
+                                        const legacyAll = [...(selectedCell.data.reportData.morning || []), ...(selectedCell.data.reportData.afternoon || [])];
+                                        const legComp = legacyAll.filter(p => !p.status || p.status === 'COMPLETED' || p.status === 'SELESAI');
+                                        const legProg = legacyAll.filter(p => p.status === 'IN_PROGRESS' || p.status === 'PROSES');
+                                        const legObs = legacyAll.filter(p => p.status === 'OBSTACLE');
+                                        return (
+                                            <>
+                                                {legComp.length > 0 && renderPppItemsList('Pekerjaan Selesai', legComp, 'bg-emerald-100 text-emerald-800', '🟢')}
+                                                {legProg.length > 0 && renderPppItemsList('Sedang Dikerjakan', legProg, 'bg-amber-100 text-amber-800', '🟡')}
+                                                {legObs.length > 0 && renderPppItemsList('Kendala Lapangan', legObs, 'bg-rose-100 text-rose-800', '🔴')}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-slate-400 space-y-2">

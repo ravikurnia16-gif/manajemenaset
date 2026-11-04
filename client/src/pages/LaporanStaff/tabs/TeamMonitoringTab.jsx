@@ -485,6 +485,24 @@ const TeamMonitoringTab = ({
                             ))}
                         </div>
 
+                        {/* Kirim Rangkuman PPP ke WA Kabid Button */}
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                try {
+                                    const res = await api.post('/laporan/send-daily-summary');
+                                    alert(res.data?.message || 'Rangkuman harian metode PPP berhasil dikirim ke WhatsApp Kabid!');
+                                } catch (e) {
+                                    alert(e.response?.data?.error || 'Gagal mengirim rangkuman ke Kabid.');
+                                }
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                            title="Kirim Rangkuman Laporan Harian Metode PPP ke WhatsApp Kepala Bidang Sarana"
+                        >
+                            <Send size={13} />
+                            <span className="hidden sm:inline">Kirim Rangkuman PPP</span>
+                        </button>
+
                         {/* Remind Button */}
                         <button
                             type="button"
