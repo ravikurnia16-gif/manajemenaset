@@ -8,12 +8,12 @@ const upload = multer({
     storage: storage,
     limits: { fileSize: 100 * 1024 * 1024 }, // 100MB Limit for Video
     fileFilter: (req, file, cb) => {
-        const allowedTypes = /pdf|doc|docx|jpg|jpeg|png|webp|mp4|mov|m4v/;
+        const allowedTypes = /pdf|doc|docx|ppt|pptx|xls|xlsx|jpg|jpeg|png|webp|mp4|mov|m4v/;
         const isMimeMatch = allowedTypes.test(file.mimetype) || allowedTypes.test(file.originalname.toLowerCase());
         if (isMimeMatch) {
             return cb(null, true);
         }
-        cb(new Error('Format file tidak didukung (Gunakan PDF, Gambar, atau Video MP4/MOV)'));
+        cb(new Error('Format file tidak didukung (Gunakan PDF, Dokumen Word/PPT/Excel, Gambar, atau Video)'));
     }
 });
 

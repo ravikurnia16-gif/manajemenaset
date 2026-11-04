@@ -229,7 +229,7 @@ exports.createTraining = async (req, res) => {
         const moduleObj = req.files?.moduleFile?.[0] || null;
 
         if (!fileUrl) {
-            return res.status(400).json({ error: 'Bukti dokumen pelatihan (PDF) wajib diunggah' });
+            return res.status(400).json({ error: 'Bukti dokumen pelatihan (PDF / Gambar) wajib diunggah' });
         }
 
         const isKabid = currentUser.role === 'KABID_SARPRAS' ||
@@ -254,7 +254,7 @@ exports.createTraining = async (req, res) => {
                 description: description ? description.trim() : null,
                 certificateNo: certificateNo ? certificateNo.trim() : null,
                 fileUrl,
-                fileName: fileObj?.originalname || 'Dokumen_Pelatihan.pdf',
+                fileName: fileObj?.originalname || (fileObj?.mimetype?.startsWith('image/') ? 'Dokumen_Pelatihan.jpg' : 'Dokumen_Pelatihan.pdf'),
                 fileSize: fileObj?.size || null,
                 moduleUrl,
                 moduleFileName: moduleObj?.originalname || null,
@@ -338,7 +338,7 @@ exports.updateTraining = async (req, res) => {
                 deleteFile(objectName).catch(e => console.warn('Failed to delete old proof file:', e.message));
             }
             updateData.fileUrl = newFileUrl;
-            updateData.fileName = newFileObj?.originalname || 'Dokumen_Pelatihan.pdf';
+            updateData.fileName = newFileObj?.originalname || (newFileObj?.mimetype?.startsWith('image/') ? 'Dokumen_Pelatihan.jpg' : 'Dokumen_Pelatihan.pdf');
             updateData.fileSize = newFileObj?.size || null;
         }
 

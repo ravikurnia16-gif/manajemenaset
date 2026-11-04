@@ -3,10 +3,14 @@ import {
     GraduationCap, Plus, Search, Calendar, FileText, Download, Eye,
     Trash2, Edit3, X, CheckCircle2, AlertCircle, Loader2, Award,
     Building2, MapPin, User, FileCheck, RefreshCw, Filter, Sparkles,
-    Clock, ExternalLink, ShieldCheck, Globe, Users, BookOpen, Layers
+    Clock, ExternalLink, ShieldCheck, Globe, Users, BookOpen, Layers,
+    Image as ImageIcon
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import api from '../../../lib/axios';
+
+const isImageFile = (urlOrName) => /\.(jpg|jpeg|png|webp)($|\?)/i.test(urlOrName || '');
+const isPptOrDoc = (urlOrName) => /\.(ppt|pptx|doc|docx|xls|xlsx)($|\?)/i.test(urlOrName || '');
 
 export default function TrainingTab({ isKabid, user, staffList = [] }) {
     // Data states
@@ -223,7 +227,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         setShowModal(true);
     };
 
-    // Handle Bukti File Selection (PDF)
+    // Handle Bukti File Selection (PDF / Image JPG, PNG, WebP)
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         setFileError('');
@@ -232,8 +236,11 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             return;
         }
 
-        if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-            setFileError('File bukti wajib berformat PDF (.pdf)');
+        const allowedMimes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const isPdfOrImage = allowedMimes.includes(file.type) || /\.(pdf|jpg|jpeg|png|webp)$/i.test(file.name);
+
+        if (!isPdfOrImage) {
+            setFileError('File bukti wajib berformat PDF atau Gambar (JPG, JPEG, PNG, WebP)');
             setSelectedFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
@@ -249,7 +256,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
         setSelectedFile(file);
     };
 
-    // Handle Module File Selection (Optional)
+    // Handle Module File Selection (Optional - PDF, PPT, Word, Excel, Image)
     const handleModuleFileChange = (e) => {
         const file = e.target.files[0];
         setModuleFileError('');
@@ -258,8 +265,16 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
             return;
         }
 
-        if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-            setModuleFileError('Modul disarankan berformat PDF (.pdf)');
+        const allowedMimes = [
+            'application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
+        const isAllowed = allowedMimes.includes(file.type) || /\.(pdf|jpg|jpeg|png|webp|doc|docx|ppt|pptx|xls|xlsx)$/i.test(file.name);
+
+        if (!isAllowed) {
+            setModuleFileError('Modul wajib berformat dokumen (PDF, PPT, PPTX, Word, Excel, atau Gambar)');
             setSelectedModuleFile(null);
             if (moduleFileInputRef.current) moduleFileInputRef.current.value = '';
             return;
@@ -720,11 +735,11 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5 truncate">
                                         <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg shrink-0">
-                                            <FileText size={14} />
+                                            {isImageFile(item.fileName || item.fileUrl) ? <ImageIcon size={14} /> : <FileText size={14} />}
                                         </div>
                                         <div className="truncate">
-                                            <p className="text-[11px] font-bold text-slate-700 truncate max-w-[130px]" title={item.fileName || 'Bukti Pelatihan.pdf'}>
-                                                {item.fileName || 'Bukti.pdf'}
+                                            <p className="text-[11px] font-bold text-slate-700 truncate max-w-[130px]" title={item.fileName || (isImageFile(item.fileUrl) ? 'Bukti.jpg' : 'Bukti.pdf')}>
+                                                {item.fileName || (isImageFile(item.fileUrl) ? 'Bukti.jpg' : 'Bukti.pdf')}
                                             </p>
                                             <p className="text-[9px] text-slate-400">
                                                 {formatBytes(item.fileSize)} • MinIO
@@ -733,13 +748,13 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                     </div>
 
                                     <div className="flex items-center gap-1 shrink-0">
-                                        {/* Preview Bukti PDF */}
+                                        {/* Preview Bukti PDF / Image */}
                                         <button
                                             onClick={() => {
                                                 setPreviewPdfUrl(item.fileUrl);
                                                 setPreviewTitle(`Bukti: ${item.title}`);
                                             }}
-                                            title="Lihat Bukti Sertifikat"
+                                            title={isImageFile(item.fileName || item.fileUrl) ? "Lihat Gambar Bukti" : "Lihat Dokumen PDF Bukti"}
                                             className="p-2 bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white rounded-xl transition-all cursor-pointer"
                                         >
                                             <Eye size={14} />
@@ -977,16 +992,16 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                 />
                             </div>
 
-                            {/* 4. Bukti Dokumen PDF (Wajib) */}
+                            {/* 4. Bukti Dokumen PDF / JPG / PNG (Wajib) */}
                             <div>
                                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                                    Bukti Dokumen Pelatihan (PDF Sertifikat / Kehadiran) *
+                                    Bukti Dokumen Pelatihan (PDF / JPG / PNG Sertifikat atau Foto Kehadiran) *
                                 </label>
 
                                 <div className="border-2 border-dashed border-slate-200 hover:border-amber-400 transition-colors p-4 rounded-2xl bg-slate-50/50 text-center space-y-2">
                                     <input
                                         type="file"
-                                        accept=".pdf,application/pdf"
+                                        accept=".pdf,application/pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                                         ref={fileInputRef}
                                         onChange={handleFileChange}
                                         className="hidden"
@@ -997,25 +1012,33 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                         className="inline-flex items-center gap-2 px-4 py-2 bg-white text-amber-700 border border-amber-200 rounded-xl text-xs font-bold cursor-pointer hover:bg-amber-50 transition-all shadow-xs"
                                     >
                                         <FileText size={15} />
-                                        <span>Pilih Dokumen PDF Bukti</span>
+                                        <span>Pilih Dokumen PDF / Foto JPG</span>
                                     </label>
 
                                     {selectedFile ? (
                                         <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 mt-2">
-                                            <FileCheck size={16} className="text-emerald-600 shrink-0" />
+                                            {isImageFile(selectedFile.name) ? (
+                                                <ImageIcon size={16} className="text-emerald-600 shrink-0" />
+                                            ) : (
+                                                <FileCheck size={16} className="text-emerald-600 shrink-0" />
+                                            )}
                                             <span className="truncate max-w-[280px]">{selectedFile.name}</span>
                                             <span className="text-[10px] text-slate-400">({formatBytes(selectedFile.size)})</span>
                                         </div>
                                     ) : editingItem?.fileUrl ? (
                                         <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 mt-2">
-                                            <FileCheck size={16} className="text-amber-600 shrink-0" />
+                                            {isImageFile(editingItem.fileName || editingItem.fileUrl) ? (
+                                                <ImageIcon size={16} className="text-amber-600 shrink-0" />
+                                            ) : (
+                                                <FileCheck size={16} className="text-amber-600 shrink-0" />
+                                            )}
                                             <span className="truncate max-w-[280px]">{editingItem.fileName || 'Dokumen Tersimpan'}</span>
                                             <span className="text-[10px] text-slate-400">({formatBytes(editingItem.fileSize)})</span>
                                             <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Tersimpan</span>
                                         </div>
                                     ) : (
                                         <p className="text-[11px] text-slate-400">
-                                            Wajib PDF (Maksimal 30MB)
+                                            Format didukung: PDF, JPG, JPEG, PNG (Maksimal 30MB)
                                         </p>
                                     )}
 
@@ -1037,7 +1060,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                 <div className="border border-dashed border-slate-200 hover:border-violet-400 transition-colors p-3.5 rounded-2xl bg-slate-50/50 text-center space-y-2">
                                     <input
                                         type="file"
-                                        accept=".pdf,application/pdf"
+                                        accept=".pdf,application/pdf,.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                                         ref={moduleFileInputRef}
                                         onChange={handleModuleFileChange}
                                         className="hidden"
@@ -1048,7 +1071,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                                         className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white text-violet-700 border border-violet-200 rounded-xl text-xs font-bold cursor-pointer hover:bg-violet-50 transition-all shadow-xs"
                                     >
                                         <BookOpen size={14} />
-                                        <span>Unggah Modul / Materi (PDF)</span>
+                                        <span>Unggah Modul / Materi (PDF, PPT, Word)</span>
                                     </label>
 
                                     {selectedModuleFile ? (
@@ -1128,7 +1151,7 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                 </div>
             )}
 
-            {/* MODAL: PDF Viewer In-App */}
+            {/* MODAL: Document / Image Viewer In-App */}
             {previewPdfUrl && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -1136,11 +1159,13 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                             <div className="flex items-center gap-2 truncate">
                                 <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                                    <FileText size={18} />
+                                    {isImageFile(previewPdfUrl) ? <ImageIcon size={18} /> : <FileText size={18} />}
                                 </div>
                                 <div className="truncate">
                                     <h4 className="text-xs font-bold text-slate-800 truncate">{previewTitle}</h4>
-                                    <p className="text-[10px] text-slate-400">Pratinjau Dokumen PDF dari MinIO Storage</p>
+                                    <p className="text-[10px] text-slate-400">
+                                        {isImageFile(previewPdfUrl) ? 'Pratinjau Foto/Gambar Bukti Pelatihan' : 'Pratinjau Dokumen PDF Pelatihan'}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -1161,13 +1186,42 @@ export default function TrainingTab({ isKabid, user, staffList = [] }) {
                             </div>
                         </div>
 
-                        {/* PDF Frame */}
-                        <div className="flex-1 bg-slate-100 p-2">
-                            <iframe
-                                src={`${previewPdfUrl}#toolbar=1`}
-                                title="Pratinjau Dokumen Pelatihan"
-                                className="w-full h-full rounded-2xl border border-slate-200 bg-white"
-                            />
+                        {/* Content Frame */}
+                        <div className="flex-1 bg-slate-900/90 p-3 overflow-auto flex items-center justify-center">
+                            {isImageFile(previewPdfUrl) ? (
+                                <img
+                                    src={previewPdfUrl}
+                                    alt={previewTitle}
+                                    className="max-h-full max-w-full object-contain rounded-xl shadow-lg"
+                                />
+                            ) : isPptOrDoc(previewPdfUrl) ? (
+                                <div className="flex flex-col items-center justify-center p-8 text-center bg-white rounded-2xl max-w-md mx-auto space-y-4 shadow-xl border border-slate-200">
+                                    <div className="w-16 h-16 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center shadow-inner">
+                                        <BookOpen size={32} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-800">Dokumen Presentasi / Modul</h4>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Berkas presentasi PowerPoint atau Word dapat diunduh langsung untuk dibuka di aplikasi perangkat Anda.
+                                        </p>
+                                    </div>
+                                    <a
+                                        href={previewPdfUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        download
+                                        className="px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                                    >
+                                        <Download size={15} /> Unduh & Buka Dokumen
+                                    </a>
+                                </div>
+                            ) : (
+                                <iframe
+                                    src={`${previewPdfUrl}#toolbar=1`}
+                                    title="Pratinjau Dokumen Pelatihan"
+                                    className="w-full h-full rounded-2xl border border-slate-200 bg-white"
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
