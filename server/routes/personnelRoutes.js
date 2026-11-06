@@ -70,6 +70,7 @@ router.delete('/trainings/:id', staffTrainingController.deleteTraining);
 const staffKajianController = require('../controllers/staffKajianController');
 router.get('/kajian', staffKajianController.getKajianList);
 router.get('/kajian/stats', staffKajianController.getKajianStats);
+router.get('/kajian/suggestions', staffKajianController.getKajianSuggestions);
 router.post('/kajian', handleUpload('photo', 'kajian'), staffKajianController.createKajian);
 router.put('/kajian/:id', handleUpload('photo', 'kajian'), staffKajianController.updateKajian);
 router.delete('/kajian/:id', staffKajianController.deleteKajian);

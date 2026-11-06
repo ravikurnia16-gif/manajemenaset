@@ -223,6 +223,64 @@ exports.getKajianStats = async (req, res) => {
 };
 
 /**
+ * Mengambil daftar saran riwayat lokasi (Masjid) dan penceramah (Ustadz)
+ */
+exports.getKajianSuggestions = async (req, res) => {
+    await ensureTableExists();
+    try {
+        const records = await prisma.kehadiranKajian.findMany({
+            select: {
+                location: true,
+                speaker: true
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        const locationMap = new Map();
+        const speakerMap = new Map();
+
+        records.forEach(r => {
+            if (r.location && r.location.trim()) {
+                const loc = r.location.trim();
+                const key = loc.toLowerCase();
+                if (!locationMap.has(key)) {
+                    locationMap.set(key, { name: loc, count: 1 });
+                } else {
+                    locationMap.get(key).count += 1;
+                }
+            }
+            if (r.speaker && r.speaker.trim()) {
+                const spk = r.speaker.trim();
+                const key = spk.toLowerCase();
+                if (!speakerMap.has(key)) {
+                    speakerMap.set(key, { name: spk, count: 1 });
+                } else {
+                    speakerMap.get(key).count += 1;
+                }
+            }
+        });
+
+        // Urutkan berdasarkan frekuensi terbanyak
+        const locations = Array.from(locationMap.values())
+            .sort((a, b) => b.count - a.count)
+            .map(x => x.name);
+
+        const speakers = Array.from(speakerMap.values())
+            .sort((a, b) => b.count - a.count)
+            .map(x => x.name);
+
+        res.json({
+            success: true,
+            locations,
+            speakers
+        });
+    } catch (error) {
+        console.error('[KehadiranKajian] getKajianSuggestions error:', error);
+        res.status(500).json({ error: error.message || 'Gagal memuat saran riwayat kajian' });
+    }
+};
+
+/**
  * Catat kehadiran kajian baru
  */
 exports.createKajian = async (req, res) => {

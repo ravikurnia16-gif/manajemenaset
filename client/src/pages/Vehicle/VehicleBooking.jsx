@@ -125,6 +125,7 @@ const VehicleBooking = () => {
 
     // Modal States
     const [showKeyReminderModal, setShowKeyReminderModal] = useState(false);
+    const [showLowFuelModal, setShowLowFuelModal] = useState(null); // { booking, vehicle, fuelCondition, pics, selectedPicId }
     const [showDetailModal, setShowDetailModal] = useState(null);
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -785,44 +786,26 @@ const VehicleBooking = () => {
         finally { setSubmitting(false); }
     };
 
-    const handleEndTrip = async () => {
-        if (submitting) return;
+    const executeEndTrip = async (bookingData, actionPayload, picToNotify = null) => {
+        setSubmitting(true);
         try {
-            if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
-                showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`, 'error');
-                return;
-            }
-            if (actionData.hasIncident && !actionData.photo) {
-                showToast('Wajib mengunggah foto bukti kejadian/kerusakan bila Anda melaporkan terjadi insiden!', 'error');
-                return;
-            }
-            if (actionData.hasIncident && !actionData.incidentNotes?.trim()) {
-                showToast('Wajib mengisi deskripsi kejadian/kerusakan!', 'error');
-                return;
-            }
-            if ((parseInt(actionData.km) - (showActionModal.data.startKm || 0)) > 750) {
-                if (!window.confirm(`Jarak tempuh tercatat sangat jauh (${parseInt(actionData.km) - (showActionModal.data.startKm || 0)} km). Apakah Anda yakin angka KM akhir (${actionData.km}) sudah benar?`)) {
-                    return;
-                }
-            }
-            setSubmitting(true);
-            const finalLocation = actionData.returnLocation === 'Lainnya' ? actionData.customLocation : actionData.returnLocation;
-            const bookingId = showActionModal.data.id;
+            const finalLocation = actionPayload.returnLocation === 'Lainnya' ? actionPayload.customLocation : actionPayload.returnLocation;
+            const bookingId = bookingData.id;
 
             // Construct FormData
             const fd = new FormData();
-            fd.append('endKm', parseInt(actionData.km));
-            fd.append('tripNotes', actionData.notes || '');
-            fd.append('fuelRefill', actionData.fuelRefill);
-            fd.append('fuelPrice', actionData.fuelRefill ? (actionData.fuelPrice || 0) : 0);
-            if (actionData.fuelCondition) fd.append('fuelCondition', actionData.fuelCondition);
+            fd.append('endKm', parseInt(actionPayload.km));
+            fd.append('tripNotes', actionPayload.notes || '');
+            fd.append('fuelRefill', actionPayload.fuelRefill);
+            fd.append('fuelPrice', actionPayload.fuelRefill ? (actionPayload.fuelPrice || 0) : 0);
+            if (actionPayload.fuelCondition) fd.append('fuelCondition', actionPayload.fuelCondition);
             if (finalLocation) fd.append('returnLocation', finalLocation);
-            fd.append('hasIncident', actionData.hasIncident);
-            if (actionData.hasIncident) {
-                fd.append('incidentNotes', actionData.incidentNotes || '');
+            fd.append('hasIncident', actionPayload.hasIncident);
+            if (actionPayload.hasIncident) {
+                fd.append('incidentNotes', actionPayload.incidentNotes || '');
             }
-            if (actionData.photo) {
-                fd.append('photo', actionData.photo);
+            if (actionPayload.photo) {
+                fd.append('photo', actionPayload.photo);
             }
 
             // --- Capture Final Location ---
@@ -855,18 +838,98 @@ const VehicleBooking = () => {
             await api.post(`/vehicles/booking/${bookingId}/end`, fd, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            showToast(actionData.hasIncident ? 'Perjalanan selesai! Laporan insiden otomatis terkirim ke Tim Sarpras.' : 'Perjalanan selesai!', 'success');
+            showToast(actionPayload.hasIncident ? 'Perjalanan selesai! Laporan insiden otomatis terkirim ke Tim Sarpras.' : 'Perjalanan selesai!', 'success');
             setShowActionModal(null);
+            setShowLowFuelModal(null);
             setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelCondition: null, returnLocation: '', customLocation: '', photo: null, photoPreview: null, hasIncident: false, incidentNotes: '' });
             fetchBookings();
             fetchVehicles();
+
+            // If user chose to notify PIC via WhatsApp
+            if (picToNotify && picToNotify.phone) {
+                const cleanPhone = picToNotify.phone.replace(/[^0-9]/g, '').replace(/^0/, '62');
+                const vName = bookingData.vehicle?.name || bookingData.vehicle?.licensePlate || 'kendaraan operasional';
+                const vPlate = bookingData.vehicle?.licensePlate ? ` (${bookingData.vehicle.licensePlate})` : '';
+                const condLabel = actionPayload.fuelCondition === 'LOW' ? 'di bawah 1/4 (< 1/4)' : 'antara 1/4 s.d. 1/2';
+                const borrowerName = user.name || 'Peminjam';
+                const waMessage = `Assalamu'alaikum Warahmatullahi Wabarakatuh, Ustadz ${picToNotify.name || 'PIC'}.\n\nMohon bantuannya untuk pengisian BBM kendaraan *${vName}${vPlate}*.\n\nPerjalanan telah saya selesaikan via aplikasi, dengan kondisi BBM saat ini: *${condLabel}*.\n\nPeminjam: ${borrowerName}\nJazakumullahu khairan wa barakallahu fiik.`;
+                const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waMessage)}`;
+                window.open(waUrl, '_blank');
+            }
 
             setTimeout(() => {
                 setShowKeyReminderModal(true);
             }, 300);
 
-        } catch (err) { showToast('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
-        finally { setSubmitting(false); }
+        } catch (err) { 
+            showToast('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message), 'error'); 
+        } finally { 
+            setSubmitting(false); 
+        }
+    };
+
+    const handleEndTrip = async () => {
+        if (submitting) return;
+        try {
+            if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
+                showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`, 'error');
+                return;
+            }
+            if (actionData.hasIncident && !actionData.photo) {
+                showToast('Wajib mengunggah foto bukti kejadian/kerusakan bila Anda melaporkan terjadi insiden!', 'error');
+                return;
+            }
+            if (actionData.hasIncident && !actionData.incidentNotes?.trim()) {
+                showToast('Wajib mengisi deskripsi kejadian/kerusakan!', 'error');
+                return;
+            }
+            if ((parseInt(actionData.km) - (showActionModal.data.startKm || 0)) > 750) {
+                if (!window.confirm(`Jarak tempuh tercatat sangat jauh (${parseInt(actionData.km) - (showActionModal.data.startKm || 0)} km). Apakah Anda yakin angka KM akhir (${actionData.km}) sudah benar?`)) {
+                    return;
+                }
+            }
+
+            const currentVehicle = vehicles.find(v => v.id === showActionModal.data.vehicleId) || showActionModal.data.vehicle || {};
+            const vType = (currentVehicle.type || '').toLowerCase();
+            const isMotor = vType.includes('motor');
+            const isCarOrBus = !isMotor && (vType.includes('mobil') || vType.includes('bus') || vType.includes('minibus') || vType.includes('microbus') || vType === '');
+            const isFuelBelowHalf = actionData.fuelCondition === 'LOW' || actionData.fuelCondition === 'MEDIUM';
+
+            if (isCarOrBus && isFuelBelowHalf) {
+                // Determine PIC list
+                let picList = [];
+                if (currentVehicle.pics && currentVehicle.pics.length > 0) {
+                    picList = [...currentVehicle.pics];
+                }
+                // Also supplement with staff who are PIC/Staff Kendaraan
+                const candidateStaff = (staff || []).filter(s => {
+                    const pos = (s.position || '').toLowerCase();
+                    const r = (s.role || '').toUpperCase();
+                    return pos.includes('kendaraan') || pos.includes('pic') || pos.includes('sarpras') || r === 'ADMIN_ASET';
+                });
+                candidateStaff.forEach(cs => {
+                    if (!picList.some(p => p.id === cs.id)) {
+                        picList.push(cs);
+                    }
+                });
+
+                setShowLowFuelModal({
+                    booking: showActionModal.data,
+                    vehicle: currentVehicle,
+                    fuelCondition: actionData.fuelCondition,
+                    actionPayload: { ...actionData },
+                    pics: picList,
+                    selectedPicId: picList[0]?.id || ''
+                });
+                return;
+            }
+
+            // Normal flow if not low fuel or not car/bus
+            await executeEndTrip(showActionModal.data, actionData);
+
+        } catch (err) { 
+            showToast('Gagal memvalidasi data: ' + err.message, 'error'); 
+        }
     };
 
 
@@ -4831,6 +4894,114 @@ const VehicleBooking = () => {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Low BBM Warning Modal */}
+            {showLowFuelModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-100">
+                        <div className="p-6 sm:p-8 space-y-5">
+                            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto shadow-inner border border-amber-100">
+                                <Fuel size={32} className="text-amber-500 animate-pulse" />
+                            </div>
+
+                            <div className="text-center space-y-2">
+                                <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-[11px] font-black rounded-full uppercase tracking-wider">
+                                    BBM di Bawah Setengah (½)
+                                </span>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Perhatian Pengisian BBM</h3>
+                                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                                    Jazakumullahu khairan telah menggunakan armada <strong className="text-slate-800 font-bold">{showLowFuelModal.vehicle?.name || 'kendaraan'}</strong> ({showLowFuelModal.vehicle?.licensePlate || ''}).
+                                </p>
+                                <p className="text-xs text-slate-500 bg-amber-50/70 border border-amber-200/60 rounded-xl p-3 text-left">
+                                    Indikator BBM saat ini berada pada posisi <strong className="text-amber-700">{showLowFuelModal.fuelCondition === 'LOW' ? '< 1/4 tangki' : '1/4 - 1/2 tangki'}</strong>. Demi kesiapan armada berikutnya, mohon isi BBM atau koordinasikan dengan PIC.
+                                </p>
+                            </div>
+
+                            {/* Section: Minta Bantuan PIC */}
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                                        ✓
+                                    </div>
+                                    <div className="text-xs font-bold text-slate-800">
+                                        Minta Bantuan PIC Kendaraan
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-slate-500 leading-normal">
+                                    Pilih PIC yang akan dihubungi. Perjalanan akan <strong>langsung diselesaikan</strong> di sistem dan WhatsApp akan terbuka otomatis.
+                                </p>
+
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Pilih PIC yang Ingin Dihubungi:</label>
+                                    <select
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        value={showLowFuelModal.selectedPicId}
+                                        onChange={(e) => setShowLowFuelModal({ ...showLowFuelModal, selectedPicId: e.target.value })}
+                                    >
+                                        {showLowFuelModal.pics && showLowFuelModal.pics.length > 0 ? (
+                                            showLowFuelModal.pics.map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name} {p.position ? `(${p.position})` : ''} {p.phone ? `- ${p.phone}` : '(No WA tidak ada)'}
+                                                </option>
+                                            ))
+                                        ) : (
+                                            <option value="">Tidak ada PIC terdaftar</option>
+                                        )}
+                                    </select>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={() => {
+                                        const chosenPic = showLowFuelModal.pics.find(p => String(p.id) === String(showLowFuelModal.selectedPicId)) || showLowFuelModal.pics[0];
+                                        executeEndTrip(showLowFuelModal.booking, showLowFuelModal.actionPayload, chosenPic);
+                                    }}
+                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                                >
+                                    {submitting ? <Loader2 className="animate-spin" size={16} /> : (
+                                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+                                        </svg>
+                                    )}
+                                    Kirim WA ke PIC & Selesaikan Perjalanan
+                                </button>
+                            </div>
+
+                            {/* Section: Isi Sendiri */}
+                            <div className="pt-2 space-y-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLowFuelModal(null);
+                                        setShowActionModal(null);
+                                        showToast('Silakan bawa armada ke SPBU terlebih dahulu. Lakukan "Selesaikan Perjalanan" setelah pengisian BBM selesai.', 'info');
+                                    }}
+                                    className="w-full py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Fuel size={14} className="text-amber-500" />
+                                    Saya Mau Isi BBM Sendiri Sekarang (Tunda Selesai)
+                                </button>
+
+                                {/* Pilihan 3: Hanya muncul jika kondisi BBM 1/4 - 1/2 (MEDIUM). Jika < 1/4 (LOW), opsi ini tidak ada */}
+                                {showLowFuelModal.fuelCondition === 'MEDIUM' && (
+                                    <button
+                                        type="button"
+                                        disabled={submitting}
+                                        onClick={() => {
+                                            // Langsung selesaikan tanpa chat PIC
+                                            executeEndTrip(showLowFuelModal.booking, showLowFuelModal.actionPayload, null);
+                                        }}
+                                        className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold text-xs transition-all flex items-center justify-center gap-2 border border-slate-200"
+                                    >
+                                        Tetap Selesaikan Perjalanan (BBM Masih Cukup)
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

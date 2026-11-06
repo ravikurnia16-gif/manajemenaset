@@ -3,7 +3,8 @@ import {
     BookCheck, Plus, Search, Calendar, FileText, Download, Eye,
     Trash2, Edit3, X, CheckCircle2, AlertCircle, Loader2,
     Building2, MapPin, User, RefreshCw, Filter, Sparkles,
-    Clock, ExternalLink, Image as ImageIcon, Users, BookOpen
+    Clock, ExternalLink, Image as ImageIcon, Users, BookOpen,
+    ChevronDown, Check
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -62,6 +63,105 @@ export default function KajianTab({ isKabid, user, staffList = [] }) {
         setFeedback({ message, type });
         setTimeout(() => setFeedback(null), 4000);
     };
+
+    // Suggestions states (Riwayat Masjid & Ustadz)
+    const [suggestions, setSuggestions] = useState({ locations: [], speakers: [] });
+    const [showSpeakerDropdown, setShowSpeakerDropdown] = useState(false);
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+    const speakerDropdownRef = useRef(null);
+    const locationDropdownRef = useRef(null);
+
+    // Fetch Suggestions from Backend
+    const fetchSuggestions = async () => {
+        try {
+            const res = await api.get('/personnel/kajian/suggestions');
+            if (res.data?.success) {
+                setSuggestions({
+                    locations: Array.isArray(res.data.locations) ? res.data.locations : [],
+                    speakers: Array.isArray(res.data.speakers) ? res.data.speakers : []
+                });
+            }
+        } catch (err) {
+            console.warn('Failed to fetch kajian suggestions:', err.message);
+        }
+    };
+
+    // Click outside to close dropdowns
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (speakerDropdownRef.current && !speakerDropdownRef.current.contains(e.target)) {
+                setShowSpeakerDropdown(false);
+            }
+            if (locationDropdownRef.current && !locationDropdownRef.current.contains(e.target)) {
+                setShowLocationDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Combine distinct location suggestions
+    const allLocationSuggestions = useMemo(() => {
+        const set = new Set();
+        const result = [];
+        (suggestions.locations || []).forEach(loc => {
+            if (!loc || typeof loc !== 'string') return;
+            const trimmed = loc.trim();
+            const lower = trimmed.toLowerCase();
+            if (trimmed && !set.has(lower)) {
+                set.add(lower);
+                result.push(trimmed);
+            }
+        });
+        (kajianList || []).forEach(k => {
+            if (!k.location || typeof k.location !== 'string') return;
+            const trimmed = k.location.trim();
+            const lower = trimmed.toLowerCase();
+            if (trimmed && !set.has(lower)) {
+                set.add(lower);
+                result.push(trimmed);
+            }
+        });
+        return result;
+    }, [suggestions.locations, kajianList]);
+
+    // Combine distinct speaker suggestions
+    const allSpeakerSuggestions = useMemo(() => {
+        const set = new Set();
+        const result = [];
+        (suggestions.speakers || []).forEach(spk => {
+            if (!spk || typeof spk !== 'string') return;
+            const trimmed = spk.trim();
+            const lower = trimmed.toLowerCase();
+            if (trimmed && !set.has(lower)) {
+                set.add(lower);
+                result.push(trimmed);
+            }
+        });
+        (kajianList || []).forEach(k => {
+            if (!k.speaker || typeof k.speaker !== 'string') return;
+            const trimmed = k.speaker.trim();
+            const lower = trimmed.toLowerCase();
+            if (trimmed && !set.has(lower)) {
+                set.add(lower);
+                result.push(trimmed);
+            }
+        });
+        return result;
+    }, [suggestions.speakers, kajianList]);
+
+    // Filtered lists based on current user input
+    const filteredSpeakerSuggestions = useMemo(() => {
+        const query = (formData.speaker || '').trim().toLowerCase();
+        if (!query) return allSpeakerSuggestions;
+        return allSpeakerSuggestions.filter(s => s.toLowerCase().includes(query));
+    }, [allSpeakerSuggestions, formData.speaker]);
+
+    const filteredLocationSuggestions = useMemo(() => {
+        const query = (formData.location || '').trim().toLowerCase();
+        if (!query) return allLocationSuggestions;
+        return allLocationSuggestions.filter(l => l.toLowerCase().includes(query));
+    }, [allLocationSuggestions, formData.location]);
 
     // Role check: can user view & manage all staff records
     const canManageAll = useMemo(() => {
@@ -168,6 +268,7 @@ export default function KajianTab({ isKabid, user, staffList = [] }) {
     useEffect(() => {
         fetchKajianList();
         fetchStats();
+        fetchSuggestions();
     }, [selectedStaffFilter, filterStartDate, filterEndDate]);
 
     // Search debounce
@@ -193,6 +294,9 @@ export default function KajianTab({ isKabid, user, staffList = [] }) {
         setPhotoPreview(null);
         setPhotoError('');
         setRemoveExistingPhoto(false);
+        setShowSpeakerDropdown(false);
+        setShowLocationDropdown(false);
+        fetchSuggestions();
         setShowModal(true);
     };
 
@@ -211,6 +315,9 @@ export default function KajianTab({ isKabid, user, staffList = [] }) {
         setPhotoPreview(item.photoUrl || null);
         setPhotoError('');
         setRemoveExistingPhoto(false);
+        setShowSpeakerDropdown(false);
+        setShowLocationDropdown(false);
+        fetchSuggestions();
         setShowModal(true);
     };
 
@@ -759,40 +866,162 @@ export default function KajianTab({ isKabid, user, staffList = [] }) {
                                 />
                             </div>
 
-                            {/* Penceramah & Lokasi Masjid */}
+                            {/* Penceramah & Lokasi Masjid (Searchable Dropdown / Combobox) */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                        Penceramah / Ustadz <span className="text-rose-500">*</span>
-                                    </label>
+                                {/* Penceramah / Ustadz */}
+                                <div className="relative" ref={speakerDropdownRef}>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="block text-xs font-bold text-slate-700">
+                                            Penceramah / Ustadz <span className="text-rose-500">*</span>
+                                        </label>
+                                        {allSpeakerSuggestions.length > 0 && (
+                                            <span className="text-[10px] text-teal-600 font-semibold bg-teal-50 px-1.5 py-0.5 rounded">
+                                                {allSpeakerSuggestions.length} ustadz pernah tercatat
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="relative">
                                         <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Contoh: Ustadz Dr. Khalid Basalamah"
+                                            placeholder="Ketik atau pilih nama Ustadz..."
                                             value={formData.speaker}
-                                            onChange={(e) => setFormData({ ...formData, speaker: e.target.value })}
-                                            className="w-full pl-9 pr-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                                            onFocus={() => setShowSpeakerDropdown(true)}
+                                            onChange={(e) => {
+                                                setFormData({ ...formData, speaker: e.target.value });
+                                                setShowSpeakerDropdown(true);
+                                            }}
+                                            className="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                                             required
+                                            autoComplete="off"
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSpeakerDropdown(!showSpeakerDropdown)}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                            tabIndex={-1}
+                                            title="Tampilkan daftar Ustadz"
+                                        >
+                                            <ChevronDown size={14} className={`transition-transform duration-200 ${showSpeakerDropdown ? 'rotate-180' : ''}`} />
+                                        </button>
                                     </div>
+
+                                    {/* Dropdown Menu Ustadz */}
+                                    {showSpeakerDropdown && (
+                                        <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-150">
+                                            {filteredSpeakerSuggestions.length > 0 ? (
+                                                filteredSpeakerSuggestions.map((spk, idx) => {
+                                                    const isSelected = formData.speaker.trim().toLowerCase() === spk.trim().toLowerCase();
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData({ ...formData, speaker: spk });
+                                                                setShowSpeakerDropdown(false);
+                                                            }}
+                                                            className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between gap-2 hover:bg-teal-50 transition-colors cursor-pointer ${
+                                                                isSelected ? 'bg-teal-50/70 text-teal-800 font-bold' : 'text-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                <User size={12} className="text-slate-400 shrink-0" />
+                                                                <span className="truncate">{spk}</span>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <Check size={13} className="text-teal-600 shrink-0" />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="px-3.5 py-2.5 text-xs text-slate-500">
+                                                    <p className="font-semibold text-slate-700">Nama belum ada di riwayat</p>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                                        Ketik langsung nama baru: <span className="font-bold text-teal-700">"{formData.speaker}"</span>
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                        Lokasi Kajian (Nama Masjid) <span className="text-rose-500">*</span>
-                                    </label>
+                                {/* Lokasi Kajian (Nama Masjid) */}
+                                <div className="relative" ref={locationDropdownRef}>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="block text-xs font-bold text-slate-700">
+                                            Lokasi Kajian (Nama Masjid) <span className="text-rose-500">*</span>
+                                        </label>
+                                        {allLocationSuggestions.length > 0 && (
+                                            <span className="text-[10px] text-teal-600 font-semibold bg-teal-50 px-1.5 py-0.5 rounded">
+                                                {allLocationSuggestions.length} masjid pernah dikunjungi
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="relative">
                                         <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Contoh: Masjid Agung Al-Azhar"
+                                            placeholder="Ketik atau pilih nama Masjid..."
                                             value={formData.location}
-                                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                            className="w-full pl-9 pr-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                                            onFocus={() => setShowLocationDropdown(true)}
+                                            onChange={(e) => {
+                                                setFormData({ ...formData, location: e.target.value });
+                                                setShowLocationDropdown(true);
+                                            }}
+                                            className="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                                             required
+                                            autoComplete="off"
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                            tabIndex={-1}
+                                            title="Tampilkan daftar Masjid"
+                                        >
+                                            <ChevronDown size={14} className={`transition-transform duration-200 ${showLocationDropdown ? 'rotate-180' : ''}`} />
+                                        </button>
                                     </div>
+
+                                    {/* Dropdown Menu Lokasi Masjid */}
+                                    {showLocationDropdown && (
+                                        <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-150">
+                                            {filteredLocationSuggestions.length > 0 ? (
+                                                filteredLocationSuggestions.map((loc, idx) => {
+                                                    const isSelected = formData.location.trim().toLowerCase() === loc.trim().toLowerCase();
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData({ ...formData, location: loc });
+                                                                setShowLocationDropdown(false);
+                                                            }}
+                                                            className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between gap-2 hover:bg-teal-50 transition-colors cursor-pointer ${
+                                                                isSelected ? 'bg-teal-50/70 text-teal-800 font-bold' : 'text-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                <MapPin size={12} className="text-teal-500 shrink-0" />
+                                                                <span className="truncate">{loc}</span>
+                                                            </div>
+                                                            {isSelected && (
+                                                                <Check size={13} className="text-teal-600 shrink-0" />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="px-3.5 py-2.5 text-xs text-slate-500">
+                                                    <p className="font-semibold text-slate-700">Masjid belum ada di riwayat</p>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                                        Ketik langsung nama masjid baru: <span className="font-bold text-teal-700">"{formData.location}"</span>
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

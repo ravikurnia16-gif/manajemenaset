@@ -237,7 +237,10 @@ const VehicleDiscrepancyTab = ({ currentUserProfile, isAdmin }) => {
                 <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
                     <div>
                         <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-bold text-slate-500">Tingkat Kepatuhan Sistem</span>
+                            <div>
+                                <span className="text-xs font-bold text-slate-500 block">Tingkat Kepatuhan Sistem</span>
+                                <span className="text-[10px] text-slate-400 font-medium">(Khusus Mobil & Bus)</span>
+                            </div>
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                                 (data?.summary?.systemPercent || 0) >= 80 
                                     ? 'bg-emerald-100 text-emerald-800' 
@@ -256,7 +259,7 @@ const VehicleDiscrepancyTab = ({ currentUserProfile, isAdmin }) => {
                             <span className="text-xs font-bold text-emerald-600">Peminjaman</span>
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                            {data?.summary?.discrepancyTripsCount || 0} peminjaman terdeteksi tanpa sistem (selisih odometer).
+                            {data?.summary?.discrepancyTripsCount || 0} peminjaman terdeteksi tanpa sistem (motor tidak dihitung).
                         </p>
                     </div>
 
@@ -359,8 +362,8 @@ const VehicleDiscrepancyTab = ({ currentUserProfile, isAdmin }) => {
                                 <Navigation2 size={14} className="text-emerald-600" />
                                 <span>Sepeda Motor</span>
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                {motorStat.systemPercent.toFixed(1)}% Sistem
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                Dikecualikan dari Audit
                             </span>
                         </div>
                         <div className="flex items-baseline gap-1.5">
@@ -371,7 +374,7 @@ const VehicleDiscrepancyTab = ({ currentUserProfile, isAdmin }) => {
                             <span className="text-xs font-medium text-slate-500">Trip</span>
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                            {motorStat.discrepancyTrips} kali dipakai tanpa sistem.
+                            {motorStat.discrepancyTrips} kali selisih KM (tidak masuk persentase audit).
                         </p>
                     </div>
 
@@ -588,18 +591,24 @@ const VehicleDiscrepancyTab = ({ currentUserProfile, isAdmin }) => {
                                                 {v.totalTrips}
                                             </td>
                                             <td className="p-3.5">
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-bold">
-                                                        <span className="text-emerald-700">{v.systemPercent.toFixed(0)}% Sistem</span>
-                                                        <span className="text-rose-600">{v.discrepancyPercent.toFixed(0)}% Luar</span>
+                                                {v.isMotor || (v.type || '').toLowerCase().includes('motor') ? (
+                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md inline-block">
+                                                        Dikecualikan (Motor)
+                                                    </span>
+                                                ) : (
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between text-[10px] font-bold">
+                                                            <span className="text-emerald-700">{v.systemPercent.toFixed(0)}% Sistem</span>
+                                                            <span className="text-rose-600">{v.discrepancyPercent.toFixed(0)}% Luar</span>
+                                                        </div>
+                                                        <div className="w-full bg-rose-100 rounded-full h-1.5 overflow-hidden flex">
+                                                            <div 
+                                                                className="bg-emerald-500 h-full transition-all duration-300"
+                                                                style={{ width: `${Math.min(100, Math.max(0, v.systemPercent))}%` }}
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    <div className="w-full bg-rose-100 rounded-full h-1.5 overflow-hidden flex">
-                                                        <div 
-                                                            className="bg-emerald-500 h-full transition-all duration-300"
-                                                            style={{ width: `${Math.min(100, Math.max(0, v.systemPercent))}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
+                                                )}
                                             </td>
                                             <td className="p-3.5 text-right font-mono font-semibold text-slate-700">
                                                 {v.systemKm.toLocaleString('id-ID')} KM

@@ -1737,10 +1737,15 @@ exports.getDiscrepancyAnalytics = async (req, res) => {
             categoryStats[catKey].systemKm += stat.systemKm;
             categoryStats[catKey].discrepancyKm += stat.discrepancyKm;
 
-            overallSystemTrips += stat.systemTripsCount;
-            overallDiscrepancyTrips += stat.discrepancyCount;
-            overallSystemKm += stat.systemKm;
-            overallDiscrepancyKm += stat.discrepancyKm;
+            const isMotor = catKey === 'Motor' || rawType.includes('motor');
+            stat.isMotor = isMotor;
+            const isExplicitMotorFilter = vehicleType && vehicleType.toLowerCase().includes('motor');
+            if (!isMotor || isExplicitMotorFilter) {
+                overallSystemTrips += stat.systemTripsCount;
+                overallDiscrepancyTrips += stat.discrepancyCount;
+                overallSystemKm += stat.systemKm;
+                overallDiscrepancyKm += stat.discrepancyKm;
+            }
 
             // Calculate percentage per vehicle
             const vTotalTrips = stat.systemTripsCount + stat.discrepancyCount;
