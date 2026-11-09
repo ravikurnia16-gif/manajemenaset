@@ -322,7 +322,14 @@ const Settings = () => {
             });
             alert('Profil berhasil diperbarui!');
 
-            // Reload to sync with Layout and other components immediately
+            // Simpan data terbaru ke localStorage & reload agar sinkron
+            if (res.data?.user) {
+                const stored = JSON.parse(localStorage.getItem('user') || '{}');
+                localStorage.setItem('user', JSON.stringify({ ...stored, ...res.data.user }));
+            }
+            if (res.data?.token) {
+                localStorage.setItem('token', res.data.token);
+            }
             window.location.reload();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menyimpan profil.');
@@ -342,6 +349,9 @@ const Settings = () => {
                 // If the updated user is the current user, sync localStorage and reload
                 if (newUser.id === currentUser.id) {
                     localStorage.setItem('user', JSON.stringify(res.data.user));
+                    if (res.data.token) {
+                        localStorage.setItem('token', res.data.token);
+                    }
                     window.location.reload();
                     return;
                 }

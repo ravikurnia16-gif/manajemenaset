@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 
 exports.getAllUsers = async (req, res) => {
@@ -88,7 +89,18 @@ exports.updateUser = async (req, res) => {
                 unit: { select: { name: true } }
             }
         });
-        res.json({ message: 'User updated successfully', user });
+
+        // Terbitkan token baru jika akun yang diperbarui adalah pengguna yang sedang login
+        let token = null;
+        if (req.user && req.user.id === user.id) {
+            token = jwt.sign(
+                { id: user.id, role: user.role, unitId: user.unitId, position: user.position, name: user.name },
+                process.env.JWT_SECRET || 'secret_fallback',
+                { expiresIn: '365d' }
+            );
+        }
+
+        res.json({ message: 'User updated successfully', user, token });
     } catch (error) {
         if (error.code === 'P2002') {
             return res.status(400).json({ error: 'Username, Email, atau NIP sudah terdaftar' });
@@ -128,14 +140,22 @@ exports.getProfile = async (req, res) => {
                 position: true,
                 role: true,
                 unitId: true,
-                unit: { select: { name: true } },
+                unit: { select: { id: true, name: true, code: true } },
                 isSanctioned: true,
                 sanctionProposedLift: true,
                 sanctionLiftReason: true
             }
         });
         if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
-        res.json(user);
+
+        // Selalu sertakan token segar dengan role dan unit terbaru dari database
+        const token = jwt.sign(
+            { id: user.id, role: user.role, unitId: user.unitId, position: user.position, name: user.name },
+            process.env.JWT_SECRET || 'secret_fallback',
+            { expiresIn: '365d' }
+        );
+
+        res.json({ ...user, token });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -162,11 +182,17 @@ exports.updateProfile = async (req, res) => {
                 position: true,
                 role: true,
                 unitId: true,
-                unit: { select: { name: true } }
+                unit: { select: { id: true, name: true, code: true } }
             }
         });
 
-        res.json({ message: 'Profil berhasil diperbarui', user });
+        const token = jwt.sign(
+            { id: user.id, role: user.role, unitId: user.unitId, position: user.position, name: user.name },
+            process.env.JWT_SECRET || 'secret_fallback',
+            { expiresIn: '365d' }
+        );
+
+        res.json({ message: 'Profil berhasil diperbarui', user, token });
     } catch (error) {
         if (error.code === 'P2002') {
             return res.status(400).json({ error: 'Email sudah digunakan pengguna lain' });

@@ -40,6 +40,66 @@ const Layout = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Auto-sync profil akun (Role, Unit, Posisi, Status Sanksi) secara otomatis dari database
+    useEffect(() => {
+        let isMounted = true;
+
+        const syncUserProfile = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+
+                const res = await api.get('/users/profile');
+                if (!isMounted || !res.data) return;
+
+                const freshUser = res.data;
+                const storedUserStr = localStorage.getItem('user');
+                const storedUser = storedUserStr ? JSON.parse(storedUserStr) : {};
+
+                // Periksa apakah ada perubahan mendasar pada wewenang (Role, Unit, Posisi, Status Sanksi)
+                const isRoleChanged = freshUser.role && freshUser.role !== storedUser.role;
+                const isUnitChanged = freshUser.unitId !== undefined && freshUser.unitId !== storedUser.unitId;
+                const isPosChanged = freshUser.position !== undefined && freshUser.position !== storedUser.position;
+                const isSanctionChanged = freshUser.isSanctioned !== undefined && freshUser.isSanctioned !== storedUser.isSanctioned;
+
+                const hasCriticalChanges = isRoleChanged || isUnitChanged || isPosChanged || isSanctionChanged;
+
+                // Simpan data terbaru ke localStorage
+                const updatedUser = { ...storedUser, ...freshUser };
+                delete updatedUser.token;
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+
+                // Jika server mengirimkan token baru yang diperbarui
+                if (freshUser.token) {
+                    localStorage.setItem('token', freshUser.token);
+                }
+
+                // Jika Role, Unit, atau Posisi berubah, muat ulang halaman agar menu dan hak akses segera aktif
+                if (hasCriticalChanges) {
+                    console.log('[AuthSync] Wewenang akun diperbarui dari server. Memperbarui antarmuka...');
+                    window.location.reload();
+                }
+            } catch (err) {
+                // Abaikan kesalahan koneksi sesaat saat background sync
+            }
+        };
+
+        syncUserProfile();
+
+        // Sinkronkan juga saat tab browser aktif kembali (focus)
+        const handleFocus = () => syncUserProfile();
+        window.addEventListener('focus', handleFocus);
+
+        // Sinkronkan berkala setiap 60 detik
+        const syncInterval = setInterval(syncUserProfile, 60000);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener('focus', handleFocus);
+            clearInterval(syncInterval);
+        };
+    }, []);
+
     useEffect(() => {
         const checkReportStatus = async () => {
             const pos = (user?.position || '').toLowerCase();
@@ -326,6 +386,9 @@ const Layout = () => {
                         <div className="flex items-center gap-3 pl-2">
                             <div className="flex flex-col items-end hidden sm:flex">
                                 <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{user.name || user.username}</span>
+                                <span className="text-[10px] text-slate-400 font-bold truncate max-w-[150px]">
+                                    {user.unit?.name || (user.unitId ? `Unit #${user.unitId}` : (user.position || user.role))}
+                                </span>
                             </div>
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-sm font-black text-white shadow-lg shadow-blue-200 ring-2 ring-white">
                                 {(user.name || user.username || 'U').substring(0, 1).toUpperCase()}

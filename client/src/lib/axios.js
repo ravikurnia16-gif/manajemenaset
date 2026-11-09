@@ -20,11 +20,11 @@ api.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
-// Interceptor untuk handle response error (401/403 -> Auto Logout)
+// Interceptor untuk handle response error (401 -> Auto Logout jika token tidak valid/kadaluarsa)
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        if (error.response && error.response.status === 401) {
             const path = window.location.pathname;
             const isPublicPage = path.startsWith('/public') || 
                                  path.startsWith('/login') || 

@@ -1,3 +1,5 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
 
 exports.verifyToken = (req, res, next) => {
@@ -11,10 +13,40 @@ exports.verifyToken = (req, res, next) => {
 
     if (!token) return res.status(401).json({ error: 'Access denied' });
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback', async (err, decoded) => {
         if (err) return res.status(403).json({ error: 'Invalid token' });
-        req.user = user;
-        next();
+
+        try {
+            // Selalu ambil data live dari database agar perubahan Role, Unit, dan Posisi langsung berlaku
+            const liveUser = await prisma.user.findUnique({
+                where: { id: decoded.id },
+                select: {
+                    id: true,
+                    role: true,
+                    unitId: true,
+                    unit: { select: { id: true, name: true, code: true } },
+                    position: true,
+                    name: true,
+                    username: true,
+                    isSanctioned: true
+                }
+            });
+
+            if (!liveUser) {
+                return res.status(401).json({ error: 'Akun tidak ditemukan atau telah dinonaktifkan' });
+            }
+
+            req.user = {
+                ...decoded,
+                ...liveUser
+            };
+            next();
+        } catch (dbErr) {
+            console.error('Error fetching live user in verifyToken:', dbErr);
+            // Fallback ke decoded token jika ada gangguan sementara koneksi DB
+            req.user = decoded;
+            next();
+        }
     });
 };
 
@@ -96,9 +128,26 @@ exports.optionalVerifyToken = (req, res, next) => {
     }
     if (!token) return next();
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (!err && user) {
-            req.user = user;
+    jwt.verify(token, process.env.JWT_SECRET || 'secret_fallback', async (err, decoded) => {
+        if (!err && decoded) {
+            try {
+                const liveUser = await prisma.user.findUnique({
+                    where: { id: decoded.id },
+                    select: {
+                        id: true,
+                        role: true,
+                        unitId: true,
+                        unit: { select: { id: true, name: true, code: true } },
+                        position: true,
+                        name: true,
+                        username: true,
+                        isSanctioned: true
+                    }
+                });
+                req.user = liveUser ? { ...decoded, ...liveUser } : decoded;
+            } catch (dbErr) {
+                req.user = decoded;
+            }
         }
         next();
     });
