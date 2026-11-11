@@ -1712,10 +1712,11 @@ exports.getDiscrepancyAnalytics = async (req, res) => {
             }
         }
 
-        // Aggregate by category (Mobil, Bus, Motor, Lainnya)
+        // Aggregate by category (Mobil, Bus, Ambulance, Motor, Lainnya)
         const categoryStats = {
             Mobil: { category: 'Mobil', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
             Bus: { category: 'Bus', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
+            Ambulance: { category: 'Ambulance', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
             Motor: { category: 'Motor', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 },
             Lainnya: { category: 'Lainnya', systemTrips: 0, discrepancyTrips: 0, systemKm: 0, discrepancyKm: 0 }
         };
@@ -1730,6 +1731,7 @@ exports.getDiscrepancyAnalytics = async (req, res) => {
             let catKey = 'Lainnya';
             if (rawType.includes('mobil')) catKey = 'Mobil';
             else if (rawType.includes('bus') || rawType.includes('microbus') || rawType.includes('minibus')) catKey = 'Bus';
+            else if (rawType.includes('ambulance') || rawType.includes('ambulans')) catKey = 'Ambulance';
             else if (rawType.includes('motor') || rawType.includes('sepeda motor')) catKey = 'Motor';
 
             categoryStats[catKey].systemTrips += stat.systemTripsCount;

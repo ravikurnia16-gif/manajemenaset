@@ -2081,17 +2081,112 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
             return;
         }
 
+        const cleanSummaryText = (s) => (s || '')
+            .toLowerCase()
+            .replace(/\[penugasan:[^\]]*\]/gi, '')
+            .replace(/\[penugasan\]/gi, '')
+            .replace(/\[rencana[^\]]*\]/gi, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+
+        const isSameSummaryPoint = (a, b) => {
+            if (!a || !b) return false;
+            if (typeof a === 'object' && typeof b === 'object') {
+                if (a.planRefId && b.planRefId && a.planRefId === b.planRefId) return true;
+                if (a.sourceType && b.sourceType && a.sourceId && b.sourceId) {
+                    if (a.sourceType === b.sourceType && String(a.sourceId) === String(b.sourceId)) {
+                        if (a.planItemIndex !== undefined && a.planItemIndex !== null && b.planItemIndex !== undefined && b.planItemIndex !== null) {
+                            return parseInt(a.planItemIndex, 10) === parseInt(b.planItemIndex, 10);
+                        }
+                        return true;
+                    }
+                }
+            }
+            const getKey = (item) => {
+                if (typeof item === 'string') return cleanSummaryText(item);
+                const titlePart = item.title || item.text || '';
+                const notePart = item.obstacleNote || '';
+                const combined = notePart && cleanSummaryText(titlePart) !== cleanSummaryText(notePart)
+                    ? `${titlePart} ${notePart}`
+                    : (titlePart || notePart);
+                return cleanSummaryText(combined);
+            };
+            const ka = getKey(a);
+            const kb = getKey(b);
+            return Boolean(ka && kb && ka === kb);
+        };
+
+        const dedupeSummaryPoints = (items) => {
+            const result = [];
+            for (const item of items) {
+                if (!item) continue;
+                if (!result.some(existing => isSameSummaryPoint(existing, item))) {
+                    result.push(item);
+                }
+            }
+            return result;
+        };
+
+        const extractReportItems = (r) => {
+            const meta = r.metadata || {};
+            const hasTextOrPhoto = (p, allowObstacleNote = false) => Boolean(
+                p && (
+                    (typeof p === 'string' && p.trim()) ||
+                    (p.text && p.text.trim()) ||
+                    (p.title && p.title.trim()) ||
+                    (allowObstacleNote && p.obstacleNote && p.obstacleNote.trim()) ||
+                    (Array.isArray(p.photos) && p.photos.length > 0)
+                )
+            );
+
+            const comp = (Array.isArray(meta.completedItems) ? meta.completedItems : []).filter(p => hasTextOrPhoto(p));
+            const inProg = (Array.isArray(meta.inProgressItems) ? meta.inProgressItems : []).filter(p => hasTextOrPhoto(p));
+            const obst = (Array.isArray(meta.obstacleItems) ? meta.obstacleItems : []).filter(p => hasTextOrPhoto(p, true));
+            const plans = (Array.isArray(meta.tomorrowPlans) ? meta.tomorrowPlans : []).filter(p =>
+                p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()))
+            );
+
+            const hasPppItems = comp.length > 0 || inProg.length > 0 || obst.length > 0;
+            const hasPppSchema = Array.isArray(meta.completedItems) || Array.isArray(meta.inProgressItems) || Array.isArray(meta.obstacleItems);
+
+            // Legacy manualPoints hanya dibaca bila laporan belum memakai butir PPP agar tidak double input
+            let morning = [];
+            let afternoon = [];
+            if (!hasPppItems && !(hasPppSchema && plans.length > 0)) {
+                const pts = meta.manualPoints;
+                morning = (Array.isArray(pts?.morning || pts?.morningPoints) ? (pts.morning || pts.morningPoints) : []).filter(p => hasTextOrPhoto(p, true));
+                afternoon = (Array.isArray(pts?.afternoon || pts?.afternoonPoints) ? (pts.afternoon || pts.afternoonPoints) : []).filter(p => hasTextOrPhoto(p, true));
+            }
+
+            const fallbackLines = [];
+            if (!hasPppItems && plans.length === 0 && morning.length === 0 && afternoon.length === 0) {
+                if (Array.isArray(meta.items) && meta.items.length > 0) {
+                    meta.items.forEach(it => {
+                        const itText = it.activity || it.text || it.name || '';
+                        const itStatus = it.status === 'SELESAI' || it.percentage === 100 ? '✅ Selesai' : '⏳ Proses';
+                        fallbackLines.push(`${itText} (${itStatus})`);
+                    });
+                } else if (r.content && r.content.trim() && !r.content.includes('[LAPORAN HARIAN PPP]')) {
+                    const lines = r.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    fallbackLines.push(...lines);
+                }
+            }
+
+            return { comp, inProg, obst, plans, morning, afternoon, fallbackLines };
+        };
+
         // Helper format satu butir point laporan (Metode PPP)
         const formatPppPoint = (p, idx, defaultType = 'COMPLETED') => {
             if (typeof p === 'string') return `${idx + 1}. ${p.trim()}`;
-            const text = (p.title || p.text || 'Dokumentasi Foto').trim();
+            const isObstacle = p.status === 'OBSTACLE' || defaultType === 'OBSTACLE';
+            const text = (p.title || p.text || (isObstacle && p.obstacleNote ? 'Kendala Lapangan' : 'Dokumentasi Foto')).trim();
             const tag = p.categoryTag ? `[${p.categoryTag}] ` : '';
             const photoBadge = (p.photos && p.photos.length > 0) ? ' 📷' : '';
 
             if (defaultType === 'PLAN') {
                 return `${idx + 1}. ${tag}${text}`;
             }
-            if (p.status === 'OBSTACLE' || defaultType === 'OBSTACLE') {
+            if (isObstacle) {
                 const note = p.obstacleNote ? `: ${p.obstacleNote.trim()}` : '';
                 return `${idx + 1}. ${tag}${text} (⚠️ Kendala${note})${photoBadge}`;
             }
@@ -2128,52 +2223,14 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
             let fallbackLines = [];
 
             userReports.forEach(r => {
-                const meta = r.metadata || {};
-
-                // 1. Unified 4-Pillar PPP items
-                const comp = (meta.completedItems || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()) || (p.photos && p.photos.length > 0))
-                );
-                const inProg = (meta.inProgressItems || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()) || (p.photos && p.photos.length > 0))
-                );
-                const obst = (meta.obstacleItems || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()) || (p.photos && p.photos.length > 0))
-                );
-                const plans = (meta.tomorrowPlans || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.title && p.title.trim()))
-                );
-
+                const { comp, inProg, obst, plans, morning, afternoon, fallbackLines: fb } = extractReportItems(r);
                 if (comp.length > 0) allCompleted.push(...comp);
                 if (inProg.length > 0) allInProgress.push(...inProg);
                 if (obst.length > 0) allObstacles.push(...obst);
                 if (plans.length > 0) allTomorrowPlans.push(...plans);
-
-                // 2. Legacy manualPoints
-                const pts = meta.manualPoints;
-                const m = (pts?.morning || pts?.morningPoints || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
-                );
-                const a = (pts?.afternoon || pts?.afternoonPoints || []).filter(p =>
-                    p && ((typeof p === 'string' && p.trim()) || (p.text && p.text.trim()) || (p.photos && p.photos.length > 0))
-                );
-
-                if (m.length > 0) allMorning.push(...m);
-                if (a.length > 0) allAfternoon.push(...a);
-
-                // 3. Fallback generic items or content
-                if (comp.length === 0 && inProg.length === 0 && obst.length === 0 && plans.length === 0 && m.length === 0 && a.length === 0) {
-                    if (Array.isArray(meta.items) && meta.items.length > 0) {
-                        meta.items.forEach(it => {
-                            const itText = it.activity || it.text || it.name || '';
-                            const itStatus = it.status === 'SELESAI' || it.percentage === 100 ? '✅ Selesai' : '⏳ Proses';
-                            fallbackLines.push(`${itText} (${itStatus})`);
-                        });
-                    } else if (r.content && r.content.trim()) {
-                        const lines = r.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                        fallbackLines.push(...lines);
-                    }
-                }
+                if (morning.length > 0) allMorning.push(...morning);
+                if (afternoon.length > 0) allAfternoon.push(...afternoon);
+                if (fb.length > 0) fallbackLines.push(...fb);
             });
 
             // Konversi poin manualPoints / legacy morning & afternoon langsung ke 4 Pilar PPP
@@ -2194,8 +2251,9 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
                 });
             }
 
-            // Konversi fallbackLines ke 4 Pilar PPP (menghilangkan tag [SESI PAGI] / [SESI SIANG])
-            if (fallbackLines.length > 0) {
+            // Konversi fallbackLines ke 4 Pilar PPP hanya jika belum ada butir terstruktur PPP/legacy
+            const hasStructuredItems = allCompleted.length > 0 || allInProgress.length > 0 || allObstacles.length > 0 || allTomorrowPlans.length > 0;
+            if (!hasStructuredItems && fallbackLines.length > 0) {
                 fallbackLines.forEach(line => {
                     const clean = line
                         .replace(/\[SESI PAGI\]/gi, '')
@@ -2214,6 +2272,13 @@ exports.sendDailyPersonnelSummary = async (req = null, res = null) => {
                     }
                 });
             }
+
+            allCompleted = dedupeSummaryPoints(allCompleted);
+            allInProgress = dedupeSummaryPoints(allInProgress).filter(
+                p => !allCompleted.some(c => isSameSummaryPoint(c, p))
+            );
+            allObstacles = dedupeSummaryPoints(allObstacles);
+            allTomorrowPlans = dedupeSummaryPoints(allTomorrowPlans);
 
             const hasPpp = (allCompleted.length > 0 || allInProgress.length > 0 || allObstacles.length > 0 || allTomorrowPlans.length > 0);
 

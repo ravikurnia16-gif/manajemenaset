@@ -173,6 +173,7 @@ const VehicleDiscrepancyTab = ({ currentUserProfile, isAdmin }) => {
                             { id: 'ALL', label: 'Semua Armada' },
                             { id: 'Mobil', label: '🚗 Mobil' },
                             { id: 'Bus', label: '🚌 Bus' },
+                            { id: 'Ambulance', label: '🚑 Ambulance' },
                             { id: 'Motor', label: '🏍️ Motor' }
                         ].map(cat => (
                             <button

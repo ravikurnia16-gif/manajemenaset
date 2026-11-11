@@ -733,7 +733,7 @@ const LaporanStaff = () => {
                 obstacleItems: dedupObstacles,
                 tomorrowPlans: dedupTomorrow,
                 manualPoints: {
-                    morning: morningPoints.length > 0 ? morningPoints : [{ text: 'Pekerjaan Selesai', status: 'COMPLETED' }],
+                    morning: morningPoints,
                     afternoon: afternoonPoints
                 }
             });

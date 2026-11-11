@@ -234,6 +234,7 @@ const VehicleForm = () => {
                                         <option value="Mobil">Mobil</option>
                                         <option value="Motor">Motor</option>
                                         <option value="Bus">Bus</option>
+                                        <option value="Ambulance">Ambulance</option>
                                         <option value="Truck">Truck</option>
                                         <option value="Lainnya">Lainnya</option>
                                     </select>

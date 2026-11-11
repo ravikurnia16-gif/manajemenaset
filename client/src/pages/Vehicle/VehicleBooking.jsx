@@ -892,7 +892,7 @@ const VehicleBooking = () => {
             const currentVehicle = vehicles.find(v => v.id === showActionModal.data.vehicleId) || showActionModal.data.vehicle || {};
             const vType = (currentVehicle.type || '').toLowerCase();
             const isMotor = vType.includes('motor');
-            const isCarOrBus = !isMotor && (vType.includes('mobil') || vType.includes('bus') || vType.includes('minibus') || vType.includes('microbus') || vType === '');
+            const isCarOrBus = !isMotor && (vType.includes('mobil') || vType.includes('bus') || vType.includes('minibus') || vType.includes('microbus') || vType.includes('ambulance') || vType.includes('ambulans') || vType === '');
             const isFuelBelowHalf = actionData.fuelCondition === 'LOW' || actionData.fuelCondition === 'MEDIUM';
 
             if (isCarOrBus && isFuelBelowHalf) {
@@ -1455,6 +1455,7 @@ const VehicleBooking = () => {
                                     { id: 'Mobil', label: 'MOBIL', icon: <Car size={14} /> },
                                     { id: 'Motor', label: 'MOTOR', icon: <Navigation2 size={14} /> },
                                     { id: 'Bus', label: 'BUS', icon: <Users size={14} /> },
+                                    { id: 'Ambulance', label: 'AMBULANCE', icon: <AlertCircle size={14} /> },
                                 ].map(type => (
                                     <button
                                         key={type.id}
@@ -1482,7 +1483,8 @@ const VehicleBooking = () => {
                                     const getPriority = (type) => {
                                         if (type.includes('mobil')) return 1;
                                         if (type.includes('bus') || type.includes('microbus') || type.includes('minibus')) return 2;
-                                        if (type.includes('motor') || type.includes('sepeda motor')) return 3;
+                                        if (type.includes('ambulance') || type.includes('ambulans')) return 3;
+                                        if (type.includes('motor') || type.includes('sepeda motor')) return 4;
                                         return 99; // Lainnya di paling akhir
                                     };
 
