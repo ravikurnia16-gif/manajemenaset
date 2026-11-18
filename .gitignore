@@ -11,6 +11,7 @@ client/dist/
 # File Rahasia & Database Lokal
 .env
 server/.env
+server/bin/
 server/prisma/dev.db
 server/prisma/dev.db-journal
 server/data_local/
