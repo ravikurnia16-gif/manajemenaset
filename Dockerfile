@@ -1,3 +1,6 @@
+# --- STAGE 0: Ambil Binary MediaMTX (untuk streaming CCTV otomatis tanpa container terpisah) ---
+FROM bluenviron/mediamtx:1 AS mediamtx-bin
+
 # --- STAGE 1: Membangun Tampilan (Frontend) ---
 FROM node:20-alpine AS build-stage
 WORKDIR /app
@@ -41,6 +44,9 @@ RUN cd server && npm install
 
 # Copy kode server
 COPY server/ ./server/
+# Salin binary MediaMTX agar gateway RTSP -> HLS/WebRTC berjalan otomatis di container yang sama
+COPY --from=mediamtx-bin /mediamtx /usr/local/bin/mediamtx
+RUN chmod +x /usr/local/bin/mediamtx
 # Ambil hasil build frontend dari Stage 1
 COPY --from=build-stage /app/client/dist ./client/dist
 

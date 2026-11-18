@@ -7,6 +7,7 @@ const {
     generateMediamtxConfig
 } = require('../utils/cctvAccessHelper');
 const gateway = require('../utils/cctvGateway');
+const embedded = require('../utils/cctvEmbedded');
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,7 @@ const CAMERA_INCLUDE_UNIT = {
 const sanitizeCameraForViewer = (camera, gatewayCfg = null) => {
     const viaGateway = gateway.usesGatewayPlayback(camera);
     const gatewayReady = viaGateway && gateway.isPlaybackConfigured(gatewayCfg);
+    const embeddedHlsFirst = gateway.isEmbeddedGateway(gatewayCfg) && process.env.MEDIAMTX_WEBRTC_PUBLIC !== 'true';
     return {
         id: camera.id,
         name: camera.name,
@@ -36,7 +38,7 @@ const sanitizeCameraForViewer = (camera, gatewayCfg = null) => {
         playback: {
             gateway: viaGateway,
             ready: viaGateway ? gatewayReady : Boolean(camera.streamUrl),
-            whep: gatewayReady && Boolean(gatewayCfg.webrtcUrl),
+            whep: gatewayReady && !embeddedHlsFirst && Boolean(gatewayCfg.webrtcUrl),
             hls: gatewayReady && Boolean(gatewayCfg.hlsUrl),
             hasSource: viaGateway ? Boolean(buildRtspUrl(camera)) : true
         },
@@ -159,7 +161,13 @@ exports.getAccessibleStreams = async (req, res) => {
             ]
         });
 
-        const gatewayCfg = await gateway.getGatewayConfig(prisma);
+        let gatewayCfg = await gateway.getGatewayConfig(prisma);
+        if (!gateway.isPlaybackConfigured(gatewayCfg)) {
+            const boot = await embedded.ensureEmbeddedGateway(prisma).catch(() => null);
+            if (boot?.started) {
+                gatewayCfg = await gateway.getGatewayConfig(prisma);
+            }
+        }
 
         res.json({
             isManager,
@@ -556,6 +564,7 @@ exports.getMediamtxConfig = async (req, res) => {
  */
 exports.getGatewaySettings = async (req, res) => {
     try {
+        await embedded.ensureEmbeddedGateway(prisma).catch(() => null);
         const cfg = await gateway.getGatewayConfig(prisma);
         res.json({
             webrtcUrl: cfg.webrtcUrl,
@@ -564,6 +573,8 @@ exports.getGatewaySettings = async (req, res) => {
             username: cfg.username,
             hasPassword: Boolean(cfg.password),
             configured: gateway.isPlaybackConfigured(cfg),
+            isUsingEmbedded: gateway.isEmbeddedGateway(cfg),
+            embedded: embedded.getEmbeddedStatus(),
             updatedAt: cfg.updatedAt
         });
     } catch (error) {
@@ -602,6 +613,18 @@ exports.saveGatewaySettings = async (req, res) => {
             create: { id: 1, ...data }
         });
 
+        // Jika dikosongkan semua dan MediaMTX tertanam tersedia, hidupkan kembali mode bawaan
+        if (!saved.apiUrl && !saved.hlsUrl && !saved.webrtcUrl) {
+            await embedded.ensureEmbeddedGateway(prisma).catch(() => null);
+        } else if (
+            (saved.apiUrl && !saved.apiUrl.includes('127.0.0.1')) ||
+            (saved.hlsUrl && !saved.hlsUrl.includes('127.0.0.1'))
+        ) {
+            embedded.stopEmbeddedMediamtx();
+        } else {
+            await embedded.ensureEmbeddedGateway(prisma).catch(() => null);
+        }
+
         const cfg = await gateway.getGatewayConfig(prisma);
         res.json({
             message: 'Pengaturan Gateway MediaMTX berhasil disimpan.',
@@ -612,6 +635,8 @@ exports.saveGatewaySettings = async (req, res) => {
                 username: cfg.username,
                 hasPassword: Boolean(cfg.password),
                 configured: gateway.isPlaybackConfigured(cfg),
+                isUsingEmbedded: gateway.isEmbeddedGateway(cfg),
+                embedded: embedded.getEmbeddedStatus(),
                 updatedAt: saved.updatedAt
             }
         });
@@ -766,10 +791,15 @@ const fetchGatewayWithAutoSync = async (upstreamUrl, fetchOptions, timeoutMs, ca
 };
 
 /**
- * Sinkronisasi awal saat server boot agar seluruh kamera aktif langsung terdaftar bila MediaMTX berjalan.
+ * Sinkronisasi awal saat server boot agar MediaMTX tertanam langsung menyala dan seluruh kamera terdaftar.
  */
 exports.syncAllOnBoot = async () => {
     try {
+        const bootResult = await embedded.ensureEmbeddedGateway(prisma);
+        if (bootResult?.started && !bootResult.alreadyRunning) {
+            await new Promise((r) => setTimeout(r, 1200));
+        }
+
         const cfg = await gateway.getGatewayConfig(prisma);
         if (!cfg.apiUrl) return;
         const cameras = await prisma.cctvCamera.findMany({
@@ -781,7 +811,7 @@ exports.syncAllOnBoot = async () => {
             await gateway.syncAllCameras(cfg, cameras);
         }
     } catch {
-        // Abaikan error saat boot bila MediaMTX belum menyala
+        // Abaikan error saat boot bila gateway belum menyala
     }
 };
 

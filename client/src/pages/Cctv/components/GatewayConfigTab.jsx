@@ -23,11 +23,11 @@ const SETUP_STEPS = [
         step: 2,
         icon: Server,
         color: 'emerald',
-        title: 'Jalankan Gateway MediaMTX',
+        title: 'Gateway MediaMTX Otomatis Aktif di Server Website',
         points: [
-            'Isi Username & Password Gateway pada formulir Pengaturan di atas lalu klik Simpan Pengaturan (agar file mediamtx.yml otomatis terisi kredensial aman).',
-            'Unduh file mediamtx.yml di bagian bawah halaman ini, lalu jalankan container Docker MediaMTX di server yang sudah terhubung Tailscale.',
-            'Jika website online via Easypanel / Docker Compose, taruh container bluenviron/mediamtx satu network dengan server ini lalu gunakan preset Docker (http://mediamtx:8889, :8888, :9997).'
+            'Pada server produksi website Bidang Sarana, layanan MediaMTX sudah tertanam langsung di dalam aplikasi sehingga otomatis berjalan tanpa perlu setting container terpisah di Easypanel.',
+            'Jika indikator "Gateway Terpadu Aktif" di atas sudah hijau, Anda bisa langsung ke Langkah 3 tanpa mengisi formulir gateway apa pun.',
+            'Pengaturan URL gateway & file mediamtx.yml di bawah hanya perlu diisi jika Anda sengaja memakai server MediaMTX eksternal terpisah.'
         ]
     },
     {
@@ -107,6 +107,8 @@ const GatewayConfigTab = ({ onGatewayUpdated, onGoToTab }) => {
     const [hasSavedPassword, setHasSavedPassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [testReport, setTestReport] = useState(null);
+    const [embeddedInfo, setEmbeddedInfo] = useState({ available: false, running: false, pid: null, lastError: null });
+    const [isUsingEmbedded, setIsUsingEmbedded] = useState(false);
 
     const [yaml, setYaml] = useState('');
     const [stats, setStats] = useState({ totalCameras: 0, configuredCount: 0, hasGatewayCredentials: false });
@@ -130,6 +132,8 @@ const GatewayConfigTab = ({ onGatewayUpdated, onGoToTab }) => {
                     password: ''
                 });
                 setHasSavedPassword(Boolean(gwRes.data.hasPassword));
+                setEmbeddedInfo(gwRes.data.embedded || { available: false, running: false, pid: null, lastError: null });
+                setIsUsingEmbedded(Boolean(gwRes.data.isUsingEmbedded));
             }
             if (cfgRes.data) {
                 setYaml(cfgRes.data.yaml || '');
@@ -272,6 +276,44 @@ const GatewayConfigTab = ({ onGatewayUpdated, onGoToTab }) => {
 
     return (
         <div className="space-y-6">
+            {/* Banner Status Gateway Built-in */}
+            {embeddedInfo?.available && (
+                <div className={`rounded-2xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    embeddedInfo.running && isUsingEmbedded
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-amber-50 border-amber-200'
+                }`}>
+                    <div className="flex items-start gap-3">
+                        <div className={`p-2.5 rounded-xl text-white shrink-0 ${
+                            embeddedInfo.running && isUsingEmbedded ? 'bg-emerald-600' : 'bg-amber-600'
+                        }`}>
+                            <CheckCircle2 size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                                {embeddedInfo.running && isUsingEmbedded
+                                    ? 'Gateway Terpadu Aktif Otomatis (Built-In)'
+                                    : 'MediaMTX Tersedia di Server'}
+                            </h3>
+                            <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">
+                                {embeddedInfo.running && isUsingEmbedded
+                                    ? 'MediaMTX sudah langsung berjalan di dalam server website ini tanpa perlu membuat container terpisah di Easypanel. Anda dapat langsung menambahkan kamera di tab Kelola Kamera.'
+                                    : embeddedInfo.lastError || 'Gunakan formulir di bawah atau kosongkan URL lalu simpan untuk kembali ke mode built-in otomatis.'}
+                            </p>
+                        </div>
+                    </div>
+                    {onGoToTab && embeddedInfo.running && isUsingEmbedded && (
+                        <button
+                            type="button"
+                            onClick={() => onGoToTab('cameras')}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs shrink-0 self-start sm:self-center"
+                        >
+                            Langsung Tambah Kamera <ArrowRight size={14} />
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* 1. Form Pengaturan Gateway MediaMTX */}
             <form onSubmit={handleSaveSettings} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

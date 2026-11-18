@@ -40,6 +40,12 @@ const getGatewayConfig = async (prisma) => {
 
 const isPlaybackConfigured = (cfg) => Boolean(cfg && (cfg.webrtcUrl || cfg.hlsUrl));
 
+const isEmbeddedGateway = (cfg) => Boolean(
+    cfg &&
+    ((cfg.hlsUrl && cfg.hlsUrl.includes('127.0.0.1:')) ||
+        (cfg.apiUrl && cfg.apiUrl.includes('127.0.0.1:')))
+);
+
 const buildAuthHeaders = (cfg) => {
     if (!cfg?.username) return {};
     const token = Buffer.from(`${cfg.username}:${cfg.password || ''}`).toString('base64');
@@ -278,6 +284,7 @@ const testCameraStream = async (cfg, camera) => {
 module.exports = {
     getGatewayConfig,
     isPlaybackConfigured,
+    isEmbeddedGateway,
     buildAuthHeaders,
     usesGatewayPlayback,
     fetchWithTimeout,
