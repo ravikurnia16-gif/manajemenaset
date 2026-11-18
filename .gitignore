@@ -12,6 +12,8 @@ client/dist/
 .env
 server/.env
 server/bin/
+server/auto.crt
+server/auto.key
 server/prisma/dev.db
 server/prisma/dev.db-journal
 server/data_local/
