@@ -49,9 +49,28 @@ const sanitizeCameraForViewer = (camera, gatewayCfg = null) => {
 };
 
 /**
+ * Menghasilkan streamPath unik untuk kamera agar tidak pernah bentrok di MediaMTX.
+ */
+const buildUniqueStreamPath = (baseName, unitCode, takenPathsSet) => {
+    const candidate = slugifyStreamPath(baseName, unitCode);
+    if (!takenPathsSet.has(candidate)) {
+        takenPathsSet.add(candidate);
+        return candidate;
+    }
+    let suffix = 2;
+    let uniqueCandidate = `${candidate.slice(0, 54)}-${suffix}`;
+    while (takenPathsSet.has(uniqueCandidate)) {
+        suffix += 1;
+        uniqueCandidate = `${candidate.slice(0, 54)}-${suffix}`;
+    }
+    takenPathsSet.add(uniqueCandidate);
+    return uniqueCandidate;
+};
+
+/**
  * Normalisasi payload kamera untuk create / update agar konsisten.
  */
-const normalizeCameraPayload = async (body, isUpdate = false) => {
+const normalizeCameraPayload = async (body, isUpdate = false, unitCodeOverride = null, takenPathsSet = null) => {
     const unitId = body.unitId ? parseInt(body.unitId, 10) : null;
     const deviceType = (body.deviceType || 'DVR_NVR').toUpperCase();
     const channelNo = deviceType === 'WIFI_CAMERA'
@@ -60,15 +79,19 @@ const normalizeCameraPayload = async (body, isUpdate = false) => {
 
     let streamPath = body.streamPath ? slugifyStreamPath(body.streamPath) : null;
     if (!streamPath && !isUpdate) {
-        let unitCode = '';
-        if (unitId) {
+        let unitCode = unitCodeOverride || '';
+        if (!unitCode && unitId) {
             const unit = await prisma.unit.findUnique({ where: { id: unitId }, select: { code: true } });
             unitCode = unit?.code || '';
         }
         const baseName = deviceType === 'DVR_NVR' ? `${body.name || 'cam'}-ch${channelNo}` : (body.name || 'cam');
-        const candidate = slugifyStreamPath(baseName, unitCode);
-        const existing = await prisma.cctvCamera.findUnique({ where: { streamPath: candidate } });
-        streamPath = existing ? `${candidate}-${Date.now().toString().slice(-4)}` : candidate;
+        if (takenPathsSet) {
+            streamPath = buildUniqueStreamPath(baseName, unitCode, takenPathsSet);
+        } else {
+            const candidate = slugifyStreamPath(baseName, unitCode);
+            const existing = await prisma.cctvCamera.findUnique({ where: { streamPath: candidate } });
+            streamPath = existing ? `${candidate.slice(0, 54)}-${Date.now().toString().slice(-4)}` : candidate;
+        }
     }
 
     const data = {
@@ -246,6 +269,159 @@ exports.createCamera = async (req, res) => {
             return res.status(400).json({ error: 'Stream Path sudah digunakan oleh kamera lain.' });
         }
         console.error('createCamera error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/cctv/cameras/batch (Khusus Kepala Bidang Sarana)
+ * Membuat banyak channel DVR/NVR sekaligus dalam 1 klik dengan jalur RTSP otomatis berurutan.
+ */
+exports.createBatchCameras = async (req, res) => {
+    try {
+        const body = req.body || {};
+        const skipExisting = body.skipExisting !== false;
+        const unitId = body.unitId ? parseInt(body.unitId, 10) : null;
+        const ipAddress = body.ipAddress ? String(body.ipAddress).trim() : '';
+        const rtspPort = Math.max(1, parseInt(body.rtspPort, 10) || 554);
+
+        let rawChannels = Array.isArray(body.channels) ? body.channels : [];
+        if (rawChannels.length === 0 && body.startChannel && body.endChannel) {
+            const start = Math.max(1, parseInt(body.startChannel, 10) || 1);
+            const end = Math.min(64, Math.max(start, parseInt(body.endChannel, 10) || start));
+            const prefix = String(body.namePrefix || 'Kamera DVR').trim();
+            for (let ch = start; ch <= end; ch += 1) {
+                rawChannels.push({ channelNo: ch, name: `${prefix} Ch.${ch}`, location: body.location || '' });
+            }
+        }
+
+        const uniqueChannelMap = new Map();
+        for (const item of rawChannels) {
+            const ch = parseInt(item?.channelNo, 10);
+            if (Number.isNaN(ch) || ch < 1 || ch > 64 || uniqueChannelMap.has(ch)) continue;
+            const name = String(item?.name || `${body.namePrefix || 'Kamera'} Ch.${ch}`).trim();
+            if (!name) continue;
+            uniqueChannelMap.set(ch, {
+                channelNo: ch,
+                name,
+                location: item?.location !== undefined ? String(item.location).trim() : String(body.location || '').trim(),
+                sortOrder: item?.sortOrder !== undefined ? parseInt(item.sortOrder, 10) : ch - 1
+            });
+        }
+
+        const requestedChannels = Array.from(uniqueChannelMap.values());
+        if (requestedChannels.length === 0) {
+            return res.status(400).json({ error: 'Pilih minimal 1 channel DVR yang valid.' });
+        }
+        if (requestedChannels.length > 32) {
+            return res.status(400).json({ error: 'Maksimal 32 channel dalam satu kali proses batch.' });
+        }
+
+        let existingChannelNos = new Set();
+        if (skipExisting && ipAddress) {
+            const existingOnDvr = await prisma.cctvCamera.findMany({
+                where: {
+                    deviceType: 'DVR_NVR',
+                    ipAddress,
+                    rtspPort,
+                    ...(Number.isNaN(unitId) ? {} : { unitId })
+                },
+                select: { channelNo: true }
+            });
+            existingChannelNos = new Set(existingOnDvr.map((c) => c.channelNo));
+        }
+
+        const channelsToCreate = [];
+        const skippedChannels = [];
+        for (const chItem of requestedChannels) {
+            if (existingChannelNos.has(chItem.channelNo)) {
+                skippedChannels.push(chItem.channelNo);
+            } else {
+                channelsToCreate.push(chItem);
+            }
+        }
+
+        if (channelsToCreate.length === 0) {
+            return res.status(200).json({
+                createdCount: 0,
+                skippedChannels,
+                cameras: [],
+                syncedCount: 0,
+                syncFailedCount: 0,
+                message: 'Semua channel yang dipilih sudah terdaftar pada DVR/IP tersebut.'
+            });
+        }
+
+        let unitCode = '';
+        if (unitId && !Number.isNaN(unitId)) {
+            const unit = await prisma.unit.findUnique({ where: { id: unitId }, select: { code: true } });
+            unitCode = unit?.code || '';
+        }
+
+        const existingPaths = await prisma.cctvCamera.findMany({ select: { streamPath: true } });
+        const takenPathsSet = new Set(existingPaths.map((c) => c.streamPath).filter(Boolean));
+
+        const payloads = [];
+        for (const chItem of channelsToCreate) {
+            const payload = await normalizeCameraPayload(
+                {
+                    name: chItem.name,
+                    unitId: Number.isNaN(unitId) ? null : unitId,
+                    location: chItem.location,
+                    brand: body.brand || 'G-LENZ',
+                    deviceType: 'DVR_NVR',
+                    channelNo: chItem.channelNo,
+                    streamMode: body.streamMode || 'GATEWAY',
+                    ipAddress,
+                    rtspPort,
+                    rtspUsername: body.rtspUsername || 'admin',
+                    rtspPassword: body.rtspPassword,
+                    rtspQuality: body.rtspQuality || 'SUB',
+                    sortOrder: chItem.sortOrder,
+                    isActive: body.isActive !== undefined ? Boolean(body.isActive) : true
+                },
+                false,
+                unitCode,
+                takenPathsSet
+            );
+            payload.createdById = req.user.id;
+            payloads.push(payload);
+        }
+
+        const createdCameras = await prisma.$transaction(async (tx) => {
+            const list = [];
+            for (const data of payloads) {
+                const row = await tx.cctvCamera.create({ data, include: CAMERA_INCLUDE_UNIT });
+                list.push(row);
+            }
+            return list;
+        });
+
+        const gatewayCfg = await gateway.getGatewayConfig(prisma);
+        const syncResults = gatewayCfg.apiUrl
+            ? await gateway.syncAllCameras(gatewayCfg, createdCameras)
+            : [];
+
+        const syncedCount = syncResults.filter((r) => r.ok && !r.skipped).length;
+        const syncFailedCount = syncResults.filter((r) => !r.ok && !r.skipped).length;
+
+        res.status(201).json({
+            createdCount: createdCameras.length,
+            skippedChannels,
+            syncedCount,
+            syncFailedCount,
+            cameras: createdCameras.map((cam) => ({
+                ...cam,
+                accessUserIds: [],
+                accessCount: 0,
+                rtspPreviewUrl: buildRtspUrl(cam)
+            }))
+        });
+    } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ error: 'Sebagian Stream Path bentrok. Silakan coba lagi.' });
+        }
+        console.error('createBatchCameras error:', error);
         res.status(500).json({ error: error.message });
     }
 };

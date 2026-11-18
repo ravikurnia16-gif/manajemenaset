@@ -99,9 +99,9 @@ const buildRtspUrl = (camera) => {
     }
 
     if (brand === 'G-LENZ' || brand === 'GLENZ') {
-        const idx = Math.max(0, channelNo - 1);
+        const ch = Math.max(1, channelNo);
         const streamLabel = quality === 'MAIN' ? 'MAIN' : 'SUB';
-        return `rtsp://${authSegment}${ip}:${port}/live/${idx}/${streamLabel}`;
+        return `rtsp://${authSegment}${ip}:${port}/live/${ch}/${streamLabel}`;
     }
 
     return `rtsp://${authSegment}${ip}:${port}/stream${channelNo}`;

@@ -64,7 +64,7 @@ const computeRtspPreview = (form) => {
         return `rtsp://${auth}${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=${subtype}`;
     }
     if (form.brand === 'G-LENZ' || form.brand === 'GLENZ') {
-        const idx = Math.max(0, ch - 1);
+        const idx = Math.max(1, ch);
         const label = quality === 'MAIN' ? 'MAIN' : 'SUB';
         return `rtsp://${auth}${ip}:${port}/live/${idx}/${label}`;
     }
@@ -139,7 +139,7 @@ const CameraFormModalInner = ({
             )}
             {form.brand === 'G-LENZ' && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 leading-relaxed">
-                    <strong>Tips G-LENZ DVR:</strong> Otomatis menggunakan format <code>/live/&lt;channel-1&gt;/SUB</code> (Channel 1 → <code>/live/0/SUB</code>, Channel 2 → <code>/live/1/SUB</code>). Gunakan Port RTSP <code>554</code> atau port external hasil Port Forwarding (misal <code>15554</code>).
+                    <strong>Tips G-LENZ DVR:</strong> Otomatis menggunakan format <code>/live/&lt;channel&gt;/SUB</code> (Channel 1 → <code>/live/1/SUB</code>, Channel 2 → <code>/live/2/SUB</code>, dst.). Gunakan Port RTSP <code>554</code> atau port external hasil Port Forwarding (misal <code>15554</code>).
                 </div>
             )}
 

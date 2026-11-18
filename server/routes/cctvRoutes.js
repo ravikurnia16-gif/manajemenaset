@@ -24,6 +24,7 @@ router.use('/play/:id/hls', cctvController.playHls);
 
 // Endpoint pengelolaan di bawah ini EKSKLUSIF untuk position Kepala Bidang Sarana
 router.get('/cameras', cctvController.requireKabidSaranaPosition, cctvController.getAllCameras);
+router.post('/cameras/batch', cctvController.requireKabidSaranaPosition, cctvController.createBatchCameras);
 router.post('/cameras', cctvController.requireKabidSaranaPosition, cctvController.createCamera);
 router.put('/cameras/:id', cctvController.requireKabidSaranaPosition, cctvController.updateCamera);
 router.patch('/cameras/:id/toggle', cctvController.requireKabidSaranaPosition, cctvController.toggleCameraStatus);

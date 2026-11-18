@@ -4,12 +4,13 @@ import Swal from 'sweetalert2';
 import {
     Cctv, Plus, Search, ShieldCheck, Users, Server, LayoutGrid,
     Edit2, Trash2, Copy, Power, Wifi, HardDrive, RefreshCw, Eye,
-    SlidersHorizontal, AlertTriangle, Activity, BookOpen
+    SlidersHorizontal, AlertTriangle, Activity, BookOpen, Layers
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { cn } from '../../lib/utils';
 import CctvPlayer from './components/CctvPlayer';
 import CameraFormModal from './components/CameraFormModal';
+import CameraBatchModal from './components/CameraBatchModal';
 import CameraAccessModal from './components/CameraAccessModal';
 import AccessControlTab from './components/AccessControlTab';
 import GatewayConfigTab from './components/GatewayConfigTab';
@@ -60,6 +61,7 @@ const CctvManagement = () => {
 
     // Modals
     const [cameraModalOpen, setCameraModalOpen] = useState(false);
+    const [batchModalOpen, setBatchModalOpen] = useState(false);
     const [editingCamera, setEditingCamera] = useState(null);
     const [accessModalCamera, setAccessModalCamera] = useState(null);
 
@@ -153,6 +155,7 @@ const CctvManagement = () => {
             id: undefined,
             name: `${camera.name} (Ch.${nextChannel})`,
             channelNo: nextChannel,
+            rtspCustomUrl: '',
             streamPath: '',
             streamUrl: ''
         });
@@ -180,6 +183,34 @@ const CctvManagement = () => {
             Swal.fire({
                 icon: 'error',
                 title: 'Gagal Menyimpan Kamera',
+                text: err.response?.data?.error || err.message
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveBatchCameras = async (payload) => {
+        try {
+            setSaving(true);
+            const res = await api.post('/cctv/cameras/batch', payload);
+            const data = res.data || {};
+            setBatchModalOpen(false);
+            await loadAllData();
+            const skippedText = data.skippedChannels?.length
+                ? `<br/><span style="color:#64748b">Dilewati (sudah terdaftar): Ch.${data.skippedChannels.join(', Ch.')}</span>`
+                : '';
+            Swal.fire({
+                icon: data.createdCount > 0 ? 'success' : 'info',
+                title: data.createdCount > 0
+                    ? `${data.createdCount} Channel Berhasil Ditambahkan!`
+                    : 'Tidak Ada Channel Baru Ditambahkan',
+                html: `<div style="font-size:13px">Tersinkron ke MediaMTX: <b>${data.syncedCount || 0}</b>${skippedText}</div>`
+            });
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Menambah Batch Channel',
                 text: err.response?.data?.error || err.message
             });
         } finally {
@@ -392,6 +423,13 @@ const CctvManagement = () => {
                             >
                                 <Plus size={16} /> Tambah Kamera
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setBatchModalOpen(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-indigo-200 transition-all"
+                            >
+                                <Layers size={16} /> Banyak Channel (1 Klik)
+                            </button>
                         </>
                     )}
                     <button
@@ -603,11 +641,12 @@ const CctvManagement = () => {
                         </div>
                     ) : (
                         <div className={cn('grid gap-4', activeGridCols)}>
-                            {filteredStreams.map((cam) => (
+                            {filteredStreams.map((cam, idx) => (
                                 <CctvPlayer
                                     key={cam.id}
                                     camera={cam}
                                     isExpanded={false}
+                                    startDelayMs={Math.min(idx * 250, 2800)}
                                     onToggleExpand={(id) => setExpandedCameraId(id)}
                                     canManage={isManager}
                                     onEditCamera={handleOpenEditCamera}
@@ -645,13 +684,22 @@ const CctvManagement = () => {
                                 ))}
                             </select>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleOpenCreateCamera}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs"
-                        >
-                            <Plus size={15} /> Tambah Kamera Baru
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setBatchModalOpen(true)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold shadow-xs"
+                            >
+                                <Layers size={15} /> Banyak Channel (1 Klik)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleOpenCreateCamera}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs"
+                            >
+                                <Plus size={15} /> Tambah Kamera Baru
+                            </button>
+                        </div>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -844,6 +892,16 @@ const CctvManagement = () => {
                         onSave={handleSaveCamera}
                         initialData={editingCamera}
                         units={units}
+                        gatewayConfigured={gatewayConfigured}
+                        saving={saving}
+                    />
+
+                    <CameraBatchModal
+                        isOpen={batchModalOpen}
+                        onClose={() => setBatchModalOpen(false)}
+                        onSaveBatch={handleSaveBatchCameras}
+                        units={units}
+                        existingCameras={adminCameras}
                         gatewayConfigured={gatewayConfigured}
                         saving={saving}
                     />

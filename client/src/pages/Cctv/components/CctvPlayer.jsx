@@ -39,6 +39,7 @@ const CctvStreamSurface = ({
     isGatewayMode,
     muted,
     canFallbackHls,
+    startDelayMs = 0,
     videoRef,
     imgRef,
     onFallbackToHls,
@@ -96,50 +97,71 @@ const CctvStreamSurface = ({
 
             if (!videoEl) return undefined;
 
+            let cancelled = false;
+            let hls = null;
+            let startTimer = null;
+            let retryTimer = null;
             let networkRetries = 0;
-            const hls = new Hls({
-                lowLatencyMode: true,
-                backBufferLength: 10,
-                liveSyncDurationCount: 2,
-                liveMaxLatencyDurationCount: 5,
-                manifestLoadingTimeOut: 25000,
-                fragLoadingTimeOut: 20000,
-                xhrSetup: (xhr) => {
-                    if (isGatewayMode && token) {
-                        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            const initHls = () => {
+                if (cancelled || !videoRef.current) return;
+                hls = new Hls({
+                    lowLatencyMode: true,
+                    backBufferLength: 10,
+                    liveSyncDurationCount: 2,
+                    liveMaxLatencyDurationCount: 5,
+                    manifestLoadingTimeOut: 25000,
+                    fragLoadingTimeOut: 20000,
+                    xhrSetup: (xhr) => {
+                        if (isGatewayMode && token) {
+                            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                        }
                     }
-                }
-            });
+                });
 
-            hls.loadSource(hlsSource);
-            hls.attachMedia(videoEl);
+                hls.loadSource(hlsSource);
+                hls.attachMedia(videoRef.current);
 
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                videoEl.play().catch(() => {});
-            });
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    videoRef.current?.play().catch(() => {});
+                });
 
-            hls.on(Hls.Events.ERROR, (_, data) => {
-                if (!data.fatal) return;
-                if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries < 1) {
-                    networkRetries += 1;
-                    setTimeout(() => {
-                        try { hls.startLoad(); } catch { /* ignore */ }
-                    }, 1500);
-                    return;
-                }
-                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                    hls.recoverMediaError();
-                    return;
-                }
-                const detail = data?.response?.code
-                    ? `Gateway mengembalikan HTTP ${data.response.code}. Pastikan MediaMTX aktif & IP kamera terjangkau.`
-                    : 'Gagal memuat stream HLS dari MediaMTX / kamera.';
-                updateStatus('error', detail);
-                hls.destroy();
-            });
+                hls.on(Hls.Events.ERROR, (_, data) => {
+                    if (!data.fatal || cancelled) return;
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries < 3) {
+                        networkRetries += 1;
+                        retryTimer = setTimeout(() => {
+                            if (cancelled || !hls) return;
+                            try { hls.startLoad(); } catch { /* ignore */ }
+                        }, 1500 + networkRetries * 700);
+                        return;
+                    }
+                    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        hls.recoverMediaError();
+                        return;
+                    }
+                    const detail = data?.response?.code
+                        ? `Gateway mengembalikan HTTP ${data.response.code}. Pastikan MediaMTX aktif & IP kamera terjangkau.`
+                        : 'Gagal memuat stream HLS (pastikan Encoding Sub-Stream di DVR memakai H.264).';
+                    updateStatus('error', detail);
+                    hls.destroy();
+                    hls = null;
+                });
+            };
+
+            if (startDelayMs > 0) {
+                startTimer = setTimeout(initHls, startDelayMs);
+            } else {
+                initHls();
+            }
 
             return () => {
-                hls.destroy();
+                cancelled = true;
+                if (startTimer) clearTimeout(startTimer);
+                if (retryTimer) clearTimeout(retryTimer);
+                if (hls) {
+                    hls.destroy();
+                }
             };
         }
 
@@ -250,7 +272,7 @@ const CctvStreamSurface = ({
         }
 
         return undefined;
-    }, [camera.id, targetProto, rawUrl, isGatewayMode, canFallbackHls, onFallbackToHls, videoRef, updateStatus]);
+    }, [camera.id, targetProto, rawUrl, isGatewayMode, canFallbackHls, startDelayMs, onFallbackToHls, videoRef, updateStatus]);
 
     return (
         <>
@@ -352,7 +374,8 @@ const CctvPlayer = ({
     canManage = false,
     onEditCamera,
     onOpenGateway,
-    compact = false
+    compact = false,
+    startDelayMs = 0
 }) => {
     const containerRef = useRef(null);
     const videoRef = useRef(null);
@@ -573,6 +596,7 @@ const CctvPlayer = ({
                         isGatewayMode={isGatewayMode}
                         muted={muted}
                         canFallbackHls={isGatewayMode && canHls && targetProto === 'WHEP'}
+                        startDelayMs={startDelayMs}
                         videoRef={videoRef}
                         imgRef={imgRef}
                         onFallbackToHls={() => setGatewayProtoOverride('HLS')}
