@@ -63,6 +63,11 @@ const computeRtspPreview = (form) => {
         const subtype = quality === 'MAIN' ? '0' : '1';
         return `rtsp://${auth}${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=${subtype}`;
     }
+    if (form.brand === 'G-LENZ' || form.brand === 'GLENZ') {
+        const idx = Math.max(0, ch - 1);
+        const label = quality === 'MAIN' ? 'MAIN' : 'SUB';
+        return `rtsp://${auth}${ip}:${port}/live/${idx}/${label}`;
+    }
     return `rtsp://${auth}${ip}:${port}/stream${ch}`;
 };
 
@@ -130,6 +135,11 @@ const CameraFormModalInner = ({
             {form.brand === 'HIKVISION' && (
                 <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-800 leading-relaxed">
                     <strong>Tips Hikvision DVR/NVR:</strong> Gunakan IP LAN/Tailscale DVR dengan Port <code>554</code>. Pastikan <em>Sub-Stream Encoding</em> DVR diset ke <strong>H.264</strong> (bukan H.265) agar bisa diputar mulus di seluruh browser.
+                </div>
+            )}
+            {form.brand === 'G-LENZ' && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 leading-relaxed">
+                    <strong>Tips G-LENZ DVR:</strong> Otomatis menggunakan format <code>/live/&lt;channel-1&gt;/SUB</code> (Channel 1 → <code>/live/0/SUB</code>, Channel 2 → <code>/live/1/SUB</code>). Gunakan Port RTSP <code>554</code> atau port external hasil Port Forwarding (misal <code>15554</code>).
                 </div>
             )}
 
@@ -313,6 +323,7 @@ const CameraFormModalInner = ({
                                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                             >
                                 <option value="HIKVISION">Hikvision</option>
+                                <option value="G-LENZ">G-LENZ</option>
                                 <option value="EZVIZ">EZVIZ</option>
                                 <option value="DAHUA">Dahua</option>
                                 <option value="LAINNYA">Lainnya (ONVIF/RTSP)</option>

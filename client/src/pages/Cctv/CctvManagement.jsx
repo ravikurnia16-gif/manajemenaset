@@ -520,6 +520,7 @@ const CctvManagement = () => {
                             >
                                 <option value="ALL">Semua Merek</option>
                                 <option value="HIKVISION">Hikvision</option>
+                                <option value="G-LENZ">G-LENZ</option>
                                 <option value="EZVIZ">EZVIZ</option>
                                 <option value="DAHUA">Dahua</option>
                                 <option value="LAINNYA">Lainnya</option>

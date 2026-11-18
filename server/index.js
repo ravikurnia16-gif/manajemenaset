@@ -156,4 +156,14 @@ server.listen(PORT, '0.0.0.0', () => {
     } catch (e) {
         console.error('Failed to initialize scheduler:', e.message);
     }
+
+    // Sinkronisasi awal daftar kamera CCTV ke MediaMTX bila gateway sudah aktif
+    setTimeout(() => {
+        try {
+            const { syncAllOnBoot } = require('./controllers/cctvController');
+            syncAllOnBoot();
+        } catch {
+            // Abaikan bila gateway belum dikonfigurasi
+        }
+    }, 5000);
 });

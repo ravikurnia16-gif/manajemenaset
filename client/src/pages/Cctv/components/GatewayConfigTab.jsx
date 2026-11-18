@@ -14,9 +14,9 @@ const SETUP_STEPS = [
         color: 'blue',
         title: 'Siapkan Kamera & Jaringan Lintas Unit (Tailscale Gratis)',
         points: [
-            'Hikvision DVR/NVR: Pastikan terhubung ke jaringan lokal, catat IP DVR dan port RTSP (554). Pada pengaturan Video/Encode di DVR, pastikan Sub-Stream memakai H.264 (bukan H.265 agar tampil di semua browser).',
+            'Hikvision / G-LENZ DVR/NVR: Pastikan terhubung ke jaringan lokal, catat IP DVR dan port RTSP (554). Pada pengaturan Video/Encode di DVR, pastikan Sub-Stream memakai H.264 (bukan H.265 agar tampil di semua browser). Untuk unit yang modemnya memiliki IP Publik, buka Port Forwarding ke port 554 DVR.',
             'EZVIZ WiFi: Buka aplikasi HP EZVIZ → Pengaturan Kamera → aktifkan LAN Live View / RTSP. Password RTSP kamera adalah Verification Code (6 huruf kapital di stiker bawah kamera).',
-            'Beda Lokasi / Beda Internet: Pasang Tailscale (gratis) pada 1 komputer/Mini PC/router di setiap unit dan di server utama, lalu aktifkan subnet router agar semua kamera dari SD/SMP/SMA dapat dijangkau langsung dari server.'
+            'Unit Terkena CGNAT / Beda Jaringan: Gunakan VPN di MikroTik sekolah atau router OpenWrt/Tailscale agar DVR unit dapat dijangkau oleh server MediaMTX pusat.'
         ]
     },
     {

@@ -98,6 +98,12 @@ const buildRtspUrl = (camera) => {
         return `rtsp://${authSegment}${ip}:${port}/cam/realmonitor?channel=${channelNo}&subtype=${subtype}`;
     }
 
+    if (brand === 'G-LENZ' || brand === 'GLENZ') {
+        const idx = Math.max(0, channelNo - 1);
+        const streamLabel = quality === 'MAIN' ? 'MAIN' : 'SUB';
+        return `rtsp://${authSegment}${ip}:${port}/live/${idx}/${streamLabel}`;
+    }
+
     return `rtsp://${authSegment}${ip}:${port}/stream${channelNo}`;
 };
 

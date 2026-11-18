@@ -750,6 +750,42 @@ const assertCameraPlayAccess = async (req, cameraIdParam) => {
 };
 
 /**
+ * Helper: memanggil MediaMTX; bila MediaMTX membalas 404 (misal container MediaMTX baru restart),
+ * daftarkan ulang path kamera lewat Control API lalu ulangi permintaan 1 kali.
+ */
+const fetchGatewayWithAutoSync = async (upstreamUrl, fetchOptions, timeoutMs, camera, gatewayCfg) => {
+    let upstreamRes = await gateway.fetchWithTimeout(upstreamUrl, fetchOptions, timeoutMs);
+    if (upstreamRes.status === 404 && gatewayCfg?.apiUrl && buildRtspUrl(camera)) {
+        await upstreamRes.arrayBuffer().catch(() => null);
+        const sync = await gateway.syncCamera(gatewayCfg, camera);
+        if (sync.ok) {
+            upstreamRes = await gateway.fetchWithTimeout(upstreamUrl, fetchOptions, timeoutMs);
+        }
+    }
+    return upstreamRes;
+};
+
+/**
+ * Sinkronisasi awal saat server boot agar seluruh kamera aktif langsung terdaftar bila MediaMTX berjalan.
+ */
+exports.syncAllOnBoot = async () => {
+    try {
+        const cfg = await gateway.getGatewayConfig(prisma);
+        if (!cfg.apiUrl) return;
+        const cameras = await prisma.cctvCamera.findMany({
+            where: { isActive: true },
+            include: CAMERA_INCLUDE_UNIT,
+            orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
+        });
+        if (cameras.length > 0) {
+            await gateway.syncAllCameras(cfg, cameras);
+        }
+    } catch {
+        // Abaikan error saat boot bila MediaMTX belum menyala
+    }
+};
+
+/**
  * POST /api/cctv/play/:id/whep
  * Proxy WebRTC WHEP handshake dari browser ke MediaMTX.
  */
@@ -770,7 +806,7 @@ exports.playWhep = async (req, res) => {
         }
 
         const upstreamUrl = `${gatewayCfg.webrtcUrl}/${encodeURIComponent(camera.streamPath)}/whep`;
-        const upstreamRes = await gateway.fetchWithTimeout(
+        const upstreamRes = await fetchGatewayWithAutoSync(
             upstreamUrl,
             {
                 method: 'POST',
@@ -780,7 +816,9 @@ exports.playWhep = async (req, res) => {
                 },
                 body: sdpOffer
             },
-            15000
+            15000,
+            camera,
+            gatewayCfg
         );
 
         const bodyText = await upstreamRes.text();
@@ -907,10 +945,12 @@ exports.playHls = async (req, res) => {
         const qs = forwardParams.toString();
         const upstreamUrl = `${gatewayCfg.hlsUrl}/${encodeURIComponent(camera.streamPath)}${subPath}${qs ? `?${qs}` : ''}`;
 
-        const upstreamRes = await gateway.fetchWithTimeout(
+        const upstreamRes = await fetchGatewayWithAutoSync(
             upstreamUrl,
             { headers: gateway.buildAuthHeaders(gatewayCfg) },
-            25000
+            25000,
+            camera,
+            gatewayCfg
         );
 
         const contentType = upstreamRes.headers.get('content-type') || 'application/octet-stream';
