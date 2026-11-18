@@ -133,6 +133,11 @@ model User {
   // Inventory Module
   invTransactions      InvStockTransaction[]
   invOrders            InvOrder[]
+
+  // CCTV Module
+  cctvCamerasCreated   CctvCamera[] @relation("CctvCreator")
+  cctvAccesses         CctvAccess[] @relation("CctvAccessUser")
+  cctvAccessesGranted  CctvAccess[] @relation("CctvAccessGranter")
 }
 
 model DriverViolation {
@@ -196,6 +201,7 @@ model Unit {
 
   workshopOrders       WorkshopOrder[]
   targetWorkshopOrders WorkshopOrder[] @relation("WorkshopDestination")
+  cctvCameras          CctvCamera[]
 }
 
 model Room {
@@ -2525,5 +2531,68 @@ model GroupChatMessage {
   @@index([groupId, createdAt])
   @@index([messageId])
 }
+
+// --- MODULE MANAGEMENT CCTV ---
+model CctvCamera {
+  id            Int          @id @default(autoincrement())
+  name          String
+  unitId        Int?
+  unit          Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  location      String?
+  brand         String       @default("HIKVISION") // HIKVISION, EZVIZ, DAHUA, LAINNYA
+  deviceType    String       @default("DVR_NVR")   // DVR_NVR, WIFI_CAMERA
+  channelNo     Int          @default(1)
+  streamMode    String       @default("WHEP")      // WHEP, HLS, IFRAME, MJPEG, VIDEO
+  streamUrl     String?      @db.Text
+  streamPath    String?      @unique
+  ipAddress     String?
+  rtspPort      Int          @default(554)
+  rtspUsername  String?      @default("admin")
+  rtspPassword  String?
+  rtspQuality   String       @default("SUB")       // SUB, MAIN
+  rtspCustomUrl String?      @db.Text
+  notes         String?      @db.Text
+  isActive      Boolean      @default(true)
+  sortOrder     Int          @default(0)
+  createdById   Int?
+  createdBy     User?        @relation("CctvCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  accessList    CctvAccess[]
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([unitId])
+  @@index([isActive])
+}
+
+// Konfigurasi Gateway MediaMTX (singleton id = 1). Disimpan terpisah dari Setting karena memuat kredensial.
+model CctvGateway {
+  id          Int      @id @default(1)
+  webrtcUrl   String?  // Alamat WebRTC MediaMTX yang dijangkau backend, mis. http://mediamtx:8889
+  hlsUrl      String?  // Alamat HLS MediaMTX, mis. http://mediamtx:8888
+  apiUrl      String?  // Alamat Control API MediaMTX, mis. http://mediamtx:9997
+  username    String?  // User internal MediaMTX (izin read, playback, api)
+  password    String?
+  updatedById Int?
+  updatedAt   DateTime @updatedAt
+}
+
+model CctvAccess {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  user        User       @relation("CctvAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+  cameraId    Int
+  camera      CctvCamera @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  grantedById Int?
+  grantedBy   User?      @relation("CctvAccessGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([userId, cameraId])
+  @@index([userId])
+  @@index([cameraId])
+}
+
 
 

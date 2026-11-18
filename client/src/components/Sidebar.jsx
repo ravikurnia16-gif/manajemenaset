@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, Target, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, Target, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet, Cctv } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -89,6 +89,35 @@ const Sidebar = ({ isOpen = true }) => {
     ];
     const pos = (user?.position || '').toLowerCase();
     const isOnlyKabidSaranaPosition = pos.includes('kepala bidang sarana');
+
+    const [hasCctvAccess, setHasCctvAccess] = useState(
+        () => isOnlyKabidSaranaPosition || Boolean(user?.hasCctvAccess)
+    );
+
+    useEffect(() => {
+        if (isOnlyKabidSaranaPosition || !user?.id) {
+            return;
+        }
+
+        let isMounted = true;
+        const checkCctvAccess = async () => {
+            try {
+                const res = await api.get('/cctv/my-access');
+                if (isMounted && res.data) {
+                    setHasCctvAccess(Boolean(res.data.hasAccess));
+                }
+            } catch {
+                // Abaikan error sementara saat pengecekan akses CCTV
+            }
+        };
+
+        checkCctvAccess();
+        window.addEventListener('cctvAccessChanged', checkCctvAccess);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('cctvAccessChanged', checkCctvAccess);
+        };
+    }, [user?.id, user?.position, isOnlyKabidSaranaPosition]);
     const role = user?.role || '';
     const canAccessKinerjaManajemen = isOnlyKabidSaranaPosition || 
                                      role === 'ADMIN_ASET' || 
@@ -392,6 +421,16 @@ const Sidebar = ({ isOpen = true }) => {
                 {canViewEOffice && (
                     <Link to="/e-office" className={navItemClass('/e-office')}>
                         <FileSignature size={18} /> E-Office
+                    </Link>
+                )}
+
+                {/* 6. Management CCTV - Awalnya khusus position Kepala Bidang Sarana, baru muncul ke user lain setelah diberi akses */}
+                {(isOnlyKabidSaranaPosition || hasCctvAccess) && (
+                    <Link to="/cctv" className={navItemClass('/cctv')}>
+                        <Cctv size={18} className="shrink-0" />
+                        <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
+                            Management CCTV
+                        </span>
                     </Link>
                 )}
 

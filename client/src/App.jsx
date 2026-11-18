@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
+import api from './lib/axios';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AssetList from './pages/AssetList';
@@ -158,6 +159,57 @@ const KabidSaranaOnlyRoute = ({ children }) => {
   return children;
 };
 
+// Guard akses Management CCTV: Awalnya khusus position Kepala Bidang Sarana, atau user lain yang sudah diberi akses
+const getInitialCctvAllowState = () => {
+  try {
+    const stored = localStorage.getItem('user');
+    if (stored && stored !== 'undefined') {
+      const currentUser = JSON.parse(stored);
+      const uPos = (currentUser?.position || '').toLowerCase();
+      if (uPos.includes('kepala bidang sarana')) {
+        return true;
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing user in CctvRoute', e);
+  }
+  return null;
+};
+
+const CctvRoute = ({ children }) => {
+  const [allowed, setAllowed] = useState(getInitialCctvAllowState);
+
+  useEffect(() => {
+    if (allowed === true) return;
+
+    let isMounted = true;
+    api.get('/cctv/my-access')
+      .then((res) => {
+        if (isMounted) setAllowed(Boolean(res.data?.hasAccess));
+      })
+      .catch(() => {
+        if (isMounted) setAllowed(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [allowed]);
+
+  if (allowed === null) {
+    return (
+      <div className="py-16 text-center text-sm text-slate-500">
+        Memeriksa hak akses Management CCTV...
+      </div>
+    );
+  }
+
+  if (!allowed) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+import CctvManagement from './pages/Cctv/CctvManagement';
 import PublicSurvey from './pages/PublicSurvey';
 import SurveyManager from './pages/SurveyManager';
 import SurveyDashboard from './pages/SurveyDashboard';
@@ -195,7 +247,6 @@ function App() {
     // Fetch and apply global app settings (title, favicon)
     const fetchAppSettings = async () => {
       try {
-        const { default: api } = await import('./lib/axios');
         const res = await api.get('/settings');
         if (res.data) {
           const { orgName, orgLogo } = res.data;
@@ -434,6 +485,13 @@ function App() {
           } />
           <Route path="e-office/:tab" element={
             canViewEOffice ? <EOffice /> : <Navigate to="/dashboard" />
+          } />
+
+          {/* Module: Management CCTV */}
+          <Route path="cctv" element={
+            <CctvRoute>
+              <CctvManagement />
+            </CctvRoute>
           } />
 
 

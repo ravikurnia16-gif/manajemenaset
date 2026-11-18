@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { getUserCctvAccessMeta } = require('../utils/cctvAccessHelper');
 const prisma = new PrismaClient();
 
 exports.getAllUsers = async (req, res) => {
@@ -155,7 +156,9 @@ exports.getProfile = async (req, res) => {
             { expiresIn: '365d' }
         );
 
-        res.json({ ...user, token });
+        const cctvMeta = await getUserCctvAccessMeta(user, prisma);
+
+        res.json({ ...user, ...cctvMeta, token });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

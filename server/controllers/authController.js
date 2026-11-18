@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const { getUserCctvAccessMeta } = require('../utils/cctvAccessHelper');
 
 const prisma = new PrismaClient();
 
@@ -44,9 +45,11 @@ const generateLoginResponse = async (user, res) => {
         }
     });
 
+    const cctvMeta = await getUserCctvAccessMeta(user, prisma);
+
     return res.json({
         token,
-        user: { ...user, password: '' }
+        user: { ...user, ...cctvMeta, password: '' }
     });
 };
 
@@ -544,10 +547,12 @@ exports.devLogin = async (req, res) => {
             { expiresIn: '365d' }
         );
 
+        const cctvMeta = await getUserCctvAccessMeta(user, prisma);
+
         return res.json({
             success: true,
             token,
-            user: { ...user, password: '' }
+            user: { ...user, ...cctvMeta, password: '' }
         });
     } catch (error) {
         console.error('Dev login error:', error);

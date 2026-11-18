@@ -63,6 +63,10 @@ const Layout = () => {
                 const isSanctionChanged = freshUser.isSanctioned !== undefined && freshUser.isSanctioned !== storedUser.isSanctioned;
 
                 const hasCriticalChanges = isRoleChanged || isUnitChanged || isPosChanged || isSanctionChanged;
+                const isCctvChanged = freshUser.hasCctvAccess !== undefined && (
+                    freshUser.hasCctvAccess !== storedUser.hasCctvAccess ||
+                    freshUser.cctvAccessCount !== storedUser.cctvAccessCount
+                );
 
                 // Simpan data terbaru ke localStorage
                 const updatedUser = { ...storedUser, ...freshUser };
@@ -72,6 +76,10 @@ const Layout = () => {
                 // Jika server mengirimkan token baru yang diperbarui
                 if (freshUser.token) {
                     localStorage.setItem('token', freshUser.token);
+                }
+
+                if (isCctvChanged) {
+                    window.dispatchEvent(new Event('cctvAccessChanged'));
                 }
 
                 // Jika Role, Unit, atau Posisi berubah, muat ulang halaman agar menu dan hak akses segera aktif

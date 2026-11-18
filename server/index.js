@@ -87,6 +87,7 @@ app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
 app.use('/api/uniforms', require('./routes/uniformRoutes'));
 app.use('/api/laporan', require('./routes/laporanRoutes'));
 app.use('/api/kinerja-manajemen', require('./routes/kinerjaManajemenRoutes'));
+app.use('/api/cctv', require('./routes/cctvRoutes'));
 
 
 // Serve Static Files
