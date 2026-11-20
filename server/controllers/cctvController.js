@@ -9,6 +9,12 @@ const {
 const gateway = require('../utils/cctvGateway');
 const embedded = require('../utils/cctvEmbedded');
 const { deleteFile } = require('../services/minioService');
+const {
+    recordCctvAudit,
+    buildAuditWhereClause,
+    formatCsvCell
+} = require('../utils/cctvAuditHelper');
+const cctvAi = require('../services/cctvAiService');
 
 const prisma = new PrismaClient();
 
@@ -40,6 +46,20 @@ const sanitizeCameraForViewer = (camera, gatewayCfg = null) => {
         posX: camera.posX ?? null,
         posY: camera.posY ?? null,
         fovAngle: camera.fovAngle ?? null,
+        aiEnabled: Boolean(camera.aiEnabled),
+        aiPreset: camera.aiPreset || 'CLASSROOM',
+        aiCustomPrompt: camera.aiCustomPrompt || null,
+        aiWatchEnabled: Boolean(camera.aiWatchEnabled),
+        aiWatchStart: camera.aiWatchStart || '22:00',
+        aiWatchEnd: camera.aiWatchEnd || '05:00',
+        aiWatchIntervalSec: camera.aiWatchIntervalSec ?? 5,
+        aiMotionThreshold: camera.aiMotionThreshold ?? 6.0,
+        aiAlertCooldownSec: camera.aiAlertCooldownSec ?? 180,
+        aiAlertRecipients: camera.aiAlertRecipients || null,
+        aiRoiZones: cctvAi.parseRoiZones(camera.aiRoiZones),
+        aiLastCheckedAt: camera.aiLastCheckedAt || null,
+        aiLastAlertAt: camera.aiLastAlertAt || null,
+        aiLastSummary: camera.aiLastSummary || null,
         playback: {
             gateway: viaGateway,
             ready: viaGateway ? gatewayReady : Boolean(camera.streamUrl),
@@ -116,7 +136,20 @@ const normalizeCameraPayload = async (body, isUpdate = false, unitCodeOverride =
         rtspCustomUrl: body.rtspCustomUrl ? String(body.rtspCustomUrl).trim() : null,
         notes: body.notes ? String(body.notes).trim() : null,
         isActive: body.isActive !== undefined ? Boolean(body.isActive) : true,
-        sortOrder: parseInt(body.sortOrder, 10) || 0
+        sortOrder: parseInt(body.sortOrder, 10) || 0,
+        aiEnabled: body.aiEnabled !== undefined ? Boolean(body.aiEnabled) : false,
+        aiPreset: ['CLASSROOM', 'SECURITY_NIGHT', 'CROWD', 'CUSTOM'].includes(String(body.aiPreset || '').toUpperCase())
+            ? String(body.aiPreset).toUpperCase()
+            : 'CLASSROOM',
+        aiCustomPrompt: body.aiCustomPrompt ? String(body.aiCustomPrompt).trim() : null,
+        aiWatchEnabled: body.aiWatchEnabled !== undefined ? Boolean(body.aiWatchEnabled) : false,
+        aiWatchStart: body.aiWatchStart !== undefined ? (String(body.aiWatchStart || '').trim() || null) : '22:00',
+        aiWatchEnd: body.aiWatchEnd !== undefined ? (String(body.aiWatchEnd || '').trim() || null) : '05:00',
+        aiWatchIntervalSec: Math.min(300, Math.max(3, parseInt(body.aiWatchIntervalSec, 10) || 5)),
+        aiMotionThreshold: Math.min(50, Math.max(1, parseFloat(body.aiMotionThreshold) || 6.0)),
+        aiAlertCooldownSec: Math.max(30, parseInt(body.aiAlertCooldownSec, 10) || 180),
+        aiAlertRecipients: body.aiAlertRecipients ? String(body.aiAlertRecipients).trim() : null,
+        ...(body.aiRoiZones !== undefined ? { aiRoiZones: JSON.stringify(cctvAi.parseRoiZones(body.aiRoiZones)) } : {})
     };
 
     // Pada update, hanya ubah password RTSP jika dikirim secara eksplisit (tidak menimpa jika dikosongkan kecuali memang sengaja)
@@ -228,6 +261,7 @@ exports.getAllCameras = async (req, res) => {
 
         const formatted = cameras.map((cam) => ({
             ...cam,
+            aiRoiZones: cctvAi.parseRoiZones(cam.aiRoiZones),
             accessUserIds: cam.accessList.map((a) => a.userId),
             accessCount: cam.accessList.length,
             rtspPreviewUrl: buildRtspUrl(cam),
@@ -261,6 +295,17 @@ exports.createCamera = async (req, res) => {
 
         const gatewayCfg = await gateway.getGatewayConfig(prisma);
         const gatewaySync = await gateway.syncCamera(gatewayCfg, created);
+        cctvAi.invalidateWatchedCamerasCache();
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera: created,
+            action: 'CAMERA_CREATE',
+            category: 'CAMERA',
+            details: `Menambahkan kamera "${created.name}" (${created.brand}, Ch.${created.channelNo})`,
+            metadata: { brand: created.brand, deviceType: created.deviceType, channelNo: created.channelNo, unitId: created.unitId }
+        });
 
         res.status(201).json({
             ...created,
@@ -410,6 +455,15 @@ exports.createBatchCameras = async (req, res) => {
         const syncedCount = syncResults.filter((r) => r.ok && !r.skipped).length;
         const syncFailedCount = syncResults.filter((r) => !r.ok && !r.skipped).length;
 
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'CAMERA_BATCH_CREATE',
+            category: 'CAMERA',
+            details: `Menambahkan ${createdCameras.length} channel DVR/NVR secara batch (${body.brand || 'G-LENZ'}, IP ${ipAddress || '-'})`,
+            metadata: { createdCount: createdCameras.length, skippedChannels, syncedCount, syncFailedCount, unitId }
+        });
+
         res.status(201).json({
             createdCount: createdCameras.length,
             skippedChannels,
@@ -466,6 +520,17 @@ exports.updateCamera = async (req, res) => {
 
         const gatewayCfg = await gateway.getGatewayConfig(prisma);
         const gatewaySync = await gateway.syncCamera(gatewayCfg, updated, existing.streamPath);
+        cctvAi.invalidateWatchedCamerasCache();
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera: updated,
+            action: 'CAMERA_UPDATE',
+            category: 'CAMERA',
+            details: `Memperbarui konfigurasi kamera "${updated.name}" (${updated.brand}, Ch.${updated.channelNo})`,
+            metadata: { previousName: existing.name, brand: updated.brand, channelNo: updated.channelNo, isActive: updated.isActive }
+        });
 
         res.json({
             ...updated,
@@ -502,6 +567,17 @@ exports.toggleCameraStatus = async (req, res) => {
 
         const gatewayCfg = await gateway.getGatewayConfig(prisma);
         const gatewaySync = await gateway.syncCamera(gatewayCfg, updated);
+        cctvAi.invalidateWatchedCamerasCache();
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera: updated,
+            action: 'CAMERA_TOGGLE',
+            category: 'CAMERA',
+            details: `${updated.isActive ? 'Mengaktifkan' : 'Menonaktifkan'} kamera "${updated.name}"`,
+            metadata: { isActive: updated.isActive }
+        });
 
         res.json({ ...updated, gatewaySync });
     } catch (error) {
@@ -522,11 +598,22 @@ exports.deleteCamera = async (req, res) => {
         }
 
         await prisma.cctvCamera.delete({ where: { id: cameraId } });
+        cctvAi.invalidateWatchedCamerasCache();
 
         const gatewayCfg = await gateway.getGatewayConfig(prisma);
         if (gatewayCfg.apiUrl) {
             await gateway.deleteCameraPath(gatewayCfg, existing.streamPath).catch(() => null);
         }
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            cameraName: existing.name,
+            action: 'CAMERA_DELETE',
+            category: 'CAMERA',
+            details: `Menghapus kamera "${existing.name}" (ID #${cameraId}, path ${existing.streamPath || '-'})`,
+            metadata: { deletedCameraId: cameraId, streamPath: existing.streamPath, brand: existing.brand }
+        });
 
         res.json({ message: 'Kamera berhasil dihapus.' });
     } catch (error) {
@@ -636,6 +723,15 @@ exports.updateUserAccess = async (req, res) => {
             }
         });
 
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'USER_ACCESS_UPDATE',
+            category: 'ACCESS',
+            details: `Memperbarui hak akses CCTV untuk ${targetUser.name || targetUser.username} (${validCameraIds.length} kamera)`,
+            metadata: { targetUserId, targetUserName: targetUser.name || targetUser.username, grantedCameraIds: validCameraIds }
+        });
+
         res.json({
             message: `Hak akses CCTV untuk ${targetUser.name || targetUser.username} berhasil diperbarui (${validCameraIds.length} kamera).`,
             userId: targetUserId,
@@ -697,6 +793,16 @@ exports.updateCameraAccess = async (req, res) => {
             }
         });
 
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: 'CAMERA_ACCESS_UPDATE',
+            category: 'ACCESS',
+            details: `Memperbarui daftar pengguna kamera "${camera.name}" (${validUserIds.length} pengguna)`,
+            metadata: { cameraId, grantedUserIds: validUserIds }
+        });
+
         res.json({
             message: `Daftar pengguna untuk kamera "${camera.name}" berhasil diperbarui (${validUserIds.length} pengguna).`,
             cameraId,
@@ -747,6 +853,16 @@ exports.getGatewaySettings = async (req, res) => {
     try {
         await embedded.ensureEmbeddedGateway(prisma).catch(() => null);
         const cfg = await gateway.getGatewayConfig(prisma);
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'GATEWAY_SAVE',
+            category: 'GATEWAY',
+            details: `Menyimpan pengaturan Gateway MediaMTX (WebRTC: ${cfg.webrtcUrl || '-'}, HLS: ${cfg.hlsUrl || '-'})`,
+            metadata: { webrtcUrl: cfg.webrtcUrl, hlsUrl: cfg.hlsUrl, apiUrl: cfg.apiUrl, isUsingEmbedded: gateway.isEmbeddedGateway(cfg) }
+        });
+
         res.json({
             webrtcUrl: cfg.webrtcUrl,
             hlsUrl: cfg.hlsUrl,
@@ -807,6 +923,16 @@ exports.saveGatewaySettings = async (req, res) => {
         }
 
         const cfg = await gateway.getGatewayConfig(prisma);
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'GATEWAY_SAVE',
+            category: 'GATEWAY',
+            details: `Menyimpan pengaturan Gateway MediaMTX (WebRTC: ${cfg.webrtcUrl || '-'}, HLS: ${cfg.hlsUrl || '-'})`,
+            metadata: { webrtcUrl: cfg.webrtcUrl, hlsUrl: cfg.hlsUrl, apiUrl: cfg.apiUrl, isUsingEmbedded: gateway.isEmbeddedGateway(cfg) }
+        });
+
         res.json({
             message: 'Pengaturan Gateway MediaMTX berhasil disimpan.',
             gateway: {
@@ -844,6 +970,17 @@ exports.testGatewayConnection = async (req, res) => {
         };
 
         const report = await gateway.testGateway(testCfg);
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'GATEWAY_TEST',
+            category: 'GATEWAY',
+            status: report?.ok ? 'SUCCESS' : 'FAILED',
+            details: `Menguji koneksi Gateway MediaMTX (${report?.ok ? 'berhasil' : 'gagal'})`,
+            metadata: report
+        });
+
         res.json(report);
     } catch (error) {
         console.error('testGatewayConnection error:', error);
@@ -873,6 +1010,16 @@ exports.syncGatewayCameras = async (req, res) => {
         const syncedCount = results.filter((r) => r.ok && !r.skipped).length;
         const skippedCount = results.filter((r) => r.skipped).length;
         const failedCount = results.filter((r) => !r.ok && !r.skipped).length;
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'GATEWAY_SYNC',
+            category: 'GATEWAY',
+            status: failedCount > 0 && syncedCount === 0 ? 'FAILED' : 'SUCCESS',
+            details: `Sinkronisasi Gateway MediaMTX: ${syncedCount} berhasil, ${failedCount} gagal, ${skippedCount} dilewati`,
+            metadata: { total: cameras.length, syncedCount, skippedCount, failedCount }
+        });
 
         res.json({
             total: cameras.length,
@@ -908,6 +1055,19 @@ exports.testCameraStream = async (req, res) => {
 
         const cfg = await gateway.getGatewayConfig(prisma);
         const result = await gateway.testCameraStream(cfg, camera);
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: 'CAMERA_TEST',
+            category: 'CAMERA',
+            status: result?.ok ? 'SUCCESS' : 'FAILED',
+            protocol: 'RTSP',
+            details: `Uji stream kamera "${camera.name}": ${result?.message || (result?.ok ? 'Terhubung' : 'Gagal')}`,
+            metadata: { ok: result?.ok, codec: result?.codec || null }
+        });
+
         res.json({
             cameraId: camera.id,
             cameraName: camera.name,
@@ -933,6 +1093,16 @@ const assertCameraPlayAccess = async (req, cameraIdParam) => {
         return { errorStatus: 404, error: 'Kamera tidak ditemukan.' };
     }
     if (!camera.isActive) {
+        recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: 'STREAM_DENIED',
+            category: 'STREAM',
+            status: 'DENIED',
+            details: `Percobaan membuka stream kamera "${camera.name}" ditolak (kamera non-aktif)`,
+            dedupeCooldownMs: 60000
+        });
         return { errorStatus: 403, error: 'Kamera sedang dinonaktifkan / maintenance.' };
     }
 
@@ -943,6 +1113,16 @@ const assertCameraPlayAccess = async (req, cameraIdParam) => {
             }
         });
         if (!access) {
+            recordCctvAudit({
+                prismaClient: prisma,
+                req,
+                camera,
+                action: 'STREAM_DENIED',
+                category: 'STREAM',
+                status: 'DENIED',
+                details: `Percobaan akses tanpa izin ke kamera "${camera.name}"`,
+                dedupeCooldownMs: 60000
+            });
             return { errorStatus: 403, error: 'Anda tidak memiliki akses ke kamera ini.' };
         }
     }
@@ -1053,6 +1233,21 @@ exports.playWhep = async (req, res) => {
         if (linkHeader) res.set('Link', linkHeader);
 
         const contentType = upstreamRes.headers.get('content-type') || 'application/sdp';
+
+        recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: upstreamRes.ok ? 'STREAM_VIEW' : 'STREAM_FAILED',
+            category: 'STREAM',
+            status: upstreamRes.ok ? 'SUCCESS' : 'FAILED',
+            protocol: 'WHEP',
+            details: upstreamRes.ok
+                ? `Membuka live stream WHEP kamera "${camera.name}"`
+                : `Gagal membuka live stream WHEP kamera "${camera.name}" (HTTP ${upstreamRes.status})`,
+            dedupeCooldownMs: upstreamRes.ok ? 5 * 60 * 1000 : 60 * 1000
+        });
+
         res.status(upstreamRes.status).type(contentType).send(bodyText);
     } catch (error) {
         console.error('playWhep error:', error);
@@ -1173,6 +1368,19 @@ exports.playHls = async (req, res) => {
         }
 
         if (isPlaylist) {
+            if (subPath === '/index.m3u8' || subPath === '/') {
+                recordCctvAudit({
+                    prismaClient: prisma,
+                    req,
+                    camera,
+                    action: 'STREAM_VIEW',
+                    category: 'STREAM',
+                    status: 'SUCCESS',
+                    protocol: 'HLS',
+                    details: `Membuka live stream HLS kamera "${camera.name}"`,
+                    dedupeCooldownMs: 5 * 60 * 1000
+                });
+            }
             let text = await upstreamRes.text();
             if (req.query.token && !req.headers.authorization) {
                 text = appendTokenToM3u8(text, req.query.token);
@@ -1301,6 +1509,16 @@ exports.createFloorPlan = async (req, res) => {
         });
 
         const gatewayCfg = await gateway.getGatewayConfig(prisma);
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'FLOORPLAN_CREATE',
+            category: 'FLOORPLAN',
+            details: `Membuat denah CCTV "${created.name}"${created.floorLabel ? ` (${created.floorLabel})` : ''}`,
+            metadata: { floorPlanId: created.id, unitId: created.unitId }
+        });
+
         res.status(201).json(formatFloorPlanResponse(created, gatewayCfg));
     } catch (error) {
         console.error('createFloorPlan error:', error);
@@ -1353,6 +1571,16 @@ exports.updateFloorPlan = async (req, res) => {
         });
 
         const gatewayCfg = await gateway.getGatewayConfig(prisma);
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'FLOORPLAN_UPDATE',
+            category: 'FLOORPLAN',
+            details: `Memperbarui denah CCTV "${updated.name}"`,
+            metadata: { floorPlanId: updated.id, previousName: existing.name }
+        });
+
         res.json(formatFloorPlanResponse(updated, gatewayCfg));
     } catch (error) {
         console.error('updateFloorPlan error:', error);
@@ -1386,6 +1614,15 @@ exports.deleteFloorPlan = async (req, res) => {
         if (existing.imageUrl && existing.imageUrl.startsWith('/api/media/')) {
             deleteFile(existing.imageUrl).catch(() => null);
         }
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'FLOORPLAN_DELETE',
+            category: 'FLOORPLAN',
+            details: `Menghapus denah CCTV "${existing.name}" (ID #${floorPlanId})`,
+            metadata: { floorPlanId }
+        });
 
         res.json({ message: 'Denah berhasil dihapus.' });
     } catch (error) {
@@ -1476,8 +1713,558 @@ exports.saveFloorPlanPositions = async (req, res) => {
             message: 'Posisi titik kamera pada denah berhasil disimpan.',
             floorPlan: formatFloorPlanResponse(updatedPlan, gatewayCfg)
         });
+
+        recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'FLOORPLAN_POSITIONS_SAVE',
+            category: 'FLOORPLAN',
+            details: `Menyimpan posisi ${placementMap.size} titik kamera pada denah "${updatedPlan.name}"`,
+            metadata: { floorPlanId, cameraCount: placementMap.size }
+        });
     } catch (error) {
         console.error('saveFloorPlanPositions error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/cctv/audit/view
+ * Mencatat aktivitas menonton kamera non-gateway (IFRAME / MJPEG / VIDEO) dengan validasi hak akses & deduplikasi.
+ */
+exports.logStreamView = async (req, res) => {
+    try {
+        const cameraId = parseInt(req.body?.cameraId, 10);
+        if (Number.isNaN(cameraId)) {
+            return res.status(400).json({ error: 'ID kamera tidak valid.' });
+        }
+
+        const camera = await prisma.cctvCamera.findUnique({ where: { id: cameraId } });
+        if (!camera || !camera.isActive) {
+            return res.status(404).json({ error: 'Kamera tidak ditemukan atau non-aktif.' });
+        }
+
+        if (!isKabidSaranaPosition(req.user)) {
+            const access = await prisma.cctvAccess.findUnique({
+                where: { userId_cameraId: { userId: req.user.id, cameraId: camera.id } }
+            });
+            if (!access) {
+                await recordCctvAudit({
+                    prismaClient: prisma,
+                    req,
+                    camera,
+                    action: 'STREAM_DENIED',
+                    category: 'STREAM',
+                    status: 'DENIED',
+                    details: `Percobaan membuka stream kamera "${camera.name}" ditolak`,
+                    dedupeCooldownMs: 60000
+                });
+                return res.status(403).json({ error: 'Anda tidak memiliki akses ke kamera ini.' });
+            }
+        }
+
+        const protocol = String(req.body?.protocol || camera.streamMode || 'STREAM').toUpperCase().slice(0, 20);
+        const entry = await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: 'STREAM_VIEW',
+            category: 'STREAM',
+            status: 'SUCCESS',
+            protocol,
+            details: `Membuka live stream ${protocol} kamera "${camera.name}"`,
+            metadata: { context: req.body?.context || 'live' },
+            dedupeCooldownMs: 5 * 60 * 1000
+        });
+
+        res.json({ recorded: Boolean(entry) });
+    } catch (error) {
+        console.error('logStreamView error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/cctv/audit-logs (Khusus Kepala Bidang Sarana)
+ * Daftar log audit CCTV berpaginasi, filter lengkap, serta ringkasan statistik hari ini.
+ */
+exports.getAuditLogs = async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25));
+        const skip = (page - 1) * limit;
+        const where = buildAuditWhereClause(req.query);
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const [
+            logs,
+            totalFiltered,
+            totalAllLogs,
+            todayStreamViews,
+            deniedCount,
+            failedCount,
+            todayUniqueViewerRows,
+            topCameraGroups,
+            cameraOptions
+        ] = await Promise.all([
+            prisma.cctvAuditLog.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.cctvAuditLog.count({ where }),
+            prisma.cctvAuditLog.count(),
+            prisma.cctvAuditLog.count({
+                where: { category: 'STREAM', status: 'SUCCESS', createdAt: { gte: todayStart } }
+            }),
+            prisma.cctvAuditLog.count({ where: { status: 'DENIED' } }),
+            prisma.cctvAuditLog.count({ where: { status: 'FAILED' } }),
+            prisma.cctvAuditLog.findMany({
+                where: {
+                    category: 'STREAM',
+                    status: 'SUCCESS',
+                    userId: { not: null },
+                    createdAt: { gte: todayStart }
+                },
+                distinct: ['userId'],
+                select: { userId: true }
+            }),
+            prisma.cctvAuditLog.groupBy({
+                by: ['cameraId', 'cameraName'],
+                where: { category: 'STREAM', status: 'SUCCESS', cameraName: { not: null } },
+                _count: { id: true },
+                orderBy: { _count: { id: 'desc' } },
+                take: 5
+            }),
+            prisma.cctvCamera.findMany({
+                select: { id: true, name: true },
+                orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
+            })
+        ]);
+
+        res.json({
+            logs,
+            pagination: {
+                page,
+                limit,
+                total: totalFiltered,
+                totalPages: Math.max(1, Math.ceil(totalFiltered / limit))
+            },
+            summary: {
+                totalAllLogs,
+                todayStreamViews,
+                deniedCount,
+                failedCount,
+                uniqueViewersToday: todayUniqueViewerRows.length,
+                topCameras: topCameraGroups.map((g) => ({
+                    cameraId: g.cameraId,
+                    cameraName: g.cameraName,
+                    viewCount: g._count.id
+                }))
+            },
+            filters: {
+                cameras: cameraOptions
+            }
+        });
+    } catch (error) {
+        console.error('getAuditLogs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/cctv/audit-logs/export (Khusus Kepala Bidang Sarana)
+ * Mengekspor hasil filter audit log CCTV ke file CSV (maks 5.000 baris).
+ */
+exports.exportAuditLogsCsv = async (req, res) => {
+    try {
+        const where = buildAuditWhereClause(req.query);
+        const logs = await prisma.cctvAuditLog.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: 5000
+        });
+
+        const header = ['Waktu (WIB)', 'User', 'Jabatan/Role', 'Kategori', 'Aksi', 'Status', 'Kamera', 'Protokol', 'IP Address', 'Detail'];
+        const rows = logs.map((log) => [
+            new Date(log.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+            log.userName || '-',
+            log.userRole || '-',
+            log.category,
+            log.action,
+            log.status,
+            log.cameraName || '-',
+            log.protocol || '-',
+            log.ipAddress || '-',
+            log.details || '-'
+        ]);
+
+        const csvLines = [header, ...rows].map((row) => row.map(formatCsvCell).join(','));
+        const csvContent = `\uFEFF${csvLines.join('\r\n')}`;
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'AUDIT_EXPORT',
+            category: 'SYSTEM',
+            details: `Mengekspor ${logs.length} baris audit log CCTV ke CSV`,
+            metadata: { rowCount: logs.length }
+        });
+
+        const filename = `cctv-audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csvContent);
+    } catch (error) {
+        console.error('exportAuditLogsCsv error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * DELETE /api/cctv/audit-logs/prune (Khusus Kepala Bidang Sarana)
+ * Menghapus log audit CCTV yang lebih lama dari X hari (default 90, minimal 7 hari).
+ */
+exports.pruneAuditLogs = async (req, res) => {
+    try {
+        const days = Math.max(7, parseInt(req.query.days || req.body?.days, 10) || 90);
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+        const deleted = await prisma.cctvAuditLog.deleteMany({
+            where: { createdAt: { lt: cutoff } }
+        });
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            action: 'AUDIT_PRUNE',
+            category: 'SYSTEM',
+            details: `Membersihkan ${deleted.count} log audit CCTV yang lebih lama dari ${days} hari`,
+            metadata: { days, deletedCount: deleted.count, cutoff: cutoff.toISOString() }
+        });
+
+        res.json({
+            message: `${deleted.count} log audit lama (> ${days} hari) berhasil dihapus.`,
+            deletedCount: deleted.count,
+            days
+        });
+    } catch (error) {
+        console.error('pruneAuditLogs error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/cctv/ai/status (Khusus Kepala Bidang Sarana)
+ * Mengembalikan kesiapan GEMINI_API_KEY, ffmpeg, serta jumlah kamera yang diaktifkan AI.
+ */
+exports.getAiStatus = async (req, res) => {
+    try {
+        const status = await cctvAi.getAiSystemStatus(prisma);
+        res.json(status);
+    } catch (error) {
+        console.error('getAiStatus error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * PATCH /api/cctv/cameras/:id/ai-toggle (Khusus Kepala Bidang Sarana)
+ * Mengaktifkan/menonaktifkan AI (atau mode jaga otomatis) pada kamera tertentu secara cepat.
+ */
+exports.toggleCameraAi = async (req, res) => {
+    try {
+        const cameraId = parseInt(req.params.id, 10);
+        if (Number.isNaN(cameraId)) {
+            return res.status(400).json({ error: 'ID kamera tidak valid.' });
+        }
+
+        const existing = await prisma.cctvCamera.findUnique({ where: { id: cameraId } });
+        if (!existing) {
+            return res.status(404).json({ error: 'Kamera tidak ditemukan.' });
+        }
+
+        const nextAiEnabled = req.body?.aiEnabled !== undefined
+            ? Boolean(req.body.aiEnabled)
+            : !existing.aiEnabled;
+        const nextWatchEnabled = req.body?.aiWatchEnabled !== undefined
+            ? Boolean(req.body.aiWatchEnabled)
+            : (nextAiEnabled ? existing.aiWatchEnabled : false);
+
+        const updated = await prisma.cctvCamera.update({
+            where: { id: cameraId },
+            data: {
+                aiEnabled: nextAiEnabled,
+                aiWatchEnabled: nextWatchEnabled
+            }
+        });
+
+        cctvAi.invalidateWatchedCamerasCache();
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera: updated,
+            action: 'CAMERA_AI_TOGGLE',
+            category: 'CAMERA',
+            details: `${updated.aiEnabled ? 'Mengaktifkan' : 'Menonaktifkan'} Analisis AI pada kamera "${updated.name}"${updated.aiWatchEnabled ? ' (Jaga Otomatis Aktif)' : ''}`,
+            metadata: { aiEnabled: updated.aiEnabled, aiWatchEnabled: updated.aiWatchEnabled, aiPreset: updated.aiPreset }
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('toggleCameraAi error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/cctv/cameras/:id/ai-analyze
+ * Menjalankan analisis Gemini Vision pada snapshot kamera yang sudah diaktifkan AI (`aiEnabled = true`).
+ * Snapshot bisa dikirim langsung dari browser `<canvas>` (`imageBase64`) atau dicuplik backend lewat ffmpeg.
+ */
+exports.analyzeCameraSnapshot = async (req, res) => {
+    try {
+        const cameraId = parseInt(req.params.id, 10);
+        if (Number.isNaN(cameraId)) {
+            return res.status(400).json({ error: 'ID kamera tidak valid.' });
+        }
+
+        const camera = await prisma.cctvCamera.findUnique({
+            where: { id: cameraId },
+            include: CAMERA_INCLUDE_UNIT
+        });
+        if (!camera) {
+            return res.status(404).json({ error: 'Kamera tidak ditemukan.' });
+        }
+
+        const isManager = isKabidSaranaPosition(req.user);
+        if (!isManager) {
+            const access = await prisma.cctvAccess.findUnique({
+                where: { userId_cameraId: { userId: req.user.id, cameraId: camera.id } }
+            });
+            if (!access) {
+                return res.status(403).json({ error: 'Anda tidak memiliki akses ke kamera ini.' });
+            }
+        }
+
+        if (!camera.aiEnabled) {
+            return res.status(400).json({
+                error: 'Analisis AI belum diaktifkan untuk kamera ini. Aktifkan terlebih dahulu pada menu Kelola Kamera.'
+            });
+        }
+
+        let imageBase64 = req.body?.imageBase64 || null;
+        let mimeType = req.body?.mimeType || 'image/jpeg';
+
+        if (!imageBase64) {
+            const gatewayCfg = await gateway.getGatewayConfig(prisma);
+            const buf = await cctvAi.captureCameraFrame({ camera, gatewayCfg, timeoutMs: 12000 });
+            imageBase64 = buf.toString('base64');
+            mimeType = 'image/jpeg';
+        }
+
+        const analysis = await cctvAi.analyzeFrameWithGemini({
+            imageBase64,
+            mimeType,
+            camera,
+            presetOverride: req.body?.preset || null,
+            customPromptOverride: req.body?.customPrompt !== undefined ? req.body.customPrompt : null
+        });
+
+        await prisma.cctvCamera.update({
+            where: { id: camera.id },
+            data: {
+                aiLastCheckedAt: new Date(),
+                aiLastSummary: analysis.summary || null
+            }
+        }).catch(() => null);
+
+        let waResult = null;
+        if (req.body?.sendAlert && (analysis.alertTriggered || req.body?.forceSendAlert)) {
+            waResult = await cctvAi.dispatchCctvAiWaAlert({
+                camera,
+                analysis,
+                imageBase64,
+                mimeType,
+                prismaClient: prisma
+            });
+            if (waResult?.sent) {
+                await prisma.cctvCamera.update({
+                    where: { id: camera.id },
+                    data: { aiLastAlertAt: new Date() }
+                }).catch(() => null);
+            }
+        }
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: waResult?.sent ? 'AI_ALERT' : 'AI_ANALYZE',
+            category: 'CAMERA',
+            protocol: req.body?.imageBase64 ? 'BROWSER_SNAP' : 'SERVER_FFMPEG',
+            details: `Analisis AI (${analysis.preset}) kamera "${camera.name}": ${analysis.summary || '-'}`,
+            metadata: { ...analysis, waResult }
+        });
+
+        res.json({
+            cameraId: camera.id,
+            cameraName: camera.name,
+            analysis,
+            waResult
+        });
+    } catch (error) {
+        console.error('analyzeCameraSnapshot error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/cctv/cameras/:id/ai-test-alert (Khusus Kepala Bidang Sarana)
+ * Mengirim pesan uji coba WA Alert (beserta snapshot jika ffmpeg tersedia) untuk memastikan penerima aktif.
+ */
+exports.sendAiTestAlert = async (req, res) => {
+    try {
+        const cameraId = parseInt(req.params.id, 10);
+        if (Number.isNaN(cameraId)) {
+            return res.status(400).json({ error: 'ID kamera tidak valid.' });
+        }
+
+        const camera = await prisma.cctvCamera.findUnique({
+            where: { id: cameraId },
+            include: CAMERA_INCLUDE_UNIT
+        });
+        if (!camera) {
+            return res.status(404).json({ error: 'Kamera tidak ditemukan.' });
+        }
+
+        let imageBase64 = null;
+        try {
+            const gatewayCfg = await gateway.getGatewayConfig(prisma);
+            const buf = await cctvAi.captureCameraFrame({ camera, gatewayCfg, timeoutMs: 8000 });
+            imageBase64 = buf.toString('base64');
+        } catch {
+            imageBase64 = null;
+        }
+
+        const waResult = await cctvAi.dispatchCctvAiWaAlert({
+            camera,
+            analysis: {
+                preset: camera.aiPreset || 'SECURITY_NIGHT',
+                alertReason: 'Uji coba koneksi WA Alert dari Manajemen CCTV',
+                summary: `Penerima WA Alert untuk kamera "${camera.name}" berhasil teruji.`
+            },
+            imageBase64,
+            mimeType: 'image/jpeg',
+            prismaClient: prisma,
+            isTest: true
+        });
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera,
+            action: 'AI_ALERT_TEST',
+            category: 'CAMERA',
+            status: waResult.sent ? 'SUCCESS' : 'FAILED',
+            details: `Uji kirim WA Alert kamera "${camera.name}" (${waResult.recipientCount} penerima)`,
+            metadata: waResult
+        });
+
+        if (!waResult.sent) {
+            return res.status(400).json({ error: waResult.reason || 'Gagal mengirim WA Alert uji coba.' });
+        }
+
+        res.json({
+            message: `WA Alert uji coba terkirim ke ${waResult.recipientCount} penerima${waResult.attachedPhoto ? ' (dengan snapshot kamera)' : ''}.`,
+            ...waResult
+        });
+    } catch (error) {
+        console.error('sendAiTestAlert error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/cctv/cameras/:id/snapshot (Khusus Kepala Bidang Sarana)
+ * Mengambil 1 frame JPEG dari kamera via ffmpeg sebagai gambar latar editor ROI kotak.
+ */
+exports.getCameraSnapshot = async (req, res) => {
+    try {
+        const cameraId = parseInt(req.params.id, 10);
+        if (Number.isNaN(cameraId)) {
+            return res.status(400).json({ error: 'ID kamera tidak valid.' });
+        }
+
+        const camera = await prisma.cctvCamera.findUnique({ where: { id: cameraId } });
+        if (!camera) {
+            return res.status(404).json({ error: 'Kamera tidak ditemukan.' });
+        }
+
+        const gatewayCfg = await gateway.getGatewayConfig(prisma);
+        const buf = await cctvAi.captureCameraFrame({ camera, gatewayCfg, timeoutMs: 10000 });
+        res.json({
+            cameraId: camera.id,
+            imageDataUrl: `data:image/jpeg;base64,${buf.toString('base64')}`
+        });
+    } catch (error) {
+        res.status(502).json({ error: error.message || 'Gagal mengambil snapshot kamera dari server.' });
+    }
+};
+
+/**
+ * PUT /api/cctv/cameras/:id/ai-rois (Khusus Kepala Bidang Sarana)
+ * Menyimpan daftar kotak ROI (`aiRoiZones`) beserta opsional threshold sensitivitas gerakan.
+ */
+exports.saveCameraRoiZones = async (req, res) => {
+    try {
+        const cameraId = parseInt(req.params.id, 10);
+        if (Number.isNaN(cameraId)) {
+            return res.status(400).json({ error: 'ID kamera tidak valid.' });
+        }
+
+        const existing = await prisma.cctvCamera.findUnique({ where: { id: cameraId } });
+        if (!existing) {
+            return res.status(404).json({ error: 'Kamera tidak ditemukan.' });
+        }
+
+        const cleanZones = cctvAi.parseRoiZones(req.body?.roiZones);
+        const updateData = {
+            aiRoiZones: JSON.stringify(cleanZones)
+        };
+        if (req.body?.aiMotionThreshold !== undefined) {
+            updateData.aiMotionThreshold = Math.min(50, Math.max(1, parseFloat(req.body.aiMotionThreshold) || 6.0));
+        }
+
+        const updated = await prisma.cctvCamera.update({
+            where: { id: cameraId },
+            data: updateData
+        });
+
+        cctvAi.invalidateWatchedCamerasCache();
+
+        await recordCctvAudit({
+            prismaClient: prisma,
+            req,
+            camera: updated,
+            action: 'CAMERA_ROI_UPDATE',
+            category: 'CAMERA',
+            details: `Menyimpan ${cleanZones.length} zona kotak ROI pada kamera "${updated.name}"`,
+            metadata: { zoneCount: cleanZones.length, labels: cleanZones.map((z) => z.label) }
+        });
+
+        res.json({
+            message: `${cleanZones.length} zona kotak ROI berhasil disimpan.`,
+            cameraId: updated.id,
+            aiRoiZones: cleanZones,
+            aiMotionThreshold: updated.aiMotionThreshold
+        });
+    } catch (error) {
+        console.error('saveCameraRoiZones error:', error);
         res.status(500).json({ error: error.message });
     }
 };

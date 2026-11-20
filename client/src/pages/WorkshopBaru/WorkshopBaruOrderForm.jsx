@@ -39,7 +39,7 @@ export default function WorkshopBaruOrderForm() {
                 name: initialCatalogItem.name,
                 spec: initialCatalogItem.specification || '',
                 qty: 1,
-                unit: 'Unit',
+                unit: initialCatalogItem.unit || 'Unit',
                 estimatedPrice: initialCatalogItem.price || 0
             }];
         }
@@ -100,11 +100,13 @@ export default function WorkshopBaruOrderForm() {
     };
 
     const handleSelectCatalogItem = (product) => {
+        const unitMatch = String(product.specification || '').match(/\[Satuan:\s*([^\]]+)\]/i);
+        const extractedUnit = product.unit || unitMatch?.[1]?.trim() || 'Unit';
         const newItem = {
             name: product.name,
-            spec: product.specification || '',
+            spec: String(product.specification || '').replace(/\[(?:Satuan|HargaMode|CatatanHarga|VarianHarga):[^\]]*\]\s*/gi, '').trim(),
             qty: 1,
-            unit: 'Unit',
+            unit: extractedUnit,
             estimatedPrice: product.price || 0
         };
 

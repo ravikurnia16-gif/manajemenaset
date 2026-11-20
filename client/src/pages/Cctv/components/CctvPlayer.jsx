@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import {
     Camera, Maximize2, Minimize2, RefreshCw, Volume2, VolumeX,
-    Settings, AlertCircle, Wifi, HardDrive, Cctv, Wrench, Radio
+    Settings, AlertCircle, Wifi, HardDrive, Cctv, Wrench, Radio, Sparkles, SquareDashedMousePointer
 } from 'lucide-react';
 import api from '../../../lib/axios';
 import { cn } from '../../../lib/utils';
+import CameraAiModal from './CameraAiModal';
+import CameraRoiModal from './CameraRoiModal';
 
 const BRAND_BADGE_STYLES = {
     HIKVISION: 'bg-red-500/20 text-red-300 border-red-500/30',
@@ -66,6 +68,9 @@ const CctvStreamSurface = ({
         const apiBase = getApiBase();
 
         if (targetProto === 'IFRAME' || targetProto === 'MJPEG' || targetProto === 'VIDEO') {
+            if (camera?.id) {
+                api.post('/cctv/audit/view', { cameraId: camera.id, protocol: targetProto }).catch(() => {});
+            }
             return undefined;
         }
 
@@ -374,6 +379,7 @@ const CctvPlayer = ({
     canManage = false,
     onEditCamera,
     onOpenGateway,
+    onRoiUpdated,
     compact = false,
     startDelayMs = 0
 }) => {
@@ -386,6 +392,9 @@ const CctvPlayer = ({
     const [gatewayProtoOverride, setGatewayProtoOverride] = useState(null); // null | 'WHEP' | 'HLS'
     const [liveIndicator, setLiveIndicator] = useState('idle');
     const [snapshotErr, setSnapshotErr] = useState('');
+    const [aiModalOpen, setAiModalOpen] = useState(false);
+    const [aiSnapshotUrl, setAiSnapshotUrl] = useState(null);
+    const [roiModalOpen, setRoiModalOpen] = useState(false);
 
     const rawUrl = (camera.streamUrl || '').trim();
     const isGatewayMode = Boolean(camera.playback?.gateway || camera.streamMode === 'GATEWAY');
@@ -417,30 +426,40 @@ const CctvPlayer = ({
         }
     }
 
+    const captureFrameDataUrl = (mimeType = 'image/png', maxWidth = null) => {
+        const canvas = document.createElement('canvas');
+        let width = 1280;
+        let height = 720;
+        let sourceEl = null;
+
+        if ((targetProto === 'WHEP' || targetProto === 'HLS' || targetProto === 'VIDEO') && videoRef.current?.videoWidth > 0) {
+            sourceEl = videoRef.current;
+            width = videoRef.current.videoWidth;
+            height = videoRef.current.videoHeight;
+        } else if (targetProto === 'MJPEG' && imgRef.current?.naturalWidth > 0) {
+            sourceEl = imgRef.current;
+            width = imgRef.current.naturalWidth;
+            height = imgRef.current.naturalHeight;
+        }
+
+        if (!sourceEl) return null;
+        if (maxWidth && width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(sourceEl, 0, 0, width, height);
+        return mimeType === 'image/jpeg'
+            ? canvas.toDataURL('image/jpeg', 0.85)
+            : canvas.toDataURL('image/png');
+    };
+
     const handleTakeSnapshot = () => {
         setSnapshotErr('');
         try {
-            const canvas = document.createElement('canvas');
-            let width = 1280;
-            let height = 720;
-            let sourceEl = null;
-
-            if ((targetProto === 'WHEP' || targetProto === 'HLS' || targetProto === 'VIDEO') && videoRef.current?.videoWidth > 0) {
-                sourceEl = videoRef.current;
-                width = videoRef.current.videoWidth;
-                height = videoRef.current.videoHeight;
-            } else if (targetProto === 'MJPEG' && imgRef.current?.naturalWidth > 0) {
-                sourceEl = imgRef.current;
-                width = imgRef.current.naturalWidth;
-                height = imgRef.current.naturalHeight;
-            }
-
-            if (!sourceEl) return;
-            canvas.width = width;
-            canvas.height = height;
-            canvas.getContext('2d').drawImage(sourceEl, 0, 0, width, height);
-
-            const dataUrl = canvas.toDataURL('image/png');
+            const dataUrl = captureFrameDataUrl('image/png');
+            if (!dataUrl) return;
             const link = document.createElement('a');
             const safeName = (camera.name || 'cctv').toLowerCase().replace(/[^a-z0-9]+/g, '-');
             const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -450,6 +469,30 @@ const CctvPlayer = ({
         } catch {
             setSnapshotErr('Snapshot diblokir oleh kebijakan CORS server video.');
         }
+    };
+
+    const handleOpenAiModal = () => {
+        setSnapshotErr('');
+        let dataUrl = null;
+        try {
+            dataUrl = captureFrameDataUrl('image/jpeg', 1280);
+        } catch {
+            dataUrl = null;
+        }
+        setAiSnapshotUrl(dataUrl);
+        setAiModalOpen(true);
+    };
+
+    const handleOpenRoiModal = () => {
+        setSnapshotErr('');
+        let dataUrl = null;
+        try {
+            dataUrl = captureFrameDataUrl('image/jpeg', 1280);
+        } catch {
+            dataUrl = null;
+        }
+        setAiSnapshotUrl(dataUrl);
+        setRoiModalOpen(true);
     };
 
     const handleNativeFullscreen = () => {
@@ -556,6 +599,29 @@ const CctvPlayer = ({
                             <Camera size={14} />
                         </button>
                     )}
+                    {camera?.aiEnabled && (
+                        <button
+                            type="button"
+                            onClick={handleOpenAiModal}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 text-[10px] font-bold transition-colors"
+                            title="Jalankan Analisis AI pada Kamera Ini"
+                        >
+                            <Sparkles size={12} /> AI
+                        </button>
+                    )}
+
+                    {canManage && camera?.aiEnabled && (
+                        <button
+                            type="button"
+                            onClick={handleOpenRoiModal}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 text-[10px] font-bold transition-colors"
+                            title="Tandai Kotak ROI Benda/Area pada Kamera"
+                        >
+                            <SquareDashedMousePointer size={12} />
+                            ROI{Array.isArray(camera?.aiRoiZones) && camera.aiRoiZones.length > 0 ? ` (${camera.aiRoiZones.length})` : ''}
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={() => setReloadTick((t) => t + 1)}
@@ -659,12 +725,52 @@ const CctvPlayer = ({
                     </div>
                 )}
 
+                {Array.isArray(camera?.aiRoiZones) && camera.aiRoiZones.length > 0 && !precheckState && (
+                    <div className="pointer-events-none absolute inset-0">
+                        {camera.aiRoiZones.map((zone, idx) => (
+                            <div
+                                key={zone.id || idx}
+                                style={{
+                                    left: `${zone.x}%`,
+                                    top: `${zone.y}%`,
+                                    width: `${zone.width}%`,
+                                    height: `${zone.height}%`
+                                }}
+                                className="absolute border border-emerald-400/75 bg-emerald-400/5"
+                            >
+                                <span className="inline-block bg-emerald-600/80 text-white text-[9px] font-bold px-1 rounded-br">
+                                    {zone.label}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {snapshotErr && (
                     <div className="absolute bottom-2 right-2 px-2.5 py-1 rounded bg-rose-900/90 text-rose-100 text-[10px] font-semibold">
                         {snapshotErr}
                     </div>
                 )}
             </div>
+
+            {camera?.aiEnabled && (
+                <CameraAiModal
+                    isOpen={aiModalOpen}
+                    onClose={() => setAiModalOpen(false)}
+                    camera={camera}
+                    snapshotDataUrl={aiSnapshotUrl}
+                />
+            )}
+
+            {canManage && camera?.aiEnabled && (
+                <CameraRoiModal
+                    isOpen={roiModalOpen}
+                    onClose={() => setRoiModalOpen(false)}
+                    camera={camera}
+                    initialSnapshotUrl={aiSnapshotUrl}
+                    onSaved={onRoiUpdated}
+                />
+            )}
         </div>
     );
 };

@@ -49,4 +49,18 @@ router.put('/floor-plans/:id', cctvController.requireKabidSaranaPosition, handle
 router.put('/floor-plans/:id/positions', cctvController.requireKabidSaranaPosition, cctvController.saveFloorPlanPositions);
 router.delete('/floor-plans/:id', cctvController.requireKabidSaranaPosition, cctvController.deleteFloorPlan);
 
+// Audit Log CCTV
+router.post('/audit/view', cctvController.logStreamView);
+router.get('/audit-logs', cctvController.requireKabidSaranaPosition, cctvController.getAuditLogs);
+router.get('/audit-logs/export', cctvController.requireKabidSaranaPosition, cctvController.exportAuditLogsCsv);
+router.delete('/audit-logs/prune', cctvController.requireKabidSaranaPosition, cctvController.pruneAuditLogs);
+
+// Analisis AI & Jaga Malam Selektif Per-Kamera
+router.get('/ai/status', cctvController.requireKabidSaranaPosition, cctvController.getAiStatus);
+router.patch('/cameras/:id/ai-toggle', cctvController.requireKabidSaranaPosition, cctvController.toggleCameraAi);
+router.put('/cameras/:id/ai-rois', cctvController.requireKabidSaranaPosition, cctvController.saveCameraRoiZones);
+router.get('/cameras/:id/snapshot', cctvController.requireKabidSaranaPosition, cctvController.getCameraSnapshot);
+router.post('/cameras/:id/ai-analyze', cctvController.analyzeCameraSnapshot);
+router.post('/cameras/:id/ai-test-alert', cctvController.requireKabidSaranaPosition, cctvController.sendAiTestAlert);
+
 module.exports = router;

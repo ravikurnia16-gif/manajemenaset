@@ -165,5 +165,12 @@ server.listen(PORT, '0.0.0.0', () => {
         } catch {
             // Abaikan bila gateway belum dikonfigurasi
         }
+
+        try {
+            const { startCctvAiWatcher } = require('./services/cctvAiService');
+            startCctvAiWatcher(prisma);
+        } catch (err) {
+            console.error('Failed to start CCTV AI watcher:', err.message);
+        }
     }, 5000);
 });

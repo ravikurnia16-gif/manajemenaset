@@ -21,6 +21,7 @@ WORKDIR /app
 # Juga install dependensi Prisma (openssl, libc6-compat)
 RUN apk update && apk add --no-cache \
     chromium \
+    ffmpeg \
     nss \
     freetype \
     harfbuzz \

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
     X, Save, Eye, EyeOff, Cctv, ChevronDown, ChevronRight,
-    Wifi, HardDrive, Info, Server, AlertTriangle
+    Wifi, HardDrive, Info, Server, AlertTriangle, Sparkles, BellRing
 } from 'lucide-react';
 
 const STREAM_MODE_INFO = {
@@ -89,7 +89,17 @@ const buildInitialForm = (initialData) => ({
     rtspCustomUrl: initialData?.rtspCustomUrl || '',
     notes: initialData?.notes || '',
     sortOrder: initialData?.sortOrder || 0,
-    isActive: initialData?.isActive !== undefined ? initialData.isActive : true
+    isActive: initialData?.isActive !== undefined ? initialData.isActive : true,
+    aiEnabled: Boolean(initialData?.aiEnabled),
+    aiPreset: initialData?.aiPreset || 'CLASSROOM',
+    aiCustomPrompt: initialData?.aiCustomPrompt || '',
+    aiWatchEnabled: Boolean(initialData?.aiWatchEnabled),
+    aiWatchStart: initialData?.aiWatchStart || '22:00',
+    aiWatchEnd: initialData?.aiWatchEnd || '05:00',
+    aiWatchIntervalSec: initialData?.aiWatchIntervalSec ?? 5,
+    aiMotionThreshold: initialData?.aiMotionThreshold ?? 6.0,
+    aiAlertCooldownSec: initialData?.aiAlertCooldownSec ?? 180,
+    aiAlertRecipients: initialData?.aiAlertRecipients || ''
 });
 
 const CameraFormModalInner = ({
@@ -467,6 +477,162 @@ const CameraFormModalInner = ({
                                 </span>
                             </label>
                         </div>
+                    </div>
+
+                    {/* Pengaturan Analisis AI & Jaga Otomatis + Alert WA (Opsional Per-Kamera) */}
+                    <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/40 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                                    <Sparkles size={14} className="text-purple-600" />
+                                    Analisis AI &amp; Penjagaan Otomatis (Opsional Per-Kamera)
+                                </h3>
+                                <p className="text-[11px] text-slate-600 mt-0.5">
+                                    Aktifkan hanya untuk kamera tertentu yang membutuhkan AI (mis. pantau kelas atau kamera belakang malam hari).
+                                </p>
+                            </div>
+                            <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-purple-200 cursor-pointer shrink-0">
+                                <input
+                                    type="checkbox"
+                                    checked={form.aiEnabled}
+                                    onChange={(e) => setForm({
+                                        ...form,
+                                        aiEnabled: e.target.checked,
+                                        aiWatchEnabled: e.target.checked ? form.aiWatchEnabled : false
+                                    })}
+                                    className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-xs font-bold text-purple-900">Aktifkan AI</span>
+                            </label>
+                        </div>
+
+                        {form.aiEnabled && (
+                            <div className="space-y-3 pt-2 border-t border-purple-200/70">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Mode Analisis AI</label>
+                                        <select
+                                            value={form.aiPreset}
+                                            onChange={(e) => setForm({ ...form, aiPreset: e.target.value })}
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                        >
+                                            <option value="CLASSROOM">Kelas: Hitung Siswa &amp; Cek Guru</option>
+                                            <option value="SECURITY_NIGHT">Keamanan Malam: Deteksi Penyusup / Maling</option>
+                                            <option value="CROWD">Area Umum: Hitung Orang &amp; Kendaraan</option>
+                                            <option value="CUSTOM">Instruksi Kustom (Tulis Sendiri)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                                            Catatan / Instruksi AI {form.aiPreset === 'CUSTOM' ? '(Wajib untuk Custom)' : '(Opsional)'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={form.aiCustomPrompt}
+                                            onChange={(e) => setForm({ ...form, aiCustomPrompt: e.target.value })}
+                                            placeholder={
+                                                form.aiPreset === 'SECURITY_NIGHT'
+                                                    ? 'Contoh: Waspadai orang dekat pagar belakang'
+                                                    : 'Contoh: Cek apakah lampu/AC masih menyala'
+                                            }
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-white border border-purple-200 space-y-3">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                                <BellRing size={13} className="text-amber-600" />
+                                                Jaga Otomatis di Server + WA Alert
+                                            </span>
+                                            <span className="block text-[11px] text-slate-500">
+                                                Memantau gerakan secara lokal lalu verifikasi dengan Gemini AI sesuai jam aktif sebelum kirim WA Alert.
+                                            </span>
+                                        </div>
+                                        <label className="inline-flex items-center gap-2 cursor-pointer shrink-0">
+                                            <input
+                                                type="checkbox"
+                                                checked={form.aiWatchEnabled}
+                                                onChange={(e) => setForm({ ...form, aiWatchEnabled: e.target.checked })}
+                                                className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                            />
+                                            <span className="text-xs font-bold text-slate-700">Aktifkan Jaga Otomatis</span>
+                                        </label>
+                                    </div>
+
+                                    {form.aiWatchEnabled && (
+                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-600 mb-1">Jam Mulai (WIB)</label>
+                                                <input
+                                                    type="time"
+                                                    value={form.aiWatchStart}
+                                                    onChange={(e) => setForm({ ...form, aiWatchStart: e.target.value })}
+                                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-600 mb-1">Jam Selesai (WIB)</label>
+                                                <input
+                                                    type="time"
+                                                    value={form.aiWatchEnd}
+                                                    onChange={(e) => setForm({ ...form, aiWatchEnd: e.target.value })}
+                                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-600 mb-1">Interval Cek (dtk)</label>
+                                                <input
+                                                    type="number"
+                                                    min={3}
+                                                    max={300}
+                                                    value={form.aiWatchIntervalSec}
+                                                    onChange={(e) => setForm({ ...form, aiWatchIntervalSec: e.target.value })}
+                                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-600 mb-1">Sensitivitas Gerak (%)</label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={50}
+                                                    step="0.5"
+                                                    value={form.aiMotionThreshold}
+                                                    onChange={(e) => setForm({ ...form, aiMotionThreshold: e.target.value })}
+                                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-600 mb-1">Jeda Alert WA (dtk)</label>
+                                                <input
+                                                    type="number"
+                                                    min={30}
+                                                    max={3600}
+                                                    value={form.aiAlertCooldownSec}
+                                                    onChange={(e) => setForm({ ...form, aiAlertCooldownSec: e.target.value })}
+                                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                                                />
+                                            </div>
+                                            <div className="col-span-2 sm:col-span-5">
+                                                <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                                                    Nomor HP / ID Grup Penerima WA Alert (pisah koma — kosongkan untuk kirim ke Kepala Bidang Sarana / Grup Sarpras)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={form.aiAlertRecipients}
+                                                    onChange={(e) => setForm({ ...form, aiAlertRecipients: e.target.value })}
+                                                    placeholder="Contoh: 081234567890, 628987654321, 120363xxxx@g.us"
+                                                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div>

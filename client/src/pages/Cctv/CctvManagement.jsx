@@ -4,7 +4,8 @@ import Swal from 'sweetalert2';
 import {
     Cctv, Plus, Search, ShieldCheck, Users, Server, LayoutGrid,
     Edit2, Trash2, Copy, Power, Wifi, HardDrive, RefreshCw, Eye,
-    SlidersHorizontal, AlertTriangle, Activity, BookOpen, Layers, Map as MapIcon
+    SlidersHorizontal, AlertTriangle, Activity, BookOpen, Layers, Map as MapIcon, History,
+    Sparkles, BellRing, SquareDashedMousePointer
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { cn } from '../../lib/utils';
@@ -15,6 +16,8 @@ import CameraAccessModal from './components/CameraAccessModal';
 import AccessControlTab from './components/AccessControlTab';
 import GatewayConfigTab from './components/GatewayConfigTab';
 import FloorPlanTab from './components/FloorPlanTab';
+import AuditLogTab from './components/AuditLogTab';
+import CameraRoiModal from './components/CameraRoiModal';
 
 const GRID_OPTIONS = [
     { key: '1', label: '1x1', cols: 'grid-cols-1 max-w-4xl mx-auto' },
@@ -49,6 +52,9 @@ const CctvManagement = () => {
     const [adminCameras, setAdminCameras] = useState([]);
     const [accessUsers, setAccessUsers] = useState([]);
     const [units, setUnits] = useState([]);
+    const [aiStatus, setAiStatus] = useState(null);
+    const [testingAlertId, setTestingAlertId] = useState(null);
+    const [roiModalCamera, setRoiModalCamera] = useState(null);
 
     // Live View Controls
     const [gridMode, setGridMode] = useState('2');
@@ -82,12 +88,14 @@ const CctvManagement = () => {
             setFloorPlans(Array.isArray(floorPlansRes.data?.floorPlans) ? floorPlansRes.data.floorPlans : []);
 
             if (streamsRes.data?.isManager && isManager) {
-                const [camsRes, usersRes] = await Promise.all([
+                const [camsRes, usersRes, aiRes] = await Promise.all([
                     api.get('/cctv/cameras'),
-                    api.get('/cctv/access/users')
+                    api.get('/cctv/access/users'),
+                    api.get('/cctv/ai/status').catch(() => ({ data: null }))
                 ]);
                 setAdminCameras(Array.isArray(camsRes.data) ? camsRes.data : []);
                 setAccessUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+                setAiStatus(aiRes.data || null);
             }
         } catch (err) {
             if (err.response?.status === 403) {
@@ -265,6 +273,41 @@ const CctvManagement = () => {
             });
         } finally {
             setTestingCameraId(null);
+        }
+    };
+
+    const handleToggleCameraAi = async (camera) => {
+        try {
+            await api.patch(`/cctv/cameras/${camera.id}/ai-toggle`, {
+                aiEnabled: !camera.aiEnabled
+            });
+            await loadAllData();
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Mengubah Status AI',
+                text: err.response?.data?.error || err.message
+            });
+        }
+    };
+
+    const handleTestAiAlert = async (camera) => {
+        try {
+            setTestingAlertId(camera.id);
+            const res = await api.post(`/cctv/cameras/${camera.id}/ai-test-alert`);
+            Swal.fire({
+                icon: 'success',
+                title: 'Uji WA Alert Terkirim!',
+                text: res.data?.message || 'Pesan uji coba berhasil dikirim ke penerima WhatsApp.'
+            });
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Mengirim Uji WA Alert',
+                text: err.response?.data?.error || err.message
+            });
+        } finally {
+            setTestingAlertId(null);
         }
     };
 
@@ -513,6 +556,18 @@ const CctvManagement = () => {
                         >
                             <BookOpen size={15} /> Pengaturan &amp; Langkah Setting
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('audit')}
+                            className={cn(
+                                'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all',
+                                activeTab === 'audit'
+                                    ? 'bg-amber-600 text-white shadow-sm'
+                                    : 'text-slate-600 hover:bg-slate-100'
+                            )}
+                        >
+                            <History size={15} /> Audit Log
+                        </button>
                     </>
                 )}
             </div>
@@ -653,6 +708,7 @@ const CctvManagement = () => {
                                     canManage={isManager}
                                     onEditCamera={handleOpenEditCamera}
                                     onOpenGateway={() => setActiveTab('gateway')}
+                                    onRoiUpdated={loadAllData}
                                 />
                             </div>
                         </div>
@@ -668,6 +724,7 @@ const CctvManagement = () => {
                                     canManage={isManager}
                                     onEditCamera={handleOpenEditCamera}
                                     onOpenGateway={() => setActiveTab('gateway')}
+                                    onRoiUpdated={loadAllData}
                                 />
                             ))}
                         </div>
@@ -731,6 +788,27 @@ const CctvManagement = () => {
                         </div>
                     </div>
 
+                    {/* AI System Readiness Banner */}
+                    {aiStatus && (
+                        <div className="px-4 py-2.5 bg-purple-50/70 border-b border-purple-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="flex flex-wrap items-center gap-2 text-purple-900">
+                                <Sparkles size={14} className="text-purple-600" />
+                                <span className="font-bold">AI CCTV Selektif:</span>
+                                <span>{aiStatus.aiEnabledCount || 0} kamera aktif AI</span>
+                                <span>•</span>
+                                <span>{aiStatus.watchEnabledCount || 0} jaga otomatis</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                <span className={cn('px-2 py-0.5 rounded-full font-bold', aiStatus.geminiConfigured ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700')}>
+                                    {aiStatus.geminiConfigured ? 'Gemini API Siap' : 'GEMINI_API_KEY Belum Diatur'}
+                                </span>
+                                <span className={cn('px-2 py-0.5 rounded-full font-bold', aiStatus.ffmpegAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
+                                    {aiStatus.ffmpegAvailable ? 'ffmpeg Server Siap' : 'Mode On-Demand Browser (ffmpeg belum terpasang)'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
@@ -739,6 +817,7 @@ const CctvManagement = () => {
                                     <th className="px-4 py-3">Unit Pendidikan</th>
                                     <th className="px-4 py-3">Merek &amp; Perangkat</th>
                                     <th className="px-4 py-3">Stream Web</th>
+                                    <th className="px-4 py-3">AI &amp; Jaga Malam</th>
                                     <th className="px-4 py-3">Akses Pengguna</th>
                                     <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3 text-right">Aksi</th>
@@ -747,7 +826,7 @@ const CctvManagement = () => {
                             <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
                                 {filteredAdminCameras.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-12 text-center text-slate-400 text-xs">
+                                        <td colSpan={8} className="px-4 py-12 text-center text-slate-400 text-xs">
                                             Belum ada data kamera yang sesuai.
                                         </td>
                                     </tr>
@@ -810,6 +889,49 @@ const CctvManagement = () => {
                                                                 </span>
                                                             )}
                                                         </>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleCameraAi(cam)}
+                                                        className={cn(
+                                                            'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors',
+                                                            cam.aiEnabled
+                                                                ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                                        )}
+                                                        title="Klik untuk aktif/nonaktifkan AI pada kamera ini"
+                                                    >
+                                                        <Sparkles size={11} />
+                                                        {cam.aiEnabled ? `AI (${cam.aiPreset || 'CLASSROOM'})` : 'AI Nonaktif'}
+                                                    </button>
+                                                    {cam.aiEnabled && cam.aiWatchEnabled && (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                                            <BellRing size={10} /> Jaga {cam.aiWatchStart || '00:00'}-{cam.aiWatchEnd || '23:59'}
+                                                        </span>
+                                                    )}
+                                                    {cam.aiEnabled && (
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setRoiModalCamera(cam)}
+                                                                className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 hover:underline"
+                                                            >
+                                                                <SquareDashedMousePointer size={10} />
+                                                                Atur ROI ({Array.isArray(cam.aiRoiZones) ? cam.aiRoiZones.length : 0})
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleTestAiAlert(cam)}
+                                                                disabled={testingAlertId === cam.id}
+                                                                className="text-[10px] font-bold text-emerald-700 hover:underline disabled:opacity-50"
+                                                            >
+                                                                {testingAlertId === cam.id ? 'Mengirim WA...' : 'Tes WA Alert'}
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
@@ -909,6 +1031,11 @@ const CctvManagement = () => {
                 />
             )}
 
+            {/* TAB 5: AUDIT LOG CCTV (Hanya Kepala Bidang Sarana) */}
+            {isManager && activeTab === 'audit' && (
+                <AuditLogTab />
+            )}
+
             {/* Modals (Khusus Kepala Bidang Sarana) */}
             {isManager && (
                 <>
@@ -942,6 +1069,15 @@ const CctvManagement = () => {
                         users={accessUsers}
                         onSave={handleSaveCameraAccess}
                         saving={saving}
+                    />
+
+                    <CameraRoiModal
+                        isOpen={Boolean(roiModalCamera)}
+                        onClose={() => setRoiModalCamera(null)}
+                        camera={roiModalCamera}
+                        onSaved={() => {
+                            loadAllData();
+                        }}
                     />
                 </>
             )}

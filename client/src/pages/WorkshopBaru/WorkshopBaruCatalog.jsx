@@ -26,12 +26,100 @@ import {
     Send,
     Bookmark,
     Sparkles,
-    Crop
+    Crop,
+    Tag
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
 import Swal from 'sweetalert2';
+
+const PRESET_UNITS = ['Unit', 'Set', 'Pcs', 'Meter', 'm²', "m'", 'Lembar', 'Batang', 'Paket', 'Titik'];
+
+/**
+ * Mengekstrak satuan, mode harga (FIXED | CUSTOM | VARIANT), catatan harga, dan daftar varian satuan/bentuk
+ * dari field specification VendorProduct tanpa perlu perubahan skema database.
+ */
+function parseCatalogSpecification(rawSpec = '') {
+    let text = String(rawSpec || '');
+    let unit = 'Unit';
+    let priceMode = 'FIXED';
+    let priceNote = '';
+    let variants = [];
+
+    const unitMatch = text.match(/\[Satuan:\s*([^\]]+)\]/i);
+    if (unitMatch) {
+        unit = unitMatch[1].trim() || 'Unit';
+        text = text.replace(unitMatch[0], '');
+    }
+
+    const modeMatch = text.match(/\[HargaMode:\s*(FIXED|CUSTOM|VARIANT)\]/i);
+    if (modeMatch) {
+        priceMode = modeMatch[1].toUpperCase();
+        text = text.replace(modeMatch[0], '');
+    }
+
+    const noteMatch = text.match(/\[CatatanHarga:\s*([^\]]+)\]/i);
+    if (noteMatch) {
+        priceNote = noteMatch[1].trim();
+        text = text.replace(noteMatch[0], '');
+    }
+
+    const variantsMatch = text.match(/\[VarianHarga:\s*(\[[\s\S]*?\])\]/);
+    if (variantsMatch) {
+        try {
+            const parsed = JSON.parse(variantsMatch[1]);
+            if (Array.isArray(parsed)) {
+                variants = parsed
+                    .filter((v) => v && (v.label || v.unit))
+                    .map((v) => ({
+                        label: String(v.label || '').trim(),
+                        unit: String(v.unit || unit || 'Unit').trim(),
+                        price: Number(v.price) || 0
+                    }));
+            }
+        } catch {
+            variants = [];
+        }
+        text = text.replace(variantsMatch[0], '');
+    }
+
+    return {
+        unit,
+        priceMode,
+        priceNote,
+        variants,
+        cleanSpec: text.trim()
+    };
+}
+
+/**
+ * Menyusun string specification gabungan yang aman dan tetap rapi di Data Vendor.
+ */
+function buildCatalogSpecification({ unit = 'Unit', priceMode = 'FIXED', priceNote = '', variants = [], cleanSpec = '' }) {
+    const sanitizeTagText = (val) => String(val || '').replace(/[[\]]/g, '').trim();
+    const tags = [`[Satuan: ${sanitizeTagText(unit) || 'Unit'}]`];
+    if (priceMode && priceMode !== 'FIXED') {
+        tags.push(`[HargaMode: ${priceMode}]`);
+    }
+    const cleanNote = sanitizeTagText(priceNote);
+    if (cleanNote) {
+        tags.push(`[CatatanHarga: ${cleanNote}]`);
+    }
+    if (priceMode === 'VARIANT' && Array.isArray(variants) && variants.length > 0) {
+        const cleanVariants = variants
+            .filter((v) => (v.label || '').trim() || (v.unit || '').trim())
+            .map((v) => ({
+                label: sanitizeTagText(v.label || 'Varian'),
+                unit: sanitizeTagText(v.unit || unit || 'Unit'),
+                price: Math.max(0, Number(v.price) || 0)
+            }));
+        if (cleanVariants.length > 0) {
+            tags.push(`[VarianHarga: ${JSON.stringify(cleanVariants)}]`);
+        }
+    }
+    return `${tags.join(' ')} ${String(cleanSpec || '').trim()}`.trim();
+}
 
 export default function WorkshopBaruCatalog() {
     const navigate = useNavigate();
@@ -49,8 +137,12 @@ export default function WorkshopBaruCatalog() {
     // Form
     const [form, setForm] = useState({
         name: '',
+        priceMode: 'FIXED', // FIXED | CUSTOM | VARIANT
         price: '',
         unit: 'Unit',
+        customUnit: '',
+        priceNote: '',
+        variants: [{ label: '', unit: 'Unit', price: '' }],
         specification: '',
         image: null
     });
@@ -126,6 +218,8 @@ export default function WorkshopBaruCatalog() {
     const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
     const [productForPriceUpdate, setProductForPriceUpdate] = useState(null);
     const [newPrice, setNewPrice] = useState('');
+    const [quickPriceMode, setQuickPriceMode] = useState('FIXED');
+    const [quickPriceNote, setQuickPriceNote] = useState('');
 
     useEffect(() => {
         loadCatalog();
@@ -149,8 +243,12 @@ export default function WorkshopBaruCatalog() {
         setEditingProduct(null);
         setForm({
             name: '',
+            priceMode: 'FIXED',
             price: '',
             unit: 'Unit',
+            customUnit: '',
+            priceNote: '',
+            variants: [{ label: '', unit: 'Unit', price: '' }],
             specification: '',
             image: null
         });
@@ -162,12 +260,20 @@ export default function WorkshopBaruCatalog() {
     };
 
     const handleOpenEditModal = (p) => {
+        const parsed = parseCatalogSpecification(p.specification);
+        const isPresetUnit = PRESET_UNITS.includes(parsed.unit);
         setEditingProduct(p);
         setForm({
             name: p.name || '',
-            price: p.price || '',
-            unit: p.specification?.includes('[Satuan:') ? p.specification.split('[Satuan:')[1].split(']')[0].trim() : 'Unit',
-            specification: p.specification?.replace(/\[Satuan:[^\]]+\]\s*/, '') || '',
+            priceMode: parsed.priceMode,
+            price: p.price !== null && p.price !== undefined && Number(p.price) > 0 ? String(p.price) : '',
+            unit: isPresetUnit ? parsed.unit : 'CUSTOM_UNIT',
+            customUnit: isPresetUnit ? '' : parsed.unit,
+            priceNote: parsed.priceNote || '',
+            variants: parsed.variants.length > 0
+                ? parsed.variants.map((v) => ({ label: v.label, unit: v.unit, price: String(v.price || '') }))
+                : [{ label: '', unit: parsed.unit || 'Unit', price: '' }],
+            specification: parsed.cleanSpec,
             image: p.image || null
         });
         setImageFile(null);
@@ -227,13 +333,44 @@ export default function WorkshopBaruCatalog() {
             return Swal.fire('Peringatan', 'Nama produk wajib diisi.', 'warning');
         }
 
+        const resolvedUnit = form.unit === 'CUSTOM_UNIT'
+            ? (form.customUnit.trim() || 'Unit')
+            : (form.unit || 'Unit');
+
+        let cleanedVariants = [];
+        let resolvedPrice = parseFloat(form.price) || 0;
+
+        if (form.priceMode === 'VARIANT') {
+            cleanedVariants = (form.variants || [])
+                .filter((v) => (v.label || '').trim() || (v.unit || '').trim() || Number(v.price) > 0)
+                .map((v) => ({
+                    label: (v.label || '').trim() || 'Varian',
+                    unit: (v.unit || '').trim() || resolvedUnit,
+                    price: Math.max(0, parseFloat(v.price) || 0)
+                }));
+
+            if (cleanedVariants.length === 0) {
+                return Swal.fire('Peringatan', 'Tambahkan minimal 1 varian bentuk/satuan pada mode Harga Varian.', 'warning');
+            }
+            const positivePrices = cleanedVariants.map((v) => v.price).filter((n) => n > 0);
+            resolvedPrice = positivePrices.length > 0 ? Math.min(...positivePrices) : 0;
+        }
+
+        const combinedSpec = buildCatalogSpecification({
+            unit: resolvedUnit,
+            priceMode: form.priceMode,
+            priceNote: form.priceNote,
+            variants: cleanedVariants,
+            cleanSpec: form.specification
+        });
+
         try {
             setSavingProduct(true);
             const formData = new FormData();
-            formData.append('name', form.name);
-            formData.append('price', form.price || '0');
-            formData.append('unit', form.unit || 'Unit');
-            formData.append('specification', form.specification || '');
+            formData.append('name', form.name.trim());
+            formData.append('price', String(resolvedPrice));
+            formData.append('unit', resolvedUnit);
+            formData.append('specification', combinedSpec);
 
             if (imageFile) {
                 formData.append('image', imageFile);
@@ -304,8 +441,11 @@ export default function WorkshopBaruCatalog() {
     };
 
     const handleOpenQuickPrice = (p) => {
+        const parsed = parseCatalogSpecification(p.specification);
         setProductForPriceUpdate(p);
-        setNewPrice(p.price || '');
+        setNewPrice(p.price !== null && p.price !== undefined && Number(p.price) > 0 ? String(p.price) : '');
+        setQuickPriceMode(parsed.priceMode === 'CUSTOM' ? 'CUSTOM' : 'FIXED');
+        setQuickPriceNote(parsed.priceNote || '');
         setIsPriceModalOpen(true);
     };
 
@@ -313,11 +453,21 @@ export default function WorkshopBaruCatalog() {
         e.preventDefault();
         if (!productForPriceUpdate) return;
 
+        const parsed = parseCatalogSpecification(productForPriceUpdate.specification);
+        const nextSpec = buildCatalogSpecification({
+            unit: parsed.unit,
+            priceMode: parsed.variants.length > 0 && quickPriceMode === 'FIXED' ? parsed.priceMode : quickPriceMode,
+            priceNote: quickPriceNote,
+            variants: parsed.variants,
+            cleanSpec: parsed.cleanSpec
+        });
+
         try {
             await api.put(`/workshop/catalog/${productForPriceUpdate.id}`, {
                 name: productForPriceUpdate.name,
-                price: parseFloat(newPrice) || 0,
-                specification: productForPriceUpdate.specification
+                price: newPrice !== '' ? (parseFloat(newPrice) || 0) : 0,
+                unit: parsed.unit,
+                specification: nextSpec
             });
 
             Swal.fire({
@@ -336,9 +486,50 @@ export default function WorkshopBaruCatalog() {
         }
     };
 
-    const handleOrderProduct = (p) => {
+    const handleOrderProduct = async (p) => {
+        const parsed = parseCatalogSpecification(p.specification);
+        if (parsed.variants.length > 0) {
+            const inputOptions = {};
+            parsed.variants.forEach((v, idx) => {
+                const priceLabel = v.price > 0 ? `Rp ${v.price.toLocaleString('id-ID')}` : 'Harga Custom';
+                inputOptions[idx] = `${v.label} (${v.unit}) — ${priceLabel}`;
+            });
+            const { value: chosenIdx, isConfirmed } = await Swal.fire({
+                title: `Pilih Bentuk / Satuan`,
+                text: p.name,
+                input: 'select',
+                inputOptions,
+                showCancelButton: true,
+                confirmButtonText: 'Lanjut Pesan',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#059669'
+            });
+            if (!isConfirmed) return;
+            const chosen = parsed.variants[Number(chosenIdx)] || parsed.variants[0];
+            navigate('/workshop-baru/orders/new', {
+                state: {
+                    fromCatalog: {
+                        ...p,
+                        name: `${p.name} (${chosen.label})`,
+                        unit: chosen.unit,
+                        price: chosen.price,
+                        specification: parsed.cleanSpec
+                    }
+                }
+            });
+            return;
+        }
+
         navigate('/workshop-baru/orders/new', {
-            state: { fromCatalog: p }
+            state: {
+                fromCatalog: {
+                    ...p,
+                    unit: parsed.unit,
+                    specification: parsed.priceNote
+                        ? `${parsed.cleanSpec}${parsed.cleanSpec ? '\n' : ''}Catatan Harga: ${parsed.priceNote}`
+                        : parsed.cleanSpec
+                }
+            }
         });
     };
 
@@ -503,6 +694,11 @@ export default function WorkshopBaruCatalog() {
                     {filteredProducts.map((p) => {
                         const historyCount = p.priceHistory?.length || 0;
                         const mediaSrc = p.image ? (p.image.startsWith('http') ? p.image : getMediaUrl(p.image)) : null;
+                        const parsed = parseCatalogSpecification(p.specification);
+                        const numericPrice = parseFloat(p.price) || 0;
+                        const variantPrices = parsed.variants.map((v) => Number(v.price) || 0).filter((n) => n > 0);
+                        const minVariantPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : numericPrice;
+                        const maxVariantPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : numericPrice;
 
                         return (
                             <div 
@@ -535,6 +731,18 @@ export default function WorkshopBaruCatalog() {
                                         </div>
                                     )}
 
+                                    {/* Mode Harga Badge */}
+                                    {parsed.priceMode !== 'FIXED' && (
+                                        <div className={`absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold shadow-xs flex items-center gap-1 ${
+                                            parsed.priceMode === 'CUSTOM'
+                                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                                : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                        }`}>
+                                            <Tag size={10} />
+                                            <span>{parsed.priceMode === 'CUSTOM' ? 'Harga Custom' : `${parsed.variants.length} Variasi`}</span>
+                                        </div>
+                                    )}
+
                                     {/* Action Floating Buttons */}
                                     <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
                                         <button
@@ -561,28 +769,70 @@ export default function WorkshopBaruCatalog() {
                                             <h3 className="font-extrabold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
                                                 {p.name}
                                             </h3>
+                                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold shrink-0">
+                                                /{parsed.unit}
+                                            </span>
                                         </div>
 
                                         <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                                            {p.specification || 'Tidak ada spesifikasi khusus.'}
+                                            {parsed.cleanSpec || 'Tidak ada spesifikasi khusus.'}
                                         </p>
+
+                                        {parsed.priceNote && (
+                                            <p className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/70">
+                                                💡 {parsed.priceNote}
+                                            </p>
+                                        )}
+
+                                        {parsed.variants.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 pt-0.5">
+                                                {parsed.variants.map((v, idx) => (
+                                                    <span
+                                                        key={idx}
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200/80 text-[10px] font-semibold"
+                                                    >
+                                                        {v.label} ({v.unit}): {v.price > 0 ? `Rp ${v.price.toLocaleString('id-ID')}` : 'Custom'}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Price & History Badge */}
                                     <div className="pt-2 border-t border-slate-100 space-y-2">
-                                        <div className="flex items-baseline justify-between">
+                                        <div className="flex items-baseline justify-between gap-2">
                                             <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Harga Standar</span>
-                                                <p className="text-base font-black text-emerald-700 font-mono">
-                                                    Rp {(parseFloat(p.price) || 0).toLocaleString('id-ID')}
-                                                </p>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                                                    {parsed.priceMode === 'CUSTOM'
+                                                        ? 'Harga Custom (Satuan / Bentuk)'
+                                                        : parsed.priceMode === 'VARIANT'
+                                                            ? 'Kisaran Harga Varian'
+                                                            : `Harga Standar / ${parsed.unit}`}
+                                                </span>
+                                                {parsed.priceMode === 'CUSTOM' && numericPrice <= 0 ? (
+                                                    <p className="text-sm font-black text-amber-700">
+                                                        Sesuai Ukuran / Bentuk
+                                                    </p>
+                                                ) : parsed.priceMode === 'VARIANT' && maxVariantPrice > minVariantPrice ? (
+                                                    <p className="text-sm font-black text-indigo-700 font-mono">
+                                                        Rp {minVariantPrice.toLocaleString('id-ID')} – {maxVariantPrice.toLocaleString('id-ID')}
+                                                    </p>
+                                                ) : parsed.priceMode === 'CUSTOM' ? (
+                                                    <p className="text-base font-black text-amber-700 font-mono">
+                                                        Mulai Rp {numericPrice.toLocaleString('id-ID')} <span className="text-[11px] font-bold text-slate-500">/ {parsed.unit}</span>
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-base font-black text-emerald-700 font-mono">
+                                                        Rp {numericPrice.toLocaleString('id-ID')} <span className="text-[11px] font-bold text-slate-500">/ {parsed.unit}</span>
+                                                    </p>
+                                                )}
                                             </div>
 
                                             {/* Price History Button */}
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenHistoryModal(p)}
-                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shrink-0"
                                                 title="Lihat riwayat update harga"
                                             >
                                                 <Clock size={12} className="text-slate-500" />
@@ -662,37 +912,171 @@ export default function WorkshopBaruCatalog() {
                                         />
                                     </div>
 
-                                    {/* Harga & Satuan */}
-                                    <div className="grid grid-cols-2 gap-3">
+                                    {/* Skema Harga & Satuan */}
+                                    <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
                                         <div>
                                             <label className="text-[11px] font-bold text-slate-700 uppercase mb-1.5 block">
-                                                Harga Standar (Rp)
+                                                Skema Penetapan Harga
                                             </label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-slate-800 shadow-xs font-mono"
-                                                placeholder="Contoh: 1500000"
-                                                value={form.price}
-                                                onChange={e => setForm({ ...form, price: e.target.value })}
-                                            />
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                                {[
+                                                    { id: 'FIXED', label: 'Harga Tetap' },
+                                                    { id: 'CUSTOM', label: 'Harga Custom' },
+                                                    { id: 'VARIANT', label: 'Varian Satuan/Bentuk' }
+                                                ].map((mode) => (
+                                                    <button
+                                                        key={mode.id}
+                                                        type="button"
+                                                        onClick={() => setForm((prev) => ({ ...prev, priceMode: mode.id }))}
+                                                        className={`px-2 py-2 rounded-xl text-[11px] font-bold border transition-all ${
+                                                            form.priceMode === mode.id
+                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                        }`}
+                                                    >
+                                                        {mode.label}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="text-[11px] font-bold text-slate-700 uppercase mb-1.5 block">
-                                                Satuan
-                                            </label>
-                                            <select
-                                                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-medium text-slate-800 shadow-xs"
-                                                value={form.unit}
-                                                onChange={e => setForm({ ...form, unit: e.target.value })}
-                                            >
-                                                <option value="Unit">Unit</option>
-                                                <option value="Set">Set</option>
-                                                <option value="Pcs">Pcs</option>
-                                                <option value="Meter">Meter</option>
-                                                <option value="Lembar">Lembar</option>
-                                            </select>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {form.priceMode !== 'VARIANT' && (
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-slate-700 uppercase mb-1.5 block">
+                                                        {form.priceMode === 'CUSTOM' ? 'Estimasi Mulai (Rp, Opsional)' : 'Harga Standar (Rp)'}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-slate-800 shadow-xs font-mono bg-white"
+                                                        placeholder={form.priceMode === 'CUSTOM' ? '0 = Sesuai ukuran' : 'Contoh: 1500000'}
+                                                        value={form.price}
+                                                        onChange={e => setForm({ ...form, price: e.target.value })}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className={form.priceMode === 'VARIANT' ? 'col-span-2' : ''}>
+                                                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1.5 block">
+                                                    Satuan Utama
+                                                </label>
+                                                <select
+                                                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-medium text-slate-800 shadow-xs"
+                                                    value={form.unit}
+                                                    onChange={e => setForm({ ...form, unit: e.target.value })}
+                                                >
+                                                    {PRESET_UNITS.map((u) => (
+                                                        <option key={u} value={u}>{u}</option>
+                                                    ))}
+                                                    <option value="CUSTOM_UNIT">+ Ketik Satuan Custom...</option>
+                                                </select>
+                                            </div>
                                         </div>
+
+                                        {form.unit === 'CUSTOM_UNIT' && (
+                                            <div>
+                                                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 block">
+                                                    Nama Satuan Custom
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-semibold"
+                                                    placeholder="Contoh: Daun Pintu, Kubik, Meter Lari, Lubang..."
+                                                    value={form.customUnit}
+                                                    onChange={e => setForm({ ...form, customUnit: e.target.value })}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {(form.priceMode === 'CUSTOM' || form.priceMode === 'VARIANT') && (
+                                            <div>
+                                                <label className="text-[11px] font-bold text-slate-700 uppercase mb-1 block">
+                                                    Catatan / Dasar Perhitungan Harga (Opsional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                                    placeholder="Contoh: Harga menyesuaikan ukuran (m²), bentuk rangka & ketebalan bahan"
+                                                    value={form.priceNote}
+                                                    onChange={e => setForm({ ...form, priceNote: e.target.value })}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {form.priceMode === 'VARIANT' && (
+                                            <div className="space-y-2 pt-1">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-bold text-indigo-900">
+                                                        Daftar Variasi Berdasarkan Satuan / Bentuk
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setForm((prev) => ({
+                                                            ...prev,
+                                                            variants: [
+                                                                ...prev.variants,
+                                                                { label: '', unit: prev.unit === 'CUSTOM_UNIT' ? (prev.customUnit || 'Unit') : prev.unit, price: '' }
+                                                            ]
+                                                        }))}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold hover:bg-indigo-700"
+                                                    >
+                                                        <Plus size={11} /> Tambah Varian
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                    {form.variants.map((v, idx) => (
+                                                        <div key={idx} className="grid grid-cols-12 gap-1.5 items-center bg-white p-2 rounded-xl border border-indigo-100">
+                                                            <input
+                                                                type="text"
+                                                                className="col-span-5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs"
+                                                                placeholder="Bentuk / Ukuran (mis. L-Shape)"
+                                                                value={v.label}
+                                                                onChange={(e) => setForm((prev) => ({
+                                                                    ...prev,
+                                                                    variants: prev.variants.map((item, i) => i === idx ? { ...item, label: e.target.value } : item)
+                                                                }))}
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                className="col-span-3 px-2 py-1.5 rounded-lg border border-slate-200 text-xs"
+                                                                placeholder="Satuan (m²/Unit)"
+                                                                value={v.unit}
+                                                                onChange={(e) => setForm((prev) => ({
+                                                                    ...prev,
+                                                                    variants: prev.variants.map((item, i) => i === idx ? { ...item, unit: e.target.value } : item)
+                                                                }))}
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                className="col-span-3 px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono"
+                                                                placeholder="Harga (Rp)"
+                                                                value={v.price}
+                                                                onChange={(e) => setForm((prev) => ({
+                                                                    ...prev,
+                                                                    variants: prev.variants.map((item, i) => i === idx ? { ...item, price: e.target.value } : item)
+                                                                }))}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setForm((prev) => ({
+                                                                    ...prev,
+                                                                    variants: prev.variants.length > 1
+                                                                        ? prev.variants.filter((_, i) => i !== idx)
+                                                                        : prev.variants
+                                                                }))}
+                                                                className="col-span-1 flex justify-center text-slate-400 hover:text-rose-600"
+                                                                title="Hapus baris"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Spesifikasi / Rincian */}
@@ -840,9 +1224,13 @@ export default function WorkshopBaruCatalog() {
                                                 <div className="text-[11px] text-slate-700 leading-relaxed font-normal">
                                                     <span className="font-bold text-slate-900 mr-1.5">workshop.dareliman</span>
                                                     <span className="font-semibold text-slate-800">{form.name || 'Nama Produk Workshop'}</span>
-                                                    {form.price && (
+                                                    {form.priceMode === 'CUSTOM' ? (
+                                                        <span className="text-amber-700 font-bold ml-1.5">
+                                                            ({form.price ? `Mulai Rp ${parseFloat(form.price).toLocaleString('id-ID')} / ${form.unit === 'CUSTOM_UNIT' ? (form.customUnit || 'Unit') : form.unit}` : 'Harga Custom'})
+                                                        </span>
+                                                    ) : form.price && (
                                                         <span className="text-emerald-700 font-bold ml-1.5">
-                                                            (Rp {parseFloat(form.price).toLocaleString('id-ID')} / {form.unit})
+                                                            (Rp {parseFloat(form.price).toLocaleString('id-ID')} / {form.unit === 'CUSTOM_UNIT' ? (form.customUnit || 'Unit') : form.unit})
                                                         </span>
                                                     )}
                                                     {form.specification && (
@@ -1024,20 +1412,65 @@ export default function WorkshopBaruCatalog() {
                             </div>
 
                             <div>
+                                <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1.5">
+                                    Mode Harga
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuickPriceMode('FIXED')}
+                                        className={`py-2 rounded-xl text-xs font-bold border ${
+                                            quickPriceMode === 'FIXED'
+                                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                                : 'bg-white text-slate-600 border-slate-200'
+                                        }`}
+                                    >
+                                        Harga Tetap
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuickPriceMode('CUSTOM')}
+                                        className={`py-2 rounded-xl text-xs font-bold border ${
+                                            quickPriceMode === 'CUSTOM'
+                                                ? 'bg-amber-600 text-white border-amber-600'
+                                                : 'bg-white text-slate-600 border-slate-200'
+                                        }`}
+                                    >
+                                        Harga Custom
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
                                 <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
-                                    Harga Baru (Rp) <span className="text-rose-500">*</span>
+                                    {quickPriceMode === 'CUSTOM' ? 'Estimasi Mulai Dari (Rp, 0/kosong = Custom)' : 'Harga Baru (Rp)'} {quickPriceMode === 'FIXED' && <span className="text-rose-500">*</span>}
                                 </label>
                                 <input
                                     type="number"
                                     min="0"
                                     className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-emerald-800"
-                                    placeholder="Masukkan harga baru..."
+                                    placeholder={quickPriceMode === 'CUSTOM' ? 'Kosongkan atau isi estimasi dasar...' : 'Masukkan harga baru...'}
                                     value={newPrice}
                                     onChange={e => setNewPrice(e.target.value)}
-                                    required
+                                    required={quickPriceMode === 'FIXED'}
                                     autoFocus
                                 />
                             </div>
+
+                            {quickPriceMode === 'CUSTOM' && (
+                                <div>
+                                    <label className="text-[11px] font-bold text-slate-700 uppercase block mb-1">
+                                        Catatan Harga Custom (Satuan / Bentuk)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        placeholder="Contoh: Harga dihitung per m² / tergantung bentuk"
+                                        value={quickPriceNote}
+                                        onChange={e => setQuickPriceNote(e.target.value)}
+                                    />
+                                </div>
+                            )}
 
                             <p className="text-[11px] text-slate-500">
                                 * Perubahan harga akan otomatis dicatat ke riwayat update harga dan langsung tampil di Data Vendor.

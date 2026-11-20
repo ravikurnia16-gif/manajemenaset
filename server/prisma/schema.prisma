@@ -139,6 +139,7 @@ model User {
   cctvFloorPlansCreated CctvFloorPlan[] @relation("CctvFloorPlanCreator")
   cctvAccesses          CctvAccess[]    @relation("CctvAccessUser")
   cctvAccessesGranted   CctvAccess[]    @relation("CctvAccessGranter")
+  cctvAuditLogs         CctvAuditLog[]  @relation("CctvAuditActor")
 }
 
 model DriverViolation {
@@ -2565,7 +2566,24 @@ model CctvCamera {
   posY          Float?
   fovAngle      Float?
 
+  // Selective AI Vision & Night Guard Config (Opt-in per camera)
+  aiEnabled          Boolean   @default(false)
+  aiPreset           String    @default("CLASSROOM") // CLASSROOM, SECURITY_NIGHT, CROWD, CUSTOM
+  aiCustomPrompt     String?   @db.Text
+  aiWatchEnabled     Boolean   @default(false)
+  aiWatchStart       String?   @default("22:00")
+  aiWatchEnd         String?   @default("05:00")
+  aiWatchIntervalSec Int       @default(5)
+  aiMotionThreshold  Float     @default(6.0)
+  aiAlertCooldownSec Int       @default(180)
+  aiAlertRecipients  String?   @db.Text
+  aiRoiZones         String?   @db.Text // JSON array of { id, label, x, y, width, height } (%)
+  aiLastCheckedAt    DateTime?
+  aiLastAlertAt      DateTime?
+  aiLastSummary      String?   @db.Text
+
   accessList    CctvAccess[]
+  auditLogs     CctvAuditLog[] @relation("CctvCameraAuditLogs")
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -2619,6 +2637,33 @@ model CctvAccess {
   @@unique([userId, cameraId])
   @@index([userId])
   @@index([cameraId])
+}
+
+model CctvAuditLog {
+  id         Int         @id @default(autoincrement())
+  userId     Int?
+  user       User?       @relation("CctvAuditActor", fields: [userId], references: [id], onDelete: SetNull)
+  userName   String?
+  userRole   String?
+  cameraId   Int?
+  camera     CctvCamera? @relation("CctvCameraAuditLogs", fields: [cameraId], references: [id], onDelete: SetNull)
+  cameraName String?
+  action     String
+  category   String      @default("SYSTEM") // STREAM, CAMERA, ACCESS, GATEWAY, FLOORPLAN, SYSTEM
+  status     String      @default("SUCCESS") // SUCCESS, DENIED, FAILED
+  protocol   String?
+  ipAddress  String?
+  userAgent  String?     @db.Text
+  details    String?     @db.Text
+  metadata   String?     @db.Text
+  createdAt  DateTime    @default(now())
+
+  @@index([userId])
+  @@index([cameraId])
+  @@index([action])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
 }
 
 
