@@ -17,6 +17,7 @@ server/auto.key
 server/prisma/dev.db
 server/prisma/dev.db-journal
 server/data_local/
+management-cctv-clone/
 
 # WhatsApp Web & Bot Session Cache
 .wwebjs_auth/

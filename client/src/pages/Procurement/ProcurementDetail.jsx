@@ -1536,7 +1536,7 @@ const ProcurementDetail = () => {
             setShowWorkshopModal(false);
             // reset selection
             setSelectedWorkshopItems({});
-            navigate('/workshop/orders');
+            navigate('/workshop-baru/board');
         } catch (e) {
             alert(e.response?.data?.error || e.message);
         } finally {

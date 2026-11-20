@@ -7,12 +7,15 @@ import {
 } from 'lucide-react';
 import api from '../../lib/axios';
 import Swal from 'sweetalert2';
+import WorkshopPicSelect from './components/WorkshopPicSelect';
+import { useWorkshopPicOptions, getDefaultWorkshopPic } from './components/workshopPicUtils';
 
 export default function WorkshopBaruOrderForm() {
     const navigate = useNavigate();
     const location = useLocation();
     const fromMaintenance = location.state?.fromMaintenance;
     const initialCatalogItem = location.state?.fromCatalog;
+    const { picDefaults, staffList } = useWorkshopPicOptions();
 
     const [loading, setLoading] = useState(false);
     const [units, setUnits] = useState([]);
@@ -23,6 +26,9 @@ export default function WorkshopBaruOrderForm() {
     const [form, setForm] = useState({
         title: fromMaintenance ? fromMaintenance.title : (initialCatalogItem ? `Pemesanan ${initialCatalogItem.name}` : ''),
         priority: 'NORMAL',
+        workshopType: '',
+        deadline: '',
+        picName: '',
         notes: fromMaintenance ? fromMaintenance.notes : '',
         unitId: fromMaintenance ? fromMaintenance.unitId : ''
     });
@@ -62,6 +68,19 @@ export default function WorkshopBaruOrderForm() {
     }, []);
 
     const handleFormChange = (field, value) => {
+        if (field === 'workshopType') {
+            setForm(prev => {
+                const prevDefault = getDefaultWorkshopPic(prev.workshopType, picDefaults);
+                const nextDefault = getDefaultWorkshopPic(value, picDefaults);
+                const shouldAutofill = !prev.picName || prev.picName === prevDefault;
+                return {
+                    ...prev,
+                    workshopType: value,
+                    picName: shouldAutofill ? nextDefault : prev.picName
+                };
+            });
+            return;
+        }
         setForm(prev => ({ ...prev, [field]: value }));
     };
 
@@ -145,6 +164,9 @@ export default function WorkshopBaruOrderForm() {
             await api.post('/workshop/orders', {
                 title: form.title,
                 priority: form.priority,
+                workshopType: form.workshopType || null,
+                deadline: form.deadline || null,
+                picName: form.picName || null,
                 notes: form.notes,
                 unitId: form.unitId,
                 maintenanceId: fromMaintenance?.id,
@@ -262,6 +284,50 @@ export default function WorkshopBaruOrderForm() {
                                     <option value="URGENT">🔴 Urgent - Sangat Mendesak / Prioritas Utama</option>
                                 </select>
                             </div>
+
+                            {/* Tipe Workshop */}
+                            <div>
+                                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1.5 block">
+                                    Tipe Workshop (Opsional)
+                                </label>
+                                <select
+                                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-medium text-slate-800"
+                                    value={form.workshopType}
+                                    onChange={e => handleFormChange('workshopType', e.target.value)}
+                                >
+                                    <option value="">-- Ditentukan Tim Workshop --</option>
+                                    <option value="KAYU">🪵 Workshop Kayu</option>
+                                    <option value="BESI">⚙️ Workshop Besi</option>
+                                </select>
+                            </div>
+
+                            {/* Target Selesai / Deadline */}
+                            <div>
+                                <label className="text-[11px] font-bold text-slate-600 uppercase mb-1.5 block">
+                                    Target Selesai / Deadline (Opsional)
+                                </label>
+                                <input
+                                    type="date"
+                                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-medium text-slate-800"
+                                    value={form.deadline}
+                                    onChange={e => handleFormChange('deadline', e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* PIC / Penanggung Jawab */}
+                        <div>
+                            <label className="text-[11px] font-bold text-slate-600 uppercase mb-1.5 block">
+                                PIC / Penanggung Jawab Workshop (Opsional)
+                            </label>
+                            <WorkshopPicSelect
+                                value={form.picName}
+                                onChange={val => handleFormChange('picName', val)}
+                                staffList={staffList}
+                                picDefaults={picDefaults}
+                                workshopType={form.workshopType}
+                                emptyLabel="-- Belum Ditugaskan / Pakai Default Tipe --"
+                            />
                         </div>
 
                         {/* Catatan Tambahan */}

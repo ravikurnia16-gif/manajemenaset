@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
 const aiService = require('../services/aiService');
+const ambulanceSyncService = require('../services/ambulanceSyncService');
 
 // Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
@@ -1621,5 +1622,27 @@ exports.getVehicleFuelReport = async (req, res) => {
     } catch (err) {
         console.error('getVehicleFuelReport error:', err);
         res.status(500).json({ error: err.message });
+    }
+};
+
+exports.getAmbulanceSyncStatus = async (req, res) => {
+    try {
+        res.json(ambulanceSyncService.getPublicSyncStatus());
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.syncAmbulanceKm = async (req, res) => {
+    try {
+        const { dryRun = false, forceOverwrite = false } = req.body || {};
+        const result = await ambulanceSyncService.syncAmbulanceOdometers({
+            dryRun: Boolean(dryRun),
+            forceOverwrite: Boolean(forceOverwrite),
+            triggeredBy: req.user?.name || req.user?.username || 'manual'
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ error: error.message });
     }
 };

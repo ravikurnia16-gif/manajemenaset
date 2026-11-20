@@ -16,11 +16,10 @@ const Sidebar = ({ isOpen = true }) => {
         warehouse: false,
         inventory: location.pathname.startsWith('/inventory'),
         seragam: location.pathname.startsWith('/gudang/seragam'),
-        gudangSeragam: location.pathname.startsWith('/inventory') || location.pathname.startsWith('/gudang/seragam') || location.pathname.startsWith('/workshop/orders'),
+        gudangSeragam: location.pathname.startsWith('/inventory') || location.pathname.startsWith('/gudang/seragam') || location.pathname.startsWith('/workshop-baru/board'),
         personnel: false,
         laporan: false,
         eoffice: false,
-        workshop: location.pathname.startsWith('/workshop') && !location.pathname.startsWith('/workshop-baru'),
         workshopBaru: location.pathname.startsWith('/workshop-baru'),
         survey: false,
         security: false
@@ -269,18 +268,6 @@ const Sidebar = ({ isOpen = true }) => {
                 ))}
 
 
-
-                {/* Manajemen Workshop (Lama / Umum) - Dihide sementara */}
-                {/* {isAdminAsetOrSuper && renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
-                    <>
-                        <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
-                            <LayoutDashboard size={16} /> Dashboard
-                        </Link>
-                        <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
-                            <ClipboardList size={16} /> Pesanan Workshop
-                        </Link>
-                    </>
-                ))} */}
 
                 {/* Manajemen Workshop Baru (Unit 21) */}
                 {canAccessWorkshopBaru && renderCollapsible('workshopBaru', <HardHat size={18} className="text-amber-400" />, 'Manajemen Workshop Baru (Unit 21)', (

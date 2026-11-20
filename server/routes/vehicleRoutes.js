@@ -4,6 +4,18 @@ const vehicleController = require('../controllers/vehicleController');
 const { verifyToken } = require('../middleware/authMiddleware');
 const { handleUpload } = require('../middleware/uploadMiddleware');
 
+const authorizeVehicleSyncAccess = (req, res, next) => {
+    if (req.user.role === 'AUDITOR' && req.method === 'GET') return next();
+    const role = req.user.role;
+    const pos = (req.user.position || '').toLowerCase();
+    const isAllowedRole = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_UNIT'].includes(role);
+    const isSarprasStaff = pos.includes('sarana') || pos.includes('sarpras') || pos.includes('manajemen aset') || pos.includes('gudang');
+    if (!isAllowedRole && !isSarprasStaff) {
+        return res.status(403).json({ error: 'Forbidden: Akses khusus pengelola kendaraan/Sarpras' });
+    }
+    next();
+};
+
 // Public Routes
 router.get('/public', vehicleController.getAllVehicles);
 
@@ -82,6 +94,9 @@ router.get('/discrepancies/analytics', verifyToken, bookingCtrl.getDiscrepancyAn
 router.get('/history', verifyToken, bookingCtrl.getVehicleRouteHistory);
 
 // Fallback route with parameter MUST be at the very bottom
+router.get('/ambulance-sync/status', verifyToken, authorizeVehicleSyncAccess, vehicleController.getAmbulanceSyncStatus);
+router.post('/ambulance-sync/run', verifyToken, authorizeVehicleSyncAccess, vehicleController.syncAmbulanceKm);
+
 router.get('/:id', verifyToken, vehicleController.getVehicleById);
 
 module.exports = router;

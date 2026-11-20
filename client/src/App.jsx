@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import api from './lib/axios';
 import Layout from './components/Layout';
@@ -50,11 +50,6 @@ import UniformConfirmIndentPublic from './pages/UniformConfirmIndentPublic';
 import BusInvoiceBatchPrint from './pages/Vehicle/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/Vehicle/BusConfirmationPublic';
 import BusInvoiceVerify from './pages/Vehicle/BusInvoiceVerify';
-
-import WorkshopDashboard from './pages/WorkshopDashboard';
-import WorkshopOrderList from './pages/WorkshopOrderList';
-import WorkshopOrderForm from './pages/WorkshopOrderForm';
-import WorkshopOrderDetail from './pages/WorkshopOrderDetail';
 
 // Modul Baru: Manajemen Workshop Baru (Unit 21)
 import WorkshopBaruDashboard from './pages/WorkshopBaru/WorkshopBaruDashboard';
@@ -225,6 +220,14 @@ import InventoryInvoicePublic from './pages/Inventory/InventoryInvoicePublic';
 
 
 
+// Meneruskan tautan Workshop lama (bookmark / WhatsApp / state navigasi) ke Modul Workshop Baru
+const LegacyWorkshopRedirect = ({ to }) => {
+  const { id } = useParams();
+  const location = useLocation();
+  const targetPath = id ? `${to}/${id}` : to;
+  return <Navigate to={`${targetPath}${location.search || ''}`} state={location.state} replace />;
+};
+
 function App() {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -368,11 +371,11 @@ function App() {
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="vendors" element={<VendorManagement />} />
 
-          {/* Modul Manajemen Workshop (Lama) */}
-          <Route path="workshop/dashboard" element={<WorkshopDashboard />} />
-          <Route path="workshop/orders" element={<WorkshopOrderList />} />
-          <Route path="workshop/orders/new" element={<WorkshopOrderForm />} />
-          <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
+          {/* Redirect Modul Workshop lama ke Modul Workshop Baru (Unit 21) */}
+          <Route path="workshop/dashboard" element={<LegacyWorkshopRedirect to="/workshop-baru/dashboard" />} />
+          <Route path="workshop/orders" element={<LegacyWorkshopRedirect to="/workshop-baru/board" />} />
+          <Route path="workshop/orders/new" element={<LegacyWorkshopRedirect to="/workshop-baru/orders/new" />} />
+          <Route path="workshop/orders/:id" element={<LegacyWorkshopRedirect to="/workshop-baru/orders" />} />
 
           {/* Modul Baru: Manajemen Workshop Baru (Unit 21) */}
           <Route path="workshop-baru/dashboard" element={canAccessWorkshopBaru ? <WorkshopBaruDashboard /> : <Navigate to="/dashboard" replace />} />

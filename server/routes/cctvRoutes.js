@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const cctvController = require('../controllers/cctvController');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { handleUpload } = require('../middleware/uploadMiddleware');
 
 const sdpTextParser = express.text({
     type: ['application/sdp', 'application/trickle-ice-sdpfrag', 'text/plain'],
@@ -40,5 +41,12 @@ router.put('/gateway', cctvController.requireKabidSaranaPosition, cctvController
 router.post('/gateway/test', cctvController.requireKabidSaranaPosition, cctvController.testGatewayConnection);
 router.post('/gateway/sync', cctvController.requireKabidSaranaPosition, cctvController.syncGatewayCameras);
 router.get('/mediamtx-config', cctvController.requireKabidSaranaPosition, cctvController.getMediamtxConfig);
+
+// Denah Lokasi CCTV (View: semua user berhak, Manage & Penempatan Titik: Kepala Bidang Sarana)
+router.get('/floor-plans', cctvController.getFloorPlans);
+router.post('/floor-plans', cctvController.requireKabidSaranaPosition, handleUpload('image', 'cctv-floorplans'), cctvController.createFloorPlan);
+router.put('/floor-plans/:id', cctvController.requireKabidSaranaPosition, handleUpload('image', 'cctv-floorplans'), cctvController.updateFloorPlan);
+router.put('/floor-plans/:id/positions', cctvController.requireKabidSaranaPosition, cctvController.saveFloorPlanPositions);
+router.delete('/floor-plans/:id', cctvController.requireKabidSaranaPosition, cctvController.deleteFloorPlan);
 
 module.exports = router;

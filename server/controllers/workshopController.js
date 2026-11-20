@@ -80,14 +80,96 @@ const generateSuratPesanan = async (order, user) => {
     return newDoc;
 };
 
+const getWorkshopAccess = (user) => {
+    const pos = (user?.position || '').toLowerCase();
+    const isFullWorkshopAdmin =
+        ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role) ||
+        pos.includes('kepala bidang sarana') ||
+        pos.includes('kabid sarpras') ||
+        user?.unitId === 21;
+    const isWorkshopAdmin =
+        isFullWorkshopAdmin ||
+        (user?.unit?.name || '').toLowerCase().includes('workshop');
+    return { isFullWorkshopAdmin, isWorkshopAdmin };
+};
+
+const resolveDefaultPic = (workshopType, settings) => {
+    if (workshopType === 'KAYU') return settings?.workshopPicKayu || null;
+    if (workshopType === 'BESI') return settings?.workshopPicBesi || null;
+    return null;
+};
+
+const notifyAssignedPic = async (order, picName, deadlineOverride) => {
+    const cleanPic = (picName || '').trim();
+    if (!cleanPic) return;
+
+    let picUser = await prisma.user.findFirst({
+        where: { name: cleanPic },
+        select: { id: true, name: true, phone: true }
+    });
+    if (!picUser) {
+        const candidates = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { unitId: 21 },
+                    { unit: { name: { contains: 'Workshop' } } },
+                    { position: { contains: 'Workshop' } }
+                ]
+            },
+            select: { id: true, name: true, phone: true }
+        });
+        picUser = candidates.find(
+            (u) => (u.name || '').trim().toLowerCase() === cleanPic.toLowerCase()
+        ) || null;
+    }
+    if (!picUser) return;
+
+    const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
+    const effectiveDeadline = deadlineOverride !== undefined ? deadlineOverride : order.deadline;
+    const deadlineStr = effectiveDeadline
+        ? new Date(effectiveDeadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+        : '-';
+
+    if (picUser.phone && picUser.phone.trim() !== '' && picUser.phone.trim() !== '-') {
+        const senderName = order.requestedBy ? (order.requestedBy.name || order.requestedBy.username) : 'Pemohon';
+        const unitName = order.unit ? order.unit.name : '-';
+        const itemDetails = (order.items || []).map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
+        const msg = `Bismillah.\n*Penugasan PIC Workshop* \u{1F6E0}\n\n` +
+            `Halo *${picUser.name}*,\n` +
+            `Anda ditunjuk sebagai PIC untuk pesanan workshop berikut:\n\n` +
+            `Kode: *${order.code}*\n` +
+            `Tipe: *Workshop ${order.workshopType || 'Umum'}*\n` +
+            `Dari: *${senderName}* (${unitName})\n` +
+            `Order: *${order.title}*\n` +
+            `Prioritas: *${order.priority}*\n` +
+            `Target Selesai: *${deadlineStr}*\n\n` +
+            (itemDetails ? `*Rincian Item*:\n${itemDetails}\n\n` : '') +
+            `🔗 Detail Pesanan:\n${appUrl}/workshop-baru/orders/${order.id}\n\n` +
+            `Mohon segera diproses. Syukron.`;
+
+        whatsappService.sendMessage(picUser.phone.trim(), msg).catch(console.error);
+    }
+
+    try {
+        await createNotification({
+            userId: picUser.id,
+            title: `Penugasan PIC Workshop (${order.code})`,
+            message: `Anda ditunjuk sebagai PIC untuk pesanan "${order.title}".`,
+            type: 'INFO',
+            link: `/workshop-baru/orders/${order.id}`
+        });
+    } catch (err) {
+        console.error('Failed to create PIC assignment notification:', err.message);
+    }
+};
+
 // --- CONTROLLER FUNCTIONS ---
 
 // 1. Dashboard Stats
 exports.getDashboardStats = async (req, res) => {
     const user = req.user;
     try {
-        const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
-        const isWorkshopAdmin = isFullWorkshopAdmin || (user.unit?.name || '').toLowerCase().includes('workshop');
+        const { isFullWorkshopAdmin, isWorkshopAdmin } = getWorkshopAccess(user);
         
         let whereClause = {};
         if (!isWorkshopAdmin) {
@@ -133,8 +215,7 @@ exports.getAllOrders = async (req, res) => {
     const { type, status, priority, unitId } = req.query;
 
     try {
-        const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
-        const isWorkshopAdmin = isFullWorkshopAdmin || (user.unit?.name || '').toLowerCase().includes('workshop');
+        const { isFullWorkshopAdmin, isWorkshopAdmin } = getWorkshopAccess(user);
         
         let whereClause = {};
         if (type) whereClause.workshopType = type;
@@ -227,8 +308,7 @@ exports.getOrderById = async (req, res) => {
 
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
-        const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
-        const isWorkshopAdmin = isFullWorkshopAdmin || (user.unit?.name || '').toLowerCase().includes('workshop');
+        const { isFullWorkshopAdmin, isWorkshopAdmin } = getWorkshopAccess(user);
 
         if (!isWorkshopAdmin) {
             const isOwner = (user.unitId && order.unitId === user.unitId) || order.requestedById === user.id;
@@ -266,6 +346,12 @@ exports.createOrder = async (req, res) => {
         }
 
         const code = await generateCode(workshopType || null);
+
+        let finalPicName = picName ? String(picName).trim() : null;
+        if (!finalPicName && workshopType) {
+            const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+            finalPicName = resolveDefaultPic(workshopType, settings);
+        }
         
         let estimatedCost = 0;
         const itemData = items.map(it => {
@@ -288,7 +374,7 @@ exports.createOrder = async (req, res) => {
                 priority: priority || 'NORMAL',
                 deadline: deadline ? new Date(deadline) : null,
                 notes,
-                picName,
+                picName: finalPicName,
                 workshopType: workshopType || null,
                 estimatedCost,
                 status: 'PENDING',
@@ -392,7 +478,7 @@ exports.createOrder = async (req, res) => {
                 `Pemohon: *${requesterName}* (${unitName})\n` +
                 `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
                 `*Rincian Item*:\n${itemDetails}\n\n` +
-                `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
+                `🔗 Detail Pesanan:\n${appUrl}/workshop-baru/orders/${newOrder.id}\n\n` +
                 `Mohon dicek di sistem.`;
 
             validRecipients.forEach(recipient => {
@@ -400,6 +486,12 @@ exports.createOrder = async (req, res) => {
                     whatsappService.sendMessage(recipient.phone, msg).catch(console.error);
                 }, 3000);
             });
+        }
+
+        if (finalPicName) {
+            setTimeout(() => {
+                notifyAssignedPic(newOrder, finalPicName, newOrder.deadline).catch(console.error);
+            }, 4000);
         }
 
         res.json({ message: 'Order created successfully', data: newOrder });
@@ -734,7 +826,7 @@ exports.createFromProcurement = async (req, res) => {
                 `Prioritas: *${newOrder.priority}*\n` +
                 `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
                 `*Rincian Item*:\n${itemDetails}\n\n` +
-                `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
+                `🔗 Detail Pesanan:\n${appUrl}/workshop-baru/orders/${newOrder.id}\n\n` +
                 `Mohon dicek di sistem.`;
 
             recipients.forEach(recipient => {
@@ -751,102 +843,73 @@ exports.createFromProcurement = async (req, res) => {
     }
 };
 
-// 8. Update Order Details (WorkshopType & Estimated Prices)
+// 8. Update Order Details (WorkshopType, PIC, Deadline & Estimated Prices)
 exports.updateOrderDetails = async (req, res) => {
     const { id } = req.params;
-    const { workshopType, items, deadline } = req.body;
+    const { workshopType, items, deadline, picName } = req.body;
 
     try {
-        const order = await prisma.workshopOrder.findUnique({ 
-            where: { id: parseInt(id) },
+        const { isWorkshopAdmin } = getWorkshopAccess(req.user);
+        if (!isWorkshopAdmin) {
+            return res.status(403).json({ error: 'Hanya Admin/Tim Workshop yang dapat mengubah detail atau menugaskan PIC.' });
+        }
+
+        const orderId = parseInt(id, 10);
+        const order = await prisma.workshopOrder.findUnique({
+            where: { id: orderId },
             include: { requestedBy: true, unit: true, items: true }
         });
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
-        const typeChanged = workshopType && workshopType !== order.workshopType;
+        const nextWorkshopType = workshopType !== undefined ? (workshopType || null) : order.workshopType;
+        let nextPicName = order.picName || null;
 
-        await prisma.$transaction(async (prisma) => {
-            let totalEstimatedCost = order.estimatedCost;
-
-            if (workshopType) {
-                // Ambil setting global untuk cari tahu nama PIC default tipe tersebut
-                const settings = await prisma.setting.findUnique({ where: { id: 1 } });
-                const picName = workshopType === 'KAYU' ? settings?.workshopPicKayu : settings?.workshopPicBesi;
-
-                await prisma.workshopOrder.update({
-                    where: { id: parseInt(id) },
-                    data: { workshopType, picName }
-                });
-            }
-
-            if (deadline !== undefined) {
-                await prisma.workshopOrder.update({
-                    where: { id: parseInt(id) },
-                    data: { deadline: deadline ? new Date(deadline) : null }
-                });
-            }
-
-            if (items && Array.isArray(items)) {
-                totalEstimatedCost = 0;
-                for (const item of items) {
-                    await prisma.workshopOrderItem.update({
-                        where: { id: item.id },
-                        data: { estimatedPrice: parseFloat(item.estimatedPrice) }
-                    });
-                }
-                
-                // Recalculate total
-                const dbItems = await prisma.workshopOrderItem.findMany({ where: { orderId: parseInt(id) } });
-                totalEstimatedCost = dbItems.reduce((acc, it) => acc + (it.estimatedPrice * it.qty), 0);
-
-                await prisma.workshopOrder.update({
-                    where: { id: parseInt(id) },
-                    data: { estimatedCost: totalEstimatedCost }
-                });
-            }
-        });
-
-        // Kirim Notifikasi WA ke PIC yang terpilih
-        if (typeChanged && workshopType) {
+        if (picName !== undefined) {
+            nextPicName = String(picName || '').trim() || null;
+        } else if (workshopType && workshopType !== order.workshopType) {
             const settings = await prisma.setting.findUnique({ where: { id: 1 } });
-            const picName = workshopType === 'KAYU' ? settings?.workshopPicKayu : settings?.workshopPicBesi;
-
-            if (picName) {
-                // Cari User berdasarkan nama di database untuk mendapatkan nomor HP-nya
-                const picUser = await prisma.user.findFirst({
-                    where: { name: picName, phone: { not: null, not: '' } }
-                });
-
-                if (picUser) {
-                    const senderName = order.requestedBy ? (order.requestedBy.name || order.requestedBy.username) : 'Pemohon';
-                    const unitName = order.unit ? order.unit.name : '-';
-                    const appUrl = process.env.CLIENT_URL || process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
-                    
-                    let itemDetails = '';
-                    if (order.items && order.items.length > 0) {
-                        itemDetails = order.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
-                    }
-
-                    const msg = `Bismillah.\n*Pemesanan Workshop Baru* \u{1F6E0}\n\n` +
-                        `Halo *${picUser.name}*,\n` +
-                        `Anda diminta sebagai PIC untuk pesanan workshop berikut:\n\n` +
-                        `Kode: *${order.code}*\n` +
-                        `Tipe: *Workshop ${workshopType}*\n` +
-                        `Dari: *${senderName}* (${unitName})\n` +
-                        `Order: *${order.title}*\n` +
-                        `Prioritas: *${order.priority}*\n` +
-                        `Target Selesai: *${deadline ? new Date(deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : (order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-')}*\n\n` +
-                        `*Rincian Item*:\n${itemDetails}\n\n` +
-                        `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${order.id}\n\n` +
-                        `Mohon segera diproses. Syukron.`;
-
-                    // Kirim pesan WhatsApp
-                    whatsappService.sendMessage(picUser.phone, msg).catch(console.error);
-                }
-            }
+            nextPicName = resolveDefaultPic(workshopType, settings) || order.picName || null;
         }
 
-        res.json({ message: 'Order details updated successfully' });
+        const picChanged = Boolean(nextPicName && nextPicName !== order.picName);
+
+        const updatedOrder = await prisma.$transaction(async (tx) => {
+            let totalEstimatedCost = order.estimatedCost;
+
+            if (items && Array.isArray(items)) {
+                for (const item of items) {
+                    await tx.workshopOrderItem.update({
+                        where: { id: item.id },
+                        data: { estimatedPrice: parseFloat(item.estimatedPrice) || 0 }
+                    });
+                }
+
+                const dbItems = await tx.workshopOrderItem.findMany({ where: { orderId } });
+                totalEstimatedCost = dbItems.reduce((acc, it) => acc + (it.estimatedPrice * it.qty), 0);
+            }
+
+            const updateData = {
+                workshopType: nextWorkshopType,
+                picName: nextPicName,
+                estimatedCost: totalEstimatedCost
+            };
+            if (deadline !== undefined) {
+                updateData.deadline = deadline ? new Date(deadline) : null;
+            }
+
+            return tx.workshopOrder.update({
+                where: { id: orderId },
+                data: updateData,
+                include: { requestedBy: true, unit: true, items: true }
+            });
+        });
+
+        // Kirim Notifikasi WA & in-app ke PIC bila PIC baru ditunjuk atau diganti
+        if (picChanged) {
+            notifyAssignedPic(updatedOrder, nextPicName, updatedOrder.deadline).catch(console.error);
+        }
+
+        res.json({ message: 'Order details updated successfully', data: updatedOrder });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

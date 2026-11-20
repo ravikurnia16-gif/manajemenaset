@@ -445,7 +445,7 @@ const MaintenanceDetail = () => {
 
             if (actionModal.nextStatus === 'ASSIGNED' && technicianType === 'external' && createWorkshopOrder) {
                 showToast('Laporan ditugaskan. Mengalihkan ke form Workshop...');
-                navigate('/workshop/orders/new', {
+                navigate('/workshop-baru/orders/new', {
                     state: {
                         fromMaintenance: {
                             id: report.id,

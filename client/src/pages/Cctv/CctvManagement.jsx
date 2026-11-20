@@ -4,7 +4,7 @@ import Swal from 'sweetalert2';
 import {
     Cctv, Plus, Search, ShieldCheck, Users, Server, LayoutGrid,
     Edit2, Trash2, Copy, Power, Wifi, HardDrive, RefreshCw, Eye,
-    SlidersHorizontal, AlertTriangle, Activity, BookOpen, Layers
+    SlidersHorizontal, AlertTriangle, Activity, BookOpen, Layers, Map as MapIcon
 } from 'lucide-react';
 import api from '../../lib/axios';
 import { cn } from '../../lib/utils';
@@ -14,6 +14,7 @@ import CameraBatchModal from './components/CameraBatchModal';
 import CameraAccessModal from './components/CameraAccessModal';
 import AccessControlTab from './components/AccessControlTab';
 import GatewayConfigTab from './components/GatewayConfigTab';
+import FloorPlanTab from './components/FloorPlanTab';
 
 const GRID_OPTIONS = [
     { key: '1', label: '1x1', cols: 'grid-cols-1 max-w-4xl mx-auto' },
@@ -37,13 +38,14 @@ const CctvManagement = () => {
         [currentUser?.position]
     );
 
-    const [activeTab, setActiveTab] = useState('live'); // live | cameras | access | gateway
+    const [activeTab, setActiveTab] = useState('live'); // live | floorplan | cameras | access | gateway
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [testingCameraId, setTestingCameraId] = useState(null);
     const [gatewayConfigured, setGatewayConfigured] = useState(false);
 
     const [streams, setStreams] = useState([]);
+    const [floorPlans, setFloorPlans] = useState([]);
     const [adminCameras, setAdminCameras] = useState([]);
     const [accessUsers, setAccessUsers] = useState([]);
     const [units, setUnits] = useState([]);
@@ -68,14 +70,16 @@ const CctvManagement = () => {
     const loadAllData = useCallback(async () => {
         try {
             setLoading(true);
-            const [streamsRes, unitsRes] = await Promise.all([
+            const [streamsRes, unitsRes, floorPlansRes] = await Promise.all([
                 api.get('/cctv/streams'),
-                api.get('/master/units').catch(() => ({ data: [] }))
+                api.get('/master/units').catch(() => ({ data: [] })),
+                api.get('/cctv/floor-plans').catch(() => ({ data: { floorPlans: [] } }))
             ]);
 
             setStreams(streamsRes.data?.cameras || []);
             setGatewayConfigured(Boolean(streamsRes.data?.gatewayConfigured));
             setUnits(Array.isArray(unitsRes.data) ? unitsRes.data : []);
+            setFloorPlans(Array.isArray(floorPlansRes.data?.floorPlans) ? floorPlansRes.data.floorPlans : []);
 
             if (streamsRes.data?.isManager && isManager) {
                 const [camsRes, usersRes] = await Promise.all([
@@ -458,6 +462,19 @@ const CctvManagement = () => {
                     <LayoutGrid size={15} /> Live Monitoring ({streams.length})
                 </button>
 
+                <button
+                    type="button"
+                    onClick={() => setActiveTab('floorplan')}
+                    className={cn(
+                        'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all',
+                        activeTab === 'floorplan'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-100'
+                    )}
+                >
+                    <MapIcon size={15} /> Denah Lokasi ({floorPlans.length})
+                </button>
+
                 {isManager && (
                     <>
                         <button
@@ -656,6 +673,18 @@ const CctvManagement = () => {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* TAB 1B: DENAH LOKASI & TITIK KAMERA */}
+            {activeTab === 'floorplan' && (
+                <FloorPlanTab
+                    floorPlans={floorPlans}
+                    allCameras={isManager ? adminCameras : streams}
+                    units={units}
+                    isManager={isManager}
+                    onRefresh={loadAllData}
+                    onOpenEditCamera={handleOpenEditCamera}
+                />
             )}
 
             {/* TAB 2: KELOLA KAMERA (Hanya Kepala Bidang Sarana) */}

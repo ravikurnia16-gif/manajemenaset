@@ -8,6 +8,7 @@ const {
 } = require('../utils/cctvAccessHelper');
 const gateway = require('../utils/cctvGateway');
 const embedded = require('../utils/cctvEmbedded');
+const { deleteFile } = require('../services/minioService');
 
 const prisma = new PrismaClient();
 
@@ -35,6 +36,10 @@ const sanitizeCameraForViewer = (camera, gatewayCfg = null) => {
         streamMode: viaGateway ? 'GATEWAY' : camera.streamMode,
         streamUrl: camera.isActive && !viaGateway ? (camera.streamUrl || null) : null,
         streamPath: camera.streamPath || null,
+        floorPlanId: camera.floorPlanId ?? null,
+        posX: camera.posX ?? null,
+        posY: camera.posY ?? null,
+        fovAngle: camera.fovAngle ?? null,
         playback: {
             gateway: viaGateway,
             ready: viaGateway ? gatewayReady : Boolean(camera.streamUrl),
@@ -1184,5 +1189,295 @@ exports.playHls = async (req, res) => {
     } catch (error) {
         console.error('playHls error:', error);
         res.status(502).json({ error: gateway.describeFetchError(error) });
+    }
+};
+
+// =========================================================================
+// DENAH LOKASI & TITIK KAMERA CCTV
+// =========================================================================
+
+const clampPercent = (val) => {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return null;
+    return Math.round(Math.min(100, Math.max(0, num)) * 100) / 100;
+};
+
+const normalizeAngle = (val) => {
+    if (val === undefined || val === null || val === '') return null;
+    const num = Number(val);
+    if (!Number.isFinite(num)) return null;
+    return ((Math.round(num) % 360) + 360) % 360;
+};
+
+const parseNullableUnitId = (raw) => {
+    if (raw === undefined || raw === null || raw === '' || raw === 'null') return null;
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+};
+
+const formatFloorPlanResponse = (fp, gatewayCfg) => ({
+    ...fp,
+    cameras: (fp.cameras || []).map((cam) => sanitizeCameraForViewer(cam, gatewayCfg))
+});
+
+/**
+ * GET /api/cctv/floor-plans
+ * Mengambil seluruh denah CCTV beserta titik kamera yang diizinkan untuk ditonton user.
+ */
+exports.getFloorPlans = async (req, res) => {
+    try {
+        const isManager = isKabidSaranaPosition(req.user);
+
+        if (!isManager) {
+            const accessCount = await prisma.cctvAccess.count({
+                where: { userId: req.user.id }
+            });
+            if (accessCount === 0) {
+                return res.status(403).json({
+                    error: 'Anda belum diberikan akses Management CCTV oleh Kepala Bidang Sarana.'
+                });
+            }
+        }
+
+        const [floorPlans, gatewayCfg] = await Promise.all([
+            prisma.cctvFloorPlan.findMany({
+                include: {
+                    unit: { select: { id: true, name: true, code: true } },
+                    cameras: {
+                        where: isManager
+                            ? {}
+                            : { accessList: { some: { userId: req.user.id } } },
+                        include: CAMERA_INCLUDE_UNIT,
+                        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
+                    }
+                },
+                orderBy: [{ sortOrder: 'asc' }, { unitId: 'asc' }, { id: 'asc' }]
+            }),
+            gateway.getGatewayConfig(prisma)
+        ]);
+
+        const visiblePlans = isManager
+            ? floorPlans
+            : floorPlans.filter((fp) => (fp.cameras || []).length > 0);
+
+        res.json({
+            floorPlans: visiblePlans.map((fp) => formatFloorPlanResponse(fp, gatewayCfg))
+        });
+    } catch (error) {
+        console.error('getFloorPlans error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/cctv/floor-plans (Khusus Kepala Bidang Sarana)
+ */
+exports.createFloorPlan = async (req, res) => {
+    try {
+        const name = String(req.body?.name || '').trim();
+        const imageUrl = req.fileUrl || (req.body?.imageUrl ? String(req.body.imageUrl).trim() : '');
+
+        if (!name) {
+            return res.status(400).json({ error: 'Nama denah wajib diisi.' });
+        }
+        if (!imageUrl) {
+            return res.status(400).json({ error: 'Gambar denah wajib diunggah atau diisi URL gambarnya.' });
+        }
+
+        const created = await prisma.cctvFloorPlan.create({
+            data: {
+                name,
+                unitId: parseNullableUnitId(req.body?.unitId),
+                floorLabel: req.body?.floorLabel ? String(req.body.floorLabel).trim() : null,
+                description: req.body?.description ? String(req.body.description).trim() : null,
+                sortOrder: parseInt(req.body?.sortOrder, 10) || 0,
+                imageUrl,
+                createdById: req.user.id
+            },
+            include: {
+                unit: { select: { id: true, name: true, code: true } },
+                cameras: { include: CAMERA_INCLUDE_UNIT }
+            }
+        });
+
+        const gatewayCfg = await gateway.getGatewayConfig(prisma);
+        res.status(201).json(formatFloorPlanResponse(created, gatewayCfg));
+    } catch (error) {
+        console.error('createFloorPlan error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * PUT /api/cctv/floor-plans/:id (Khusus Kepala Bidang Sarana)
+ */
+exports.updateFloorPlan = async (req, res) => {
+    try {
+        const floorPlanId = parseInt(req.params.id, 10);
+        if (Number.isNaN(floorPlanId)) {
+            return res.status(400).json({ error: 'ID denah tidak valid.' });
+        }
+
+        const existing = await prisma.cctvFloorPlan.findUnique({ where: { id: floorPlanId } });
+        if (!existing) {
+            return res.status(404).json({ error: 'Denah tidak ditemukan.' });
+        }
+
+        const name = req.body?.name !== undefined ? String(req.body.name || '').trim() : existing.name;
+        if (!name) {
+            return res.status(400).json({ error: 'Nama denah wajib diisi.' });
+        }
+
+        const nextImageUrl = req.fileUrl || (req.body?.imageUrl ? String(req.body.imageUrl).trim() : existing.imageUrl);
+        if (req.fileUrl && existing.imageUrl && existing.imageUrl !== nextImageUrl && existing.imageUrl.startsWith('/api/media/')) {
+            deleteFile(existing.imageUrl).catch(() => null);
+        }
+
+        const updated = await prisma.cctvFloorPlan.update({
+            where: { id: floorPlanId },
+            data: {
+                name,
+                unitId: req.body?.unitId !== undefined ? parseNullableUnitId(req.body.unitId) : existing.unitId,
+                floorLabel: req.body?.floorLabel !== undefined ? (String(req.body.floorLabel || '').trim() || null) : existing.floorLabel,
+                description: req.body?.description !== undefined ? (String(req.body.description || '').trim() || null) : existing.description,
+                sortOrder: req.body?.sortOrder !== undefined ? (parseInt(req.body.sortOrder, 10) || 0) : existing.sortOrder,
+                imageUrl: nextImageUrl
+            },
+            include: {
+                unit: { select: { id: true, name: true, code: true } },
+                cameras: {
+                    include: CAMERA_INCLUDE_UNIT,
+                    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
+                }
+            }
+        });
+
+        const gatewayCfg = await gateway.getGatewayConfig(prisma);
+        res.json(formatFloorPlanResponse(updated, gatewayCfg));
+    } catch (error) {
+        console.error('updateFloorPlan error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * DELETE /api/cctv/floor-plans/:id (Khusus Kepala Bidang Sarana)
+ */
+exports.deleteFloorPlan = async (req, res) => {
+    try {
+        const floorPlanId = parseInt(req.params.id, 10);
+        if (Number.isNaN(floorPlanId)) {
+            return res.status(400).json({ error: 'ID denah tidak valid.' });
+        }
+
+        const existing = await prisma.cctvFloorPlan.findUnique({ where: { id: floorPlanId } });
+        if (!existing) {
+            return res.status(404).json({ error: 'Denah tidak ditemukan.' });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            await tx.cctvCamera.updateMany({
+                where: { floorPlanId },
+                data: { floorPlanId: null, posX: null, posY: null, fovAngle: null }
+            });
+            await tx.cctvFloorPlan.delete({ where: { id: floorPlanId } });
+        });
+
+        if (existing.imageUrl && existing.imageUrl.startsWith('/api/media/')) {
+            deleteFile(existing.imageUrl).catch(() => null);
+        }
+
+        res.json({ message: 'Denah berhasil dihapus.' });
+    } catch (error) {
+        console.error('deleteFloorPlan error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * PUT /api/cctv/floor-plans/:id/positions (Khusus Kepala Bidang Sarana)
+ * Menyimpan koordinat (posX, posY, fovAngle) seluruh titik kamera pada suatu denah.
+ */
+exports.saveFloorPlanPositions = async (req, res) => {
+    try {
+        const floorPlanId = parseInt(req.params.id, 10);
+        if (Number.isNaN(floorPlanId)) {
+            return res.status(400).json({ error: 'ID denah tidak valid.' });
+        }
+
+        const floorPlan = await prisma.cctvFloorPlan.findUnique({ where: { id: floorPlanId } });
+        if (!floorPlan) {
+            return res.status(404).json({ error: 'Denah tidak ditemukan.' });
+        }
+
+        const rawPlacements = Array.isArray(req.body?.placements) ? req.body.placements : [];
+        const clearMissing = req.body?.clearMissing !== false;
+
+        const placementMap = new Map();
+        for (const item of rawPlacements) {
+            const cameraId = parseInt(item?.cameraId, 10);
+            const posX = clampPercent(item?.posX);
+            const posY = clampPercent(item?.posY);
+            if (Number.isNaN(cameraId) || posX === null || posY === null) continue;
+            placementMap.set(cameraId, {
+                cameraId,
+                posX,
+                posY,
+                fovAngle: normalizeAngle(item?.fovAngle)
+            });
+        }
+
+        const keepIds = Array.from(placementMap.keys());
+        const existingCameras = keepIds.length > 0
+            ? await prisma.cctvCamera.findMany({ where: { id: { in: keepIds } }, select: { id: true } })
+            : [];
+        const validIdSet = new Set(existingCameras.map((c) => c.id));
+
+        await prisma.$transaction(async (tx) => {
+            if (clearMissing) {
+                await tx.cctvCamera.updateMany({
+                    where: {
+                        floorPlanId,
+                        ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {})
+                    },
+                    data: { floorPlanId: null, posX: null, posY: null, fovAngle: null }
+                });
+            }
+
+            for (const item of placementMap.values()) {
+                if (!validIdSet.has(item.cameraId)) continue;
+                await tx.cctvCamera.update({
+                    where: { id: item.cameraId },
+                    data: {
+                        floorPlanId,
+                        posX: item.posX,
+                        posY: item.posY,
+                        fovAngle: item.fovAngle
+                    }
+                });
+            }
+        });
+
+        const [updatedPlan, gatewayCfg] = await Promise.all([
+            prisma.cctvFloorPlan.findUnique({
+                where: { id: floorPlanId },
+                include: {
+                    unit: { select: { id: true, name: true, code: true } },
+                    cameras: {
+                        include: CAMERA_INCLUDE_UNIT,
+                        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }]
+                    }
+                }
+            }),
+            gateway.getGatewayConfig(prisma)
+        ]);
+
+        res.json({
+            message: 'Posisi titik kamera pada denah berhasil disimpan.',
+            floorPlan: formatFloorPlanResponse(updatedPlan, gatewayCfg)
+        });
+    } catch (error) {
+        console.error('saveFloorPlanPositions error:', error);
+        res.status(500).json({ error: error.message });
     }
 };

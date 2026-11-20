@@ -135,9 +135,10 @@ model User {
   invOrders            InvOrder[]
 
   // CCTV Module
-  cctvCamerasCreated   CctvCamera[] @relation("CctvCreator")
-  cctvAccesses         CctvAccess[] @relation("CctvAccessUser")
-  cctvAccessesGranted  CctvAccess[] @relation("CctvAccessGranter")
+  cctvCamerasCreated    CctvCamera[]    @relation("CctvCreator")
+  cctvFloorPlansCreated CctvFloorPlan[] @relation("CctvFloorPlanCreator")
+  cctvAccesses          CctvAccess[]    @relation("CctvAccessUser")
+  cctvAccessesGranted   CctvAccess[]    @relation("CctvAccessGranter")
 }
 
 model DriverViolation {
@@ -202,6 +203,7 @@ model Unit {
   workshopOrders       WorkshopOrder[]
   targetWorkshopOrders WorkshopOrder[] @relation("WorkshopDestination")
   cctvCameras          CctvCamera[]
+  cctvFloorPlans       CctvFloorPlan[]
 }
 
 model Room {
@@ -2557,13 +2559,38 @@ model CctvCamera {
   createdById   Int?
   createdBy     User?        @relation("CctvCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
+  floorPlanId   Int?
+  floorPlan     CctvFloorPlan? @relation(fields: [floorPlanId], references: [id], onDelete: SetNull)
+  posX          Float?
+  posY          Float?
+  fovAngle      Float?
+
   accessList    CctvAccess[]
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   @@index([unitId])
+  @@index([floorPlanId])
   @@index([isActive])
+}
+
+model CctvFloorPlan {
+  id          Int          @id @default(autoincrement())
+  name        String
+  unitId      Int?
+  unit        Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  floorLabel  String?
+  imageUrl    String       @db.LongText
+  description String?      @db.Text
+  sortOrder   Int          @default(0)
+  createdById Int?
+  createdBy   User?        @relation("CctvFloorPlanCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  cameras     CctvCamera[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([unitId])
 }
 
 // Konfigurasi Gateway MediaMTX (singleton id = 1). Disimpan terpisah dari Setting karena memuat kredensial.

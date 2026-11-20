@@ -27,7 +27,7 @@ export default function OrdersNavTabs({ activeTab = 'logistik' }) {
       id: 'workshop',
       label: 'Pesanan Workshop',
       shortLabel: 'Workshop',
-      path: '/workshop/orders',
+      path: '/workshop-baru/board',
       icon: <Wrench size={17} />,
       badge: !isAdmin ? 'Hanya Lihat' : null
     }

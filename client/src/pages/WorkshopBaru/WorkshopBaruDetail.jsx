@@ -29,17 +29,23 @@ import {
 } from 'lucide-react';
 import api from '../../lib/axios';
 import Swal from 'sweetalert2';
+import WorkshopPicSelect from './components/WorkshopPicSelect';
+import { useWorkshopPicOptions, getDefaultWorkshopPic } from './components/workshopPicUtils';
 
 function WorkshopBaruDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
+    const { picDefaults, staffList } = useWorkshopPicOptions();
 
     const userStr = localStorage.getItem('user');
     const userObj = userStr ? JSON.parse(userStr) : null;
+    const userPos = (userObj?.position || '').toLowerCase();
     const isWorkshopAdmin = userObj && (
         ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(userObj.role) ||
+        userPos.includes('kepala bidang sarana') ||
+        userPos.includes('kabid sarpras') ||
         userObj.unitId === 21 ||
         (userObj.unit?.name || '').toLowerCase().includes('workshop')
     );
@@ -74,6 +80,7 @@ function WorkshopBaruDetail() {
 
     const [detailsModal, setDetailsModal] = useState(false);
     const [editWorkshopType, setEditWorkshopType] = useState('');
+    const [editPicName, setEditPicName] = useState('');
     const [editDeadline, setEditDeadline] = useState('');
     const [editItems, setEditItems] = useState([]);
 
@@ -89,6 +96,7 @@ function WorkshopBaruDetail() {
             setOrder(data);
             setNewStatus(data.status);
             setEditWorkshopType(data.workshopType || '');
+            setEditPicName(data.picName || '');
             setEditDeadline(data.deadline ? new Date(data.deadline).toISOString().split('T')[0] : '');
             setEditItems(data.items?.map(it => ({ id: it.id, name: it.name, estimatedPrice: it.estimatedPrice || 0 })) || []);
 
@@ -244,11 +252,12 @@ function WorkshopBaruDetail() {
         e.preventDefault();
         try {
             await api.put(`/workshop/orders/${id}/details`, {
-                workshopType: editWorkshopType,
+                workshopType: editWorkshopType || null,
+                picName: editPicName,
                 deadline: editDeadline || null,
                 items: editItems
             });
-            Swal.fire('Berhasil', 'Detail pesanan berhasil diperbarui.', 'success');
+            Swal.fire('Berhasil', 'Detail pesanan & penugasan PIC berhasil diperbarui.', 'success');
             setDetailsModal(false);
             fetchOrder();
         } catch (error) {
@@ -501,9 +510,22 @@ function WorkshopBaruDetail() {
                                 )}
                             </div>
                         </div>
-                        <div className="flex justify-between py-1.5 border-b border-slate-100">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
                             <span className="text-slate-500">PIC Workshop (Unit 21)</span>
-                            <strong className="text-slate-800">{order.picName || 'Belum Ditugaskan'}</strong>
+                            <div className="flex items-center gap-2">
+                                <strong className={order.picName ? 'text-slate-800' : 'text-amber-600'}>
+                                    {order.picName || 'Belum Ditugaskan'}
+                                </strong>
+                                {isWorkshopAdmin && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setDetailsModal(true)}
+                                        className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold print:hidden transition-colors"
+                                    >
+                                        {order.picName ? 'Ubah PIC' : '+ Tugaskan PIC'}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div className="flex justify-between py-1.5">
                             <span className="text-slate-500">Target Selesai (Deadline)</span>
@@ -1116,12 +1138,12 @@ function WorkshopBaruDetail() {
                 </div>
             )}
 
-            {/* --- MODAL: Edit Details & Harga --- */}
+            {/* --- MODAL: Edit Details, PIC & Harga --- */}
             {detailsModal && (
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-in fade-in zoom-in duration-150">
+                    <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <h3 className="font-bold text-slate-800 text-sm">Edit Tipe & Estimasi Harga</h3>
+                            <h3 className="font-bold text-slate-800 text-sm">Edit Tipe, Penugasan PIC &amp; Estimasi Harga</h3>
                             <button onClick={() => setDetailsModal(false)} className="text-slate-400 hover:text-slate-600">
                                 <X size={18} />
                             </button>
@@ -1133,8 +1155,16 @@ function WorkshopBaruDetail() {
                                     <label className="font-bold text-slate-600 block mb-1">Tipe Workshop</label>
                                     <select
                                         value={editWorkshopType}
-                                        onChange={e => setEditWorkshopType(e.target.value)}
-                                        className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                        onChange={e => {
+                                            const nextType = e.target.value;
+                                            const prevDefault = getDefaultWorkshopPic(editWorkshopType, picDefaults);
+                                            const nextDefault = getDefaultWorkshopPic(nextType, picDefaults);
+                                            setEditWorkshopType(nextType);
+                                            if (!editPicName || editPicName === prevDefault) {
+                                                setEditPicName(nextDefault);
+                                            }
+                                        }}
+                                        className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                                     >
                                         <option value="">Pilih Tipe</option>
                                         <option value="KAYU">🪵 Workshop Kayu</option>
@@ -1150,6 +1180,17 @@ function WorkshopBaruDetail() {
                                         className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="font-bold text-slate-600 block mb-1">PIC / Penanggung Jawab Pekerjaan</label>
+                                <WorkshopPicSelect
+                                    value={editPicName}
+                                    onChange={setEditPicName}
+                                    staffList={staffList}
+                                    picDefaults={picDefaults}
+                                    workshopType={editWorkshopType}
+                                />
                             </div>
 
                             <div className="space-y-2">

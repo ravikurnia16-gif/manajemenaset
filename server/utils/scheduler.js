@@ -25,6 +25,7 @@ const { checkInvoiceDueDates } = require('../controllers/officeDocumentControlle
 const { sendReportReminders, notifyKabidInactiveStaff } = require('../controllers/laporanController');
 const { checkPendingWorkshopOrders } = require('../controllers/workshopController');
 const checklistController = require('../controllers/vehicleChecklistController');
+const { runScheduledAmbulanceSync } = require('../services/ambulanceSyncService');
 
 let schedulerInterval = null;
 
@@ -229,6 +230,17 @@ const initScheduler = () => {
             try { await checkOverdueVehicleBookings(); } catch (e) { console.error('checkOverdueVehicleBookings failed:', e.message); }
             try { await checkUpcomingVehicleBookings(); } catch (e) { console.error('checkUpcomingVehicleBookings failed:', e.message); }
             try { await checkUnassignedBusDriverReminders(); } catch (e) { console.error('checkUnassignedBusDriverReminders failed:', e.message); }
+        }
+
+        // ----------------------------------------------------
+        // 4b. AMBULANCE KM SYNC VIA DEIPED API (Every 30 minutes)
+        // ----------------------------------------------------
+        if (minute === 0 || minute === 30) {
+            try {
+                await runScheduledAmbulanceSync();
+            } catch (e) {
+                console.error('[Scheduler] runScheduledAmbulanceSync failed:', e.message);
+            }
         }
 
         // ----------------------------------------------------

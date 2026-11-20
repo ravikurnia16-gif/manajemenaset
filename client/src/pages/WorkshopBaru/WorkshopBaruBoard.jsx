@@ -21,11 +21,14 @@ import {
     RefreshCw,
     Boxes,
     FileSpreadsheet,
-    X
+    X,
+    UserCheck
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../lib/axios';
 import Swal from 'sweetalert2';
+import WorkshopPicSelect from './components/WorkshopPicSelect';
+import { useWorkshopPicOptions, getDefaultWorkshopPic } from './components/workshopPicUtils';
 
 function WorkshopBaruBoard() {
     const navigate = useNavigate();
@@ -38,11 +41,16 @@ function WorkshopBaruBoard() {
 
     const userStr = localStorage.getItem('user');
     const userObj = userStr ? JSON.parse(userStr) : null;
+    const userPos = (userObj?.position || '').toLowerCase();
     const isWorkshopAdmin = userObj && (
         ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(userObj.role) ||
+        userPos.includes('kepala bidang sarana') ||
+        userPos.includes('kabid sarpras') ||
         userObj.unitId === 21 ||
         (userObj.unit?.name || '').toLowerCase().includes('workshop')
     );
+
+    const { picDefaults, staffList } = useWorkshopPicOptions();
 
     const [orders, setOrders] = useState([]);
     const [units, setUnits] = useState([]);
@@ -76,6 +84,15 @@ function WorkshopBaruBoard() {
     const [percentVal, setPercentVal] = useState(25);
     const [percentNote, setPercentNote] = useState('');
     const [estimatedCompletionDate, setEstimatedCompletionDate] = useState('');
+
+    // Quick Assign PIC Modal State
+    const [picModal, setPicModal] = useState({
+        open: false,
+        order: null,
+        workshopType: '',
+        picName: '',
+        saving: false
+    });
 
     // Helper hitung apakah pesanan PENDING sudah mengendap > 2 hari kerja (Senin-Jumat, skip Sabtu & Ahad)
     const isPendingOverdue = (order) => {
@@ -123,7 +140,8 @@ function WorkshopBaruBoard() {
             (o.title || '').toLowerCase().includes(term) ||
             (o.code || '').toLowerCase().includes(term) ||
             (o.requestedBy?.name || '').toLowerCase().includes(term) ||
-            (o.unit?.name || '').toLowerCase().includes(term)
+            (o.unit?.name || '').toLowerCase().includes(term) ||
+            (o.picName || '').toLowerCase().includes(term)
         );
     });
 
@@ -228,6 +246,37 @@ function WorkshopBaruBoard() {
             fetchOrders();
         } catch (err) {
             Swal.fire('Gagal', err.response?.data?.error || 'Gagal mengubah progres', 'error');
+        }
+    };
+
+    const openAssignPicModal = (e, order) => {
+        e.stopPropagation();
+        const initialType = order.workshopType || '';
+        const initialPic = order.picName || getDefaultWorkshopPic(initialType, picDefaults) || '';
+        setPicModal({
+            open: true,
+            order,
+            workshopType: initialType,
+            picName: initialPic,
+            saving: false
+        });
+    };
+
+    const handleSaveAssignPic = async (e) => {
+        e.preventDefault();
+        if (!picModal.order) return;
+        setPicModal(prev => ({ ...prev, saving: true }));
+        try {
+            await api.put(`/workshop/orders/${picModal.order.id}/details`, {
+                workshopType: picModal.workshopType || null,
+                picName: picModal.picName
+            });
+            Swal.fire('Berhasil', 'Penugasan PIC Workshop berhasil diperbarui.', 'success');
+            setPicModal({ open: false, order: null, workshopType: '', picName: '', saving: false });
+            fetchOrders();
+        } catch (err) {
+            setPicModal(prev => ({ ...prev, saving: false }));
+            Swal.fire('Gagal', err.response?.data?.error || 'Gagal menyimpan penugasan PIC.', 'error');
         }
     };
 
@@ -557,17 +606,31 @@ function WorkshopBaruBoard() {
                                                     </div>
                                                 )}
 
-                                                {/* Items summary */}
-                                                {order.items && order.items.length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                                                        <span>{order.items.length} Barang/Pekerjaan</span>
-                                                        {order.picName && (
+                                                {/* Items & PIC summary */}
+                                                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                                                    <span>{order.items?.length || order._count?.items || 0} Barang/Pekerjaan</span>
+                                                    {isWorkshopAdmin && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => openAssignPicModal(e, order)}
+                                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-semibold transition-colors max-w-[140px] truncate ${
+                                                                order.picName
+                                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                                                    : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                                            }`}
+                                                            title={order.picName ? `Ubah PIC (${order.picName})` : 'Tugaskan PIC Workshop'}
+                                                        >
+                                                            <UserCheck size={10} className="shrink-0" />
+                                                            <span className="truncate">{order.picName || 'Tugaskan PIC'}</span>
+                                                        </button>
+                                                    ) : (
+                                                        order.picName && (
                                                             <span className="font-medium text-slate-600 truncate max-w-[110px]" title={order.picName}>
                                                                 PIC: {order.picName}
                                                             </span>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                        )
+                                                    )}
+                                                </div>
 
                                                 {/* Progress Bar on Kanban Card for IN_PROGRESS */}
                                                 {order.status === 'IN_PROGRESS' && (
@@ -701,7 +764,20 @@ function WorkshopBaruBoard() {
                                             )}
                                         </td>
                                         <td className="p-3.5 text-slate-700 font-medium">
-                                            {order.picName || '-'}
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={order.picName ? 'text-slate-800' : 'text-slate-400 italic'}>
+                                                    {order.picName || 'Belum ada PIC'}
+                                                </span>
+                                                {isWorkshopAdmin && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => openAssignPicModal(e, order)}
+                                                        className="px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold transition-colors"
+                                                    >
+                                                        {order.picName ? 'Ubah' : 'Tugaskan'}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-3.5">
                                             {order.status === 'IN_PROGRESS' ? (
@@ -998,6 +1074,93 @@ function WorkshopBaruBoard() {
                                     className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
                                 >
                                     Simpan Persentase
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* --- MODAL: Tugaskan PIC Workshop --- */}
+            {picModal.open && picModal.order && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+                    onClick={() => !picModal.saving && setPicModal({ open: false, order: null, workshopType: '', picName: '', saving: false })}
+                >
+                    <div
+                        className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl animate-in fade-in zoom-in duration-150"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                    <UserCheck size={16} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-sm">Tugaskan PIC Workshop</h3>
+                                    <p className="text-[11px] text-slate-500 font-mono truncate max-w-[280px]">
+                                        {picModal.order.code} • {picModal.order.title}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPicModal({ open: false, order: null, workshopType: '', picName: '', saving: false })}
+                                className="text-slate-400 hover:text-slate-600"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveAssignPic} className="space-y-4 text-xs">
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Tipe Workshop</label>
+                                <select
+                                    value={picModal.workshopType}
+                                    onChange={e => {
+                                        const nextType = e.target.value;
+                                        const prevDefault = getDefaultWorkshopPic(picModal.workshopType, picDefaults);
+                                        const nextDefault = getDefaultWorkshopPic(nextType, picDefaults);
+                                        setPicModal(prev => ({
+                                            ...prev,
+                                            workshopType: nextType,
+                                            picName: (!prev.picName || prev.picName === prevDefault) ? nextDefault : prev.picName
+                                        }));
+                                    }}
+                                    className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-medium"
+                                >
+                                    <option value="">-- Umum / Belum Ditentukan --</option>
+                                    <option value="KAYU">🪵 Workshop Kayu</option>
+                                    <option value="BESI">⚙️ Workshop Besi</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">PIC / Penanggung Jawab</label>
+                                <WorkshopPicSelect
+                                    value={picModal.picName}
+                                    onChange={val => setPicModal(prev => ({ ...prev, picName: val }))}
+                                    staffList={staffList}
+                                    picDefaults={picDefaults}
+                                    workshopType={picModal.workshopType}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    disabled={picModal.saving}
+                                    onClick={() => setPicModal({ open: false, order: null, workshopType: '', picName: '', saving: false })}
+                                    className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-semibold"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={picModal.saving}
+                                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm disabled:opacity-50"
+                                >
+                                    {picModal.saving ? 'Menyimpan...' : 'Simpan Penugasan'}
                                 </button>
                             </div>
                         </form>
