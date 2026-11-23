@@ -33,93 +33,14 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
 import Swal from 'sweetalert2';
-
-const PRESET_UNITS = ['Unit', 'Set', 'Pcs', 'Meter', 'm²', "m'", 'Lembar', 'Batang', 'Paket', 'Titik'];
-
-/**
- * Mengekstrak satuan, mode harga (FIXED | CUSTOM | VARIANT), catatan harga, dan daftar varian satuan/bentuk
- * dari field specification VendorProduct tanpa perlu perubahan skema database.
- */
-function parseCatalogSpecification(rawSpec = '') {
-    let text = String(rawSpec || '');
-    let unit = 'Unit';
-    let priceMode = 'FIXED';
-    let priceNote = '';
-    let variants = [];
-
-    const unitMatch = text.match(/\[Satuan:\s*([^\]]+)\]/i);
-    if (unitMatch) {
-        unit = unitMatch[1].trim() || 'Unit';
-        text = text.replace(unitMatch[0], '');
-    }
-
-    const modeMatch = text.match(/\[HargaMode:\s*(FIXED|CUSTOM|VARIANT)\]/i);
-    if (modeMatch) {
-        priceMode = modeMatch[1].toUpperCase();
-        text = text.replace(modeMatch[0], '');
-    }
-
-    const noteMatch = text.match(/\[CatatanHarga:\s*([^\]]+)\]/i);
-    if (noteMatch) {
-        priceNote = noteMatch[1].trim();
-        text = text.replace(noteMatch[0], '');
-    }
-
-    const variantsMatch = text.match(/\[VarianHarga:\s*(\[[\s\S]*?\])\]/);
-    if (variantsMatch) {
-        try {
-            const parsed = JSON.parse(variantsMatch[1]);
-            if (Array.isArray(parsed)) {
-                variants = parsed
-                    .filter((v) => v && (v.label || v.unit))
-                    .map((v) => ({
-                        label: String(v.label || '').trim(),
-                        unit: String(v.unit || unit || 'Unit').trim(),
-                        price: Number(v.price) || 0
-                    }));
-            }
-        } catch {
-            variants = [];
-        }
-        text = text.replace(variantsMatch[0], '');
-    }
-
-    return {
-        unit,
-        priceMode,
-        priceNote,
-        variants,
-        cleanSpec: text.trim()
-    };
-}
-
-/**
- * Menyusun string specification gabungan yang aman dan tetap rapi di Data Vendor.
- */
-function buildCatalogSpecification({ unit = 'Unit', priceMode = 'FIXED', priceNote = '', variants = [], cleanSpec = '' }) {
-    const sanitizeTagText = (val) => String(val || '').replace(/[[\]]/g, '').trim();
-    const tags = [`[Satuan: ${sanitizeTagText(unit) || 'Unit'}]`];
-    if (priceMode && priceMode !== 'FIXED') {
-        tags.push(`[HargaMode: ${priceMode}]`);
-    }
-    const cleanNote = sanitizeTagText(priceNote);
-    if (cleanNote) {
-        tags.push(`[CatatanHarga: ${cleanNote}]`);
-    }
-    if (priceMode === 'VARIANT' && Array.isArray(variants) && variants.length > 0) {
-        const cleanVariants = variants
-            .filter((v) => (v.label || '').trim() || (v.unit || '').trim())
-            .map((v) => ({
-                label: sanitizeTagText(v.label || 'Varian'),
-                unit: sanitizeTagText(v.unit || unit || 'Unit'),
-                price: Math.max(0, Number(v.price) || 0)
-            }));
-        if (cleanVariants.length > 0) {
-            tags.push(`[VarianHarga: ${JSON.stringify(cleanVariants)}]`);
-        }
-    }
-    return `${tags.join(' ')} ${String(cleanSpec || '').trim()}`.trim();
-}
+import {
+    PRESET_UNITS,
+    WORKSHOP_CATEGORIES,
+    getCategoryMeta,
+    parseCatalogSpecification,
+    buildCatalogSpecification,
+    inferCatalogCategory
+} from './components/workshopCatalogUtils';
 
 export default function WorkshopBaruCatalog() {
     const navigate = useNavigate();
@@ -137,6 +58,7 @@ export default function WorkshopBaruCatalog() {
     // Form
     const [form, setForm] = useState({
         name: '',
+        category: 'KAYU', // KAYU | BESI | UMUM
         priceMode: 'FIXED', // FIXED | CUSTOM | VARIANT
         price: '',
         unit: 'Unit',
@@ -243,6 +165,7 @@ export default function WorkshopBaruCatalog() {
         setEditingProduct(null);
         setForm({
             name: '',
+            category: selectedCategory === 'BESI' ? 'BESI' : (selectedCategory === 'UMUM' ? 'UMUM' : 'KAYU'),
             priceMode: 'FIXED',
             price: '',
             unit: 'Unit',
@@ -261,10 +184,12 @@ export default function WorkshopBaruCatalog() {
 
     const handleOpenEditModal = (p) => {
         const parsed = parseCatalogSpecification(p.specification);
+        const inferredCat = parsed.category || inferCatalogCategory(p) || 'KAYU';
         const isPresetUnit = PRESET_UNITS.includes(parsed.unit);
         setEditingProduct(p);
         setForm({
             name: p.name || '',
+            category: inferredCat,
             priceMode: parsed.priceMode,
             price: p.price !== null && p.price !== undefined && Number(p.price) > 0 ? String(p.price) : '',
             unit: isPresetUnit ? parsed.unit : 'CUSTOM_UNIT',
@@ -357,6 +282,7 @@ export default function WorkshopBaruCatalog() {
         }
 
         const combinedSpec = buildCatalogSpecification({
+            category: form.category || 'KAYU',
             unit: resolvedUnit,
             priceMode: form.priceMode,
             priceNote: form.priceNote,
@@ -455,6 +381,7 @@ export default function WorkshopBaruCatalog() {
 
         const parsed = parseCatalogSpecification(productForPriceUpdate.specification);
         const nextSpec = buildCatalogSpecification({
+            category: parsed.category || inferCatalogCategory(productForPriceUpdate),
             unit: parsed.unit,
             priceMode: parsed.variants.length > 0 && quickPriceMode === 'FIXED' ? parsed.priceMode : quickPriceMode,
             priceNote: quickPriceNote,
@@ -488,12 +415,17 @@ export default function WorkshopBaruCatalog() {
 
     const handleOrderProduct = async (p) => {
         const parsed = parseCatalogSpecification(p.specification);
+        const catId = parsed.category || inferCatalogCategory(p);
+        const mappedWorkshopType = catId === 'KAYU' || catId === 'BESI' ? catId : '';
+
         if (parsed.variants.length > 0) {
             const inputOptions = {};
             parsed.variants.forEach((v, idx) => {
                 const priceLabel = v.price > 0 ? `Rp ${v.price.toLocaleString('id-ID')}` : 'Harga Custom';
                 inputOptions[idx] = `${v.label} (${v.unit}) — ${priceLabel}`;
             });
+            inputOptions.CUSTOM_SHAPE = '✏️ Bentuk / Ukuran Custom Lainnya (Harga Custom)';
+
             const { value: chosenIdx, isConfirmed } = await Swal.fire({
                 title: `Pilih Bentuk / Satuan`,
                 text: p.name,
@@ -505,6 +437,23 @@ export default function WorkshopBaruCatalog() {
                 confirmButtonColor: '#059669'
             });
             if (!isConfirmed) return;
+
+            if (chosenIdx === 'CUSTOM_SHAPE') {
+                navigate('/workshop-baru/orders/new', {
+                    state: {
+                        fromCatalog: {
+                            ...p,
+                            name: `${p.name} (Bentuk/Ukuran Custom)`,
+                            unit: parsed.unit,
+                            price: 0,
+                            workshopType: mappedWorkshopType,
+                            specification: `${parsed.cleanSpec}${parsed.cleanSpec ? '\n' : ''}Catatan: Pesanan bentuk/ukuran custom (estimasi harga menyesuaikan desain)`
+                        }
+                    }
+                });
+                return;
+            }
+
             const chosen = parsed.variants[Number(chosenIdx)] || parsed.variants[0];
             navigate('/workshop-baru/orders/new', {
                 state: {
@@ -513,6 +462,7 @@ export default function WorkshopBaruCatalog() {
                         name: `${p.name} (${chosen.label})`,
                         unit: chosen.unit,
                         price: chosen.price,
+                        workshopType: mappedWorkshopType,
                         specification: parsed.cleanSpec
                     }
                 }
@@ -525,6 +475,7 @@ export default function WorkshopBaruCatalog() {
                 fromCatalog: {
                     ...p,
                     unit: parsed.unit,
+                    workshopType: mappedWorkshopType,
                     specification: parsed.priceNote
                         ? `${parsed.cleanSpec}${parsed.cleanSpec ? '\n' : ''}Catatan Harga: ${parsed.priceNote}`
                         : parsed.cleanSpec
@@ -533,21 +484,28 @@ export default function WorkshopBaruCatalog() {
         });
     };
 
+    const categoryCounts = products.reduce(
+        (acc, p) => {
+            const cat = inferCatalogCategory(p);
+            if (cat === 'KAYU') acc.KAYU += 1;
+            else if (cat === 'BESI') acc.BESI += 1;
+            else if (cat === 'UMUM') acc.UMUM += 1;
+            return acc;
+        },
+        { KAYU: 0, BESI: 0, UMUM: 0 }
+    );
+
     // Filter
     const filteredProducts = products.filter(p => {
+        const parsed = parseCatalogSpecification(p.specification);
         const matchSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.specification || '').toLowerCase().includes(searchQuery.toLowerCase());
-        
+            (parsed.cleanSpec || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (parsed.priceNote || '').toLowerCase().includes(searchQuery.toLowerCase());
+
         if (!matchSearch) return false;
 
-        if (selectedCategory === 'KAYU') {
-            return (p.name + ' ' + (p.specification || '')).toLowerCase().match(/kayu|mebel|meja|kursi|lemari|rak|partisi|pintu/);
-        }
-        if (selectedCategory === 'BESI') {
-            return (p.name + ' ' + (p.specification || '')).toLowerCase().match(/besi|las|tralis|kanopi|pagar|baja|rangka/);
-        }
-
-        return true;
+        if (selectedCategory === 'ALL') return true;
+        return inferCatalogCategory(p) === selectedCategory;
     });
 
     return (
@@ -653,7 +611,7 @@ export default function WorkshopBaruCatalog() {
                                 : 'bg-orange-50 text-orange-800 hover:bg-orange-100'
                         }`}
                     >
-                        🪵 Mebel & Kayu
+                        🪵 Pekerjaan Kayu ({categoryCounts.KAYU})
                     </button>
                     <button
                         onClick={() => setSelectedCategory('BESI')}
@@ -663,8 +621,20 @@ export default function WorkshopBaruCatalog() {
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                     >
-                        ⚙️ Besi & Pengelasan
+                        ⚙️ Pekerjaan Besi ({categoryCounts.BESI})
                     </button>
+                    {categoryCounts.UMUM > 0 && (
+                        <button
+                            onClick={() => setSelectedCategory('UMUM')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                                selectedCategory === 'UMUM'
+                                    ? 'bg-teal-600 text-white shadow-sm'
+                                    : 'bg-teal-50 text-teal-800 hover:bg-teal-100'
+                            }`}
+                        >
+                            🛠️ Campuran ({categoryCounts.UMUM})
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -695,6 +665,7 @@ export default function WorkshopBaruCatalog() {
                         const historyCount = p.priceHistory?.length || 0;
                         const mediaSrc = p.image ? (p.image.startsWith('http') ? p.image : getMediaUrl(p.image)) : null;
                         const parsed = parseCatalogSpecification(p.specification);
+                        const catMeta = getCategoryMeta(parsed.category || inferCatalogCategory(p));
                         const numericPrice = parseFloat(p.price) || 0;
                         const variantPrices = parsed.variants.map((v) => Number(v.price) || 0).filter((n) => n > 0);
                         const minVariantPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : numericPrice;
@@ -766,9 +737,16 @@ export default function WorkshopBaruCatalog() {
                                 <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                                     <div className="space-y-1.5">
                                         <div className="flex items-start justify-between gap-2">
-                                            <h3 className="font-extrabold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
-                                                {p.name}
-                                            </h3>
+                                            <div className="space-y-1">
+                                                {catMeta && (
+                                                    <span className={`inline-block px-2 py-0.5 rounded-md border text-[10px] font-bold ${catMeta.chipCls}`}>
+                                                        {catMeta.badge}
+                                                    </span>
+                                                )}
+                                                <h3 className="font-extrabold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
+                                                    {p.name}
+                                                </h3>
+                                            </div>
                                             <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold shrink-0">
                                                 /{parsed.unit}
                                             </span>
@@ -912,6 +890,29 @@ export default function WorkshopBaruCatalog() {
                                         />
                                     </div>
 
+                                    {/* Kategori Pekerjaan (Kayu vs Besi vs Campuran) */}
+                                    <div>
+                                        <label className="text-[11px] font-bold text-slate-700 uppercase mb-1.5 block">
+                                            Kategori Pekerjaan Workshop <span className="text-rose-500">*</span>
+                                        </label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {WORKSHOP_CATEGORIES.map((cat) => (
+                                                <button
+                                                    key={cat.id}
+                                                    type="button"
+                                                    onClick={() => setForm((prev) => ({ ...prev, category: cat.id }))}
+                                                    className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all text-center ${
+                                                        form.category === cat.id
+                                                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    {cat.badge}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     {/* Skema Harga & Satuan */}
                                     <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
                                         <div>
@@ -1052,7 +1053,8 @@ export default function WorkshopBaruCatalog() {
                                                                 type="number"
                                                                 min="0"
                                                                 className="col-span-3 px-2 py-1.5 rounded-lg border border-slate-200 text-xs font-mono"
-                                                                placeholder="Harga (Rp)"
+                                                                placeholder="0 = Custom"
+                                                                title="Isi 0 bila harga bentuk ini menyesuaikan / custom"
                                                                 value={v.price}
                                                                 onChange={(e) => setForm((prev) => ({
                                                                     ...prev,

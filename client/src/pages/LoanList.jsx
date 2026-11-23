@@ -23,6 +23,12 @@ const LoanList = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminUnit = user.role === 'ADMIN_UNIT';
+    const isAdminAset = user.role === 'ADMIN_ASET';
+
+    const isKantorYayasanLoan = (loan) => {
+        const unitName = loan?.asset?.unit?.name || '';
+        return unitName.toLowerCase().includes('kantor yayasan');
+    };
 
     useEffect(() => {
         fetchLoans();
@@ -150,8 +156,9 @@ const LoanList = () => {
     // Helper to check if current user can approve
     const canApprove = (loan) => {
         if (isSuperAdmin) return true;
+        if (isAdminAset && isKantorYayasanLoan(loan)) return true;
         // Check if user is Sarpras Unit (ADMIN_UNIT) for the asset's unit
-        return isAdminUnit && user.unitId === loan.asset.unitId;
+        return isAdminUnit && user.unitId === loan.asset?.unitId;
     };
 
     return (
@@ -292,7 +299,7 @@ const LoanList = () => {
                                                     </button>
                                                 </>
                                             )}
-                                            {l.status === 'BORROWED' && (isSuperAdmin || l.borrowerId === user.id) && (
+                                            {l.status === 'BORROWED' && (isSuperAdmin || (isAdminAset && isKantorYayasanLoan(l)) || l.borrowerId === user.id) && (
                                                 <button
                                                     onClick={() => handleReturn(l.id)}
                                                     className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-all text-[10px] font-bold"

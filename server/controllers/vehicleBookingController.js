@@ -635,7 +635,7 @@ exports.startTrip = async (req, res) => {
 exports.endTrip = async (req, res) => {
     try {
         const { id } = req.params;
-        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters, fuelCondition, returnLocation, hasIncident, incidentNotes } = req.body;
+        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters, fuelCondition, notifyLowFuelPicId, returnLocation, hasIncident, incidentNotes } = req.body;
         const photoUrl = req.fileUrl || null;
         const isIncident = hasIncident === true || hasIncident === 'true';
         const isFuelRefill = fuelRefill === true || fuelRefill === 'true';
@@ -783,6 +783,25 @@ exports.endTrip = async (req, res) => {
                 ...(returnLocation ? { lastPosition: returnLocation } : {})
             }
         });
+
+        // Notify chosen PIC in-app when driver reports low fuel at End Trip and asks PIC to handle it
+        if (notifyLowFuelPicId && ['LOW', 'MEDIUM'].includes(fuelCondition)) {
+            try {
+                const targetPicId = parseInt(notifyLowFuelPicId);
+                if (!Number.isNaN(targetPicId)) {
+                    const condText = fuelCondition === 'LOW' ? '< 1/4 tangki' : '1/4 - 1/2 tangki';
+                    await createNotification(
+                        targetPicId,
+                        `Permintaan Isi BBM ${booking.vehicle?.plateNumber || booking.vehicle?.name || 'Armada'}`,
+                        `${req.user?.name || booking.user?.name || 'Peminjam'} menyelesaikan perjalanan dengan BBM ${condText} dan menyampaikan ke Anda untuk pengisian BBM.`,
+                        'URGENT',
+                        '/kendaraan/peminjaman'
+                    );
+                }
+            } catch (fuelNotifErr) {
+                console.error('[EndTrip Low Fuel PIC Notif Error]:', fuelNotifErr.message);
+            }
+        }
 
         if (req.io) req.io.emit('booking_update');
 

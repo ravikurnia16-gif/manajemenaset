@@ -501,6 +501,22 @@ exports.createOrder = async (req, res) => {
     }
 };
 
+const syncOfficeDocumentCompleted = async (order) => {
+    if (!order?.officeDocumentId) return;
+    const doc = await prisma.officeDocument.findUnique({ where: { id: order.officeDocumentId } });
+    if (!doc) return;
+    try {
+        const content = JSON.parse(doc.content || '{}');
+        content.orderStatus = 'COMPLETED';
+        await prisma.officeDocument.update({
+            where: { id: doc.id },
+            data: { content: JSON.stringify(content) }
+        });
+    } catch {
+        // Ignore malformed JSON content
+    }
+};
+
 // 5. Update Status
 exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
@@ -517,9 +533,6 @@ exports.updateOrderStatus = async (req, res) => {
         });
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
-        const updateData = { status };
-        let progressMsg = `Status diperbarui menjadi: ${status}`;
-        
         let parsedPercent = undefined;
         if (percentage !== undefined && percentage !== null && percentage !== '') {
             parsedPercent = Math.min(100, Math.max(0, parseInt(percentage, 10)));
@@ -537,7 +550,12 @@ exports.updateOrderStatus = async (req, res) => {
             }
         }
 
-        if (status === 'IN_PROGRESS') {
+        // Jika progres diisi 100% (selain pembatalan), otomatis ubah status menjadi COMPLETED
+        const effectiveStatus = (status !== 'CANCELLED' && parsedPercent === 100) ? 'COMPLETED' : status;
+        const updateData = { status: effectiveStatus };
+        let progressMsg = `Status diperbarui menjadi: ${effectiveStatus}`;
+
+        if (effectiveStatus === 'IN_PROGRESS') {
             if (order.status === 'PENDING') {
                 if (!estimatedCompletionDate) {
                     return res.status(400).json({ error: 'Estimasi selesai pekerjaan wajib diisi saat menerima pesanan.' });
@@ -556,30 +574,18 @@ exports.updateOrderStatus = async (req, res) => {
                     updateData.estimatedCompletionDate = parsedEst;
                 }
             }
-        } else if (status === 'CANCELLED') {
+        } else if (effectiveStatus === 'CANCELLED') {
             if (order.status === 'PENDING' && !message) {
                 return res.status(400).json({ error: 'Alasan penolakan pesanan wajib diisi.' });
             }
             if (message) {
                 progressMsg = `Pesanan Ditolak/Dibatalkan: ${message}`;
             }
-        } else if (status === 'COMPLETED') {
+        } else if (effectiveStatus === 'COMPLETED') {
             updateData.completionDate = new Date();
-            progressMsg = 'Pekerjaan selesai 100%.';
-            
-            if (order.officeDocumentId) {
-                const doc = await prisma.officeDocument.findUnique({ where: { id: order.officeDocumentId } });
-                if (doc) {
-                    try {
-                        const content = JSON.parse(doc.content || '{}');
-                        content.orderStatus = 'COMPLETED';
-                        await prisma.officeDocument.update({
-                            where: { id: doc.id },
-                            data: { content: JSON.stringify(content) }
-                        });
-                    } catch(e) {}
-                }
-            }
+            if (!order.startDate) updateData.startDate = new Date();
+            progressMsg = message || 'Pekerjaan selesai 100%.';
+            await syncOfficeDocumentCompleted(order);
         } else if (message) {
             progressMsg = message;
         }
@@ -635,7 +641,7 @@ exports.updateOrderStatus = async (req, res) => {
             const percentWa = parsedPercent !== undefined ? `\nProgres Pengerjaan: *${parsedPercent}%*` : '';
             
             let waMsg = '';
-            if (status === 'CANCELLED') {
+            if (effectiveStatus === 'CANCELLED') {
                 waMsg = `Bismillah.\n*Pesanan Workshop Ditolak/Dibatalkan*\n\n` +
                     `Order Anda: *${order.title}*\n` +
                     `Status: *Ditolak/Dibatalkan*\n` +
@@ -644,7 +650,7 @@ exports.updateOrderStatus = async (req, res) => {
             } else {
                 waMsg = `Bismillah.\n*Update Order Workshop*\n\n` +
                     `Order Anda: *${order.title}*\n` +
-                    `Status saat ini: *${status}*${extraInfo}${percentWa}\n\n` +
+                    `Status saat ini: *${effectiveStatus}*${extraInfo}${percentWa}\n\n` +
                     (message ? `Catatan: ${message}` : `Silakan cek di sistem.`);
             }
                 
@@ -682,37 +688,81 @@ exports.addProgress = async (req, res) => {
             ? Math.min(100, Math.max(0, parseInt(percentage, 10)))
             : 0;
 
-        const finalMsg = message || `Update progres fisik pengerjaan: ${parsedPercent}%`;
+        const finalMsg = message || (parsedPercent >= 100
+            ? 'Pekerjaan selesai 100%.'
+            : `Update progres fisik pengerjaan: ${parsedPercent}%`);
 
-        const progress = await prisma.workshopProgress.create({
-            data: {
-                orderId: parseInt(id),
-                message: finalMsg,
-                percentage: parsedPercent,
-                photo: photoUrl,
-                createdById: user.id
-            }
+        const order = await prisma.workshopOrder.findUnique({
+            where: { id: parseInt(id) },
+            include: { requestedBy: true }
         });
+        if (!order) return res.status(404).json({ error: 'Order not found' });
 
-        const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) } });
-        if (order && order.status === 'PENDING' && parsedPercent > 0) {
-            await prisma.workshopOrder.update({
-                where: { id: parseInt(id) },
-                data: { status: 'IN_PROGRESS', startDate: new Date() }
-            });
-        }
+        const shouldAutoComplete = parsedPercent >= 100 && order.status !== 'CANCELLED';
+        let nextStatus = order.status;
 
-        if (order && order.procurementId) {
-            await prisma.procurementProgress.create({
+        const progress = await prisma.$transaction(async (tx) => {
+            const createdProgress = await tx.workshopProgress.create({
                 data: {
-                    procurementId: order.procurementId,
-                    message: `[Workshop Progress] ${message} (${percentage || 0}%)`,
-                    type: 'SYSTEM'
+                    orderId: parseInt(id),
+                    message: finalMsg,
+                    percentage: parsedPercent,
+                    photo: photoUrl,
+                    createdById: user.id
                 }
             });
+
+            if (shouldAutoComplete) {
+                nextStatus = 'COMPLETED';
+                await tx.workshopOrder.update({
+                    where: { id: parseInt(id) },
+                    data: {
+                        status: 'COMPLETED',
+                        startDate: order.startDate || new Date(),
+                        completionDate: order.completionDate || new Date()
+                    }
+                });
+            } else if (order.status === 'PENDING' && parsedPercent > 0) {
+                nextStatus = 'IN_PROGRESS';
+                await tx.workshopOrder.update({
+                    where: { id: parseInt(id) },
+                    data: { status: 'IN_PROGRESS', startDate: new Date() }
+                });
+            }
+
+            if (order.procurementId) {
+                await tx.procurementProgress.create({
+                    data: {
+                        procurementId: order.procurementId,
+                        message: `[Workshop Progress] ${finalMsg} (${parsedPercent}%)`,
+                        type: 'SYSTEM'
+                    }
+                });
+            }
+
+            return createdProgress;
+        });
+
+        if (shouldAutoComplete) {
+            await syncOfficeDocumentCompleted(order);
+
+            if (order.status !== 'COMPLETED' && order.requestedBy?.phone) {
+                const waMsg = `Bismillah.\n*Update Order Workshop*\n\n` +
+                    `Order Anda: *${order.title}*\n` +
+                    `Status saat ini: *COMPLETED* (Selesai)\n` +
+                    `Progres Pengerjaan: *100%*\n\n` +
+                    `Catatan: ${finalMsg}`;
+                setTimeout(() => {
+                    whatsappService.sendMessage(order.requestedBy.phone, waMsg).catch(console.error);
+                }, 3000);
+            }
         }
 
-        res.json(progress);
+        res.json({
+            ...progress,
+            orderStatus: nextStatus,
+            completedAutomatically: shouldAutoComplete
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

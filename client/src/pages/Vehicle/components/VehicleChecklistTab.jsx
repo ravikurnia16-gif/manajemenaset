@@ -28,6 +28,7 @@ import {
     Eye
 } from 'lucide-react';
 import api from '../../../lib/axios';
+import VehicleMaintenanceRequestModal from './VehicleMaintenanceRequestModal';
 
 const DAILY_ITEMS = [
     'Kebersihan Eksterior', 
@@ -78,6 +79,7 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
 
     // Detail Modal State
     const [selectedChecklist, setSelectedChecklist] = useState(null);
+    const [repairRequestModalChecklist, setRepairRequestModalChecklist] = useState(null);
 
     // Current logged in user & PIC info
     const activeUser = currentUserProfile || {};
@@ -666,6 +668,11 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                     <Wrench size={15} /> PERLU PERBAIKAN
                                 </button>
                             </div>
+                            {formStatus === 'PERLU PERBAIKAN' && (
+                                <p className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded-xl px-3 py-2">
+                                    Temuan kerusakan dicatat pada riwayat &amp; status ceklis armada (tidak langsung masuk ke daftar pengajuan request perbaikan).
+                                </p>
+                            )}
                         </div>
 
                         {/* Notes */}
@@ -1251,6 +1258,29 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                                 </div>
                             )}
 
+                            {/* Optional Manual Repair Request Action */}
+                            {selectedChecklist.status === 'PERLU PERBAIKAN' && (
+                                <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="text-xs text-rose-900">
+                                        <p className="font-bold">Laporan Ceklis Membutuhkan Perhatian</p>
+                                        <p className="text-[11px] text-rose-700 mt-0.5">
+                                            Temuan ceklis tidak masuk otomatis ke pengajuan perbaikan. Ajukan manual jika kendaraan perlu ditindaklanjuti ke bengkel.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const targetChecklist = selectedChecklist;
+                                            setSelectedChecklist(null);
+                                            setRepairRequestModalChecklist(targetChecklist);
+                                        }}
+                                        className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-xs"
+                                    >
+                                        <Wrench size={14} /> Ajukan Request Perbaikan
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Timestamp */}
                             <div className="text-[11px] text-slate-400 text-right pt-2 border-t border-slate-100">
                                 Dilaporkan pada {new Date(selectedChecklist.createdAt).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}
@@ -1258,6 +1288,24 @@ export default function VehicleChecklistTab({ vehicles = [], currentUserProfile,
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Manual Repair Request Modal from Checklist Finding */}
+            {repairRequestModalChecklist && (
+                <VehicleMaintenanceRequestModal
+                    show={Boolean(repairRequestModalChecklist)}
+                    onClose={() => setRepairRequestModalChecklist(null)}
+                    onSuccess={() => {
+                        setRepairRequestModalChecklist(null);
+                        alert('Pengajuan request perbaikan berhasil dikirim ke menu Pemeliharaan Kendaraan.');
+                    }}
+                    vehicles={vehicles}
+                    currentUser={activeUser}
+                    initialCategory="NON_ROUTINE"
+                    initialType="PERBAIKAN"
+                    initialVehicleId={repairRequestModalChecklist.vehicleId}
+                    initialDescription={`[Tindak Lanjut Ceklis #${repairRequestModalChecklist.id}] Temuan inspeksi (${repairRequestModalChecklist.type === 'DAILY' ? 'Harian' : repairRequestModalChecklist.type === 'WEEKLY' ? 'Mingguan' : 'Bulanan'}): ${repairRequestModalChecklist.notes || 'Kondisi armada memerlukan perbaikan.'}`}
+                />
             )}
         </div>
     );

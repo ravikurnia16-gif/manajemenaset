@@ -51,42 +51,8 @@ exports.getAllMaintenanceLogs = async (req, res) => {
         // Catatan: Laporan kerusakan insiden perjalanan dikelola murni dari riwayat pemakaian (VehicleBooking)
         // melalui endpoint /api/vehicles/incidents agar tidak bercampur dengan pengajuan servis rutin.
 
-        // Sinkronisasi otomatis: jika ada ceklis dengan status PERLU PERBAIKAN yang belum memiliki tiket servis
-        try {
-            const damageChecklists = await prisma.vehicleChecklist.findMany({
-                where: { status: 'PERLU PERBAIKAN' },
-                include: { vehicle: true }
-            });
-
-            for (const c of damageChecklists) {
-                const exists = await prisma.vehicleService.findFirst({
-                    where: {
-                        vehicleId: c.vehicleId,
-                        description: { contains: `[LAPORAN KERUSAKAN CEKLIS #${c.id}]` }
-                    }
-                });
-
-                if (!exists) {
-                    const cklCode = `PK/CKL/${c.id.toString().padStart(4, '0')}`;
-                    await prisma.vehicleService.create({
-                        data: {
-                            code: cklCode,
-                            vehicleId: c.vehicleId,
-                            date: c.date || c.createdAt || new Date(),
-                            category: 'NON_ROUTINE',
-                            type: 'PERBAIKAN',
-                            description: `[LAPORAN KERUSAKAN CEKLIS #${c.id}] Temuan inspeksi/ceklis: ${c.notes || 'Kondisi kendaraan memerlukan perbaikan/servis segera.'}`,
-                            cost: 0,
-                            status: 'PENDING',
-                            urgency: 'URGENT',
-                            requesterId: c.driverId || userId
-                        }
-                    });
-                }
-            }
-        } catch (cklErr) {
-            console.error('[Sync Damage Checklists Error]:', cklErr.message);
-        }
+        // Catatan: Laporan kerusakan dari ceklis harian/rutin tidak disinkronkan otomatis menjadi tiket pengajuan
+        // request perbaikan (VehicleService). Pengajuan perbaikan tetap dibuat terpisah secara manual bila diperlukan.
 
         const logs = await prisma.vehicleService.findMany({
             where,

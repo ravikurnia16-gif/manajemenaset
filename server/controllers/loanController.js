@@ -65,15 +65,15 @@ exports.requestLoan = async (req, res) => {
 
                 if (isYayasan) {
                     console.log(`[Loan Notif] Yayasan asset detected. Searching for strategic admins...`);
-                    // Notify strategic roles specifically for Yayasan assets
+                    // Notify strategic roles & ADMIN_ASET specifically for Yayasan assets
                     const specialAdmins = await prisma.user.findMany({
                         where: {
                             OR: [
+                                { role: 'ADMIN_ASET' },
                                 { position: { contains: 'Sarana dan Prasarana' } },
                                 { position: { contains: 'Manajemen Aset' } },
                                 { position: { contains: 'Manajemen Asset' } }
-                            ],
-                            phone: { not: null, not: '' }
+                            ]
                         }
                     });
 
@@ -89,11 +89,11 @@ exports.requestLoan = async (req, res) => {
                                 '/peminjaman'
                             );
 
-                            if (admin.phone) {
+                            if (admin.phone && admin.phone.trim()) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
                                 const message = `Bismillah.\n📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${requesterName}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
                                 await whatsappService.sendMessage(admin.phone, message);
-                                console.log(`[Loan Notif] WA sent to ${admin.position}: ${admin.name}`);
+                                console.log(`[Loan Notif] WA sent to ${admin.position || admin.role}: ${admin.name}`);
                             }
                         } catch (e) {
                             console.error(`[Loan Notif] Failed to notify special admin ${admin.name}:`, e.message);
@@ -154,13 +154,18 @@ exports.reviewLoan = async (req, res) => {
             return res.status(404).json({ error: 'Loan request not found' });
         }
 
-        // Permission check: Must be Sarpras Unit (ADMIN_UNIT) of the asset's unit OR Super Admin
+        // Permission check: Sarpras Unit (ADMIN_UNIT) of the asset's unit, ADMIN_ASET for Kantor Yayasan, OR Super Admin
         const reviewer = await prisma.user.findUnique({ where: { id: reviewerId } });
-        const isSarpras = reviewer.unitId === loan.asset.unitId && reviewer.role === 'ADMIN_UNIT';
-        const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(reviewer.role);
+        const assetUnitName = (loan.asset?.unit?.name || '').toLowerCase();
+        const isKantorYayasan = assetUnitName.includes('kantor yayasan');
+        const isSarpras = reviewer?.unitId === loan.asset?.unitId && reviewer?.role === 'ADMIN_UNIT';
+        const isAdminAsetYayasan = reviewer?.role === 'ADMIN_ASET' && isKantorYayasan;
+        const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(reviewer?.role);
 
-        if (!isSarpras && !isSuperAdmin) {
-            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Unit dari unit pemilik aset (Pemberi Pinjaman) atau Super Admin yang dapat memberikan persetujuan.' });
+        if (!isSarpras && !isSuperAdmin && !isAdminAsetYayasan) {
+            return res.status(403).json({
+                error: 'Akses ditolak. Hanya Admin Unit dari unit pemilik aset (Pemberi Pinjaman), Admin Aset (untuk unit Kantor Yayasan), atau Super Admin yang dapat memberikan persetujuan.'
+            });
         }
 
         const updatedLoan = await prisma.assetLoan.update({

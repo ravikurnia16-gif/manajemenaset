@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-    ArrowLeft, Plus, Trash2, Save, HardHat, 
+import {
+    ArrowLeft, Plus, Trash2, Save, HardHat,
     Boxes, Sparkles, AlertCircle, CheckCircle2,
     Search, X, DollarSign, Package
 } from 'lucide-react';
@@ -9,6 +9,11 @@ import api from '../../lib/axios';
 import Swal from 'sweetalert2';
 import WorkshopPicSelect from './components/WorkshopPicSelect';
 import { useWorkshopPicOptions, getDefaultWorkshopPic } from './components/workshopPicUtils';
+import {
+    parseCatalogSpecification,
+    inferCatalogCategory,
+    getCategoryMeta
+} from './components/workshopCatalogUtils';
 
 export default function WorkshopBaruOrderForm() {
     const navigate = useNavigate();
@@ -23,15 +28,28 @@ export default function WorkshopBaruOrderForm() {
     const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
     const [catalogSearch, setCatalogSearch] = useState('');
 
+    const initialCatalogCategory = initialCatalogItem
+        ? (initialCatalogItem.workshopType || inferCatalogCategory(initialCatalogItem))
+        : '';
+
     const [form, setForm] = useState({
         title: fromMaintenance ? fromMaintenance.title : (initialCatalogItem ? `Pemesanan ${initialCatalogItem.name}` : ''),
         priority: 'NORMAL',
-        workshopType: '',
+        workshopType: initialCatalogCategory === 'KAYU' || initialCatalogCategory === 'BESI' ? initialCatalogCategory : '',
         deadline: '',
         picName: '',
         notes: fromMaintenance ? fromMaintenance.notes : '',
         unitId: fromMaintenance ? fromMaintenance.unitId : ''
     });
+
+    useEffect(() => {
+        if (!form.picName && form.workshopType && picDefaults) {
+            const defPic = getDefaultWorkshopPic(form.workshopType, picDefaults);
+            if (defPic) {
+                setForm(prev => (prev.picName ? prev : { ...prev, picName: defPic }));
+            }
+        }
+    }, [form.workshopType, form.picName, picDefaults]);
 
     const [items, setItems] = useState(() => {
         if (initialCatalogItem) {
@@ -99,15 +117,56 @@ export default function WorkshopBaruOrderForm() {
         setItems(items.filter((_, i) => i !== index));
     };
 
-    const handleSelectCatalogItem = (product) => {
-        const unitMatch = String(product.specification || '').match(/\[Satuan:\s*([^\]]+)\]/i);
-        const extractedUnit = product.unit || unitMatch?.[1]?.trim() || 'Unit';
+    const handleSelectCatalogItem = async (product) => {
+        const parsed = parseCatalogSpecification(product.specification);
+        const catId = parsed.category || inferCatalogCategory(product);
+        const mappedType = catId === 'KAYU' || catId === 'BESI' ? catId : '';
+
+        let chosenName = product.name;
+        let chosenUnit = product.unit || parsed.unit || 'Unit';
+        let chosenPrice = parseFloat(product.price) || 0;
+        let chosenSpec = parsed.cleanSpec;
+
+        if (parsed.variants.length > 0) {
+            const inputOptions = {};
+            parsed.variants.forEach((v, idx) => {
+                const priceLabel = v.price > 0 ? `Rp ${v.price.toLocaleString('id-ID')}` : 'Harga Custom';
+                inputOptions[idx] = `${v.label} (${v.unit}) — ${priceLabel}`;
+            });
+            inputOptions.CUSTOM_SHAPE = '✏️ Bentuk / Ukuran Custom Lainnya (Harga Custom)';
+
+            const { value: chosenIdx, isConfirmed } = await Swal.fire({
+                title: 'Pilih Bentuk / Satuan',
+                text: product.name,
+                input: 'select',
+                inputOptions,
+                showCancelButton: true,
+                confirmButtonText: 'Pilih',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#059669'
+            });
+            if (!isConfirmed) return;
+
+            if (chosenIdx === 'CUSTOM_SHAPE') {
+                chosenName = `${product.name} (Bentuk/Ukuran Custom)`;
+                chosenPrice = 0;
+                chosenSpec = `${parsed.cleanSpec}${parsed.cleanSpec ? '\n' : ''}Catatan: Bentuk/ukuran custom (estimasi harga menyesuaikan desain)`;
+            } else {
+                const variant = parsed.variants[Number(chosenIdx)] || parsed.variants[0];
+                chosenName = `${product.name} (${variant.label})`;
+                chosenUnit = variant.unit || chosenUnit;
+                chosenPrice = variant.price || 0;
+            }
+        } else if (parsed.priceNote) {
+            chosenSpec = `${parsed.cleanSpec}${parsed.cleanSpec ? '\n' : ''}Catatan Harga: ${parsed.priceNote}`;
+        }
+
         const newItem = {
-            name: product.name,
-            spec: String(product.specification || '').replace(/\[(?:Satuan|HargaMode|CatatanHarga|VarianHarga):[^\]]*\]\s*/gi, '').trim(),
+            name: chosenName,
+            spec: chosenSpec,
             qty: 1,
-            unit: extractedUnit,
-            estimatedPrice: product.price || 0
+            unit: chosenUnit,
+            estimatedPrice: chosenPrice
         };
 
         // Jika baris pertama masih kosong, replace; jika tidak, tambahkan baru
@@ -117,9 +176,16 @@ export default function WorkshopBaruOrderForm() {
             setItems([...items, newItem]);
         }
 
-        if (!form.title) {
-            setForm(prev => ({ ...prev, title: `Pemesanan ${product.name}` }));
-        }
+        setForm(prev => {
+            const nextType = prev.workshopType || mappedType;
+            const nextPic = prev.picName || (nextType ? getDefaultWorkshopPic(nextType, picDefaults) : '');
+            return {
+                ...prev,
+                title: prev.title || `Pemesanan ${chosenName}`,
+                workshopType: nextType,
+                picName: nextPic
+            };
+        });
 
         setIsCatalogModalOpen(false);
     };
@@ -198,7 +264,7 @@ export default function WorkshopBaruOrderForm() {
         }
     };
 
-    const filteredCatalog = catalogProducts.filter(p => 
+    const filteredCatalog = catalogProducts.filter(p =>
         (p.name || '').toLowerCase().includes(catalogSearch.toLowerCase()) ||
         (p.specification || '').toLowerCase().includes(catalogSearch.toLowerCase())
     );
@@ -207,8 +273,8 @@ export default function WorkshopBaruOrderForm() {
         <div className="max-w-5xl mx-auto space-y-5 pb-24 px-3 sm:px-6 pt-4">
             {/* Nav Back */}
             <div className="flex items-center justify-between">
-                <button 
-                    onClick={() => navigate('/workshop-baru/board')} 
+                <button
+                    onClick={() => navigate('/workshop-baru/board')}
                     className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-500 hover:text-emerald-700 transition-colors"
                 >
                     <ArrowLeft size={16} /> Batal & Kembali ke Papan Kerja
@@ -380,7 +446,7 @@ export default function WorkshopBaruOrderForm() {
                         {/* Items List */}
                         <div className="space-y-3">
                             {items.map((item, index) => (
-                                <div 
+                                <div
                                     key={index}
                                     className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 relative group hover:border-emerald-300 transition-colors"
                                 >
@@ -515,7 +581,7 @@ export default function WorkshopBaruOrderForm() {
                                     Pilih produk standar workshop untuk otomatis mengisi nama, spesifikasi, dan estimasi harga.
                                 </p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setIsCatalogModalOpen(false)}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200"
                             >
@@ -544,18 +610,22 @@ export default function WorkshopBaruOrderForm() {
                                     Belum ada produk di katalog yang sesuai.
                                 </div>
                             ) : (
-                                filteredCatalog.map((product) => (
-                                    <div 
+                                filteredCatalog.map((product) => {
+                                    const parsed = parseCatalogSpecification(product.specification);
+                                    const catMeta = getCategoryMeta(parsed.category || inferCatalogCategory(product));
+                                    const numericPrice = parseFloat(product.price) || 0;
+                                    return (
+                                    <div
                                         key={product.id}
                                         onClick={() => handleSelectCatalogItem(product)}
                                         className="pt-2.5 first:pt-0 flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-emerald-50/60 cursor-pointer transition-colors group"
                                     >
                                         <div className="flex items-center gap-3">
                                             {product.image ? (
-                                                <img 
-                                                    src={product.image} 
-                                                    alt={product.name} 
-                                                    className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0" 
+                                                <img
+                                                    src={product.image}
+                                                    alt={product.name}
+                                                    className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0"
                                                 />
                                             ) : (
                                                 <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
@@ -563,14 +633,27 @@ export default function WorkshopBaruOrderForm() {
                                                 </div>
                                             )}
                                             <div>
-                                                <h4 className="font-bold text-xs text-slate-800 group-hover:text-emerald-700 transition-colors">
-                                                    {product.name}
-                                                </h4>
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <h4 className="font-bold text-xs text-slate-800 group-hover:text-emerald-700 transition-colors">
+                                                        {product.name}
+                                                    </h4>
+                                                    {catMeta && (
+                                                        <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${catMeta.chipCls}`}>
+                                                            {catMeta.badge}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-[11px] text-slate-500 line-clamp-1">
-                                                    {product.specification || 'Tidak ada rincian spesifikasi'}
+                                                    {parsed.cleanSpec || 'Tidak ada rincian spesifikasi'}
                                                 </p>
                                                 <p className="text-[11px] font-extrabold text-emerald-700 mt-0.5">
-                                                    Rp {(product.price || 0).toLocaleString('id-ID')}
+                                                    {parsed.priceMode === 'CUSTOM' && numericPrice <= 0
+                                                        ? `Harga Custom (Sesuai Bentuk / ${parsed.unit})`
+                                                        : parsed.priceMode === 'CUSTOM'
+                                                            ? `Mulai Rp ${numericPrice.toLocaleString('id-ID')} / ${parsed.unit} (Custom)`
+                                                            : parsed.variants.length > 0
+                                                                ? `${parsed.variants.length} Variasi Bentuk/Satuan (+ Opsi Custom)`
+                                                                : `Rp ${numericPrice.toLocaleString('id-ID')} / ${parsed.unit}`}
                                                 </p>
                                             </div>
                                         </div>
@@ -581,7 +664,8 @@ export default function WorkshopBaruOrderForm() {
                                             Pilih Item
                                         </button>
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>

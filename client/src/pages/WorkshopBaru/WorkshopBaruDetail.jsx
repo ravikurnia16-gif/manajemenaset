@@ -184,13 +184,21 @@ function WorkshopBaruDetail() {
 
     const handleAddProgress = async (e) => {
         e.preventDefault();
+        const pct = progressPercent ? parseInt(progressPercent, 10) : 0;
         try {
-            await api.post(`/workshop/orders/${id}/progress`, {
-                message: progressMsg || `Update progres fisik pengerjaan: ${progressPercent || 0}%`,
-                percentage: progressPercent ? parseInt(progressPercent, 10) : 0,
+            const res = await api.post(`/workshop/orders/${id}/progress`, {
+                message: progressMsg || (pct >= 100 ? 'Pekerjaan selesai 100%.' : `Update progres fisik pengerjaan: ${pct}%`),
+                percentage: pct,
                 photoBase64: photoBase64
             });
-            Swal.fire('Berhasil', 'Catatan progres berhasil ditambahkan.', 'success');
+            const isNowCompleted = res.data?.orderStatus === 'COMPLETED' || pct >= 100;
+            Swal.fire(
+                isNowCompleted ? 'Selesai!' : 'Berhasil',
+                isNowCompleted
+                    ? 'Progres mencapai 100% dan status pesanan otomatis menjadi Selesai.'
+                    : 'Catatan progres berhasil ditambahkan.',
+                'success'
+            );
             setProgressModal(false);
             setProgressMsg('');
             setPhotoBase64(null);
@@ -202,13 +210,21 @@ function WorkshopBaruDetail() {
 
     const handleSaveQuickPercent = async (e) => {
         e.preventDefault();
+        const pct = parseInt(quickPercentVal, 10) || 0;
         try {
-            await api.post(`/workshop/orders/${id}/progress`, {
-                percentage: parseInt(quickPercentVal, 10),
-                message: quickPercentNote || `Update progres fisik pengerjaan: ${quickPercentVal}%`,
+            const res = await api.post(`/workshop/orders/${id}/progress`, {
+                percentage: pct,
+                message: quickPercentNote || (pct >= 100 ? 'Pekerjaan selesai 100%.' : `Update progres fisik pengerjaan: ${pct}%`),
                 photoBase64: photoBase64
             });
-            Swal.fire('Berhasil', `Persentase progres berhasil diperbarui ke ${quickPercentVal}%.`, 'success');
+            const isNowCompleted = res.data?.orderStatus === 'COMPLETED' || pct >= 100;
+            Swal.fire(
+                isNowCompleted ? 'Selesai!' : 'Berhasil',
+                isNowCompleted
+                    ? 'Progres mencapai 100% dan status pesanan otomatis berubah menjadi Selesai.'
+                    : `Persentase progres berhasil diperbarui ke ${pct}%.`,
+                'success'
+            );
             setQuickPercentModal(false);
             setQuickPercentNote('');
             setPhotoBase64(null);
@@ -826,7 +842,11 @@ function WorkshopBaruDetail() {
                                         max="100"
                                         step="5"
                                         value={statusPercentage}
-                                        onChange={e => setStatusPercentage(parseInt(e.target.value, 10))}
+                                        onChange={e => {
+                                            const nextVal = parseInt(e.target.value, 10);
+                                            setStatusPercentage(nextVal);
+                                            if (nextVal === 100) setNewStatus('COMPLETED');
+                                        }}
                                         className="w-full accent-blue-600 cursor-pointer h-2 bg-blue-200 rounded-lg appearance-none"
                                     />
 
@@ -969,6 +989,11 @@ function WorkshopBaruDetail() {
                                         </button>
                                     ))}
                                 </div>
+                                {quickPercentVal === 100 && (
+                                    <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
+                                        ✓ Pada 100%, status pesanan akan otomatis berubah menjadi Selesai (COMPLETED).
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -1075,6 +1100,11 @@ function WorkshopBaruDetail() {
                                         </button>
                                     ))}
                                 </div>
+                                {Number(progressPercent) === 100 && (
+                                    <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
+                                        ✓ Pada 100%, status pesanan akan otomatis berubah menjadi Selesai (COMPLETED).
+                                    </p>
+                                )}
                             </div>
 
                             <div>
