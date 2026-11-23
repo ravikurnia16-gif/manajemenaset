@@ -10,6 +10,12 @@ import Swal from 'sweetalert2';
 import socket from '../../lib/socket';
 import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
+import {
+    resolveOdometerDigits,
+    getOdometerMax,
+    sanitizeOdometerInput,
+    compareOdometerProgression
+} from '../../utils/odometerUtils';
 
 import VehicleChecklistTab from './components/VehicleChecklistTab';
 import VehicleDiscrepancyTab from './components/VehicleDiscrepancyTab';
@@ -694,18 +700,20 @@ const VehicleBooking = () => {
         if (submitting) return;
         try {
             const currentOdometer = showActionModal.data.vehicle?.odometer || 0;
-            const inputKm = parseInt(actionData.km);
+            const odoDigits = resolveOdometerDigits(showActionModal.data.vehicle);
+            const inputKm = parseInt(actionData.km, 10);
 
             if (isNaN(inputKm)) {
                 showToast('Masukkan angka kilometer awal yang valid', 'error');
                 return;
             }
-            if (inputKm < currentOdometer) {
-                showToast(`KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini.`, 'error');
+            const progression = compareOdometerProgression(currentOdometer, inputKm, odoDigits);
+            if (!progression.valid) {
+                showToast(progression.error || `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini.`, 'error');
                 return;
             }
 
-            const diff = inputKm - currentOdometer;
+            const diff = progression.discrepancy;
             if (diff > 1 && !actionData.photo) {
                 showToast(`Terdeteksi selisih Odometer. Anda WAJIB mengambil/mengunggah foto Odometer awal sebelum memulai perjalanan!`, 'error');
                 return;
@@ -872,8 +880,13 @@ const VehicleBooking = () => {
     const handleEndTrip = async () => {
         if (submitting) return;
         try {
-            if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
-                showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`, 'error');
+            const odoDigits = resolveOdometerDigits(showActionModal.data.vehicle);
+            const startKmVal = showActionModal.data.startKm || 0;
+            const endKmVal = parseInt(actionData.km, 10);
+            const endProgression = compareOdometerProgression(startKmVal, endKmVal, odoDigits);
+
+            if (!endProgression.valid) {
+                showToast(endProgression.error || `KM Akhir tidak boleh lebih kecil dari KM Awal (${startKmVal})`, 'error');
                 return;
             }
             if (actionData.hasIncident && !actionData.photo) {
@@ -884,8 +897,8 @@ const VehicleBooking = () => {
                 showToast('Wajib mengisi deskripsi kejadian/kerusakan!', 'error');
                 return;
             }
-            if ((parseInt(actionData.km) - (showActionModal.data.startKm || 0)) > 750) {
-                if (!window.confirm(`Jarak tempuh tercatat sangat jauh (${parseInt(actionData.km) - (showActionModal.data.startKm || 0)} km). Apakah Anda yakin angka KM akhir (${actionData.km}) sudah benar?`)) {
+            if (endProgression.distance > 750) {
+                if (!window.confirm(`Jarak tempuh tercatat sangat jauh (${endProgression.distance} km). Apakah Anda yakin angka KM akhir (${actionData.km}) sudah benar?`)) {
                     return;
                 }
             }
@@ -2018,10 +2031,12 @@ const VehicleBooking = () => {
                                                     <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600" size={18} />
                                                     <input
                                                         type="number"
+                                                        min="0"
+                                                        max={getOdometerMax(resolveOdometerDigits(selectedVehicle))}
                                                         placeholder="Isi jika ingin langsung mulai perjalanan..."
                                                         className="w-full bg-white border border-blue-200 rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-blue-900 focus:ring-4 focus:ring-blue-100 outline-none transition-all placeholder:text-blue-300 placeholder:font-normal"
                                                         value={formData.startKm}
-                                                        onChange={e => setFormData({ ...formData, startKm: e.target.value })}
+                                                        onChange={e => setFormData({ ...formData, startKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(selectedVehicle)) })}
                                                     />
                                                 </div>
                                                 <p className="text-[10px] text-blue-500 mt-2 font-medium italic">* Kosongkan jika ustadz ingin mengisi KM nanti saat berangkat.</p>
@@ -4184,9 +4199,10 @@ const VehicleBooking = () => {
                                 <div className="space-y-4">
                                     {(() => {
                                         const currentOdometer = showActionModal.data.vehicle?.odometer || 0;
-                                        const inputKm = actionData.km ? parseInt(actionData.km) : 0;
-                                        const diff = actionData.km ? (inputKm - currentOdometer) : 0;
-                                        const isDiscrepancy = Boolean(actionData.km && diff > 1);
+                                        const odoDigits = resolveOdometerDigits(showActionModal.data.vehicle);
+                                        const hasInput = actionData.km !== '' && actionData.km !== null && actionData.km !== undefined;
+                                        const startProg = hasInput ? compareOdometerProgression(currentOdometer, actionData.km, odoDigits) : null;
+                                        const isDiscrepancy = Boolean(startProg?.valid && startProg.discrepancy > 1);
 
                                         return (
                                             <>
@@ -4210,17 +4226,26 @@ const VehicleBooking = () => {
                                                 )}
 
                                                 <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kilometer Keberangkatan (Km Awal)</label>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                                                        Kilometer Keberangkatan (Km Awal — Maks. {resolveOdometerDigits(showActionModal.data.vehicle)} Digit)
+                                                    </label>
                                                     <div className="relative">
                                                         <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                                         <input
                                                             type="number"
+                                                            min="0"
+                                                            max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
                                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                            placeholder="Masukkan angka KM"
+                                                            placeholder={`Maks. ${getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle)).toLocaleString('id-ID')} km`}
                                                             value={actionData.km}
-                                                            onChange={e => setActionData({ ...actionData, km: e.target.value })}
+                                                            onChange={e => setActionData({ ...actionData, km: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
                                                         />
                                                     </div>
+                                                    {startProg?.isRollover && (
+                                                        <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
+                                                            ✓ Terdeteksi odometer memutar kembali (rollover dari {currentOdometer.toLocaleString('id-ID')} km, selisih {startProg.distance.toLocaleString('id-ID')} km).
+                                                        </p>
+                                                    )}
                                                 </div>
 
                                                 {/* Pre-Trip Photo Upload */}
@@ -4396,17 +4421,36 @@ const VehicleBooking = () => {
                             {showActionModal.type === 'END' && (
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kilometer Tiba (Km Akhir)</label>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                                            Kilometer Tiba (Km Akhir — Maks. {resolveOdometerDigits(showActionModal.data.vehicle)} Digit)
+                                        </label>
                                         <div className="relative">
                                             <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                             <input
                                                 type="number"
+                                                min="0"
+                                                max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
                                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-green-500 outline-none"
-                                                placeholder="Masukkan angka KM"
+                                                placeholder={`Maks. ${getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle)).toLocaleString('id-ID')} km`}
                                                 value={actionData.km}
-                                                onChange={e => setActionData({ ...actionData, km: e.target.value })}
+                                                onChange={e => setActionData({ ...actionData, km: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
                                             />
                                         </div>
+                                        {actionData.km !== '' && (() => {
+                                            const endCheck = compareOdometerProgression(
+                                                showActionModal.data.startKm || 0,
+                                                actionData.km,
+                                                resolveOdometerDigits(showActionModal.data.vehicle)
+                                            );
+                                            if (endCheck.isRollover) {
+                                                return (
+                                                    <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
+                                                        ✓ Odometer memutar kembali (rollover): jarak tempuh perjalanan ini terhitung {endCheck.distance.toLocaleString('id-ID')} km.
+                                                    </p>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
                                     </div>
 
                                     {/* Incident Toggle Section */}
@@ -4650,10 +4694,12 @@ const VehicleBooking = () => {
                                                 <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                 <input
                                                     type="number"
+                                                    min="0"
+                                                    max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
                                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                                                     placeholder="0"
                                                     value={actionData.startKm || ''}
-                                                    onChange={e => setActionData({ ...actionData, startKm: e.target.value })}
+                                                    onChange={e => setActionData({ ...actionData, startKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
                                                 />
                                             </div>
                                         </div>
@@ -4663,10 +4709,12 @@ const VehicleBooking = () => {
                                                 <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                 <input
                                                     type="number"
+                                                    min="0"
+                                                    max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
                                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none"
                                                     placeholder="0"
                                                     value={actionData.endKm || ''}
-                                                    onChange={e => setActionData({ ...actionData, endKm: e.target.value })}
+                                                    onChange={e => setActionData({ ...actionData, endKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
                                                 />
                                             </div>
                                         </div>
@@ -4853,7 +4901,16 @@ const VehicleBooking = () => {
                                     <div className="text-xs font-bold text-green-700 uppercase">Ringkasan Perjalanan</div>
                                     <div className="grid grid-cols-2 text-sm">
                                         <div className="text-slate-500">Jarak Tempuh:</div>
-                                        <div className="text-right font-bold text-green-700">{(showDetailModal.endKm - showDetailModal.startKm).toLocaleString()} KM</div>
+                                        <div className="text-right font-bold text-green-700">
+                                            {(() => {
+                                                const prog = compareOdometerProgression(
+                                                    showDetailModal.startKm || 0,
+                                                    showDetailModal.endKm || 0,
+                                                    resolveOdometerDigits(showDetailModal.vehicle)
+                                                );
+                                                return (prog.valid ? prog.distance : 0).toLocaleString();
+                                            })()} KM
+                                        </div>
                                         <div className="text-slate-500">BBM Refill:</div>
                                         <div className="text-right font-bold text-green-700">{showDetailModal.fuelRefill ? `Rp ${showDetailModal.fuelPrice?.toLocaleString()}` : 'TIDAK'}</div>
                                         <div className="text-slate-500">Posisi Akhir:</div>

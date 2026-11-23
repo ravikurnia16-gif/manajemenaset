@@ -28,13 +28,25 @@ const checklistController = require('../controllers/vehicleChecklistController')
 const { runScheduledAmbulanceSync } = require('../services/ambulanceSyncService');
 
 let schedulerInterval = null;
+let ambulanceStartupTimer = null;
 
 const initScheduler = () => {
     if (schedulerInterval) {
         clearInterval(schedulerInterval);
     }
+    if (ambulanceStartupTimer) {
+        clearTimeout(ambulanceStartupTimer);
+    }
 
     console.log(`[${new Date().toLocaleString()}] [Scheduler] Initialized. Checking tasks every 60 seconds...`);
+
+    // Initial Ambulance KM sync 15s after startup
+    ambulanceStartupTimer = setTimeout(() => {
+        if (process.env.USE_LOCAL_STORAGE === 'true') return;
+        runScheduledAmbulanceSync().catch((e) => {
+            console.error('[Scheduler] Initial runScheduledAmbulanceSync failed:', e.message);
+        });
+    }, 15000);
 
     schedulerInterval = setInterval(async () => {
         const now = new Date();
@@ -233,9 +245,9 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 4b. AMBULANCE KM SYNC VIA DEIPED API (Every 30 minutes)
+        // 4b. AMBULANCE KM SYNC VIA DEIPED API (Every 10 minutes)
         // ----------------------------------------------------
-        if (minute === 0 || minute === 30) {
+        if (minute % 10 === 0) {
             try {
                 await runScheduledAmbulanceSync();
             } catch (e) {

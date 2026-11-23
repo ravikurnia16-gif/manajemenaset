@@ -3,6 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar, User, Search } from 'lucide-react';
 import api from '../../lib/axios';
 import { getMediaUrl, compressImage } from '../../lib/media';
+import {
+    ODOMETER_DIGIT_OPTIONS,
+    resolveOdometerDigits,
+    getOdometerMax,
+    sanitizeOdometerInput
+} from '../../utils/odometerUtils';
 
 const VehicleForm = () => {
     const { id } = useParams();
@@ -19,6 +25,7 @@ const VehicleForm = () => {
         capacity: '',
         color: '',
         odometer: 0,
+        odometerDigits: 6,
         photo: '',
         status: 'ACTIVE',
         taxDueDate: '',
@@ -35,6 +42,7 @@ const VehicleForm = () => {
     });
     const [users, setUsers] = useState([]);
     const [picSearch, setPicSearch] = useState('');
+    const [customDigitsSelected, setCustomDigitsSelected] = useState(false);
     const [loading, setLoading] = useState(false);
     const [photoFile, setPhotoFile] = useState(null); // Actual File object
     const [photoPreview, setPhotoPreview] = useState(null);
@@ -58,6 +66,7 @@ const VehicleForm = () => {
             };
             setForm({
                 ...data,
+                odometerDigits: resolveOdometerDigits(data),
                 taxDueDate: formatDate(data.taxDueDate),
                 stnkDueDate: formatDate(data.stnkDueDate),
                 kirDueDate: formatDate(data.kirDueDate),
@@ -70,6 +79,7 @@ const VehicleForm = () => {
                 requireWeeklyChecklist: !!data.requireWeeklyChecklist,
                 requireMonthlyChecklist: !!data.requireMonthlyChecklist
             });
+            setCustomDigitsSelected(true);
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
             alert('Gagal mengambil data kendaraan');
@@ -120,6 +130,13 @@ const VehicleForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const activeDigits = resolveOdometerDigits(form.odometerDigits, form.type);
+        const maxKm = getOdometerMax(activeDigits);
+        const parsedOdo = parseInt(form.odometer || 0, 10);
+        if (Number.isNaN(parsedOdo) || parsedOdo < 0 || parsedOdo > maxKm) {
+            alert(`Kilometer (ODO) harus antara 0 s.d. ${maxKm.toLocaleString('id-ID')} km (${activeDigits} digit).`);
+            return;
+        }
         setLoading(true);
         try {
             const formData = new FormData();
@@ -229,7 +246,16 @@ const VehicleForm = () => {
                                     <select
                                         className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold"
                                         value={form.type}
-                                        onChange={e => setForm({ ...form, type: e.target.value })}
+                                        onChange={e => {
+                                            const nextType = e.target.value;
+                                            setForm(prev => ({
+                                                ...prev,
+                                                type: nextType,
+                                                odometerDigits: (!isEdit && !customDigitsSelected)
+                                                    ? resolveOdometerDigits(null, nextType)
+                                                    : prev.odometerDigits
+                                            }));
+                                        }}
                                     >
                                         <option value="Mobil">Mobil</option>
                                         <option value="Motor">Motor</option>
@@ -344,14 +370,48 @@ const VehicleForm = () => {
                         </div>
                         <div>
                             <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
+                                <Gauge size={14} className="text-green-500" /> Batas Digit Odometer (KM)
+                            </label>
+                            <select
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700 font-semibold text-sm"
+                                value={resolveOdometerDigits(form.odometerDigits, form.type)}
+                                onChange={e => {
+                                    const nextDigits = parseInt(e.target.value, 10);
+                                    setCustomDigitsSelected(true);
+                                    setForm(prev => ({
+                                        ...prev,
+                                        odometerDigits: nextDigits,
+                                        odometer: sanitizeOdometerInput(prev.odometer, nextDigits) || '0'
+                                    }));
+                                }}
+                            >
+                                {ODOMETER_DIGIT_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-slate-400 mt-1.5 leading-snug">
+                                Menentukan batas angka maksimal sebelum odometer kembali ke 1 (rollover).
+                            </p>
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
                                 <Gauge size={14} className="text-green-500" /> Kilometer (ODO)
                             </label>
                             <input
                                 type="number"
+                                min="0"
+                                max={getOdometerMax(resolveOdometerDigits(form.odometerDigits, form.type))}
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-bold"
                                 value={form.odometer}
-                                onChange={e => setForm({ ...form, odometer: e.target.value })}
+                                onChange={e => {
+                                    const activeDigits = resolveOdometerDigits(form.odometerDigits, form.type);
+                                    const clean = sanitizeOdometerInput(e.target.value, activeDigits);
+                                    setForm({ ...form, odometer: clean });
+                                }}
                             />
+                            <p className="text-[10px] text-slate-400 mt-1.5">
+                                Maks. <strong>{getOdometerMax(resolveOdometerDigits(form.odometerDigits, form.type)).toLocaleString('id-ID')}</strong> km ({resolveOdometerDigits(form.odometerDigits, form.type)} digit).
+                            </p>
                         </div>
                         <div>
                             <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">

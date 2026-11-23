@@ -631,6 +631,7 @@ model Vehicle {
   capacity           String? // Kapasitas (e.g. 1500cc)
   color              String? // Warna
   odometer           Int     @default(0) // Kilometer saat ini
+  odometerDigits     Int     @default(6) // Batas maksimal digit odometer (4=ribuan, 5=puluhan ribu/motor, 6=ratusan ribu/mobil, 7=jutaan)
   photo              String? @db.LongText // Foto Kendaraan (Base64 support)
   status             String  @default("ACTIVE") // ACTIVE / INACTIVE
   isRentable         Boolean @default(false) // Bisa disewa atau tidak

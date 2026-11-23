@@ -2,6 +2,11 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
+const {
+    resolveOdometerDigits,
+    validateOdometerValue,
+    compareOdometerProgression
+} = require('../utils/odometerUtils');
 
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -123,16 +128,19 @@ exports.requestBooking = async (req, res) => {
         const isMotor = vehicle.type?.toLowerCase().includes('motor');
         if (isMotor) {
             if (startKm) {
-                const inputKm = parseInt(startKm);
-                if (isNaN(inputKm)) return res.status(400).json({ error: 'KM Awal harus angka.' });
-                if (inputKm < (vehicle.odometer || 0)) {
-                    return res.status(400).json({ error: `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer (${vehicle.odometer || 0}).` });
+                const motorDigits = resolveOdometerDigits(vehicle);
+                const startCheck = validateOdometerValue(startKm, motorDigits, 'KM Awal');
+                if (!startCheck.valid) return res.status(400).json({ error: startCheck.error });
+                const inputKm = startCheck.value;
+                const currentOdometer = vehicle.odometer || 0;
+                const motorProgression = compareOdometerProgression(currentOdometer, inputKm, motorDigits);
+                if (!motorProgression.valid) {
+                    return res.status(400).json({ error: `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer (${currentOdometer}).` });
                 }
 
                 // Discrepancy Notification for Motorcycle Auto-Start (> 1 km)
-                const currentOdometer = vehicle.odometer || 0;
-                if (inputKm - currentOdometer > 1) {
-                    const diff = inputKm - currentOdometer;
+                const diff = motorProgression.discrepancy;
+                if (diff > 1) {
                     const discMsg = `⚠️ *PERINGATAN DISKREPANSI ODOMETER (MOTOR)*\n\n` +
                         `Terdapat selisih kilometer saat peminjaman motor dimulai:\n` +
                         `Armada: *${vehicle.name} (${vehicle.plateNumber})*\n` +
@@ -530,21 +538,24 @@ exports.startTrip = async (req, res) => {
         if (booking.userId !== req.user.id && booking.driverId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
 
         const currentOdometer = booking.vehicle.odometer || 0;
-        const inputKm = parseInt(startKm);
+        const odoDigits = resolveOdometerDigits(booking.vehicle);
+        const inputKmCheck = validateOdometerValue(startKm, odoDigits, 'Kilometer awal');
 
-        if (isNaN(inputKm)) {
-            return res.status(400).json({ error: 'Kilometer awal harus berupa angka' });
+        if (!inputKmCheck.valid) {
+            return res.status(400).json({ error: inputKmCheck.error });
         }
+        const inputKm = inputKmCheck.value;
 
-        // 1. Strict Validation: Cannot be lower than current odometer
-        if (inputKm < currentOdometer) {
+        const progression = compareOdometerProgression(currentOdometer, inputKm, odoDigits);
+        // 1. Strict Validation: Cannot be lower than current odometer unless within rollover zone (e.g. 99999 -> 1)
+        if (!progression.valid) {
             return res.status(400).json({
                 error: `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini (${currentOdometer}).`
             });
         }
 
         // 2. Discrepancy Validation & Mandatory Photo Check (> 1 km)
-        const diff = inputKm - currentOdometer;
+        const diff = progression.discrepancy;
         if (diff > 1) {
             // Check if photo was uploaded for discrepancy
             if (!startPhotoUrl) {
@@ -649,9 +660,16 @@ exports.endTrip = async (req, res) => {
         if (booking.userId !== req.user.id && booking.driverId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
 
         const startKmValue = booking.startKm || 0;
-        const endKmValue = parseInt(endKm);
+        const odoDigits = resolveOdometerDigits(booking.vehicle);
+        const endKmCheck = validateOdometerValue(endKm, odoDigits, 'KM Akhir');
 
-        if (endKmValue < startKmValue) {
+        if (!endKmCheck.valid) {
+            return res.status(400).json({ error: endKmCheck.error });
+        }
+        const endKmValue = endKmCheck.value;
+
+        const endProgression = compareOdometerProgression(startKmValue, endKmValue, odoDigits);
+        if (!endProgression.valid) {
             return res.status(400).json({
                 error: `KM Akhir (${endKmValue}) tidak boleh lebih kecil dari KM Awal (${startKmValue}).`
             });
@@ -1366,11 +1384,23 @@ exports.updateBookingHistory = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak. Anda tidak memiliki izin untuk mengedit riwayat.' });
         }
 
-        const parsedStartKm = startKm !== undefined && startKm !== '' ? parseInt(startKm) : booking.startKm;
-        const parsedEndKm = endKm !== undefined && endKm !== '' ? parseInt(endKm) : booking.endKm;
+        const odoDigits = resolveOdometerDigits(booking.vehicle);
+        const parsedStartKm = startKm !== undefined && startKm !== '' ? parseInt(startKm, 10) : booking.startKm;
+        const parsedEndKm = endKm !== undefined && endKm !== '' ? parseInt(endKm, 10) : booking.endKm;
 
-        if (parsedEndKm !== null && parsedStartKm !== null && parsedEndKm < parsedStartKm) {
-            return res.status(400).json({ error: 'KM Akhir tidak boleh lebih kecil dari KM Awal.' });
+        if (parsedStartKm !== null && parsedStartKm !== undefined) {
+            const startCheck = validateOdometerValue(parsedStartKm, odoDigits, 'KM Awal');
+            if (!startCheck.valid) return res.status(400).json({ error: startCheck.error });
+        }
+        if (parsedEndKm !== null && parsedEndKm !== undefined) {
+            const endCheck = validateOdometerValue(parsedEndKm, odoDigits, 'KM Akhir');
+            if (!endCheck.valid) return res.status(400).json({ error: endCheck.error });
+        }
+        if (parsedEndKm !== null && parsedEndKm !== undefined && parsedStartKm !== null && parsedStartKm !== undefined) {
+            const histProg = compareOdometerProgression(parsedStartKm, parsedEndKm, odoDigits);
+            if (!histProg.valid) {
+                return res.status(400).json({ error: 'KM Akhir tidak boleh lebih kecil dari KM Awal.' });
+            }
         }
 
         let isFuelRefill = undefined;
@@ -1683,11 +1713,14 @@ exports.getDiscrepancyAnalytics = async (req, res) => {
                     if (dateFilter.lt && bTime >= new Date(dateFilter.lt).getTime()) inPeriod = false;
                 }
 
+                const odoDigits = resolveOdometerDigits(b.vehicle);
+
                 // Check discrepancy against previous booking
                 if (i > 0) {
                     const prevB = vBookings[i - 1];
                     if (prevB.endKm !== null && prevB.endKm !== undefined) {
-                        const diff = (b.startKm || 0) - prevB.endKm;
+                        const discProg = compareOdometerProgression(prevB.endKm, b.startKm || 0, odoDigits);
+                        const diff = discProg.valid ? discProg.discrepancy : 0;
                         if (diff > 1) {
                             if (inPeriod) {
                                 discrepancyLogs.push({
@@ -1722,7 +1755,11 @@ exports.getDiscrepancyAnalytics = async (req, res) => {
 
                 // Record system trip
                 if (inPeriod) {
-                    const tripKm = (b.endKm && b.endKm >= b.startKm) ? (b.endKm - b.startKm) : 0;
+                    let tripKm = 0;
+                    if (b.endKm !== null && b.endKm !== undefined && b.startKm !== null && b.startKm !== undefined) {
+                        const tripProg = compareOdometerProgression(b.startKm, b.endKm, odoDigits);
+                        tripKm = tripProg.valid ? tripProg.distance : 0;
+                    }
                     if (vStat) {
                         vStat.systemTripsCount += 1;
                         vStat.systemKm += tripKm;

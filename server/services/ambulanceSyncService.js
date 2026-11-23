@@ -412,7 +412,9 @@ async function syncAmbulanceOdometers({
 
 function isAmbulanceSyncConfigured(envSource = process.env) {
     const cfg = getEnvConfig(envSource);
-    return Boolean(cfg.apiUrl && cfg.apiToken);
+    if (!cfg.apiUrl || !cfg.apiToken) return false;
+    if (cfg.apiUrl.includes('domain-deiped-anda')) return false;
+    return true;
 }
 
 /**

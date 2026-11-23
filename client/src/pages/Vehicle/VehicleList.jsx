@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar, FileText, Wrench, RefreshCw } from 'lucide-react';
+import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar, FileText, Wrench } from 'lucide-react';
 import api from '../../lib/axios';
 import { getMediaUrl } from '../../lib/media';
-import AmbulanceSyncModal from './components/AmbulanceSyncModal';
 
 const VehicleList = () => {
     const navigate = useNavigate();
@@ -11,18 +10,9 @@ const VehicleList = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
-    const [showAmbulanceSyncModal, setShowAmbulanceSyncModal] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isUser = user.role === 'USER';
-    const canManageSyncConfig = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
-    const posLower = (user.position || '').toLowerCase();
-    const canSyncAmbulance = canManageSyncConfig
-        || ['KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_UNIT'].includes(user.role)
-        || posLower.includes('sarana')
-        || posLower.includes('sarpras')
-        || posLower.includes('manajemen aset')
-        || posLower.includes('gudang');
 
     useEffect(() => {
         fetchVehicles();
@@ -70,14 +60,6 @@ const VehicleList = () => {
                     <p className="text-slate-500">Daftar armada dan kendaraan operasional.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
-                    {canSyncAmbulance && (
-                        <button
-                            onClick={() => setShowAmbulanceSyncModal(true)}
-                            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-600 hover:text-white transition-all"
-                        >
-                            <RefreshCw size={18} /> Sinkron KM Ambulance
-                        </button>
-                    )}
                     {!isUser && (
                         <button
                             onClick={() => navigate('/kendaraan/data/new')}
@@ -265,12 +247,6 @@ const VehicleList = () => {
                     <p className="text-slate-400 text-sm mb-6">Klik tombol Tambah Kendaraan untuk memulai.</p>
                 </div>
             )}
-
-            <AmbulanceSyncModal
-                isOpen={showAmbulanceSyncModal}
-                onClose={() => setShowAmbulanceSyncModal(false)}
-                onSynced={fetchVehicles}
-            />
         </div>
     );
 };

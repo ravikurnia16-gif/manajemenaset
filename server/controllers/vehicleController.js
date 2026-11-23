@@ -3,6 +3,12 @@ const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
 const aiService = require('../services/aiService');
 const ambulanceSyncService = require('../services/ambulanceSyncService');
+const {
+    resolveOdometerDigits,
+    validateOdometerValue,
+    compareOdometerProgression,
+    pickLatestOdometer
+} = require('../utils/odometerUtils');
 
 // Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
@@ -56,10 +62,12 @@ exports.getAllVehicles = async (req, res) => {
                 include: { user: { select: { name: true } } }
             });
 
-            const actualOdometer = Math.max(v.odometer || 0, lastBooking?.endKm || 0);
+            const odometerDigits = resolveOdometerDigits(v);
+            const actualOdometer = pickLatestOdometer(v.odometer || 0, lastBooking?.endKm ?? null, odometerDigits);
 
             return {
                 ...v,
+                odometerDigits,
                 odometer: actualOdometer,
                 nextServiceOdometer: latestService?.nextServiceOdometer || null,
                 lastServiceOdometer: latestService?.odometer || null,
@@ -97,13 +105,19 @@ exports.createVehicle = async (req, res) => {
     try {
         const {
             name, brand, model, type, plateNumber,
-            fuelType, capacity, color, odometer, photo, status,
+            fuelType, capacity, color, odometer, odometerDigits, photo, status,
             taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice,
             rentalPrice6Hours, rentalPrice12Hours,
             requireDailyChecklist, requireWeeklyChecklist, requireMonthlyChecklist
         } = req.body;
 
-        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice });
+        const resolvedDigits = resolveOdometerDigits(odometerDigits, type);
+        const odoCheck = validateOdometerValue(odometer !== undefined && odometer !== '' ? odometer : 0, resolvedDigits, 'Kilometer (ODO)');
+        if (!odoCheck.valid) {
+            return res.status(400).json({ error: odoCheck.error });
+        }
+
+        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice, odometerDigits: resolvedDigits });
 
         const vehicle = await prisma.vehicle.create({
             data: {
@@ -115,7 +129,8 @@ exports.createVehicle = async (req, res) => {
                 fuelType,
                 capacity,
                 color,
-                odometer: parseInt(odometer) || 0,
+                odometer: odoCheck.value,
+                odometerDigits: resolvedDigits,
                 photo: req.fileUrl || null,
                 status: status || 'ACTIVE',
                 isRentable: isRentable === true || isRentable === 'true',
@@ -151,7 +166,7 @@ exports.updateVehicle = async (req, res) => {
         }
         const {
             name, brand, model, type, plateNumber,
-            fuelType, capacity, color, odometer, photo, status,
+            fuelType, capacity, color, odometer, odometerDigits, photo, status,
             taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice,
             rentalPrice6Hours, rentalPrice12Hours,
             requireDailyChecklist, requireWeeklyChecklist, requireMonthlyChecklist
@@ -170,6 +185,19 @@ exports.updateVehicle = async (req, res) => {
         const oldVehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(req.params.id) } });
         if (!oldVehicle) return res.status(404).json({ error: 'Vehicle not found' });
 
+        const resolvedDigits = resolveOdometerDigits(
+            odometerDigits !== undefined && odometerDigits !== '' ? odometerDigits : oldVehicle.odometerDigits,
+            type || oldVehicle.type
+        );
+        let validatedOdometer = undefined;
+        if (odometer !== undefined && odometer !== '') {
+            const odoCheck = validateOdometerValue(odometer, resolvedDigits, 'Kilometer (ODO)');
+            if (!odoCheck.valid) {
+                return res.status(400).json({ error: odoCheck.error });
+            }
+            validatedOdometer = odoCheck.value;
+        }
+
         const parseDate = (d) => {
             if (!d) return null;
             const date = new Date(d);
@@ -187,7 +215,8 @@ exports.updateVehicle = async (req, res) => {
                 fuelType,
                 capacity: capacity ? capacity.toString() : undefined,
                 color,
-                odometer: odometer !== undefined ? parseInt(odometer) : undefined,
+                odometer: validatedOdometer,
+                odometerDigits: resolvedDigits,
                 photo: (req.fileUrl && req.fileUrl !== 'undefined' && req.fileUrl !== 'null') ? req.fileUrl : oldVehicle.photo,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
@@ -1243,7 +1272,9 @@ exports.getVehicleDashboard = async (req, res) => {
                 const b = vBookings[i];
                 const prevB = vBookings[i - 1];
                 if (prevB.endKm !== null && prevB.endKm !== undefined) {
-                    const diff = (b.startKm || 0) - prevB.endKm;
+                    const odoDigits = resolveOdometerDigits(b.vehicle);
+                    const discProg = compareOdometerProgression(prevB.endKm, b.startKm || 0, odoDigits);
+                    const diff = discProg.valid ? discProg.discrepancy : 0;
                     if (diff > 1) { // Selisih > 1 KM di luar sistem
                         const bDate = b.tripStartTime || b.startDate;
                         let inPeriod = true;
