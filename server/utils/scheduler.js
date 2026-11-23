@@ -26,9 +26,11 @@ const { sendReportReminders, notifyKabidInactiveStaff } = require('../controller
 const { checkPendingWorkshopOrders } = require('../controllers/workshopController');
 const checklistController = require('../controllers/vehicleChecklistController');
 const { runScheduledAmbulanceSync } = require('../services/ambulanceSyncService');
+const { runDailyOfficeRoutine, getOrCreateConfig } = require('../services/aiOfficeService');
 
 let schedulerInterval = null;
 let ambulanceStartupTimer = null;
+let aiOfficeStartupTimer = null;
 
 const initScheduler = () => {
     if (schedulerInterval) {
@@ -36,6 +38,9 @@ const initScheduler = () => {
     }
     if (ambulanceStartupTimer) {
         clearTimeout(ambulanceStartupTimer);
+    }
+    if (aiOfficeStartupTimer) {
+        clearTimeout(aiOfficeStartupTimer);
     }
 
     console.log(`[${new Date().toLocaleString()}] [Scheduler] Initialized. Checking tasks every 60 seconds...`);
@@ -47,6 +52,14 @@ const initScheduler = () => {
             console.error('[Scheduler] Initial runScheduledAmbulanceSync failed:', e.message);
         });
     }, 15000);
+
+    // Initial Kantor AI daily output catch-up 25s after startup
+    aiOfficeStartupTimer = setTimeout(() => {
+        if (process.env.USE_LOCAL_STORAGE === 'true') return;
+        runDailyOfficeRoutine({ trigger: 'STARTUP', force: false }).catch((e) => {
+            console.error('[Scheduler] Initial Kantor AI routine failed:', e.message);
+        });
+    }, 25000);
 
     schedulerInterval = setInterval(async () => {
         const now = new Date();
@@ -317,6 +330,23 @@ const initScheduler = () => {
             } catch (err) {
                 console.error('[Scheduler] Error in CCTV Audit Log Pruning:', err);
             }
+        }
+
+        // ----------------------------------------------------
+        // 8. KANTOR AI DAILY STAFF SHIFTS (Pagi & Sore sesuai AiOfficeConfig)
+        // ----------------------------------------------------
+        try {
+            const aiConfig = await getOrCreateConfig();
+            if (aiConfig?.isEnabled) {
+                const isMorningShift = hour === (aiConfig.dailyScheduleHour ?? 7) && minute === (aiConfig.dailyScheduleMinute ?? 30);
+                const isEveningShift = hour === (aiConfig.eveningScheduleHour ?? 16) && minute === 0;
+                if (isMorningShift || isEveningShift) {
+                    console.log(`[Scheduler] Executing Kantor AI staff shift at ${timeStr}...`);
+                    await runDailyOfficeRoutine({ trigger: 'SCHEDULER', force: false });
+                }
+            }
+        } catch (err) {
+            console.error('[Scheduler] Error in Kantor AI staff shift:', err.message);
         }
 
     }, 60000); // Check every 60 seconds

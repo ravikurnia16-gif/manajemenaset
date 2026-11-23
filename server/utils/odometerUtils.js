@@ -155,6 +155,76 @@ function pickLatestOdometer(vehicleOdometer, latestBookingEndKm, digits = 6) {
     return Math.max(a, b);
 }
 
+/**
+ * One-time automatic sync: Motor -> 5 digits, Mobil/non-Motor -> 6 digits.
+ * Guarded by `Setting.vehicleOdometerDigitsSynced` so subsequent manual edits are preserved.
+ */
+async function syncDefaultVehicleOdometerDigitsOnce(prismaClient, { respectLocalStorage = true } = {}) {
+    if (respectLocalStorage && process.env.USE_LOCAL_STORAGE === 'true') {
+        return { skipped: true };
+    }
+    if (!prismaClient) {
+        return { error: 'Prisma client is required' };
+    }
+
+    try {
+        const setting = await prismaClient.setting.findUnique({
+            where: { id: 1 },
+            select: { vehicleOdometerDigitsSynced: true }
+        });
+        if (setting?.vehicleOdometerDigitsSynced) {
+            return { alreadySynced: true };
+        }
+
+        const vehicles = await prismaClient.vehicle.findMany({
+            select: { id: true, type: true, odometerDigits: true }
+        });
+
+        const motorIds = [];
+        const otherIds = [];
+
+        for (const v of vehicles) {
+            const isMotor = String(v.type || '').toLowerCase().includes('motor');
+            const targetDigits = isMotor ? 5 : 6;
+            if (v.odometerDigits !== targetDigits) {
+                if (isMotor) motorIds.push(v.id);
+                else otherIds.push(v.id);
+            }
+        }
+
+        let updatedMotors = 0;
+        let updatedOthers = 0;
+
+        if (motorIds.length > 0) {
+            const resMotor = await prismaClient.vehicle.updateMany({
+                where: { id: { in: motorIds } },
+                data: { odometerDigits: 5 }
+            });
+            updatedMotors = resMotor.count || 0;
+        }
+
+        if (otherIds.length > 0) {
+            const resOther = await prismaClient.vehicle.updateMany({
+                where: { id: { in: otherIds } },
+                data: { odometerDigits: 6 }
+            });
+            updatedOthers = resOther.count || 0;
+        }
+
+        await prismaClient.setting.upsert({
+            where: { id: 1 },
+            update: { vehicleOdometerDigitsSynced: true },
+            create: { id: 1, vehicleOdometerDigitsSynced: true }
+        });
+
+        console.log(`[OdometerDigitsSync] Initialized once: ${updatedMotors} motor -> 5 digit, ${updatedOthers} non-motor -> 6 digit.`);
+        return { synced: true, updatedMotors, updatedOthers };
+    } catch (err) {
+        console.error('[OdometerDigitsSync Error]:', err.message);
+        return { error: err.message };
+    }
+}
+
 module.exports = {
     MIN_ODOMETER_DIGITS,
     MAX_ODOMETER_DIGITS,
@@ -164,5 +234,6 @@ module.exports = {
     getOdometerMax,
     validateOdometerValue,
     compareOdometerProgression,
-    pickLatestOdometer
+    pickLatestOdometer,
+    syncDefaultVehicleOdometerDigitsOnce
 };

@@ -3639,6 +3639,186 @@ async function generateSuratPerintahPengadaanPDF(doc, setting) {
     return await pdfDoc.save();
 }
 
+/**
+ * Generate branded internal PDF for Kantor AI outputs (Laporan Supervisi, SOP, Aturan, Surat).
+ */
+async function generateAiOfficeDocumentPDF(item, config = {}) {
+    const pdfDoc = await PDFDocument.create();
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+    const images = await embedKopSuratImages(pdfDoc);
+
+    const pageWidth = 595.28; // A4
+    const pageHeight = 841.89;
+    const margin = 45;
+    const contentWidth = pageWidth - (margin * 2);
+
+    const drawFooter = (p, pageNum) => {
+        const footerText = sanitizeTextForWinAnsi(
+            `Dokumen Internal Kantor AI -- Bidang Sarana Yayasan Dar el-Iman | Belum dipublikasikan ke E-Office | Hal. ${pageNum}`
+        );
+        p.drawLine({
+            start: { x: margin, y: 36 },
+            end: { x: pageWidth - margin, y: 36 },
+            thickness: 0.5,
+            color: rgb(0.82, 0.85, 0.89)
+        });
+        p.drawText(footerText, {
+            x: margin,
+            y: 23,
+            size: 7.5,
+            font: fontItalic,
+            color: rgb(0.45, 0.48, 0.54)
+        });
+    };
+
+    let pageCount = 1;
+    let page = pdfDoc.addPage([pageWidth, pageHeight]);
+    let y = drawKopSuratSync(page, fontBold, fontRegular, images);
+    drawFooter(page, pageCount);
+
+    const ensureSpace = (needed = 24) => {
+        if (y - needed < 52) {
+            page = pdfDoc.addPage([pageWidth, pageHeight]);
+            pageCount += 1;
+            y = pageHeight - 45;
+            drawFooter(page, pageCount);
+        }
+    };
+
+    // Badge header
+    const badgeLabel = sanitizeTextForWinAnsi(`KANTOR AI -- INTERNAL ${String(item.status || 'DRAFT').toUpperCase()}`);
+    page.drawRectangle({
+        x: margin,
+        y: y - 16,
+        width: 230,
+        height: 18,
+        color: rgb(0.93, 0.96, 1)
+    });
+    page.drawText(badgeLabel, {
+        x: margin + 8,
+        y: y - 11,
+        size: 8.5,
+        font: fontBold,
+        color: rgb(0.12, 0.35, 0.72)
+    });
+    y -= 28;
+
+    // Document Title
+    const cleanTitle = sanitizeTextForWinAnsi(item.title || 'Dokumen Kantor AI');
+    const titleLines = wrapText(cleanTitle, contentWidth, fontBold, 13.5);
+    for (const line of titleLines) {
+        ensureSpace(20);
+        page.drawText(line, { x: margin, y, size: 13.5, font: fontBold, color: rgb(0.09, 0.14, 0.22) });
+        y -= 17;
+    }
+    y -= 4;
+
+    // Metadata box
+    const staffLabel = item.staffRole === 'SUPERVISI'
+        ? (config.supervisorName || 'Staf Supervisi AI')
+        : (config.adminStaffName || 'Staf Administrasi AI');
+    const metaText = sanitizeTextForWinAnsi(
+        `Kode: ${item.code || '-'}   |   Kategori: ${item.category || '-'}   |   Bidang: ${item.domain || 'Umum'}   |   Tanggal: ${item.outputDate || '-'}   |   Penyusun: ${staffLabel}`
+    );
+    const metaLines = wrapText(metaText, contentWidth - 16, fontRegular, 8.5);
+    const boxHeight = (metaLines.length * 12) + 12;
+    ensureSpace(boxHeight + 12);
+    page.drawRectangle({
+        x: margin,
+        y: y - boxHeight + 6,
+        width: contentWidth,
+        height: boxHeight,
+        color: rgb(0.97, 0.98, 0.99),
+        borderColor: rgb(0.86, 0.89, 0.93),
+        borderWidth: 0.8
+    });
+    let metaY = y - 8;
+    for (const mLine of metaLines) {
+        page.drawText(mLine, { x: margin + 8, y: metaY, size: 8.5, font: fontRegular, color: rgb(0.28, 0.33, 0.41) });
+        metaY -= 12;
+    }
+    y -= boxHeight + 10;
+
+    // Render Markdown-style body cleanly
+    const rawBody = String(item.content || item.brief || item.rationale || 'Belum ada isi dokumen.');
+    const rawLines = rawBody.split(/\r?\n/);
+
+    for (const rawLine of rawLines) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+            y -= 7;
+            continue;
+        }
+        if (trimmed === '---' || trimmed === '***') {
+            ensureSpace(14);
+            page.drawLine({
+                start: { x: margin, y: y - 2 },
+                end: { x: pageWidth - margin, y: y - 2 },
+                thickness: 0.6,
+                color: rgb(0.82, 0.85, 0.89)
+            });
+            y -= 10;
+            continue;
+        }
+
+        let font = fontRegular;
+        let size = 9.8;
+        let lineHeight = 13.5;
+        let xOffset = 0;
+        let color = rgb(0.14, 0.17, 0.22);
+        let text = trimmed;
+
+        if (text.startsWith('### ')) {
+            text = text.slice(4);
+            font = fontBold;
+            size = 10.5;
+            lineHeight = 15;
+            y -= 4;
+            color = rgb(0.12, 0.25, 0.45);
+        } else if (text.startsWith('## ')) {
+            text = text.slice(3);
+            font = fontBold;
+            size = 11.2;
+            lineHeight = 16;
+            y -= 6;
+            color = rgb(0.08, 0.2, 0.38);
+        } else if (text.startsWith('# ')) {
+            text = text.slice(2);
+            font = fontBold;
+            size = 12.2;
+            lineHeight = 17;
+            y -= 6;
+            color = rgb(0.06, 0.15, 0.3);
+        } else if (/^[-*]\s+/.test(text)) {
+            text = `- ${text.replace(/^[-*]\s+/, '')}`;
+            xOffset = 10;
+        } else if (/^\d+\.\s+/.test(text)) {
+            xOffset = 10;
+        }
+
+        // Strip common inline Markdown markers cleanly for WinAnsi PDF
+        text = text
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/__(.*?)__/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/^\*(.*)\*$/, '$1');
+
+        const safeLine = sanitizeTextForWinAnsi(text);
+        const wrapped = wrapText(safeLine, contentWidth - xOffset, font, size);
+        for (const wLine of wrapped) {
+            ensureSpace(lineHeight + 4);
+            if (wLine) {
+                page.drawText(wLine, { x: margin + xOffset, y, size, font, color });
+            }
+            y -= lineHeight;
+        }
+    }
+
+    return await pdfDoc.save();
+}
+
 module.exports = {
     generateVerificationQR,
     generateSuratPDF,
@@ -3656,5 +3836,6 @@ module.exports = {
     generateBeritaAcaraKunjunganPDF,
     generateDispositionSheetPDF,
     generateSPKPDF,
-    generateBAKerusakanPDF
+    generateBAKerusakanPDF,
+    generateAiOfficeDocumentPDF
 };

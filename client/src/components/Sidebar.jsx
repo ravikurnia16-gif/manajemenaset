@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, Target, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet, Cctv } from 'lucide-react';
+import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, Target, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt, Kanban, FileSpreadsheet, Cctv, Bot } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -157,6 +157,29 @@ const Sidebar = ({ isOpen = true }) => {
     const isSecurityAdmin = false; // isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
 
     const canViewEOffice = role === 'ADMIN_ASET' || pos.includes('kepala bidang sarana');
+    const canAccessAiOffice = isOnlyKabidSaranaPosition;
+
+    const [aiOfficePendingCount, setAiOfficePendingCount] = useState(0);
+    useEffect(() => {
+        if (!canAccessAiOffice || !user?.id) return;
+        let isMounted = true;
+        const loadAiCount = () => {
+            api.get('/ai-office/dashboard')
+                .then(res => {
+                    if (isMounted && res.data?.counts) {
+                        const c = res.data.counts;
+                        setAiOfficePendingCount((c.proposed || 0) + (c.approvedQueue || 0));
+                    }
+                })
+                .catch(() => { });
+        };
+        loadAiCount();
+        window.addEventListener('aiOfficeChanged', loadAiCount);
+        return () => {
+            isMounted = false;
+            window.removeEventListener('aiOfficeChanged', loadAiCount);
+        };
+    }, [canAccessAiOffice, user?.id]);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -408,6 +431,21 @@ const Sidebar = ({ isOpen = true }) => {
                 {canViewEOffice && (
                     <Link to="/e-office" className={navItemClass('/e-office')}>
                         <FileSignature size={18} /> E-Office
+                    </Link>
+                )}
+
+                {/* 5b. Kantor AI (Staf Virtual Bidang Sarana) */}
+                {canAccessAiOffice && (
+                    <Link to="/kantor-ai" className={navItemClass('/kantor-ai')}>
+                        <Bot size={18} className="shrink-0 text-cyan-400" />
+                        <span className={cn("flex-1 transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>
+                            Kantor AI
+                        </span>
+                        {isOpen && aiOfficePendingCount > 0 && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/30">
+                                {aiOfficePendingCount}
+                            </span>
+                        )}
                     </Link>
                 )}
 

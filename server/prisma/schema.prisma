@@ -476,9 +476,10 @@ model Setting {
   busInitialFund  Float    @default(0) // Dana awal operasional Bus
   surveyEnabled   Boolean  @default(false)
   aiAllowedGroups String?  @db.Text
-  workshopPicKayu String?  // Nama Penanggung Jawab Workshop Kayu
-  workshopPicBesi String?  // Nama Penanggung Jawab Workshop Besi
-  updatedAt       DateTime @updatedAt
+  workshopPicKayu             String?  // Nama Penanggung Jawab Workshop Kayu
+  workshopPicBesi             String?  // Nama Penanggung Jawab Workshop Besi
+  vehicleOdometerDigitsSynced Boolean  @default(false) // Sinkronisasi 1x digit odometer (Motor 5, Mobil 6)
+  updatedAt                   DateTime @updatedAt
 }
 
 // --- MODULE PENGADAAN (PROCUREMENT) ---
@@ -2664,6 +2665,70 @@ model CctvAuditLog {
   @@index([action])
   @@index([category])
   @@index([status])
+  @@index([createdAt])
+}
+
+// ==================== MODULE KANTOR AI (BIDANG SARANA) ====================
+
+model AiOfficeConfig {
+  id                  Int       @id @default(1)
+  isEnabled           Boolean   @default(true)
+  supervisorName      String    @default("Staf Supervisi AI")
+  adminStaffName      String    @default("Staf Administrasi AI")
+  dailyScheduleHour   Int       @default(7)
+  dailyScheduleMinute Int       @default(30)
+  eveningScheduleHour Int       @default(16)
+  maxDailyDrafts      Int       @default(2)
+  sopGeneralFormat    String    @db.LongText
+  policyGuidelines    String?   @db.Text
+  lastSupervisorRunAt DateTime?
+  lastAdminRunAt      DateTime?
+  updatedAt           DateTime  @updatedAt
+}
+
+model AiOfficeItem {
+  id              Int       @id @default(autoincrement())
+  code            String    @unique
+  staffRole       String    // SUPERVISI | ADMINISTRASI
+  category        String    // LAPORAN_HARIAN | SOP | ATURAN | SURAT | LAINNYA
+  domain          String?   // Aset | Kendaraan | Pemeliharaan | Workshop | Gudang | Pengadaan | CCTV | Personalia | Umum
+  title           String
+  rationale       String?   @db.Text
+  brief           String?   @db.Text
+  priority        String    @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status          String    @default("PROPOSED") // PROPOSED | APPROVED_FOR_DRAFT | DRAFTING | DRAFT_READY | FINALIZED | REJECTED
+  content         String?   @db.LongText
+  metricsSnapshot String?   @db.LongText
+  revisionNotes   String?   @db.Text
+  outputDate      String    // YYYY-MM-DD (Asia/Jakarta)
+  triggeredBy     String    @default("SCHEDULER") // SCHEDULER | MANUAL | REQUEST
+  approvedById    Int?
+  approvedByName  String?
+  approvedAt      DateTime?
+  createdById     Int?
+  createdByName   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([staffRole])
+  @@index([category])
+  @@index([status])
+  @@index([outputDate])
+  @@index([createdAt])
+}
+
+model AiOfficeRunLog {
+  id           Int      @id @default(autoincrement())
+  staffRole    String   // SUPERVISI | ADMINISTRASI | BOTH
+  trigger      String   // SCHEDULER | MANUAL | AUTO_ON_ACC | STARTUP
+  status       String   // SUCCESS | PARTIAL | FAILED
+  summary      String   @db.Text
+  itemsCreated Int      @default(0)
+  itemsDrafted Int      @default(0)
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([staffRole])
   @@index([createdAt])
 }
 

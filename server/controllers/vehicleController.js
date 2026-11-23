@@ -7,12 +7,26 @@ const {
     resolveOdometerDigits,
     validateOdometerValue,
     compareOdometerProgression,
-    pickLatestOdometer
+    pickLatestOdometer,
+    syncDefaultVehicleOdometerDigitsOnce
 } = require('../utils/odometerUtils');
+
+let initialOdometerDigitsChecked = false;
+
+exports.syncDefaultVehicleOdometerDigitsOnce = async (prismaClient = prisma, options = {}) => {
+    const result = await syncDefaultVehicleOdometerDigitsOnce(prismaClient, options);
+    if (result?.synced || result?.alreadySynced || result?.skipped) {
+        initialOdometerDigitsChecked = true;
+    }
+    return result;
+};
 
 // Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
     try {
+        if (!initialOdometerDigitsChecked) {
+            await exports.syncDefaultVehicleOdometerDigitsOnce();
+        }
         const { id: userId, role } = req.user || {};
         const { forMaintenance } = req.query;
         let where = {};

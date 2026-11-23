@@ -87,6 +87,7 @@ import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
 import EOffice from './pages/EOffice';
+import AiOfficePage from './pages/AiOffice/AiOfficePage';
 import PublicVerify from './pages/PublicVerify';
 import AssetStandardCatalog from './pages/AssetStandardCatalog';
 import AssetStandardForm from './pages/AssetStandardForm';
@@ -146,6 +147,28 @@ const KabidSaranaOnlyRoute = ({ children }) => {
                     uRole === 'ADMIN_ASET' || 
                     uRole === 'KABID_SARPRAS' || 
                     uRole === 'SUPER_ADMIN';
+
+  if (!isAllowed) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Guard akses Kantor AI: khusus posisi Kepala Bidang Sarana
+const AiOfficeRoute = ({ children }) => {
+  let currentUser = {};
+  try {
+    const stored = localStorage.getItem('user');
+    if (stored && stored !== 'undefined') {
+      currentUser = JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Error parsing user in AiOfficeRoute', e);
+  }
+
+  const uPos = (currentUser?.position || '').toLowerCase();
+  const isAllowed = uPos.includes('kepala bidang sarana');
 
   if (!isAllowed) {
     return <Navigate to="/dashboard" replace />;
@@ -488,6 +511,13 @@ function App() {
           } />
           <Route path="e-office/:tab" element={
             canViewEOffice ? <EOffice /> : <Navigate to="/dashboard" />
+          } />
+
+          {/* Module: Kantor AI */}
+          <Route path="kantor-ai" element={
+            <AiOfficeRoute>
+              <AiOfficePage />
+            </AiOfficeRoute>
           } />
 
           {/* Module: Management CCTV */}

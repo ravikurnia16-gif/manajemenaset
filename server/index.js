@@ -88,6 +88,7 @@ app.use('/api/uniforms', require('./routes/uniformRoutes'));
 app.use('/api/laporan', require('./routes/laporanRoutes'));
 app.use('/api/kinerja-manajemen', require('./routes/kinerjaManajemenRoutes'));
 app.use('/api/cctv', require('./routes/cctvRoutes'));
+app.use('/api/ai-office', require('./routes/aiOfficeRoutes'));
 
 
 // Serve Static Files
@@ -171,6 +172,13 @@ server.listen(PORT, '0.0.0.0', () => {
             startCctvAiWatcher(prisma);
         } catch (err) {
             console.error('Failed to start CCTV AI watcher:', err.message);
+        }
+
+        try {
+            const { syncDefaultVehicleOdometerDigitsOnce } = require('./utils/odometerUtils');
+            syncDefaultVehicleOdometerDigitsOnce(prisma);
+        } catch (err) {
+            console.error('Failed to run initial odometer digits sync:', err.message);
         }
     }, 5000);
 });
