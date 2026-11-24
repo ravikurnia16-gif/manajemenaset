@@ -130,7 +130,8 @@ exports.createManualItem = async (req, res) => {
             : 'SOP';
         const code = await aiOfficeService.generateItemCode(prisma, safeCategory, outputDate);
 
-        let created = await prisma.aiOfficeItem.create({
+        const shouldQueueDraft = Boolean(autoApprove && draftNow);
+        const created = await prisma.aiOfficeItem.create({
             data: {
                 code,
                 staffRole: 'ADMINISTRASI',
@@ -142,7 +143,7 @@ exports.createManualItem = async (req, res) => {
                 priority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(String(priority).toUpperCase())
                     ? String(priority).toUpperCase()
                     : 'HIGH',
-                status: autoApprove ? 'APPROVED_FOR_DRAFT' : 'PROPOSED',
+                status: shouldQueueDraft ? 'DRAFTING' : (autoApprove ? 'APPROVED_FOR_DRAFT' : 'PROPOSED'),
                 outputDate,
                 triggeredBy: 'REQUEST',
                 approvedById: autoApprove ? req.user?.id || null : null,
@@ -153,14 +154,20 @@ exports.createManualItem = async (req, res) => {
             }
         });
 
-        if (autoApprove && draftNow) {
-            const drafted = await aiOfficeService.draftApprovedItem({
+        if (shouldQueueDraft) {
+            aiOfficeService.startBackgroundDraftItem({
                 prisma,
                 itemId: created.id,
+                title: created.title,
                 trigger: 'AUTO_ON_ACC',
                 actor: req.user
             });
-            created = drafted.item;
+            return res.status(202).json({
+                ...created,
+                queued: true,
+                routineState: aiOfficeService.getRoutineState(),
+                message: `Draft "${created.title}" mulai disusun di latar belakang. Anda bebas melanjutkan aktivitas lain di Kantor AI.`
+            });
         }
 
         res.status(201).json(created);
@@ -179,8 +186,9 @@ exports.accItem = async (req, res) => {
         if (!existing) return res.status(404).json({ error: 'Usulan tidak ditemukan' });
 
         const { title, brief, priority, category, domain, draftNow = false } = req.body || {};
+        const shouldDraftNow = Boolean(draftNow);
 
-        let updated = await prisma.aiOfficeItem.update({
+        const updated = await prisma.aiOfficeItem.update({
             where: { id },
             data: {
                 ...(title && String(title).trim() ? { title: String(title).trim().slice(0, 240) } : {}),
@@ -188,21 +196,27 @@ exports.accItem = async (req, res) => {
                 ...(priority ? { priority: String(priority).toUpperCase() } : {}),
                 ...(category ? { category: String(category).toUpperCase() } : {}),
                 ...(domain ? { domain: String(domain).slice(0, 60) } : {}),
-                status: 'APPROVED_FOR_DRAFT',
+                status: shouldDraftNow ? 'DRAFTING' : 'APPROVED_FOR_DRAFT',
                 approvedById: req.user?.id || null,
                 approvedByName: req.user?.name || req.user?.username || 'Pimpinan',
                 approvedAt: new Date()
             }
         });
 
-        if (draftNow) {
-            const drafted = await aiOfficeService.draftApprovedItem({
+        if (shouldDraftNow) {
+            aiOfficeService.startBackgroundDraftItem({
                 prisma,
                 itemId: updated.id,
+                title: updated.title,
                 trigger: 'AUTO_ON_ACC',
                 actor: req.user
             });
-            updated = drafted.item;
+            return res.status(202).json({
+                ...updated,
+                queued: true,
+                routineState: aiOfficeService.getRoutineState(),
+                message: `Usulan di-ACC & draft "${updated.title}" disusun di latar belakang. Anda bebas melanjutkan aktivitas lain.`
+            });
         }
 
         res.json(updated);
@@ -233,13 +247,48 @@ exports.rejectItem = async (req, res) => {
 
 exports.draftItem = async (req, res) => {
     try {
-        const result = await aiOfficeService.draftApprovedItem({
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id)) return res.status(400).json({ error: 'ID dokumen tidak valid.' });
+
+        const existing = await prisma.aiOfficeItem.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Dokumen Kantor AI tidak ditemukan.' });
+
+        if (!['PROPOSED', 'APPROVED_FOR_DRAFT', 'DRAFT_READY', 'DRAFTING'].includes(existing.status)) {
+            return res.status(400).json({ error: 'Dokumen tidak dapat disusun draft dari status saat ini.' });
+        }
+
+        const updated = await prisma.aiOfficeItem.update({
+            where: { id },
+            data: {
+                status: 'DRAFTING',
+                ...(existing.status === 'PROPOSED'
+                    ? {
+                        approvedById: existing.approvedById || req.user?.id || null,
+                        approvedByName: existing.approvedByName || req.user?.name || req.user?.username || 'Auto-ACC Pimpinan',
+                        approvedAt: existing.approvedAt || new Date()
+                    }
+                    : {})
+            }
+        });
+
+        const bg = aiOfficeService.startBackgroundDraftItem({
             prisma,
-            itemId: req.params.id,
+            itemId: updated.id,
+            title: updated.title,
             trigger: 'MANUAL',
             actor: req.user
         });
-        res.json(result);
+
+        res.status(bg.alreadyRunning ? 200 : 202).json({
+            queued: true,
+            started: bg.started,
+            alreadyRunning: bg.alreadyRunning,
+            item: updated,
+            routineState: aiOfficeService.getRoutineState(),
+            message: bg.alreadyRunning
+                ? `Draft "${updated.title}" sedang disusun di latar belakang.`
+                : `Draft "${updated.title}" mulai disusun di latar belakang. Anda bebas melanjutkan aktivitas lain di Kantor AI.`
+        });
     } catch (err) {
         console.error('[AiOffice] draftItem error:', err);
         res.status(err.statusCode || 500).json({ error: err.message });
@@ -359,13 +408,21 @@ exports.runDailyShift = async (req, res) => {
 exports.runSupervisor = async (req, res) => {
     try {
         const { force = true } = req.body || {};
-        const result = await aiOfficeService.runSupervisorShift({
+        const bg = aiOfficeService.startBackgroundSupervisorShift({
             prisma,
             trigger: 'MANUAL',
             actor: req.user,
             force: Boolean(force)
         });
-        res.json(result);
+
+        res.status(bg.alreadyRunning ? 200 : 202).json({
+            started: bg.started,
+            alreadyRunning: bg.alreadyRunning,
+            routineState: aiOfficeService.getRoutineState(),
+            message: bg.alreadyRunning
+                ? 'Staf Supervisi AI sedang menyusun laporan di latar belakang.'
+                : 'Staf Supervisi AI mulai menyusun Laporan Harian di latar belakang. Anda bebas melanjutkan aktivitas lain.'
+        });
     } catch (err) {
         console.error('[AiOffice] runSupervisor error:', err);
         res.status(500).json({ error: err.message });

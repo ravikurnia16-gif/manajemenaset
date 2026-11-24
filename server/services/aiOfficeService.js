@@ -189,12 +189,16 @@ const routineState = {
     lastResult: null,
     lastError: null
 };
+const activeBackgroundDrafts = new Map();
+let isSupervisorRunning = false;
+let supervisorStartedAt = null;
 
 function getRoutineState() {
+    const now = Date.now();
     if (
         routineState.isRunning &&
         routineState.startedAt &&
-        Date.now() - new Date(routineState.startedAt).getTime() > ROUTINE_STALE_LOCK_MS
+        now - new Date(routineState.startedAt).getTime() > ROUTINE_STALE_LOCK_MS
     ) {
         isRoutineRunning = false;
         routineState.isRunning = false;
@@ -202,7 +206,86 @@ function getRoutineState() {
         routineState.currentStep = null;
         routineState.lastError = 'Shift otomatis melewati batas waktu 5 menit dan direset otomatis.';
     }
-    return { ...routineState };
+    if (
+        isSupervisorRunning &&
+        supervisorStartedAt &&
+        now - new Date(supervisorStartedAt).getTime() > ROUTINE_STALE_LOCK_MS
+    ) {
+        isSupervisorRunning = false;
+        supervisorStartedAt = null;
+    }
+    for (const [draftId, meta] of activeBackgroundDrafts.entries()) {
+        if (meta?.startedAt && now - new Date(meta.startedAt).getTime() > ROUTINE_STALE_LOCK_MS) {
+            activeBackgroundDrafts.delete(draftId);
+        }
+    }
+    return {
+        ...routineState,
+        isSupervisorRunning,
+        activeDrafts: Array.from(activeBackgroundDrafts.values()),
+        activeDraftCount: activeBackgroundDrafts.size
+    };
+}
+
+function startBackgroundDraftItem({
+    prisma = defaultPrisma,
+    itemId,
+    title = '',
+    trigger = 'MANUAL',
+    actor = null
+} = {}) {
+    const id = parseInt(itemId, 10);
+    if (Number.isNaN(id)) {
+        const err = new Error('ID dokumen tidak valid.');
+        err.statusCode = 400;
+        throw err;
+    }
+    getRoutineState();
+    if (activeBackgroundDrafts.has(id)) {
+        return { started: false, alreadyRunning: true };
+    }
+
+    activeBackgroundDrafts.set(id, {
+        id,
+        title: String(title || `Dokumen #${id}`).slice(0, 160),
+        startedAt: new Date().toISOString()
+    });
+
+    draftApprovedItem({ prisma, itemId: id, trigger, actor })
+        .catch((err) => {
+            console.error(`[AiOffice] Background draft item #${id} error:`, err.message);
+        })
+        .finally(() => {
+            activeBackgroundDrafts.delete(id);
+        });
+
+    return { started: true, alreadyRunning: false };
+}
+
+function startBackgroundSupervisorShift({
+    prisma = defaultPrisma,
+    trigger = 'MANUAL',
+    actor = null,
+    force = true
+} = {}) {
+    getRoutineState();
+    if (isSupervisorRunning) {
+        return { started: false, alreadyRunning: true };
+    }
+
+    isSupervisorRunning = true;
+    supervisorStartedAt = new Date().toISOString();
+
+    runSupervisorShift({ prisma, trigger, actor, force })
+        .catch((err) => {
+            console.error('[AiOffice] Background supervisor shift error:', err.message);
+        })
+        .finally(() => {
+            isSupervisorRunning = false;
+            supervisorStartedAt = null;
+        });
+
+    return { started: true, alreadyRunning: false };
 }
 
 function withTimeout(promise, ms, label = 'Permintaan AI') {
@@ -490,9 +573,6 @@ async function buildSopTemplatePromptContext(config, { templateLoader = loadSopT
 
     if (ref?.buffer && ref.buffer.length > 0) {
         if (['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(ref.ext)) {
-            const extraNote = textFormat
-                ? `\nCATATAN / PANDUAN FORMAT TEKS TAMBAHAN DARI PIMPINAN:\n${textFormat}`
-                : '';
             return {
                 mode: 'multimodal',
                 fileName: ref.fileName,
@@ -501,7 +581,7 @@ async function buildSopTemplatePromptContext(config, { templateLoader = loadSopT
                     data: ref.buffer.toString('base64')
                 },
                 instructions: `TERLAMPIR DOKUMEN FORMAT SOP RESMI DARI PIMPINAN ("${ref.fileName}").
-WAJIB BERPEDOMAN LANGSUNG pada dokumen terlampir tersebut (lihat struktur kop/identitas dokumen, urutan bab & sub-bab, nama kolom tabel, formulir pendukung, dan blok pengesahan), lalu ISI seluruh bagiannya dengan prosedur operasional yang konkret, lengkap, dan siap pakai untuk judul SOP di atas.${extraNote}`
+WAJIB BERPEDOMAN 100% HANYA pada dokumen terlampir tersebut (lihat struktur kop/identitas dokumen, urutan bab & sub-bab, nama kolom tabel, formulir pendukung, dan blok pengesahan), lalu ISI seluruh bagiannya dengan prosedur operasional yang konkret, lengkap, dan siap pakai untuk judul SOP di atas.`
             };
         }
 
@@ -522,14 +602,11 @@ WAJIB BERPEDOMAN LANGSUNG pada dokumen terlampir tersebut (lihat struktur kop/id
         }
 
         if (extractedRefText) {
-            const extraNote = textFormat
-                ? `\n\nCATATAN / PANDUAN FORMAT TEKS TAMBAHAN DARI PIMPINAN:\n${textFormat}`
-                : '';
             return {
                 mode: 'text',
                 fileName: ref.fileName,
                 instructions: `DOKUMEN FORMAT SOP RESMI DARI PIMPINAN ("${ref.fileName}"):
-WAJIB BERPEDOMAN PENUH pada struktur dokumen berikut (pertahankan urutan bab, kolom tabel, dan format pengesahan lalu ISI kontennya secara operasional dan spesifik sesuai judul SOP):\n\n${extractedRefText.slice(0, 24000)}${extraNote}`
+WAJIB BERPEDOMAN 100% HANYA pada struktur dokumen berikut (pertahankan urutan bab, kolom tabel, dan format pengesahan lalu ISI kontennya secara operasional dan spesifik sesuai judul SOP):\n\n${extractedRefText.slice(0, 24000)}`
             };
         }
     }
@@ -1671,6 +1748,8 @@ async function runDailyOfficeRoutine({
 
 module.exports = {
     getRoutineState,
+    startBackgroundDraftItem,
+    startBackgroundSupervisorShift,
     recoverStaleDraftingItems,
     validateSopTemplateUpload,
     saveSopTemplateFile,

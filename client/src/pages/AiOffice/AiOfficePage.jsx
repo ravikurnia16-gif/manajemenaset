@@ -461,31 +461,34 @@ export default function AiOfficePage() {
 
     const routineState = dashboard?.routineState;
     const isRoutineRunning = Boolean(routineState?.isRunning);
-    const wasRoutineRunningRef = useRef(false);
+    const activeDrafts = useMemo(() => routineState?.activeDrafts || [], [routineState?.activeDrafts]);
+    const isSupervisorRunning = Boolean(routineState?.isSupervisorRunning);
+    const hasBackgroundWork = isRoutineRunning || isSupervisorRunning || activeDrafts.length > 0 || items.some(i => i.status === 'DRAFTING');
+    const wasBackgroundWorkRef = useRef(false);
 
     useEffect(() => {
-        if (!isRoutineRunning) return undefined;
+        if (!hasBackgroundWork) return undefined;
         const timer = setInterval(() => {
             fetchAllData(true);
         }, 3000);
         return () => clearInterval(timer);
-    }, [isRoutineRunning, fetchAllData]);
+    }, [hasBackgroundWork, fetchAllData]);
 
     useEffect(() => {
-        if (wasRoutineRunningRef.current && !isRoutineRunning) {
+        if (wasBackgroundWorkRef.current && !hasBackgroundWork) {
             const res = routineState?.lastResult;
             if (routineState?.lastError) {
-                showNotice(`Shift Kantor AI selesai dengan catatan: ${routineState.lastError}`, 'error');
+                showNotice(`Proses Kantor AI selesai dengan catatan: ${routineState.lastError}`, 'error');
             } else if (res && !res.skipped) {
                 showNotice(
-                    `Shift Kantor AI selesai: ${res.supervisorCreated ? '1 laporan supervisi, ' : ''}${res.draftedCount || 0} draft disusun, ${res.proposedCreated || 0} usulan baru.`
+                    `Proses Kantor AI selesai: ${res.supervisorCreated ? '1 laporan supervisi, ' : ''}${res.draftedCount || 0} draft disusun.`
                 );
             } else {
-                showNotice('Shift harian Kantor AI telah selesai dijalankan.');
+                showNotice('Dokumen / laporan Kantor AI di latar belakang sudah selesai dan siap diperiksa!');
             }
         }
-        wasRoutineRunningRef.current = isRoutineRunning;
-    }, [isRoutineRunning, routineState, showNotice]);
+        wasBackgroundWorkRef.current = hasBackgroundWork;
+    }, [hasBackgroundWork, routineState, showNotice]);
 
     const proposedItems = useMemo(
         () => items.filter(i => i.staffRole === 'ADMINISTRASI' && i.status === 'PROPOSED'),
@@ -523,14 +526,18 @@ export default function AiOfficePage() {
     const handleRunSupervisor = async () => {
         try {
             setBusyAction('supervisor');
-            const res = await api.post('/ai-office/run/supervisor', { force: true }, { timeout: 55000 });
-            showNotice(
-                res.data?.usedFallback
-                    ? 'Laporan Supervisi Harian dibuat (mode ringkasan terstruktur).'
-                    : 'Staf Supervisi AI selesai menyusun Laporan Harian Kepala Bidang Sarana!'
-            );
+            const res = await api.post('/ai-office/run/supervisor', { force: true }, { timeout: 20000 });
+            const d = res.data || {};
+            if (d.routineState) {
+                setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
+            }
+            if (d.started || d.alreadyRunning) {
+                wasBackgroundWorkRef.current = true;
+                showNotice(d.message || 'Staf Supervisi AI mulai menyusun laporan di latar belakang. Anda bebas melanjutkan aktivitas lain.');
+            } else {
+                showNotice('Staf Supervisi AI selesai menyusun Laporan Harian Kepala Bidang Sarana!');
+            }
             await fetchAllData(true);
-            setActiveTab('REPORTS');
         } catch (err) {
             showNotice(getApiErrorMessage(err, 'Gagal menjalankan Staf Supervisi AI'), 'error');
         } finally {
@@ -547,8 +554,8 @@ export default function AiOfficePage() {
                 setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
             }
             if (d.started || d.alreadyRunning) {
-                wasRoutineRunningRef.current = true;
-                showNotice(d.message || 'Shift harian Kantor AI dijalankan di latar belakang. Hasil akan tampil otomatis.');
+                wasBackgroundWorkRef.current = true;
+                showNotice(d.message || 'Shift harian Kantor AI dijalankan di latar belakang. Anda bebas melanjutkan aktivitas lain.');
             } else {
                 showNotice(
                     `Shift Kantor AI selesai: ${d.supervisorCreated ? '1 laporan supervisi, ' : ''}${d.draftedCount || 0} draft disusun, ${d.proposedCreated || 0} usulan baru.`
@@ -574,12 +581,11 @@ export default function AiOfficePage() {
                 setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
             }
             if (d.started || d.alreadyRunning) {
-                wasRoutineRunningRef.current = true;
-                showNotice(d.message || 'Staf Administrasi AI langsung ACC & menyusun draft di latar belakang.');
+                wasBackgroundWorkRef.current = true;
+                showNotice(d.message || 'Staf Administrasi AI langsung ACC & menyusun draft di latar belakang. Anda bebas melanjutkan aktivitas lain.');
             } else {
                 showNotice(`Staf Administrasi AI menyiapkan ${d.items?.length || 0} dokumen.`);
             }
-            setActiveTab('DRAFTS');
             await fetchAllData(true);
         } catch (err) {
             showNotice(getApiErrorMessage(err, 'Gagal memerintahkan Staf Administrasi AI'), 'error');
@@ -592,7 +598,8 @@ export default function AiOfficePage() {
         e.preventDefault();
         try {
             setBusyAction('manual');
-            const res = await api.post('/ai-office/items', manualForm, { timeout: 55000 });
+            const res = await api.post('/ai-office/items', manualForm, { timeout: 20000 });
+            const d = res.data || {};
             setShowManualModal(false);
             setManualForm({
                 title: '',
@@ -604,19 +611,16 @@ export default function AiOfficePage() {
                 autoApprove: true,
                 draftNow: true
             });
-            showNotice(
-                manualForm.autoApprove && manualForm.draftNow
-                    ? 'Dokumen khusus langsung disusun Staf Administrasi AI!'
-                    : 'Permintaan dokumen disimpan ke Kantor AI.'
-            );
-            await fetchAllData(true);
-            if (res.data?.status === 'DRAFT_READY') {
-                setActiveTab('DRAFTS');
-                setSelectedDoc(res.data);
-                setIsEditingDoc(false);
-                setDocEditForm({ title: res.data.title || '', content: res.data.content || '' });
-                setRevisionPrompt('');
+            if (d.routineState) {
+                setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
             }
+            if (d.queued || d.status === 'DRAFTING') {
+                wasBackgroundWorkRef.current = true;
+                showNotice(d.message || 'Permintaan dokumen diterima & sedang disusun di latar belakang. Anda bebas melanjutkan aktivitas lain.');
+            } else {
+                showNotice('Permintaan dokumen disimpan ke Kantor AI.');
+            }
+            await fetchAllData(true);
         } catch (err) {
             showNotice(getApiErrorMessage(err, 'Gagal membuat permintaan dokumen'), 'error');
         } finally {
@@ -630,21 +634,19 @@ export default function AiOfficePage() {
             const payload = editingProposalId === item.id
                 ? { ...proposalEdits, draftNow }
                 : { draftNow };
-            const res = await api.post(`/ai-office/items/${item.id}/acc`, payload, { timeout: 55000 });
+            const res = await api.post(`/ai-office/items/${item.id}/acc`, payload, { timeout: 20000 });
+            const d = res.data || {};
             setEditingProposalId(null);
-            showNotice(
-                draftNow
-                    ? `Usulan di-ACC dan draft "${res.data?.title || item.title}" telah selesai disusun!`
-                    : 'Usulan di-ACC dan masuk ke Antrean Draft Staf Administrasi AI.'
-            );
-            await fetchAllData(true);
-            if (draftNow && res.data?.id) {
-                setActiveTab('DRAFTS');
-                setSelectedDoc(res.data);
-                setIsEditingDoc(false);
-                setDocEditForm({ title: res.data.title || '', content: res.data.content || '' });
-                setRevisionPrompt('');
+            if (d.routineState) {
+                setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
             }
+            if (draftNow && (d.queued || d.status === 'DRAFTING')) {
+                wasBackgroundWorkRef.current = true;
+                showNotice(d.message || `Usulan di-ACC & draft "${item.title}" disusun di latar belakang. Anda bebas melanjutkan aktivitas lain.`);
+            } else {
+                showNotice('Usulan di-ACC dan masuk ke Antrean Draft Staf Administrasi AI.');
+            }
+            await fetchAllData(true);
         } catch (err) {
             showNotice(getApiErrorMessage(err, 'Gagal ACC usulan'), 'error');
         } finally {
@@ -655,16 +657,14 @@ export default function AiOfficePage() {
     const handleDraftQueueItem = async (item) => {
         try {
             setBusyAction(`draft-${item.id}`);
-            const res = await api.post(`/ai-office/items/${item.id}/draft`, {}, { timeout: 55000 });
-            showNotice(`Draft "${res.data?.item?.title || item.title}" selesai disusun.`);
-            await fetchAllData(true);
-            if (res.data?.item) {
-                setActiveTab('DRAFTS');
-                setSelectedDoc(res.data.item);
-                setIsEditingDoc(false);
-                setDocEditForm({ title: res.data.item.title || '', content: res.data.item.content || '' });
-                setRevisionPrompt('');
+            const res = await api.post(`/ai-office/items/${item.id}/draft`, {}, { timeout: 20000 });
+            const d = res.data || {};
+            if (d.routineState) {
+                setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
             }
+            wasBackgroundWorkRef.current = true;
+            showNotice(d.message || `Draft "${item.title}" mulai disusun di latar belakang. Anda bebas melanjutkan aktivitas lain.`);
+            await fetchAllData(true);
         } catch (err) {
             await fetchAllData(true);
             showNotice(getApiErrorMessage(err, 'Gagal menyusun draft'), 'error');
@@ -731,7 +731,7 @@ export default function AiOfficePage() {
             const res = await api.put(`/ai-office/items/${item.id}`, { status: 'FINALIZED' });
             if (selectedDoc?.id === item.id) setSelectedDoc(res.data);
             showNotice('Dokumen ditandai Final di internal Kantor AI.');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (err) {
             showNotice(err.response?.data?.error || 'Gagal menandai final', 'error');
         } finally {
@@ -746,7 +746,7 @@ export default function AiOfficePage() {
             await api.delete(`/ai-office/items/${item.id}`);
             if (selectedDoc?.id === item.id) setSelectedDoc(null);
             showNotice('Dokumen dihapus dari Kantor AI.');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (err) {
             showNotice(err.response?.data?.error || 'Gagal menghapus dokumen', 'error');
         } finally {
@@ -779,7 +779,7 @@ export default function AiOfficePage() {
             setBusyAction('save-config');
             await api.put('/ai-office/config', configForm);
             showNotice('Format SOP Umum & pengaturan shift Kantor AI tersimpan!');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (err) {
             showNotice(err.response?.data?.error || 'Gagal menyimpan pengaturan', 'error');
         } finally {
@@ -901,7 +901,7 @@ export default function AiOfficePage() {
                     </button>
                     <button
                         type="button"
-                        disabled={Boolean(busyAction) || isRoutineRunning}
+                        disabled={busyAction === 'daily' || isRoutineRunning}
                         onClick={handleRunDailyShift}
                         className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-all"
                     >
@@ -911,16 +911,21 @@ export default function AiOfficePage() {
                 </div>
             </div>
 
-            {isRoutineRunning && (
+            {hasBackgroundWork && (
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <RefreshCw size={18} className="text-blue-600 animate-spin shrink-0" />
                         <div>
                             <div className="text-xs font-bold text-blue-900">
-                                Shift Staf Kantor AI sedang berjalan di latar belakang...
+                                {activeDrafts.length > 0
+                                    ? `Menyusun ${activeDrafts.length} draft di latar belakang (${activeDrafts.map(d => d.title).slice(0, 2).join(', ')}${activeDrafts.length > 2 ? ', ...' : ''})`
+                                    : isSupervisorRunning
+                                        ? 'Staf Supervisi AI sedang menyusun laporan di latar belakang...'
+                                        : 'Staf Kantor AI sedang memproses tugas di latar belakang...'}
                             </div>
                             <div className="text-[11px] text-blue-700">
-                                {routineState?.currentStep || 'Menyusun laporan & dokumen secara bertahap.'} Halaman akan diperbarui otomatis.
+                                {routineState?.currentStep ? `${routineState.currentStep} ` : ''}
+                                Anda bebas melanjutkan aktivitas lain di Kantor AI — hasil terbaru muncul otomatis.
                             </div>
                         </div>
                     </div>
@@ -987,12 +992,12 @@ export default function AiOfficePage() {
                             </button>
                             <button
                                 type="button"
-                                disabled={Boolean(busyAction) || isRoutineRunning}
+                                disabled={busyAction === 'supervisor' || isSupervisorRunning}
                                 onClick={handleRunSupervisor}
                                 className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
                             >
-                                {busyAction === 'supervisor' ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                                Buat Laporan Sekarang
+                                {busyAction === 'supervisor' || isSupervisorRunning ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                                {isSupervisorRunning ? 'Menyusun Laporan...' : 'Buat Laporan Sekarang'}
                             </button>
                         </div>
                     </div>
@@ -1047,7 +1052,7 @@ export default function AiOfficePage() {
                             </button>
                             <button
                                 type="button"
-                                disabled={Boolean(busyAction) || isRoutineRunning}
+                                disabled={busyAction === 'propose'}
                                 onClick={() => setShowProposeTopicModal(true)}
                                 className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
                             >
@@ -1641,9 +1646,16 @@ export default function AiOfficePage() {
                         </div>
 
                         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                            <label className="block text-xs font-bold text-slate-700 uppercase">
-                                Format SOP Teks (Cadangan / Catatan Tambahan)
-                            </label>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <label className="block text-xs font-bold text-slate-700 uppercase">
+                                    Format SOP Teks (Cadangan / Catatan Tambahan)
+                                </label>
+                                {dashboard?.config?.sopTemplateFileUrl && (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                        Diabaikan saat dokumen acuan aktif
+                                    </span>
+                                )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 {dashboard?.defaultSopFormat && (
                                     <button
@@ -1675,7 +1687,9 @@ export default function AiOfficePage() {
                         ) : (
                             <textarea
                                 rows={14}
-                                className="w-full p-3.5 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 bg-slate-50/70 focus:bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`w-full p-3.5 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 bg-slate-50/70 focus:bg-white outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    dashboard?.config?.sopTemplateFileUrl ? 'opacity-75' : ''
+                                }`}
                                 value={configForm.sopGeneralFormat}
                                 onChange={e => setConfigForm(prev => ({ ...prev, sopGeneralFormat: e.target.value }))}
                             />
