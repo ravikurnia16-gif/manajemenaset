@@ -2671,19 +2671,23 @@ model CctvAuditLog {
 // ==================== MODULE KANTOR AI (BIDANG SARANA) ====================
 
 model AiOfficeConfig {
-  id                  Int       @id @default(1)
-  isEnabled           Boolean   @default(true)
-  supervisorName      String    @default("Staf Supervisi AI")
-  adminStaffName      String    @default("Staf Administrasi AI")
-  dailyScheduleHour   Int       @default(7)
-  dailyScheduleMinute Int       @default(30)
-  eveningScheduleHour Int       @default(16)
-  maxDailyDrafts      Int       @default(2)
-  sopGeneralFormat    String    @db.LongText
-  policyGuidelines    String?   @db.Text
-  lastSupervisorRunAt DateTime?
-  lastAdminRunAt      DateTime?
-  updatedAt           DateTime  @updatedAt
+  id                    Int       @id @default(1)
+  isEnabled             Boolean   @default(true)
+  supervisorName        String    @default("Staf Supervisi AI")
+  adminStaffName        String    @default("Staf Administrasi AI")
+  dailyScheduleHour     Int       @default(7)
+  dailyScheduleMinute   Int       @default(30)
+  eveningScheduleHour   Int       @default(16)
+  maxDailyDrafts        Int       @default(2)
+  sopGeneralFormat      String    @db.LongText
+  sopTemplateFileUrl    String?   @db.VarChar(500)
+  sopTemplateFileName   String?   @db.VarChar(255)
+  sopTemplateMimeType   String?   @db.VarChar(120)
+  sopTemplateUploadedAt DateTime?
+  policyGuidelines      String?   @db.Text
+  lastSupervisorRunAt   DateTime?
+  lastAdminRunAt        DateTime?
+  updatedAt             DateTime  @updatedAt
 }
 
 model AiOfficeItem {

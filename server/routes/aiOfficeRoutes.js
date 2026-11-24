@@ -39,6 +39,7 @@ router.get('/dashboard', aiOfficeController.getDashboard);
 router.get('/config', aiOfficeController.getConfig);
 router.put('/config', aiOfficeController.updateConfig);
 router.post('/config/upload-sop-format', handleSopFormatUpload, aiOfficeController.uploadSopFormat);
+router.delete('/config/sop-format-file', aiOfficeController.deleteSopFormatFile);
 
 router.get('/items', aiOfficeController.listItems);
 router.get('/items/:id', aiOfficeController.getItemById);

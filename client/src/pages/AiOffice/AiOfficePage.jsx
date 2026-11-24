@@ -409,7 +409,6 @@ export default function AiOfficePage() {
         policyGuidelines: ''
     });
     const [previewSopFormat, setPreviewSopFormat] = useState(false);
-    const [uploadedFormatMeta, setUploadedFormatMeta] = useState(null);
     const sopFileInputRef = useRef(null);
 
     const showNotice = useCallback((text, type = 'success') => {
@@ -779,7 +778,6 @@ export default function AiOfficePage() {
         try {
             setBusyAction('save-config');
             await api.put('/ai-office/config', configForm);
-            setUploadedFormatMeta(null);
             showNotice('Format SOP Umum & pengaturan shift Kantor AI tersimpan!');
             await fetchAllData();
         } catch (err) {
@@ -803,21 +801,35 @@ export default function AiOfficePage() {
             fd.append('file', file);
             const res = await api.post('/ai-office/config/upload-sop-format', fd, {
                 headers: { 'Content-Type': 'multipart/form-data' },
-                timeout: 55000
+                timeout: 30000
             });
-            if (res.data?.formatText) {
-                setConfigForm(prev => ({ ...prev, sopGeneralFormat: res.data.formatText }));
-                setUploadedFormatMeta({
-                    fileName: res.data.fileName || file.name,
-                    extractedBy: res.data.extractedBy || ''
-                });
-                showNotice(
-                    res.data.message ||
-                    `Format SOP berhasil diambil dari "${file.name}". Periksa hasilnya lalu klik Simpan Format & Pengaturan.`
-                );
+            if (res.data?.config) {
+                setDashboard(prev => (prev ? { ...prev, config: res.data.config } : prev));
             }
+            showNotice(
+                res.data?.message ||
+                `Dokumen format "${file.name}" disimpan sebagai pedoman Staf AI (tidak diekstrak ke teks).`
+            );
+            await fetchAllData(true);
         } catch (err) {
-            showNotice(getApiErrorMessage(err, 'Gagal membaca dokumen format SOP'), 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal mengunggah dokumen format SOP'), 'error');
+        } finally {
+            setBusyAction('');
+        }
+    };
+
+    const handleDeleteSopFormatFile = async () => {
+        if (!window.confirm('Hapus dokumen acuan Format SOP terunggah? Staf AI akan kembali menggunakan format teks di bawah ini.')) return;
+        try {
+            setBusyAction('delete-sop-format');
+            const res = await api.delete('/ai-office/config/sop-format-file');
+            if (res.data?.config) {
+                setDashboard(prev => (prev ? { ...prev, config: res.data.config } : prev));
+            }
+            showNotice(res.data?.message || 'Dokumen format SOP dihapus.');
+            await fetchAllData(true);
+        } catch (err) {
+            showNotice(err.response?.data?.error || 'Gagal menghapus dokumen format SOP', 'error');
         } finally {
             setBusyAction('');
         }
@@ -1549,46 +1561,98 @@ export default function AiOfficePage() {
                     </div>
 
                     <div className="space-y-3">
-                        <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                                <div className="p-2.5 rounded-xl bg-blue-100 text-blue-700 shrink-0">
-                                    <Upload size={18} />
+                        <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-4 space-y-3">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2.5 rounded-xl bg-blue-100 text-blue-700 shrink-0">
+                                        <Upload size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">
+                                            Dokumen Format SOP Acuan
+                                        </h4>
+                                        <p className="text-[11px] text-blue-800/80 mt-0.5">
+                                            Unggah file format SOP resmi (<code>.pdf</code>, <code>.docx</code>, <code>.txt</code>, <code>.md</code>, atau foto/scan, maks. 10 MB). File disimpan utuh sebagai pedoman langsung Staf Administrasi AI untuk mengisi format tersebut — tanpa diekstrak ke kotak teks.
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">
-                                        Upload Dokumen Contoh / Format SOP
-                                    </h4>
-                                    <p className="text-[11px] text-blue-800/80 mt-0.5">
-                                        Unggah file <code>.docx</code>, <code>.pdf</code>, <code>.txt</code>, <code>.md</code>, atau foto/scan format SOP (maks. 10 MB) untuk otomatis mengisi acuan beserta tabelnya.
-                                    </p>
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    <input
+                                        ref={sopFileInputRef}
+                                        type="file"
+                                        accept=".docx,.pdf,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp"
+                                        onChange={handleUploadSopFormat}
+                                        className="hidden"
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={Boolean(busyAction)}
+                                        onClick={() => sopFileInputRef.current?.click()}
+                                        className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                                    >
+                                        {busyAction === 'upload-sop-format' ? <RefreshCw size={13} className="animate-spin" /> : <Upload size={13} />}
+                                        {busyAction === 'upload-sop-format'
+                                            ? 'Mengunggah Dokumen...'
+                                            : (dashboard?.config?.sopTemplateFileUrl ? 'Ganti Dokumen Format' : 'Upload Dokumen Format')}
+                                    </button>
                                 </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                <input
-                                    ref={sopFileInputRef}
-                                    type="file"
-                                    accept=".docx,.pdf,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp"
-                                    onChange={handleUploadSopFormat}
-                                    className="hidden"
-                                />
-                                <button
-                                    type="button"
-                                    disabled={busyAction === 'upload-sop-format'}
-                                    onClick={() => sopFileInputRef.current?.click()}
-                                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                                >
-                                    {busyAction === 'upload-sop-format' ? <RefreshCw size={13} className="animate-spin" /> : <Upload size={13} />}
-                                    {busyAction === 'upload-sop-format' ? 'Mengekstrak Format...' : 'Upload Dokumen Format'}
-                                </button>
+
+                            {dashboard?.config?.sopTemplateFileUrl && (
+                                <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <FileText size={16} className="text-emerald-700 shrink-0" />
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-xs font-bold text-emerald-950 truncate">
+                                                    {dashboard.config.sopTemplateFileName || 'Dokumen Format SOP'}
+                                                </span>
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                                                    Pedoman Aktif AI
+                                                </span>
+                                            </div>
+                                            {dashboard.config.sopTemplateUploadedAt && (
+                                                <div className="text-[11px] text-emerald-800/80">
+                                                    Diunggah: {new Date(dashboard.config.sopTemplateUploadedAt).toLocaleString('id-ID')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <a
+                                            href={dashboard.config.sopTemplateFileUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-3 py-1.5 rounded-lg bg-white hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1"
+                                        >
+                                            <Eye size={13} /> Lihat / Unduh
+                                        </a>
+                                        <button
+                                            type="button"
+                                            disabled={Boolean(busyAction)}
+                                            onClick={handleDeleteSopFormatFile}
+                                            className="px-3 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-600 text-xs font-bold border border-rose-200 flex items-center gap-1 disabled:opacity-50"
+                                        >
+                                            <Trash2 size={13} /> Hapus
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <label className="block text-xs font-bold text-slate-700 uppercase">
+                                Format SOP Teks (Cadangan / Catatan Tambahan)
+                            </label>
+                            <div className="flex flex-wrap items-center gap-2">
                                 {dashboard?.defaultSopFormat && (
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setConfigForm(prev => ({ ...prev, sopGeneralFormat: dashboard.defaultSopFormat }));
-                                            setUploadedFormatMeta(null);
                                             showNotice('Template Format SOP bertabel bawaan dimuat. Klik Simpan Format & Pengaturan untuk menerapkan.');
                                         }}
-                                        className="px-3 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200"
+                                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200"
                                     >
                                         Muat Template Tabel Bawaan
                                     </button>
@@ -1596,26 +1660,13 @@ export default function AiOfficePage() {
                                 <button
                                     type="button"
                                     onClick={() => setPreviewSopFormat(prev => !prev)}
-                                    className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-200"
+                                    className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-200"
                                 >
                                     {previewSopFormat ? <Edit3 size={13} /> : <Eye size={13} />}
                                     {previewSopFormat ? 'Edit Teks' : 'Pratinjau Format'}
                                 </button>
                             </div>
                         </div>
-
-                        <label className="block text-xs font-bold text-slate-700 uppercase">
-                            Isi Format SOP Umum (Acuan Staf Administrasi AI)
-                        </label>
-
-                        {uploadedFormatMeta && (
-                            <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
-                                <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
-                                <span>
-                                    Format berhasil diekstrak dari <strong>{uploadedFormatMeta.fileName}</strong>. Periksa hasilnya lalu klik <strong>Simpan Format &amp; Pengaturan</strong>.
-                                </span>
-                            </div>
-                        )}
 
                         {previewSopFormat ? (
                             <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 max-h-[420px] overflow-y-auto">

@@ -479,29 +479,69 @@ exports.uploadSopFormat = async (req, res) => {
             return res.status(400).json({ error: 'Silakan pilih file format SOP terlebih dahulu.' });
         }
 
-        const result = await aiOfficeService.extractSopFormatFromFile({
+        const { originalname, mimeType } = aiOfficeService.validateSopTemplateUpload({
             buffer: req.file.buffer,
             originalname: req.file.originalname,
             mimetype: req.file.mimetype
         });
 
-        const autoSave = req.body?.autoSave === 'true' || req.body?.autoSave === true;
-        if (autoSave && result.formatText) {
-            await aiOfficeService.getOrCreateConfig(prisma);
-            await prisma.aiOfficeConfig.update({
-                where: { id: 1 },
-                data: { sopGeneralFormat: result.formatText }
-            });
+        const prevConfig = await aiOfficeService.getOrCreateConfig(prisma);
+        const saved = await aiOfficeService.saveSopTemplateFile({
+            buffer: req.file.buffer,
+            originalname,
+            mimetype: mimeType
+        });
+
+        const updated = await prisma.aiOfficeConfig.update({
+            where: { id: 1 },
+            data: {
+                sopTemplateFileUrl: saved.fileUrl,
+                sopTemplateFileName: saved.fileName,
+                sopTemplateMimeType: saved.mimeType,
+                sopTemplateUploadedAt: new Date()
+            }
+        });
+
+        if (prevConfig?.sopTemplateFileUrl && prevConfig.sopTemplateFileUrl !== saved.fileUrl) {
+            aiOfficeService.deleteSopTemplateFile(prevConfig.sopTemplateFileUrl).catch(() => {});
         }
 
         res.json({
-            ...result,
-            message: autoSave
-                ? `Format SOP berhasil diekstrak dari "${result.fileName}" dan disimpan.`
-                : `Format SOP berhasil diekstrak dari "${result.fileName}". Periksa hasilnya lalu klik Simpan Format & Pengaturan.`
+            config: updated,
+            fileUrl: saved.fileUrl,
+            fileName: saved.fileName,
+            mimeType: saved.mimeType,
+            message: `Dokumen format "${saved.fileName}" disimpan sebagai pedoman Staf AI (tidak diekstrak ke teks).`
         });
     } catch (err) {
         console.error('[AiOffice] uploadSopFormat error:', err);
         res.status(err.statusCode || 500).json({ error: err.message });
+    }
+};
+
+exports.deleteSopFormatFile = async (req, res) => {
+    try {
+        const config = await aiOfficeService.getOrCreateConfig(prisma);
+        if (config?.sopTemplateFileUrl) {
+            await aiOfficeService.deleteSopTemplateFile(config.sopTemplateFileUrl).catch(() => {});
+        }
+
+        const updated = await prisma.aiOfficeConfig.update({
+            where: { id: 1 },
+            data: {
+                sopTemplateFileUrl: null,
+                sopTemplateFileName: null,
+                sopTemplateMimeType: null,
+                sopTemplateUploadedAt: null
+            }
+        });
+
+        res.json({
+            config: updated,
+            message: 'Dokumen format SOP dihapus. Staf AI akan memakai format teks.'
+        });
+    } catch (err) {
+        console.error('[AiOffice] deleteSopFormatFile error:', err);
+        res.status(500).json({ error: err.message });
     }
 };

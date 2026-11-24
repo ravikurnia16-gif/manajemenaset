@@ -1,9 +1,12 @@
+const fs = require('fs');
+const path = require('path');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const { PrismaClient } = require('@prisma/client');
 const mammoth = require('mammoth');
 const aiService = require('./aiService');
+const minioService = require('./minioService');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -359,7 +362,19 @@ function convertMammothHtmlToMarkdown(html) {
         .trim();
 }
 
-async function extractSopFormatFromFile({ buffer, originalname = '', mimetype = '' } = {}) {
+const SOP_TEMPLATE_MIME_MAP = {
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    markdown: 'text/markdown',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp'
+};
+
+function validateSopTemplateUpload({ buffer, originalname = '', mimetype = '' } = {}) {
     const buf = Buffer.isBuffer(buffer) ? buffer : (buffer ? Buffer.from(buffer) : null);
     if (!buf || buf.length === 0) {
         const err = new Error('File dokumen format SOP kosong atau tidak terbaca.');
@@ -374,12 +389,160 @@ async function extractSopFormatFromFile({ buffer, originalname = '', mimetype = 
         throw err;
     }
 
-    const allowed = ['docx', 'pdf', 'txt', 'md', 'markdown', 'png', 'jpg', 'jpeg', 'webp'];
-    if (!allowed.includes(ext)) {
+    if (!Object.prototype.hasOwnProperty.call(SOP_TEMPLATE_MIME_MAP, ext)) {
         const err = new Error('Format file tidak didukung. Gunakan file .docx, .pdf, .txt, .md, atau gambar (.png/.jpg/.webp).');
         err.statusCode = 400;
         throw err;
     }
+
+    return {
+        buf,
+        originalname: String(originalname || `format-sop.${ext}`),
+        ext,
+        mimeType: SOP_TEMPLATE_MIME_MAP[ext] || mimetype || 'application/octet-stream'
+    };
+}
+
+async function saveSopTemplateFile({ buffer, originalname = '', mimetype = '' } = {}) {
+    const { buf, originalname: safeOriginal, ext, mimeType } = validateSopTemplateUpload({
+        buffer,
+        originalname,
+        mimetype
+    });
+    const sanitizedName = safeOriginal.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const localDir = path.join(__dirname, '../uploads/ai-office-templates');
+
+    try {
+        const fileUrl = await minioService.uploadFile(buf, sanitizedName, mimeType, 'ai-office-templates');
+        return { fileUrl, fileName: safeOriginal, mimeType, ext, storage: 'minio' };
+    } catch (minioErr) {
+        console.warn(`[AI Office] MinIO template upload fallback ke local storage: ${minioErr.message}`);
+        await fs.promises.mkdir(localDir, { recursive: true });
+        const uniqueName = `${Date.now()}-${sanitizedName}`;
+        const absPath = path.join(localDir, uniqueName);
+        await fs.promises.writeFile(absPath, buf);
+        return {
+            fileUrl: `/uploads/ai-office-templates/${uniqueName}`,
+            fileName: safeOriginal,
+            mimeType,
+            ext,
+            storage: 'local'
+        };
+    }
+}
+
+async function deleteSopTemplateFile(fileUrl) {
+    if (!fileUrl) return;
+    const rawUrl = String(fileUrl);
+    if (rawUrl.startsWith('/api/media/')) {
+        await minioService.deleteFile(rawUrl);
+        return;
+    }
+    if (rawUrl.startsWith('/uploads/ai-office-templates/')) {
+        const relName = path.basename(rawUrl);
+        const absPath = path.join(__dirname, '../uploads/ai-office-templates', relName);
+        await fs.promises.unlink(absPath).catch(() => {});
+    }
+}
+
+function streamToBuffer(stream) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('error', reject);
+    });
+}
+
+async function loadSopTemplateReference(config) {
+    const fileUrl = config?.sopTemplateFileUrl;
+    if (!fileUrl) return null;
+
+    const fileName = config.sopTemplateFileName || 'format-sop';
+    const ext = String(fileName || fileUrl).toLowerCase().split('.').pop();
+    const mimeType = config.sopTemplateMimeType || SOP_TEMPLATE_MIME_MAP[ext] || 'application/octet-stream';
+
+    try {
+        const rawUrl = String(fileUrl);
+        if (rawUrl.startsWith('/uploads/ai-office-templates/')) {
+            const relName = path.basename(rawUrl);
+            const absPath = path.join(__dirname, '../uploads/ai-office-templates', relName);
+            const buffer = await fs.promises.readFile(absPath);
+            return { buffer, fileName, mimeType, ext };
+        }
+        if (rawUrl.startsWith('/api/media/')) {
+            const objectName = rawUrl.replace('/api/media/', '');
+            const stream = await minioService.minioClient.getObject(minioService.bucketName, objectName);
+            const buffer = await streamToBuffer(stream);
+            return { buffer, fileName, mimeType, ext };
+        }
+    } catch (err) {
+        console.warn(`[AI Office] Gagal membaca dokumen pedoman SOP "${fileName}": ${err.message}`);
+    }
+    return null;
+}
+
+async function buildSopTemplatePromptContext(config, { templateLoader = loadSopTemplateReference } = {}) {
+    const ref = await templateLoader(config);
+    const textFormat = config?.sopGeneralFormat && String(config.sopGeneralFormat).trim()
+        ? String(config.sopGeneralFormat).trim()
+        : '';
+
+    if (ref?.buffer && ref.buffer.length > 0) {
+        if (['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(ref.ext)) {
+            const extraNote = textFormat
+                ? `\nCATATAN / PANDUAN FORMAT TEKS TAMBAHAN DARI PIMPINAN:\n${textFormat}`
+                : '';
+            return {
+                mode: 'multimodal',
+                fileName: ref.fileName,
+                inlineData: {
+                    mimeType: ref.mimeType,
+                    data: ref.buffer.toString('base64')
+                },
+                instructions: `TERLAMPIR DOKUMEN FORMAT SOP RESMI DARI PIMPINAN ("${ref.fileName}").
+WAJIB BERPEDOMAN LANGSUNG pada dokumen terlampir tersebut (lihat struktur kop/identitas dokumen, urutan bab & sub-bab, nama kolom tabel, formulir pendukung, dan blok pengesahan), lalu ISI seluruh bagiannya dengan prosedur operasional yang konkret, lengkap, dan siap pakai untuk judul SOP di atas.${extraNote}`
+            };
+        }
+
+        let extractedRefText = '';
+        if (ref.ext === 'docx') {
+            try {
+                const htmlRes = await mammoth.convertToHtml({ buffer: ref.buffer });
+                extractedRefText = convertMammothHtmlToMarkdown(htmlRes.value || '');
+                if (!extractedRefText) {
+                    const txtRes = await mammoth.extractRawText({ buffer: ref.buffer });
+                    extractedRefText = String(txtRes.value || '').trim();
+                }
+            } catch (err) {
+                console.warn(`[AI Office] Gagal membaca dokumen .docx pedoman "${ref.fileName}": ${err.message}`);
+            }
+        } else if (['txt', 'md', 'markdown'].includes(ref.ext)) {
+            extractedRefText = ref.buffer.toString('utf8').replace(/^\uFEFF/, '').trim();
+        }
+
+        if (extractedRefText) {
+            const extraNote = textFormat
+                ? `\n\nCATATAN / PANDUAN FORMAT TEKS TAMBAHAN DARI PIMPINAN:\n${textFormat}`
+                : '';
+            return {
+                mode: 'text',
+                fileName: ref.fileName,
+                instructions: `DOKUMEN FORMAT SOP RESMI DARI PIMPINAN ("${ref.fileName}"):
+WAJIB BERPEDOMAN PENUH pada struktur dokumen berikut (pertahankan urutan bab, kolom tabel, dan format pengesahan lalu ISI kontennya secara operasional dan spesifik sesuai judul SOP):\n\n${extractedRefText.slice(0, 24000)}${extraNote}`
+            };
+        }
+    }
+
+    return {
+        mode: 'text',
+        fileName: null,
+        instructions: `WAJIB mengikuti dan mengembangkan FORMAT SOP UMUM dari pimpinan di bawah ini menjadi SOP yang sangat operasional, lengkap, detail, dan siap pakai (pertahankan dan lengkapi setiap bagian bertabel menjadi tabel Markdown nyata dengan isi spesifik):\n\n${textFormat || DEFAULT_SOP_GENERAL_FORMAT}`
+    };
+}
+
+async function extractSopFormatFromFile({ buffer, originalname = '', mimetype = '' } = {}) {
+    const { buf, ext, mimeType } = validateSopTemplateUpload({ buffer, originalname, mimetype });
 
     if (['txt', 'md', 'markdown'].includes(ext)) {
         const raw = buf.toString('utf8').replace(/^\uFEFF/, '').trim();
@@ -1137,8 +1300,13 @@ async function draftApprovedItem({
     let usedFallback = false;
     let aiError = null;
 
+    let templateCtx = null;
+    if (item.category === 'SOP') {
+        templateCtx = await buildSopTemplatePromptContext(config);
+    }
+
     const sopInstructions = item.category === 'SOP'
-        ? `WAJIB mengikuti dan mengembangkan FORMAT SOP UMUM dari pimpinan di bawah ini menjadi SOP yang sangat operasional, lengkap, detail, dan siap pakai (pertahankan dan lengkapi setiap bagian bertabel menjadi tabel Markdown nyata dengan isi spesifik):\n\n${config.sopGeneralFormat || DEFAULT_SOP_GENERAL_FORMAT}`
+        ? templateCtx.instructions
         : `Susun dokumen resmi kategori "${item.category}" secara lengkap dan terstruktur (Tabel Identitas Dokumen berisi Kode ${item.code}, Dasar Pertimbangan, Pasal/Poin Ketentuan lengkap, Tabel Pembagian Tugas / Mekanisme Pelaksanaan, Tabel Sanksi/SLA jika relevan, Kolom Pengesahan bertabel, dan Penutup).`;
 
     const prompt = `Anda adalah ${config.adminStaffName} di Kantor AI Bidang Sarana Yayasan Dar el-Iman.
@@ -1167,7 +1335,9 @@ ${sopInstructions}
 Kembalikan naskah dokumen lengkap dalam format Markdown yang bersih dan terstruktur rapi (siap dibaca dan diekspor ke PDF).`;
 
     try {
-        const aiRes = await generateOfficeAiText(prompt);
+        const aiRes = templateCtx?.mode === 'multimodal'
+            ? await generateOfficeAiMultimodal([prompt, { inlineData: templateCtx.inlineData }], { timeoutMs: 35000 })
+            : await generateOfficeAiText(prompt);
         content = cleanMarkdownFence(aiRes.text);
     } catch (err) {
         usedFallback = true;
@@ -1241,12 +1411,17 @@ async function reviseDraftItem({
     let usedFallback = false;
     let aiError = null;
 
+    let templateCtx = null;
+    if (item.category === 'SOP') {
+        templateCtx = await buildSopTemplatePromptContext(config);
+    }
+
     const prompt = `Anda adalah ${item.staffRole === 'SUPERVISI' ? config.supervisorName : config.adminStaffName} di Kantor AI Bidang Sarana Yayasan Dar el-Iman.
 Perbarui/revisi dokumen berikut sesuai instruksi pimpinan tanpa menghilangkan struktur penting yang sudah ada.
 
 JUDUL: ${item.title}
 KATEGORI: ${item.category}
-${item.category === 'SOP' ? `ACUAN FORMAT SOP UMUM:\n${config.sopGeneralFormat}\n` : ''}
+${item.category === 'SOP' ? `ACUAN PEDOMAN FORMAT SOP:\n${templateCtx.instructions}\n` : ''}
 ${MARKDOWN_TABLE_RULES}
 
 ISI DOKUMEN SAAT INI:
@@ -1258,7 +1433,9 @@ INSTRUKSI REVISI DARI PIMPINAN (${actor?.name || 'Kepala Bidang Sarana'}):
 Kembalikan seluruh isi dokumen hasil revisi secara lengkap dalam format Markdown yang rapi.`;
 
     try {
-        const aiRes = await generateOfficeAiText(prompt);
+        const aiRes = templateCtx?.mode === 'multimodal'
+            ? await generateOfficeAiMultimodal([prompt, { inlineData: templateCtx.inlineData }], { timeoutMs: 35000 })
+            : await generateOfficeAiText(prompt);
         updatedContent = cleanMarkdownFence(aiRes.text);
     } catch (err) {
         usedFallback = true;
@@ -1495,6 +1672,11 @@ async function runDailyOfficeRoutine({
 module.exports = {
     getRoutineState,
     recoverStaleDraftingItems,
+    validateSopTemplateUpload,
+    saveSopTemplateFile,
+    deleteSopTemplateFile,
+    loadSopTemplateReference,
+    buildSopTemplatePromptContext,
     convertMammothHtmlToMarkdown,
     extractSopFormatFromFile,
     DEFAULT_SOP_GENERAL_FORMAT,
