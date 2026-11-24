@@ -168,7 +168,7 @@ const Sidebar = ({ isOpen = true }) => {
                 .then(res => {
                     if (isMounted && res.data?.counts) {
                         const c = res.data.counts;
-                        setAiOfficePendingCount((c.proposed || 0) + (c.approvedQueue || 0));
+                        setAiOfficePendingCount(c.draftReady || 0);
                     }
                 })
                 .catch(() => { });

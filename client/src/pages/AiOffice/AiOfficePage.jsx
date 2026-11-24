@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Bot, Sparkles, ClipboardCheck, FileText, CheckCircle2, XCircle,
     Play, Settings, Download, History, Plus, RefreshCw, Edit3, Send,
-    ShieldAlert, Copy, Trash2, Search, Eye, Save, X, Check
+    ShieldAlert, Copy, Trash2, Search, Eye, Save, X, Check, Upload
 } from 'lucide-react';
 import api from '../../lib/axios';
 
@@ -32,14 +32,194 @@ const STATUS_LABEL = {
 
 const DOMAIN_OPTIONS = ['Umum', 'Aset', 'Kendaraan', 'Pemeliharaan', 'Workshop', 'Gudang', 'Pengadaan', 'CCTV', 'Personalia'];
 
-function MarkdownDocumentPreview({ content }) {
-    const lines = useMemo(() => String(content || '').split(/\r?\n/), [content]);
+function splitMarkdownTableRow(line) {
+    let trimmed = String(line || '').trim();
+    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith('|') && !trimmed.endsWith('\\|')) {
+        trimmed = trimmed.slice(0, -1);
+    }
+    const cells = [];
+    let current = '';
+    for (let i = 0; i < trimmed.length; i++) {
+        if (trimmed[i] === '\\' && trimmed[i + 1] === '|') {
+            current += '|';
+            i++;
+        } else if (trimmed[i] === '|') {
+            cells.push(current.trim());
+            current = '';
+        } else {
+            current += trimmed[i];
+        }
+    }
+    cells.push(current.trim());
+    return cells;
+}
 
-    const formatInline = (text) =>
-        text
-            .replace(/\*\*(.*?)\*\*/g, '$1')
-            .replace(/__(.*?)__/g, '$1')
-            .replace(/`([^`]+)`/g, '$1');
+function isMarkdownTableSeparator(line) {
+    const trimmed = String(line || '').trim();
+    if (!trimmed.includes('|') || !trimmed.includes('-')) return false;
+    const cells = splitMarkdownTableRow(trimmed);
+    return cells.length >= 2 && cells.every(c => /^:?-+:?$/.test(c));
+}
+
+function parseTableAlignments(separatorLine) {
+    return splitMarkdownTableRow(separatorLine).map(cell => {
+        const left = cell.startsWith(':');
+        const right = cell.endsWith(':');
+        if (left && right) return 'center';
+        if (right) return 'right';
+        return 'left';
+    });
+}
+
+function renderInlineMarkdown(text, keyPrefix = 'in') {
+    const str = String(text ?? '');
+    const brParts = str.split(/<br\s*\/?>/gi);
+    const output = [];
+
+    brParts.forEach((part, partIdx) => {
+        if (partIdx > 0) {
+            output.push(<br key={`${keyPrefix}-br-${partIdx}`} />);
+        }
+        const tokenRegex = /\*\*([^*\n]+)\*\*|__([^_\n]+)__|`([^`\n]+)`|(?<!\*)\*([^*\n]+)\*(?!\*)|(?<=^|[\s([{"'])_([^_\n]+)_(?=$|[\s)\]}"'.,;:!?])/g;
+        let lastIdx = 0;
+        let match;
+        let tokIdx = 0;
+        while ((match = tokenRegex.exec(part)) !== null) {
+            if (match.index > lastIdx) {
+                output.push(part.slice(lastIdx, match.index));
+            }
+            const k = `${keyPrefix}-${partIdx}-${tokIdx++}`;
+            if (match[1] !== undefined || match[2] !== undefined) {
+                output.push(
+                    <strong key={k} className="font-bold text-slate-900">
+                        {match[1] ?? match[2]}
+                    </strong>
+                );
+            } else if (match[3] !== undefined) {
+                output.push(
+                    <code key={k} className="px-1 py-0.5 rounded bg-slate-100 font-mono text-[11px] text-slate-800">
+                        {match[3]}
+                    </code>
+                );
+            } else {
+                output.push(
+                    <em key={k} className="italic text-slate-800">
+                        {match[4] ?? match[5]}
+                    </em>
+                );
+            }
+            lastIdx = tokenRegex.lastIndex;
+        }
+        if (lastIdx < part.length) {
+            output.push(part.slice(lastIdx));
+        }
+    });
+
+    return output;
+}
+
+function parseMarkdownBlocks(content) {
+    const lines = String(content || '').split(/\r?\n/);
+    const blocks = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const rawLine = lines[i];
+        const trimmed = rawLine.trim();
+
+        if (!trimmed) {
+            blocks.push({ type: 'spacer' });
+            continue;
+        }
+        if (trimmed.startsWith('```')) {
+            continue;
+        }
+        if (trimmed === '---' || trimmed === '***') {
+            blocks.push({ type: 'hr' });
+            continue;
+        }
+
+        if (trimmed.includes('|') && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
+            const headers = splitMarkdownTableRow(trimmed);
+            const alignments = parseTableAlignments(lines[i + 1]);
+            const rows = [];
+            let j = i + 2;
+            while (j < lines.length) {
+                const rowLine = lines[j].trim();
+                if (!rowLine || !rowLine.includes('|') || rowLine.startsWith('#') || isMarkdownTableSeparator(rowLine)) {
+                    break;
+                }
+                const cells = splitMarkdownTableRow(rowLine);
+                while (cells.length < headers.length) cells.push('');
+                if (cells.length > headers.length) cells.length = headers.length;
+                rows.push(cells);
+                j += 1;
+            }
+            blocks.push({ type: 'table', headers, alignments, rows });
+            i = j - 1;
+            continue;
+        }
+
+        const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
+        if (headingMatch) {
+            blocks.push({
+                type: 'heading',
+                level: headingMatch[1].length,
+                text: headingMatch[2]
+            });
+            continue;
+        }
+
+        if (trimmed.startsWith('> ')) {
+            blocks.push({ type: 'blockquote', text: trimmed.slice(2) });
+            continue;
+        }
+
+        const ulMatch = rawLine.match(/^(\s*)[-*]\s+(.*)$/);
+        if (ulMatch) {
+            const listItems = [];
+            let j = i;
+            while (j < lines.length) {
+                const m = lines[j].match(/^(\s*)[-*]\s+(.*)$/);
+                if (!m) break;
+                listItems.push({
+                    indent: Math.min(2, Math.floor(m[1].length / 2)),
+                    text: m[2].trim()
+                });
+                j += 1;
+            }
+            blocks.push({ type: 'ul', items: listItems });
+            i = j - 1;
+            continue;
+        }
+
+        const olMatch = rawLine.match(/^(\s*)(\d+)\.\s+(.*)$/);
+        if (olMatch) {
+            const listItems = [];
+            let j = i;
+            while (j < lines.length) {
+                const m = lines[j].match(/^(\s*)(\d+)\.\s+(.*)$/);
+                if (!m) break;
+                listItems.push({
+                    indent: Math.min(2, Math.floor(m[1].length / 2)),
+                    num: m[2],
+                    text: m[3].trim()
+                });
+                j += 1;
+            }
+            blocks.push({ type: 'ol', items: listItems });
+            i = j - 1;
+            continue;
+        }
+
+        blocks.push({ type: 'paragraph', text: trimmed });
+    }
+
+    return blocks;
+}
+
+function MarkdownDocumentPreview({ content }) {
+    const blocks = useMemo(() => parseMarkdownBlocks(content), [content]);
 
     if (!content) {
         return <p className="text-sm text-slate-400 italic">Belum ada isi dokumen.</p>;
@@ -47,58 +227,138 @@ function MarkdownDocumentPreview({ content }) {
 
     return (
         <div className="space-y-1.5 text-sm text-slate-700 leading-relaxed">
-            {lines.map((rawLine, idx) => {
-                const line = rawLine.trim();
-                if (!line) return <div key={idx} className="h-2" />;
-                if (line === '---' || line === '***') {
-                    return <hr key={idx} className="border-slate-200 my-3" />;
+            {blocks.map((block, bIdx) => {
+                if (block.type === 'spacer') {
+                    return <div key={bIdx} className="h-1.5" />;
                 }
-                if (line.startsWith('# ')) {
+                if (block.type === 'hr') {
+                    return <hr key={bIdx} className="border-slate-200 my-3" />;
+                }
+                if (block.type === 'heading') {
+                    if (block.level === 1) {
+                        return (
+                            <h2 key={bIdx} className="text-base font-black text-slate-900 pt-2 pb-1 border-b border-slate-200">
+                                {renderInlineMarkdown(block.text, `h1-${bIdx}`)}
+                            </h2>
+                        );
+                    }
+                    if (block.level === 2) {
+                        return (
+                            <h3 key={bIdx} className="text-sm font-extrabold text-blue-900 pt-3">
+                                {renderInlineMarkdown(block.text, `h2-${bIdx}`)}
+                            </h3>
+                        );
+                    }
+                    if (block.level === 3) {
+                        return (
+                            <h4 key={bIdx} className="text-xs font-bold uppercase tracking-wide text-slate-700 pt-2">
+                                {renderInlineMarkdown(block.text, `h3-${bIdx}`)}
+                            </h4>
+                        );
+                    }
                     return (
-                        <h2 key={idx} className="text-base font-black text-slate-900 pt-2 pb-1 border-b border-slate-200">
-                            {formatInline(line.slice(2))}
-                        </h2>
+                        <h5 key={bIdx} className="text-xs font-bold text-slate-700 pt-1.5">
+                            {renderInlineMarkdown(block.text, `h4-${bIdx}`)}
+                        </h5>
                     );
                 }
-                if (line.startsWith('## ')) {
+                if (block.type === 'blockquote') {
                     return (
-                        <h3 key={idx} className="text-sm font-extrabold text-blue-900 pt-3">
-                            {formatInline(line.slice(3))}
-                        </h3>
+                        <blockquote key={bIdx} className="border-l-4 border-blue-200 pl-3 py-1 bg-blue-50/40 rounded-r-lg text-xs text-slate-600 italic">
+                            {renderInlineMarkdown(block.text, `bq-${bIdx}`)}
+                        </blockquote>
                     );
                 }
-                if (line.startsWith('### ')) {
+                if (block.type === 'table') {
                     return (
-                        <h4 key={idx} className="text-xs font-bold uppercase tracking-wide text-slate-700 pt-2">
-                            {formatInline(line.slice(4))}
-                        </h4>
-                    );
-                }
-                if (/^[-*]\s+/.test(line)) {
-                    return (
-                        <div key={idx} className="flex gap-2 pl-2">
-                            <span className="text-blue-500 font-bold">•</span>
-                            <span>{formatInline(line.replace(/^[-*]\s+/, ''))}</span>
+                        <div key={bIdx} className="my-3 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+                            <table className="w-full border-collapse text-xs text-slate-700">
+                                <thead>
+                                    <tr className="bg-blue-50/90 text-blue-950 border-b border-slate-200">
+                                        {block.headers.map((head, cIdx) => {
+                                            const alignClass =
+                                                block.alignments[cIdx] === 'center'
+                                                    ? 'text-center'
+                                                    : block.alignments[cIdx] === 'right'
+                                                        ? 'text-right'
+                                                        : 'text-left';
+                                            return (
+                                                <th
+                                                    key={cIdx}
+                                                    className={`px-3 py-2 font-bold border-r last:border-r-0 border-slate-200 whitespace-nowrap ${alignClass}`}
+                                                >
+                                                    {renderInlineMarkdown(head, `th-${bIdx}-${cIdx}`)}
+                                                </th>
+                                            );
+                                        })}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {block.rows.map((row, rIdx) => (
+                                        <tr key={rIdx} className="even:bg-slate-50/70 hover:bg-blue-50/30 transition-colors">
+                                            {row.map((cell, cIdx) => {
+                                                const alignClass =
+                                                    block.alignments[cIdx] === 'center'
+                                                        ? 'text-center'
+                                                        : block.alignments[cIdx] === 'right'
+                                                            ? 'text-right'
+                                                            : 'text-left';
+                                                return (
+                                                    <td
+                                                        key={cIdx}
+                                                        className={`px-3 py-2 align-top border-r last:border-r-0 border-slate-200 ${alignClass}`}
+                                                    >
+                                                        {renderInlineMarkdown(cell, `td-${bIdx}-${rIdx}-${cIdx}`)}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     );
                 }
-                if (/^\d+\.\s+/.test(line)) {
-                    const match = line.match(/^(\d+\.)\s+(.*)$/);
+                if (block.type === 'ul') {
                     return (
-                        <div key={idx} className="flex gap-2 pl-2">
-                            <span className="font-bold text-slate-800 shrink-0">{match?.[1]}</span>
-                            <span>{formatInline(match?.[2] || line)}</span>
+                        <div key={bIdx} className="space-y-1">
+                            {block.items.map((item, idx) => (
+                                <div
+                                    key={idx}
+                                    className="flex gap-2"
+                                    style={{ paddingLeft: `${(item.indent * 16) + 8}px` }}
+                                >
+                                    <span className="text-blue-500 font-bold shrink-0">•</span>
+                                    <span>{renderInlineMarkdown(item.text, `ul-${bIdx}-${idx}`)}</span>
+                                </div>
+                            ))}
                         </div>
                     );
                 }
-                return <p key={idx}>{formatInline(line)}</p>;
+                if (block.type === 'ol') {
+                    return (
+                        <div key={bIdx} className="space-y-1">
+                            {block.items.map((item, idx) => (
+                                <div
+                                    key={idx}
+                                    className="flex gap-2"
+                                    style={{ paddingLeft: `${(item.indent * 16) + 8}px` }}
+                                >
+                                    <span className="font-bold text-slate-800 shrink-0">{item.num}.</span>
+                                    <span>{renderInlineMarkdown(item.text, `ol-${bIdx}-${idx}`)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                }
+                return <p key={bIdx}>{renderInlineMarkdown(block.text, `p-${bIdx}`)}</p>;
             })}
         </div>
     );
 }
 
 export default function AiOfficePage() {
-    const [activeTab, setActiveTab] = useState('ACC_QUEUE'); // ACC_QUEUE | REPORTS | DRAFTS | SETTINGS | LOGS
+    const [activeTab, setActiveTab] = useState('DRAFTS'); // DRAFTS | REPORTS | ACC_QUEUE | SETTINGS | LOGS
     const [dashboard, setDashboard] = useState(null);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -116,7 +376,7 @@ export default function AiOfficePage() {
 
     // Modal: Request Custom Document / Propose Topic
     const [showProposeTopicModal, setShowProposeTopicModal] = useState(false);
-    const [proposeForm, setProposeForm] = useState({ count: 4, category: 'ALL', focusTopic: '' });
+    const [proposeForm, setProposeForm] = useState({ count: 2, category: 'ALL', focusTopic: '' });
 
     const [showManualModal, setShowManualModal] = useState(false);
     const [manualForm, setManualForm] = useState({
@@ -148,22 +408,31 @@ export default function AiOfficePage() {
         sopGeneralFormat: '',
         policyGuidelines: ''
     });
+    const [previewSopFormat, setPreviewSopFormat] = useState(false);
+    const [uploadedFormatMeta, setUploadedFormatMeta] = useState(null);
+    const sopFileInputRef = useRef(null);
 
     const showNotice = useCallback((text, type = 'success') => {
         setToast({ text, type });
         setTimeout(() => setToast(null), 4000);
     }, []);
 
-    const fetchAllData = useCallback(async () => {
+    const getApiErrorMessage = (err, fallback) =>
+        err?.response?.data?.error ||
+        (err?.code === 'ECONNABORTED'
+            ? 'Permintaan ke Staf AI melebihi batas waktu. Coba muat ulang atau klik Coba Susun Ulang.'
+            : fallback);
+
+    const fetchAllData = useCallback(async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const [dashRes, itemsRes] = await Promise.all([
-                api.get('/ai-office/dashboard'),
-                api.get('/ai-office/items')
+                api.get('/ai-office/dashboard', { timeout: 20000 }),
+                api.get('/ai-office/items', { timeout: 20000 })
             ]);
             setDashboard(dashRes.data);
             setItems(Array.isArray(itemsRes.data) ? itemsRes.data : []);
-            if (dashRes.data?.config) {
+            if (!silent && dashRes.data?.config) {
                 const c = dashRes.data.config;
                 setConfigForm({
                     isEnabled: Boolean(c.isEnabled),
@@ -179,15 +448,45 @@ export default function AiOfficePage() {
             }
             window.dispatchEvent(new Event('aiOfficeChanged'));
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal memuat data Kantor AI', 'error');
+            if (!silent) {
+                showNotice(err.response?.data?.error || 'Gagal memuat data Kantor AI', 'error');
+            }
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [showNotice]);
 
     useEffect(() => {
-        fetchAllData();
+        fetchAllData(false);
     }, [fetchAllData]);
+
+    const routineState = dashboard?.routineState;
+    const isRoutineRunning = Boolean(routineState?.isRunning);
+    const wasRoutineRunningRef = useRef(false);
+
+    useEffect(() => {
+        if (!isRoutineRunning) return undefined;
+        const timer = setInterval(() => {
+            fetchAllData(true);
+        }, 3000);
+        return () => clearInterval(timer);
+    }, [isRoutineRunning, fetchAllData]);
+
+    useEffect(() => {
+        if (wasRoutineRunningRef.current && !isRoutineRunning) {
+            const res = routineState?.lastResult;
+            if (routineState?.lastError) {
+                showNotice(`Shift Kantor AI selesai dengan catatan: ${routineState.lastError}`, 'error');
+            } else if (res && !res.skipped) {
+                showNotice(
+                    `Shift Kantor AI selesai: ${res.supervisorCreated ? '1 laporan supervisi, ' : ''}${res.draftedCount || 0} draft disusun, ${res.proposedCreated || 0} usulan baru.`
+                );
+            } else {
+                showNotice('Shift harian Kantor AI telah selesai dijalankan.');
+            }
+        }
+        wasRoutineRunningRef.current = isRoutineRunning;
+    }, [isRoutineRunning, routineState, showNotice]);
 
     const proposedItems = useMemo(
         () => items.filter(i => i.staffRole === 'ADMINISTRASI' && i.status === 'PROPOSED'),
@@ -225,16 +524,16 @@ export default function AiOfficePage() {
     const handleRunSupervisor = async () => {
         try {
             setBusyAction('supervisor');
-            const res = await api.post('/ai-office/run/supervisor', { force: true });
+            const res = await api.post('/ai-office/run/supervisor', { force: true }, { timeout: 55000 });
             showNotice(
                 res.data?.usedFallback
                     ? 'Laporan Supervisi Harian dibuat (mode ringkasan terstruktur).'
                     : 'Staf Supervisi AI selesai menyusun Laporan Harian Kepala Bidang Sarana!'
             );
-            await fetchAllData();
+            await fetchAllData(true);
             setActiveTab('REPORTS');
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal menjalankan Staf Supervisi AI', 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal menjalankan Staf Supervisi AI'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -243,14 +542,22 @@ export default function AiOfficePage() {
     const handleRunDailyShift = async () => {
         try {
             setBusyAction('daily');
-            const res = await api.post('/ai-office/run/daily', { force: true });
+            const res = await api.post('/ai-office/run/daily', { force: true }, { timeout: 20000 });
             const d = res.data || {};
-            showNotice(
-                `Shift Kantor AI selesai: ${d.supervisorCreated ? '1 laporan supervisi, ' : ''}${d.draftedCount || 0} draft disusun, ${d.proposedCreated || 0} usulan baru.`
-            );
-            await fetchAllData();
+            if (d.routineState) {
+                setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
+            }
+            if (d.started || d.alreadyRunning) {
+                wasRoutineRunningRef.current = true;
+                showNotice(d.message || 'Shift harian Kantor AI dijalankan di latar belakang. Hasil akan tampil otomatis.');
+            } else {
+                showNotice(
+                    `Shift Kantor AI selesai: ${d.supervisorCreated ? '1 laporan supervisi, ' : ''}${d.draftedCount || 0} draft disusun, ${d.proposedCreated || 0} usulan baru.`
+                );
+            }
+            await fetchAllData(true);
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal menjalankan shift harian Kantor AI', 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal menjalankan shift harian Kantor AI'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -260,14 +567,23 @@ export default function AiOfficePage() {
         e.preventDefault();
         try {
             setBusyAction('propose');
-            const res = await api.post('/ai-office/run/propose', proposeForm);
+            const res = await api.post('/ai-office/run/propose', { ...proposeForm, autoDraft: true }, { timeout: 20000 });
+            const d = res.data || {};
             setShowProposeTopicModal(false);
-            setProposeForm({ count: 4, category: 'ALL', focusTopic: '' });
-            showNotice(`Staf Administrasi AI mengajukan ${res.data?.items?.length || 0} usulan ke Antrean ACC.`);
-            await fetchAllData();
-            setActiveTab('ACC_QUEUE');
+            setProposeForm({ count: 2, category: 'ALL', focusTopic: '' });
+            if (d.routineState) {
+                setDashboard(prev => (prev ? { ...prev, routineState: d.routineState } : prev));
+            }
+            if (d.started || d.alreadyRunning) {
+                wasRoutineRunningRef.current = true;
+                showNotice(d.message || 'Staf Administrasi AI langsung ACC & menyusun draft di latar belakang.');
+            } else {
+                showNotice(`Staf Administrasi AI menyiapkan ${d.items?.length || 0} dokumen.`);
+            }
+            setActiveTab('DRAFTS');
+            await fetchAllData(true);
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal membuat daftar usulan', 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal memerintahkan Staf Administrasi AI'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -277,7 +593,7 @@ export default function AiOfficePage() {
         e.preventDefault();
         try {
             setBusyAction('manual');
-            const res = await api.post('/ai-office/items', manualForm);
+            const res = await api.post('/ai-office/items', manualForm, { timeout: 55000 });
             setShowManualModal(false);
             setManualForm({
                 title: '',
@@ -294,13 +610,16 @@ export default function AiOfficePage() {
                     ? 'Dokumen khusus langsung disusun Staf Administrasi AI!'
                     : 'Permintaan dokumen disimpan ke Kantor AI.'
             );
-            await fetchAllData();
+            await fetchAllData(true);
             if (res.data?.status === 'DRAFT_READY') {
-                setSelectedDoc(res.data);
                 setActiveTab('DRAFTS');
+                setSelectedDoc(res.data);
+                setIsEditingDoc(false);
+                setDocEditForm({ title: res.data.title || '', content: res.data.content || '' });
+                setRevisionPrompt('');
             }
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal membuat permintaan dokumen', 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal membuat permintaan dokumen'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -312,20 +631,23 @@ export default function AiOfficePage() {
             const payload = editingProposalId === item.id
                 ? { ...proposalEdits, draftNow }
                 : { draftNow };
-            const res = await api.post(`/ai-office/items/${item.id}/acc`, payload);
+            const res = await api.post(`/ai-office/items/${item.id}/acc`, payload, { timeout: 55000 });
             setEditingProposalId(null);
             showNotice(
                 draftNow
                     ? `Usulan di-ACC dan draft "${res.data?.title || item.title}" telah selesai disusun!`
                     : 'Usulan di-ACC dan masuk ke Antrean Draft Staf Administrasi AI.'
             );
-            await fetchAllData();
+            await fetchAllData(true);
             if (draftNow && res.data?.id) {
+                setActiveTab('DRAFTS');
                 setSelectedDoc(res.data);
                 setIsEditingDoc(false);
+                setDocEditForm({ title: res.data.title || '', content: res.data.content || '' });
+                setRevisionPrompt('');
             }
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal ACC usulan', 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal ACC usulan'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -334,15 +656,19 @@ export default function AiOfficePage() {
     const handleDraftQueueItem = async (item) => {
         try {
             setBusyAction(`draft-${item.id}`);
-            const res = await api.post(`/ai-office/items/${item.id}/draft`);
+            const res = await api.post(`/ai-office/items/${item.id}/draft`, {}, { timeout: 55000 });
             showNotice(`Draft "${res.data?.item?.title || item.title}" selesai disusun.`);
-            await fetchAllData();
+            await fetchAllData(true);
             if (res.data?.item) {
+                setActiveTab('DRAFTS');
                 setSelectedDoc(res.data.item);
                 setIsEditingDoc(false);
+                setDocEditForm({ title: res.data.item.title || '', content: res.data.item.content || '' });
+                setRevisionPrompt('');
             }
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal menyusun draft', 'error');
+            await fetchAllData(true);
+            showNotice(getApiErrorMessage(err, 'Gagal menyusun draft'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -354,7 +680,7 @@ export default function AiOfficePage() {
             setBusyAction(`reject-${item.id}`);
             await api.post(`/ai-office/items/${item.id}/reject`, { reason: 'Ditolak oleh pimpinan' });
             showNotice('Usulan ditolak.');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (err) {
             showNotice(err.response?.data?.error || 'Gagal menolak usulan', 'error');
         } finally {
@@ -373,7 +699,7 @@ export default function AiOfficePage() {
             setSelectedDoc(res.data);
             setIsEditingDoc(false);
             showNotice('Perubahan naskah disimpan di arsip Kantor AI.');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (err) {
             showNotice(err.response?.data?.error || 'Gagal menyimpan perubahan', 'error');
         } finally {
@@ -387,14 +713,14 @@ export default function AiOfficePage() {
             setBusyAction('revise-ai');
             const res = await api.post(`/ai-office/items/${selectedDoc.id}/revise`, {
                 instruction: revisionPrompt.trim()
-            });
+            }, { timeout: 55000 });
             setSelectedDoc(res.data.item);
             setDocEditForm({ title: res.data.item.title, content: res.data.item.content || '' });
             setRevisionPrompt('');
             showNotice('Dokumen berhasil direvisi oleh Staf AI!');
-            await fetchAllData();
+            await fetchAllData(true);
         } catch (err) {
-            showNotice(err.response?.data?.error || 'Gagal merevisi dokumen', 'error');
+            showNotice(getApiErrorMessage(err, 'Gagal merevisi dokumen'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -453,10 +779,45 @@ export default function AiOfficePage() {
         try {
             setBusyAction('save-config');
             await api.put('/ai-office/config', configForm);
+            setUploadedFormatMeta(null);
             showNotice('Format SOP Umum & pengaturan shift Kantor AI tersimpan!');
             await fetchAllData();
         } catch (err) {
             showNotice(err.response?.data?.error || 'Gagal menyimpan pengaturan', 'error');
+        } finally {
+            setBusyAction('');
+        }
+    };
+
+    const handleUploadSopFormat = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) {
+            showNotice('Ukuran file format SOP maksimal 10 MB.', 'error');
+            return;
+        }
+        try {
+            setBusyAction('upload-sop-format');
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await api.post('/ai-office/config/upload-sop-format', fd, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 55000
+            });
+            if (res.data?.formatText) {
+                setConfigForm(prev => ({ ...prev, sopGeneralFormat: res.data.formatText }));
+                setUploadedFormatMeta({
+                    fileName: res.data.fileName || file.name,
+                    extractedBy: res.data.extractedBy || ''
+                });
+                showNotice(
+                    res.data.message ||
+                    `Format SOP berhasil diambil dari "${file.name}". Periksa hasilnya lalu klik Simpan Format & Pengaturan.`
+                );
+            }
+        } catch (err) {
+            showNotice(getApiErrorMessage(err, 'Gagal membaca dokumen format SOP'), 'error');
         } finally {
             setBusyAction('');
         }
@@ -498,9 +859,23 @@ export default function AiOfficePage() {
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                             Workspace Internal (Belum dikirim ke E-Office / Aturan Publik)
                         </span>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('SETTINGS')}
+                            title="Klik untuk mengatur jadwal otomatis staf Kantor AI"
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                                configForm.isEnabled
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                            }`}
+                        >
+                            {configForm.isEnabled
+                                ? `Otomatis Aktif (${String(configForm.dailyScheduleHour ?? 7).padStart(2, '0')}:${String(configForm.dailyScheduleMinute ?? 30).padStart(2, '0')} & ${String(configForm.eveningScheduleHour ?? 16).padStart(2, '0')}:00 WIB)`
+                                : 'Otomasi Nonaktif'}
+                        </button>
                     </div>
                     <p className="text-xs md:text-sm text-slate-500">
-                        Dua staf virtual AI bekerja setiap hari menyusun laporan supervisi harian ke Kepala Bidang Sarana serta daftar usulan SOP/Aturan/Surat untuk Anda ACC sebelum dibuatkan draftnya.
+                        Dua staf virtual AI bekerja setiap hari menyusun laporan supervisi harian serta langsung Auto-ACC &amp; menyusun draft SOP/Aturan/Surat siap periksa untuk Kepala Bidang Sarana.
                     </p>
                 </div>
 
@@ -514,15 +889,38 @@ export default function AiOfficePage() {
                     </button>
                     <button
                         type="button"
-                        disabled={Boolean(busyAction)}
+                        disabled={Boolean(busyAction) || isRoutineRunning}
                         onClick={handleRunDailyShift}
                         className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-all"
                     >
-                        {busyAction === 'daily' ? <RefreshCw size={15} className="animate-spin" /> : <Play size={15} />}
-                        Jalankan Shift Harian Sekarang
+                        {busyAction === 'daily' || isRoutineRunning ? <RefreshCw size={15} className="animate-spin" /> : <Play size={15} />}
+                        {isRoutineRunning ? 'Shift Berjalan...' : 'Jalankan Shift Harian Sekarang'}
                     </button>
                 </div>
             </div>
+
+            {isRoutineRunning && (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <RefreshCw size={18} className="text-blue-600 animate-spin shrink-0" />
+                        <div>
+                            <div className="text-xs font-bold text-blue-900">
+                                Shift Staf Kantor AI sedang berjalan di latar belakang...
+                            </div>
+                            <div className="text-[11px] text-blue-700">
+                                {routineState?.currentStep || 'Menyusun laporan & dokumen secara bertahap.'} Halaman akan diperbarui otomatis.
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => fetchAllData(true)}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100"
+                    >
+                        Segarkan Sekarang
+                    </button>
+                </div>
+            )}
 
             {/* Staff Overview Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -534,20 +932,25 @@ export default function AiOfficePage() {
                                 <ClipboardCheck size={22} />
                             </div>
                             <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <h2 className="font-bold text-slate-800 text-sm">
                                         {configForm.supervisorName}
                                     </h2>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                        (counts.todayReports || 0) > 0
-                                            ? 'bg-emerald-100 text-emerald-700'
-                                            : 'bg-amber-100 text-amber-700'
-                                    }`}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('REPORTS')}
+                                        title="Klik untuk membuka tab Laporan Supervisi Harian"
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+                                            (counts.todayReports || 0) > 0
+                                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                                : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                        }`}
+                                    >
                                         {(counts.todayReports || 0) > 0 ? 'Laporan Hari Ini Terbit' : 'Belum Laporan Hari Ini'}
-                                    </span>
+                                    </button>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    Memantau aset, kendaraan, pemeliharaan, workshop, pengadaan & gudang secara real-time lalu menyusun laporan harian untuk Kepala Bidang Sarana.
+                                    Memantau aset, kendaraan, pemeliharaan, workshop, pengadaan &amp; gudang secara real-time lalu menyusun laporan harian untuk Kepala Bidang Sarana.
                                 </p>
                             </div>
                         </div>
@@ -562,15 +965,24 @@ export default function AiOfficePage() {
                                     : 'Belum pernah'}
                             </strong>
                         </span>
-                        <button
-                            type="button"
-                            disabled={Boolean(busyAction)}
-                            onClick={handleRunSupervisor}
-                            className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
-                        >
-                            {busyAction === 'supervisor' ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                            Buat Laporan Sekarang
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('REPORTS')}
+                                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1.5"
+                            >
+                                <Eye size={13} /> Lihat Laporan ({supervisorReports.length})
+                            </button>
+                            <button
+                                type="button"
+                                disabled={Boolean(busyAction) || isRoutineRunning}
+                                onClick={handleRunSupervisor}
+                                className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                                {busyAction === 'supervisor' ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                                Buat Laporan Sekarang
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -582,16 +994,20 @@ export default function AiOfficePage() {
                                 <FileText size={22} />
                             </div>
                             <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <h2 className="font-bold text-slate-800 text-sm">
                                         {configForm.adminStaffName}
                                     </h2>
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
-                                        {counts.proposed || 0} Usulan Tunggu ACC
-                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('DRAFTS')}
+                                        className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    >
+                                        {counts.draftReady || 0} Draft Siap Dicek
+                                    </button>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    Mengusulkan daftar kebutuhan SOP, aturan & surat Bidang Sarana. Draft lengkap hanya disusun setelah Anda ACC dengan mengacu Format SOP Umum.
+                                    Secara mandiri memilih prioritas kebutuhan SOP, aturan &amp; surat Bidang Sarana lalu langsung Auto-ACC &amp; menyusun draft lengkap — Anda cukup memeriksa hasilnya.
                                 </p>
                             </div>
                         </div>
@@ -599,18 +1015,33 @@ export default function AiOfficePage() {
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 text-xs">
                         <div className="flex flex-wrap gap-3 text-slate-500">
-                            <span>Antre Draft: <strong className="text-slate-800">{counts.approvedQueue || 0}</strong></span>
-                            <span>Draft Siap: <strong className="text-slate-800">{counts.draftReady || 0}</strong></span>
-                            <span>Final: <strong className="text-emerald-700">{counts.finalized || 0}</strong></span>
+                            <button type="button" onClick={() => setActiveTab('DRAFTS')} className="hover:text-blue-700">
+                                Draft Siap: <strong className="text-slate-800">{counts.draftReady || 0}</strong>
+                            </button>
+                            <button type="button" onClick={() => setActiveTab('DRAFTS')} className="hover:text-emerald-700">
+                                Final: <strong className="text-emerald-700">{counts.finalized || 0}</strong>
+                            </button>
+                            <button type="button" onClick={() => setActiveTab('ACC_QUEUE')} className="hover:text-blue-700">
+                                Antre Proses: <strong className="text-slate-800">{(counts.proposed || 0) + (counts.approvedQueue || 0)}</strong>
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            disabled={Boolean(busyAction)}
-                            onClick={() => setShowProposeTopicModal(true)}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
-                        >
-                            <Sparkles size={13} /> Buat List Usulan
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('DRAFTS')}
+                                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1.5"
+                            >
+                                <Eye size={13} /> Lihat Hasil SOP &amp; Dokumen ({(counts.draftReady || 0) + (counts.finalized || 0)})
+                            </button>
+                            <button
+                                type="button"
+                                disabled={Boolean(busyAction) || isRoutineRunning}
+                                onClick={() => setShowProposeTopicModal(true)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                                <Sparkles size={13} /> Susun Draft SOP/Aturan AI
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -618,9 +1049,9 @@ export default function AiOfficePage() {
             {/* Navigation Tabs */}
             <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-0.5">
                 {[
-                    { id: 'ACC_QUEUE', label: 'Antrean ACC Usulan', icon: <ClipboardCheck size={15} />, badge: (counts.proposed || 0) + (counts.approvedQueue || 0) },
+                    { id: 'DRAFTS', label: 'Hasil SOP & Dokumen', icon: <FileText size={15} />, badge: (counts.draftReady || 0) + (counts.finalized || 0) },
                     { id: 'REPORTS', label: 'Laporan Supervisi Harian', icon: <Bot size={15} />, badge: supervisorReports.length },
-                    { id: 'DRAFTS', label: 'Hasil Draft & Arsip Kantor AI', icon: <FileText size={15} />, badge: (counts.draftReady || 0) + (counts.finalized || 0) },
+                    { id: 'ACC_QUEUE', label: 'Antrean Proses', icon: <ClipboardCheck size={15} />, badge: (counts.proposed || 0) + (counts.approvedQueue || 0) },
                     { id: 'SETTINGS', label: 'Format SOP & Pengaturan Staf', icon: <Settings size={15} /> },
                     { id: 'LOGS', label: 'Log Kerja Staf AI', icon: <History size={15} /> }
                 ].map(t => (
@@ -652,28 +1083,28 @@ export default function AiOfficePage() {
                 </div>
             ) : activeTab === 'ACC_QUEUE' ? (
                 <div className="space-y-6">
-                    {/* Proposed List awaiting ACC */}
+                    {/* Legacy Proposed List (if any) */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <h3 className="font-bold text-slate-800 text-sm">Daftar Usulan Menunggu ACC Pimpinan ({proposedItems.length})</h3>
+                                <h3 className="font-bold text-slate-800 text-sm">Daftar Topik Dalam Antrean / Usulan Lama ({proposedItems.length})</h3>
                                 <p className="text-[11px] text-slate-500">
-                                    Staf Administrasi AI tidak akan menyusun naskah lengkap sebelum Anda ACC di bawah ini.
+                                    Mode saat ini otomatis Auto-ACC &amp; langsung menyusun draft. Sisa usulan lama akan ikut diproses otomatis pada shift berikutnya atau bisa diproses manual di sini.
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowProposeTopicModal(true)}
-                                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1.5"
+                                className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1.5"
                             >
-                                <Sparkles size={13} /> Tambah List Usulan AI
+                                <Sparkles size={13} /> Susun Draft Baru AI
                             </button>
                         </div>
 
                         {proposedItems.length === 0 ? (
                             <div className="p-10 text-center space-y-2 text-slate-400">
                                 <ClipboardCheck className="mx-auto opacity-40" size={30} />
-                                <p className="text-xs font-semibold">Belum ada usulan menunggu ACC saat ini.</p>
+                                <p className="text-xs font-semibold">Tidak ada antrean tertunda. Semua hasil tersusun di tab Hasil SOP &amp; Dokumen.</p>
                             </div>
                         ) : (
                             <div className="divide-y divide-slate-100">
@@ -802,7 +1233,7 @@ export default function AiOfficePage() {
                                 {approvedQueueItems.map(item => (
                                     <div key={item.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                                         <div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2">
                                                 <span className="font-mono text-[10px] text-slate-500">{item.code}</span>
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${CATEGORY_BADGE[item.category] || CATEGORY_BADGE.LAINNYA}`}>
                                                     {item.category}
@@ -810,6 +1241,11 @@ export default function AiOfficePage() {
                                                 <span className="text-[10px] text-emerald-700 font-bold">
                                                     ACC oleh {item.approvedByName || 'Pimpinan'}
                                                 </span>
+                                                {item.status === 'DRAFTING' && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                                        Sedang Disusun...
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="font-bold text-sm text-slate-800 mt-1">{item.title}</div>
                                         </div>
@@ -820,7 +1256,7 @@ export default function AiOfficePage() {
                                             className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
                                         >
                                             {busyAction === `draft-${item.id}` ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                            Susun Draft Sekarang
+                                            {item.status === 'DRAFTING' ? 'Coba Susun Ulang' : 'Susun Draft Sekarang'}
                                         </button>
                                     </div>
                                 ))}
@@ -970,7 +1406,15 @@ export default function AiOfficePage() {
                                             Bidang: <strong>{item.domain || 'Umum'}</strong> • Tanggal: {item.outputDate}
                                         </p>
                                         <p className="text-xs text-slate-600 line-clamp-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                            {String(item.content || '').replace(/[#*`]/g, '').slice(0, 220)}...
+                                            {String(item.content || '')
+                                                .split(/\r?\n/)
+                                                .filter(l => !isMarkdownTableSeparator(l))
+                                                .join(' ')
+                                                .replace(/\|+/g, ' • ')
+                                                .replace(/[#*`]/g, '')
+                                                .replace(/\s+/g, ' ')
+                                                .trim()
+                                                .slice(0, 220)}...
                                         </p>
                                     </div>
 
@@ -1026,7 +1470,7 @@ export default function AiOfficePage() {
                         <div>
                             <h3 className="font-bold text-slate-800 text-base">Format SOP Umum &amp; Pengaturan Staf AI</h3>
                             <p className="text-xs text-slate-500">
-                                Masukkan kerangka/format umum SOP Anda; Staf Administrasi AI akan mengikuti dan mengembangkannya secara mandiri saat menyusun draft setelah di-ACC.
+                                Masukkan atau unggah kerangka/format umum SOP Anda; Staf Administrasi AI akan mengikuti dan mengembangkannya secara mandiri saat menyusun draft SOP (Auto-ACC).
                             </p>
                         </div>
                         <label className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 cursor-pointer">
@@ -1104,16 +1548,87 @@ export default function AiOfficePage() {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                            Format SOP Umum (Acuan Staf Administrasi AI)
+                    <div className="space-y-3">
+                        <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                                <div className="p-2.5 rounded-xl bg-blue-100 text-blue-700 shrink-0">
+                                    <Upload size={18} />
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-extrabold text-blue-950 uppercase tracking-wide">
+                                        Upload Dokumen Contoh / Format SOP
+                                    </h4>
+                                    <p className="text-[11px] text-blue-800/80 mt-0.5">
+                                        Unggah file <code>.docx</code>, <code>.pdf</code>, <code>.txt</code>, <code>.md</code>, atau foto/scan format SOP (maks. 10 MB) untuk otomatis mengisi acuan beserta tabelnya.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <input
+                                    ref={sopFileInputRef}
+                                    type="file"
+                                    accept=".docx,.pdf,.txt,.md,.markdown,.png,.jpg,.jpeg,.webp"
+                                    onChange={handleUploadSopFormat}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    disabled={busyAction === 'upload-sop-format'}
+                                    onClick={() => sopFileInputRef.current?.click()}
+                                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                                >
+                                    {busyAction === 'upload-sop-format' ? <RefreshCw size={13} className="animate-spin" /> : <Upload size={13} />}
+                                    {busyAction === 'upload-sop-format' ? 'Mengekstrak Format...' : 'Upload Dokumen Format'}
+                                </button>
+                                {dashboard?.defaultSopFormat && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setConfigForm(prev => ({ ...prev, sopGeneralFormat: dashboard.defaultSopFormat }));
+                                            setUploadedFormatMeta(null);
+                                            showNotice('Template Format SOP bertabel bawaan dimuat. Klik Simpan Format & Pengaturan untuk menerapkan.');
+                                        }}
+                                        className="px-3 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200"
+                                    >
+                                        Muat Template Tabel Bawaan
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewSopFormat(prev => !prev)}
+                                    className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1.5 border border-slate-200"
+                                >
+                                    {previewSopFormat ? <Edit3 size={13} /> : <Eye size={13} />}
+                                    {previewSopFormat ? 'Edit Teks' : 'Pratinjau Format'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <label className="block text-xs font-bold text-slate-700 uppercase">
+                            Isi Format SOP Umum (Acuan Staf Administrasi AI)
                         </label>
-                        <textarea
-                            rows={14}
-                            className="w-full p-3.5 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 bg-slate-50/70 focus:bg-white outline-none focus:ring-2 focus:ring-blue-500"
-                            value={configForm.sopGeneralFormat}
-                            onChange={e => setConfigForm(prev => ({ ...prev, sopGeneralFormat: e.target.value }))}
-                        />
+
+                        {uploadedFormatMeta && (
+                            <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+                                <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
+                                <span>
+                                    Format berhasil diekstrak dari <strong>{uploadedFormatMeta.fileName}</strong>. Periksa hasilnya lalu klik <strong>Simpan Format &amp; Pengaturan</strong>.
+                                </span>
+                            </div>
+                        )}
+
+                        {previewSopFormat ? (
+                            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 max-h-[420px] overflow-y-auto">
+                                <MarkdownDocumentPreview content={configForm.sopGeneralFormat} />
+                            </div>
+                        ) : (
+                            <textarea
+                                rows={14}
+                                className="w-full p-3.5 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 bg-slate-50/70 focus:bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                                value={configForm.sopGeneralFormat}
+                                onChange={e => setConfigForm(prev => ({ ...prev, sopGeneralFormat: e.target.value }))}
+                            />
+                        )}
                     </div>
 
                     <div>
@@ -1197,18 +1712,18 @@ export default function AiOfficePage() {
                 </div>
             )}
 
-            {/* Modal: Propose AI Backlog List */}
+            {/* Modal: Auto-ACC & Draft Document Batch */}
             {showProposeTopicModal && (
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
                     <form onSubmit={handleProposeBacklog} className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
                         <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-slate-800 text-base">Minta Staf AI Buat List Usulan</h3>
+                            <h3 className="font-bold text-slate-800 text-base">Minta Staf AI Langsung Susun Draft</h3>
                             <button type="button" onClick={() => setShowProposeTopicModal(false)} className="text-slate-400 hover:text-slate-600">
                                 <X size={18} />
                             </button>
                         </div>
                         <p className="text-xs text-slate-500">
-                            Staf Administrasi AI akan menyusun daftar usulan terlebih dahulu. Draft lengkap baru dikerjakan setelah Anda ACC.
+                            Staf Administrasi AI akan otomatis memilih topik paling relevan, Auto-ACC, lalu menyusun draft naskah lengkap ke tab <strong>Hasil SOP &amp; Dokumen</strong> untuk Anda periksa.
                         </p>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
@@ -1226,11 +1741,11 @@ export default function AiOfficePage() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Jumlah Usulan</label>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Jumlah Dokumen</label>
                                 <input
                                     type="number"
                                     min={1}
-                                    max={8}
+                                    max={5}
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
                                     value={proposeForm.count}
                                     onChange={e => setProposeForm(prev => ({ ...prev, count: e.target.value }))}
@@ -1253,11 +1768,11 @@ export default function AiOfficePage() {
                             </button>
                             <button
                                 type="submit"
-                                disabled={busyAction === 'propose'}
+                                disabled={busyAction === 'propose' || isRoutineRunning}
                                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
                             >
                                 {busyAction === 'propose' ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                Hasilkan List Usulan
+                                Susun Draft Langsung
                             </button>
                         </div>
                     </form>

@@ -5,6 +5,7 @@ const { generateAiOfficeDocumentPDF } = require('../services/officePdfService');
 
 exports.getDashboard = async (req, res) => {
     try {
+        await aiOfficeService.recoverStaleDraftingItems(prisma).catch(() => {});
         const config = await aiOfficeService.getOrCreateConfig(prisma);
         const today = aiOfficeService.getTodayWib();
 
@@ -19,7 +20,7 @@ exports.getDashboard = async (req, res) => {
             latestSupervisorReport
         ] = await Promise.all([
             prisma.aiOfficeItem.count({ where: { staffRole: 'ADMINISTRASI', status: 'PROPOSED' } }),
-            prisma.aiOfficeItem.count({ where: { staffRole: 'ADMINISTRASI', status: 'APPROVED_FOR_DRAFT' } }),
+            prisma.aiOfficeItem.count({ where: { staffRole: 'ADMINISTRASI', status: { in: ['APPROVED_FOR_DRAFT', 'DRAFTING'] } } }),
             prisma.aiOfficeItem.count({ where: { staffRole: 'ADMINISTRASI', status: 'DRAFT_READY' } }),
             prisma.aiOfficeItem.count({ where: { staffRole: 'ADMINISTRASI', status: 'FINALIZED' } }),
             prisma.aiOfficeItem.count({ where: { staffRole: 'SUPERVISI', category: 'LAPORAN_HARIAN', outputDate: today } }),
@@ -34,6 +35,8 @@ exports.getDashboard = async (req, res) => {
         res.json({
             today,
             config,
+            defaultSopFormat: aiOfficeService.DEFAULT_SOP_GENERAL_FORMAT,
+            routineState: aiOfficeService.getRoutineState(),
             counts: {
                 proposed: proposedCount,
                 approvedQueue: approvedQueueCount,
@@ -53,6 +56,7 @@ exports.getDashboard = async (req, res) => {
 
 exports.listItems = async (req, res) => {
     try {
+        await aiOfficeService.recoverStaleDraftingItems(prisma).catch(() => {});
         const { staffRole, category, status, search } = req.query;
         const where = {};
 
@@ -321,13 +325,31 @@ exports.downloadItemPdf = async (req, res) => {
 
 exports.runDailyShift = async (req, res) => {
     try {
+        const currentState = aiOfficeService.getRoutineState();
+        if (currentState.isRunning) {
+            return res.status(200).json({
+                started: false,
+                alreadyRunning: true,
+                routineState: currentState,
+                message: 'Shift Kantor AI sedang berjalan di latar belakang.'
+            });
+        }
+
         const { force = true } = req.body || {};
-        const result = await aiOfficeService.runDailyOfficeRoutine({
+        aiOfficeService.runDailyOfficeRoutine({
             prisma,
             trigger: 'MANUAL',
             force: Boolean(force)
+        }).catch((err) => {
+            console.error('[AiOffice] Background runDailyShift error:', err);
         });
-        res.json(result);
+
+        res.status(202).json({
+            started: true,
+            alreadyRunning: false,
+            routineState: aiOfficeService.getRoutineState(),
+            message: 'Shift harian Kantor AI dijalankan di latar belakang. Halaman akan otomatis memperbarui hasil.'
+        });
     } catch (err) {
         console.error('[AiOffice] runDailyShift error:', err);
         res.status(500).json({ error: err.message });
@@ -352,14 +374,45 @@ exports.runSupervisor = async (req, res) => {
 
 exports.runPropose = async (req, res) => {
     try {
-        const { count = 4, focusTopic = '', category = 'ALL' } = req.body || {};
+        const { count = 2, focusTopic = '', category = 'ALL', autoDraft = true } = req.body || {};
+        if (autoDraft !== false) {
+            const currentState = aiOfficeService.getRoutineState();
+            if (currentState.isRunning) {
+                return res.status(200).json({
+                    started: false,
+                    alreadyRunning: true,
+                    routineState: currentState,
+                    message: 'Staf Kantor AI sedang memproses tugas di latar belakang.'
+                });
+            }
+
+            aiOfficeService.runAutoProposeAndDraft({
+                prisma,
+                trigger: 'MANUAL',
+                count,
+                focusTopic,
+                category,
+                actor: req.user
+            }).catch((err) => {
+                console.error('[AiOffice] Background runAutoProposeAndDraft error:', err);
+            });
+
+            return res.status(202).json({
+                started: true,
+                alreadyRunning: false,
+                routineState: aiOfficeService.getRoutineState(),
+                message: 'Staf Administrasi AI langsung ACC & menyusun draft di latar belakang. Hasil akan tampil otomatis di tab Hasil SOP & Dokumen.'
+            });
+        }
+
         const result = await aiOfficeService.proposeAdminBacklog({
             prisma,
             trigger: 'MANUAL',
             count,
             focusTopic,
             category,
-            actor: req.user
+            actor: req.user,
+            autoApprove: false
         });
         res.json(result);
     } catch (err) {
@@ -417,5 +470,38 @@ exports.updateConfig = async (req, res) => {
     } catch (err) {
         console.error('[AiOffice] updateConfig error:', err);
         res.status(500).json({ error: err.message });
+    }
+};
+
+exports.uploadSopFormat = async (req, res) => {
+    try {
+        if (!req.file?.buffer) {
+            return res.status(400).json({ error: 'Silakan pilih file format SOP terlebih dahulu.' });
+        }
+
+        const result = await aiOfficeService.extractSopFormatFromFile({
+            buffer: req.file.buffer,
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype
+        });
+
+        const autoSave = req.body?.autoSave === 'true' || req.body?.autoSave === true;
+        if (autoSave && result.formatText) {
+            await aiOfficeService.getOrCreateConfig(prisma);
+            await prisma.aiOfficeConfig.update({
+                where: { id: 1 },
+                data: { sopGeneralFormat: result.formatText }
+            });
+        }
+
+        res.json({
+            ...result,
+            message: autoSave
+                ? `Format SOP berhasil diekstrak dari "${result.fileName}" dan disimpan.`
+                : `Format SOP berhasil diekstrak dari "${result.fileName}". Periksa hasilnya lalu klik Simpan Format & Pengaturan.`
+        });
+    } catch (err) {
+        console.error('[AiOffice] uploadSopFormat error:', err);
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };

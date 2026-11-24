@@ -3639,6 +3639,180 @@ async function generateSuratPerintahPengadaanPDF(doc, setting) {
     return await pdfDoc.save();
 }
 
+function splitMarkdownTableRow(line) {
+    let trimmed = String(line || '').trim();
+    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith('|') && !trimmed.endsWith('\\|')) {
+        trimmed = trimmed.slice(0, -1);
+    }
+    const cells = [];
+    let current = '';
+    for (let i = 0; i < trimmed.length; i++) {
+        if (trimmed[i] === '\\' && trimmed[i + 1] === '|') {
+            current += '|';
+            i++;
+        } else if (trimmed[i] === '|') {
+            cells.push(current.trim());
+            current = '';
+        } else {
+            current += trimmed[i];
+        }
+    }
+    cells.push(current.trim());
+    return cells;
+}
+
+function isMarkdownTableSeparator(line) {
+    const trimmed = String(line || '').trim();
+    if (!trimmed.includes('|') || !trimmed.includes('-')) return false;
+    const cells = splitMarkdownTableRow(trimmed);
+    return cells.length >= 2 && cells.every(c => /^:?-+:?$/.test(c));
+}
+
+function parseTableAlignments(separatorLine) {
+    return splitMarkdownTableRow(separatorLine).map(cell => {
+        const left = cell.startsWith(':');
+        const right = cell.endsWith(':');
+        if (left && right) return 'center';
+        if (right) return 'right';
+        return 'left';
+    });
+}
+
+function stripInlineMarkdown(text) {
+    return String(text || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+        .replace(/__([^_\n]+)__/g, '$1')
+        .replace(/`([^`\n]+)`/g, '$1')
+        .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1')
+        .replace(/(^|[\s([{"'])_([^_\n]+)_(?=$|[\s)\]}"'.,;:!?])/g, '$1$2');
+}
+
+function wrapCellText(text, maxWidth, font, size) {
+    const safeText = sanitizeTextForWinAnsi(stripInlineMarkdown(text));
+    const paragraphs = safeText.split('\n');
+    const allLines = [];
+    const usableWidth = Math.max(12, maxWidth);
+
+    const pushLongToken = (token) => {
+        const segments = token.split(/(?<=[/-])/).filter(Boolean);
+        let buf = '';
+        const chunks = segments.length > 1 ? segments : [token];
+        for (const chunk of chunks) {
+            if (font.widthOfTextAtSize(buf + chunk, size) <= usableWidth) {
+                buf += chunk;
+            } else {
+                if (buf) {
+                    allLines.push(buf);
+                    buf = '';
+                }
+                if (font.widthOfTextAtSize(chunk, size) <= usableWidth) {
+                    buf = chunk;
+                } else {
+                    for (const ch of chunk) {
+                        if (buf && font.widthOfTextAtSize(buf + ch, size) > usableWidth) {
+                            allLines.push(buf);
+                            buf = ch;
+                        } else {
+                            buf += ch;
+                        }
+                    }
+                }
+            }
+        }
+        if (buf) allLines.push(buf);
+    };
+
+    for (const para of paragraphs) {
+        const words = para.trim().split(/\s+/).filter(Boolean);
+        if (words.length === 0) {
+            allLines.push('');
+            continue;
+        }
+        let current = '';
+        for (const word of words) {
+            const candidate = current ? `${current} ${word}` : word;
+            if (font.widthOfTextAtSize(candidate, size) <= usableWidth) {
+                current = candidate;
+            } else {
+                if (current) allLines.push(current);
+                if (font.widthOfTextAtSize(word, size) <= usableWidth) {
+                    current = word;
+                } else {
+                    pushLongToken(word);
+                    current = '';
+                }
+            }
+        }
+        if (current) allLines.push(current);
+    }
+
+    return allLines.length > 0 ? allLines : [''];
+}
+
+function computeTableColWidths(headers, rows, totalWidth) {
+    const colCount = headers.length;
+    if (colCount === 0) return [];
+    const weights = new Array(colCount).fill(0);
+    const isNarrowIndexCol = new Array(colCount).fill(false);
+
+    for (let c = 0; c < colCount; c++) {
+        const hClean = stripInlineMarkdown(headers[c] || '').trim().toLowerCase();
+        const maxCellLen = rows.reduce((m, r) => Math.max(m, stripInlineMarkdown(r[c] || '').trim().length), 0);
+        if (['no', 'no.', '#'].includes(hClean) && maxCellLen <= 5) {
+            isNarrowIndexCol[c] = true;
+        } else {
+            const avgLen = rows.length
+                ? rows.reduce((s, r) => s + stripInlineMarkdown(r[c] || '').trim().length, 0) / rows.length
+                : hClean.length;
+            weights[c] = Math.max(8, Math.min(48, Math.max(hClean.length * 1.15, (maxCellLen * 0.55) + (avgLen * 0.45))));
+        }
+    }
+
+    const widths = new Array(colCount).fill(0);
+    let fixedSum = 0;
+    let weightSum = 0;
+    for (let c = 0; c < colCount; c++) {
+        if (isNarrowIndexCol[c]) {
+            widths[c] = 30;
+            fixedSum += 30;
+        } else {
+            weightSum += weights[c];
+        }
+    }
+
+    const remainingWidth = Math.max(40, totalWidth - fixedSum);
+    const minFlexW = colCount >= 6 ? 48 : 58;
+    const flexCount = isNarrowIndexCol.filter(x => !x).length;
+
+    if (flexCount > 0 && remainingWidth > minFlexW * flexCount) {
+        let allocated = 0;
+        for (let c = 0; c < colCount; c++) {
+            if (!isNarrowIndexCol[c]) {
+                widths[c] = Math.max(minFlexW, (weights[c] / (weightSum || flexCount)) * remainingWidth);
+                allocated += widths[c];
+            }
+        }
+        const scale = remainingWidth / allocated;
+        for (let c = 0; c < colCount; c++) {
+            if (!isNarrowIndexCol[c]) {
+                widths[c] *= scale;
+            }
+        }
+    } else if (flexCount > 0) {
+        const equalFlex = remainingWidth / flexCount;
+        for (let c = 0; c < colCount; c++) {
+            if (!isNarrowIndexCol[c]) widths[c] = equalFlex;
+        }
+    } else {
+        const eq = totalWidth / colCount;
+        for (let c = 0; c < colCount; c++) widths[c] = eq;
+    }
+
+    return widths;
+}
+
 /**
  * Generate branded internal PDF for Kantor AI outputs (Laporan Supervisi, SOP, Aturan, Surat).
  */
@@ -3652,6 +3826,7 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
     const pageWidth = 595.28; // A4
     const pageHeight = 841.89;
     const margin = 45;
+    const bottomMargin = 52;
     const contentWidth = pageWidth - (margin * 2);
 
     const drawFooter = (p, pageNum) => {
@@ -3678,12 +3853,16 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
     let y = drawKopSuratSync(page, fontBold, fontRegular, images);
     drawFooter(page, pageCount);
 
+    const addNewPage = () => {
+        page = pdfDoc.addPage([pageWidth, pageHeight]);
+        pageCount += 1;
+        y = pageHeight - 45;
+        drawFooter(page, pageCount);
+    };
+
     const ensureSpace = (needed = 24) => {
-        if (y - needed < 52) {
-            page = pdfDoc.addPage([pageWidth, pageHeight]);
-            pageCount += 1;
-            y = pageHeight - 45;
-            drawFooter(page, pageCount);
+        if (y - needed < bottomMargin) {
+            addNewPage();
         }
     };
 
@@ -3741,14 +3920,113 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
     }
     y -= boxHeight + 10;
 
+    const drawMarkdownTable = (headers, alignments, rows) => {
+        const colCount = headers.length;
+        if (colCount === 0) return;
+
+        const colWidths = computeTableColWidths(headers, rows, contentWidth);
+        const tableFontSize = colCount >= 6 ? 7.8 : colCount === 5 ? 8.2 : 8.6;
+        const cellPadX = 5;
+        const cellPadY = 4;
+        const rowLineHeight = tableFontSize + 3.2;
+
+        const indexFlags = headers.map((h, c) =>
+            ['no', 'no.', '#'].includes(stripInlineMarkdown(h || '').trim().toLowerCase()) &&
+            rows.every(r => stripInlineMarkdown(r[c] || '').trim().length <= 5)
+        );
+
+        const measureRow = (cells, isHeader) => {
+            const rowFont = isHeader ? fontBold : fontRegular;
+            const wrappedCols = colWidths.map((colW, c) =>
+                wrapCellText(cells[c] || '', Math.max(12, colW - (cellPadX * 2)), rowFont, tableFontSize)
+            );
+            const maxLines = Math.max(1, ...wrappedCols.map(lines => lines.length));
+            const rowHeight = (maxLines * rowLineHeight) + (cellPadY * 2);
+            return { wrappedCols, rowHeight };
+        };
+
+        const drawMeasuredRow = (measured, isHeader, rowIndex = 0) => {
+            const { wrappedCols, rowHeight } = measured;
+            const rowFont = isHeader ? fontBold : fontRegular;
+            const bgColor = isHeader
+                ? rgb(0.91, 0.94, 0.98)
+                : (rowIndex % 2 === 1 ? rgb(0.985, 0.99, 0.998) : rgb(1, 1, 1));
+            const borderColor = isHeader ? rgb(0.75, 0.8, 0.87) : rgb(0.8, 0.84, 0.89);
+            const borderWidth = isHeader ? 0.6 : 0.5;
+            const textColor = isHeader ? rgb(0.08, 0.2, 0.38) : rgb(0.14, 0.17, 0.22);
+
+            let colX = margin;
+            for (let c = 0; c < colWidths.length; c++) {
+                const colW = colWidths[c];
+                page.drawRectangle({
+                    x: colX,
+                    y: y - rowHeight,
+                    width: colW,
+                    height: rowHeight,
+                    color: bgColor,
+                    borderColor,
+                    borderWidth
+                });
+
+                const lines = wrappedCols[c] || [''];
+                const topTextY = y - cellPadY - tableFontSize + 1.5;
+                let align = alignments[c] || 'left';
+                if (align === 'left' && indexFlags[c]) align = 'center';
+
+                lines.forEach((lineText, lineIdx) => {
+                    if (!lineText) return;
+                    const textW = rowFont.widthOfTextAtSize(lineText, tableFontSize);
+                    let textX = colX + cellPadX;
+                    if (align === 'center') {
+                        textX = colX + Math.max(cellPadX, (colW - textW) / 2);
+                    } else if (align === 'right') {
+                        textX = colX + Math.max(cellPadX, colW - cellPadX - textW);
+                    }
+                    page.drawText(lineText, {
+                        x: textX,
+                        y: topTextY - (lineIdx * rowLineHeight),
+                        size: tableFontSize,
+                        font: rowFont,
+                        color: textColor
+                    });
+                });
+                colX += colW;
+            }
+            y -= rowHeight;
+        };
+
+        const headerMeasured = measureRow(headers, true);
+        const firstBodyMeasured = rows.length > 0 ? measureRow(rows[0], false) : null;
+        const neededToStart = headerMeasured.rowHeight + (firstBodyMeasured ? firstBodyMeasured.rowHeight : 0);
+        if (y - Math.min(neededToStart, 180) < bottomMargin) {
+            addNewPage();
+        }
+
+        y -= 3;
+        drawMeasuredRow(headerMeasured, true, 0);
+
+        for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+            const measured = rIdx === 0 && firstBodyMeasured ? firstBodyMeasured : measureRow(rows[rIdx], false);
+            if (y - measured.rowHeight < bottomMargin) {
+                addNewPage();
+                drawMeasuredRow(headerMeasured, true, 0);
+            }
+            drawMeasuredRow(measured, false, rIdx);
+        }
+        y -= 8;
+    };
+
     // Render Markdown-style body cleanly
     const rawBody = String(item.content || item.brief || item.rationale || 'Belum ada isi dokumen.');
     const rawLines = rawBody.split(/\r?\n/);
 
-    for (const rawLine of rawLines) {
-        const trimmed = rawLine.trim();
+    for (let i = 0; i < rawLines.length; i++) {
+        const trimmed = rawLines[i].trim();
         if (!trimmed) {
             y -= 7;
+            continue;
+        }
+        if (trimmed.startsWith('```')) {
             continue;
         }
         if (trimmed === '---' || trimmed === '***') {
@@ -3763,6 +4041,28 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
             continue;
         }
 
+        // Detect Markdown pipe table: header row + separator row (e.g. | :-- | :--- |)
+        if (trimmed.includes('|') && i + 1 < rawLines.length && isMarkdownTableSeparator(rawLines[i + 1])) {
+            const headers = splitMarkdownTableRow(trimmed);
+            const alignments = parseTableAlignments(rawLines[i + 1]);
+            const rows = [];
+            let j = i + 2;
+            while (j < rawLines.length) {
+                const rowLine = rawLines[j].trim();
+                if (!rowLine || !rowLine.includes('|') || rowLine.startsWith('#') || isMarkdownTableSeparator(rowLine)) {
+                    break;
+                }
+                const cells = splitMarkdownTableRow(rowLine);
+                while (cells.length < headers.length) cells.push('');
+                if (cells.length > headers.length) cells.length = headers.length;
+                rows.push(cells);
+                j += 1;
+            }
+            drawMarkdownTable(headers, alignments, rows);
+            i = j - 1;
+            continue;
+        }
+
         let font = fontRegular;
         let size = 9.8;
         let lineHeight = 13.5;
@@ -3770,7 +4070,14 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
         let color = rgb(0.14, 0.17, 0.22);
         let text = trimmed;
 
-        if (text.startsWith('### ')) {
+        if (text.startsWith('#### ')) {
+            text = text.slice(5);
+            font = fontBold;
+            size = 10.0;
+            lineHeight = 14;
+            y -= 3;
+            color = rgb(0.15, 0.25, 0.4);
+        } else if (text.startsWith('### ')) {
             text = text.slice(4);
             font = fontBold;
             size = 10.5;
@@ -3791,6 +4098,11 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
             lineHeight = 17;
             y -= 6;
             color = rgb(0.06, 0.15, 0.3);
+        } else if (text.startsWith('> ')) {
+            text = text.slice(2);
+            font = fontItalic;
+            xOffset = 10;
+            color = rgb(0.3, 0.35, 0.42);
         } else if (/^[-*]\s+/.test(text)) {
             text = `- ${text.replace(/^[-*]\s+/, '')}`;
             xOffset = 10;
@@ -3798,12 +4110,7 @@ async function generateAiOfficeDocumentPDF(item, config = {}) {
             xOffset = 10;
         }
 
-        // Strip common inline Markdown markers cleanly for WinAnsi PDF
-        text = text
-            .replace(/\*\*(.*?)\*\*/g, '$1')
-            .replace(/__(.*?)__/g, '$1')
-            .replace(/`([^`]+)`/g, '$1')
-            .replace(/^\*(.*)\*$/, '$1');
+        text = stripInlineMarkdown(text);
 
         const safeLine = sanitizeTextForWinAnsi(text);
         const wrapped = wrapText(safeLine, contentWidth - xOffset, font, size);

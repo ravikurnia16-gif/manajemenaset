@@ -4,19 +4,19 @@ const { checkTaxNotifications, checkKirNotifications } = require('../controllers
 const { checkOverdueLoans } = require('../controllers/loanController');
 const { checkOverdueVehicleBookings, checkUpcomingVehicleBookings } = require('../controllers/vehicleBookingController');
 const { checkMissingWeeklyReports } = require('../controllers/vehicleReportController');
-const { 
-    checkAssignmentDeadlines, 
-    generateRoutineTasks, 
-    sendDailyPersonnelSummary, 
-    checkPlanDeadlines, 
-    checkMissingReportsWeekly 
+const {
+    checkAssignmentDeadlines,
+    generateRoutineTasks,
+    sendDailyPersonnelSummary,
+    checkPlanDeadlines,
+    checkMissingReportsWeekly
 } = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 const { sendWeeklyBusTripSummary } = require('./tripSummaryNotification');
 const { sendMaintenanceConditionSummary } = require('./maintenanceSummaryNotification');
 const { sendUniformOrderSummary } = require('./uniformSummaryNotification');
-const { 
-    checkAssetMaintenanceReminders, 
+const {
+    checkAssetMaintenanceReminders,
     checkUnrespondedReports,
     sendDailyTechnicianMaintenanceNotification
 } = require('../controllers/maintenanceController');
@@ -26,11 +26,19 @@ const { sendReportReminders, notifyKabidInactiveStaff } = require('../controller
 const { checkPendingWorkshopOrders } = require('../controllers/workshopController');
 const checklistController = require('../controllers/vehicleChecklistController');
 const { runScheduledAmbulanceSync } = require('../services/ambulanceSyncService');
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
 const { runDailyOfficeRoutine, getOrCreateConfig } = require('../services/aiOfficeService');
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 let schedulerInterval = null;
 let ambulanceStartupTimer = null;
 let aiOfficeStartupTimer = null;
+let lastAiOfficeAutoRunMinute = '';
+let lastAiOfficeCatchupAt = 0;
 
 const initScheduler = () => {
     if (schedulerInterval) {
@@ -289,7 +297,7 @@ const initScheduler = () => {
         // 5. VEHICLE CHECKLIST SCHEDULER
         // ----------------------------------------------------
         // A. Unified Checklist Audit (Mon-Fri 18:00) - Audits Daily, Weekly & Monthly in one consolidated summary
-        if ([1,2,3,4,5].includes(day) && hour === 18 && minute === 0) {
+        if ([1, 2, 3, 4, 5].includes(day) && hour === 18 && minute === 0) {
             checklistController.auditDailyChecklists();
         }
 
@@ -333,16 +341,31 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 8. KANTOR AI DAILY STAFF SHIFTS (Pagi & Sore sesuai AiOfficeConfig)
+        // 8. KANTOR AI DAILY STAFF SHIFTS (Pagi, Sore & Catch-up 30 menit WIB)
         // ----------------------------------------------------
         try {
             const aiConfig = await getOrCreateConfig();
             if (aiConfig?.isEnabled) {
-                const isMorningShift = hour === (aiConfig.dailyScheduleHour ?? 7) && minute === (aiConfig.dailyScheduleMinute ?? 30);
-                const isEveningShift = hour === (aiConfig.eveningScheduleHour ?? 16) && minute === 0;
-                if (isMorningShift || isEveningShift) {
-                    console.log(`[Scheduler] Executing Kantor AI staff shift at ${timeStr}...`);
-                    await runDailyOfficeRoutine({ trigger: 'SCHEDULER', force: false });
+                const wibNow = dayjs().tz('Asia/Jakarta');
+                const wibHour = wibNow.hour();
+                const wibMinute = wibNow.minute();
+                const wibMinuteKey = wibNow.format('YYYY-MM-DD HH:mm');
+                const morningH = aiConfig.dailyScheduleHour ?? 7;
+                const morningM = aiConfig.dailyScheduleMinute ?? 30;
+                const eveningH = aiConfig.eveningScheduleHour ?? 16;
+
+                const isMorningShift = wibHour === morningH && wibMinute === morningM;
+                const isEveningShift = wibHour === eveningH && wibMinute === 0;
+                const pastMorningTime = wibHour > morningH || (wibHour === morningH && wibMinute >= morningM);
+                const catchupDue = pastMorningTime && (Date.now() - lastAiOfficeCatchupAt >= 30 * 60 * 1000);
+
+                if (lastAiOfficeAutoRunMinute !== wibMinuteKey && (isMorningShift || isEveningShift || catchupDue)) {
+                    lastAiOfficeAutoRunMinute = wibMinuteKey;
+                    lastAiOfficeCatchupAt = Date.now();
+                    console.log(`[Scheduler] Triggering Kantor AI staff shift at ${wibMinuteKey} WIB (morning=${isMorningShift}, evening=${isEveningShift}, catchup=${catchupDue})...`);
+                    runDailyOfficeRoutine({ trigger: 'SCHEDULER', force: false }).catch((err) => {
+                        console.error('[Scheduler] Error in Kantor AI staff shift:', err.message);
+                    });
                 }
             }
         } catch (err) {
