@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
@@ -4156,57 +4157,59 @@ const VehicleBooking = () => {
 
             {/* Action Modals */}
             {
-                showActionModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
-                            <div className="flex justify-between items-start mb-6">
-                                <h3 className="text-xl font-bold text-slate-800">
-                                    {showActionModal.type === 'REJECT' && 'Tolak Permohonan'}
-                                    {showActionModal.type === 'CANCEL' && 'Batalkan Peminjaman'}
-                                    {showActionModal.type === 'START' && 'Mulai Perjalanan'}
-                                    {showActionModal.type === 'END' && 'Selesai Perjalanan'}
-                                    {showActionModal.type === 'EDIT_HISTORY' && 'Edit Riwayat Perjalanan'}
-                                    {showActionModal.type === 'EXTEND' && 'Perpanjang Jadwal'}
-                                </h3>
-                                <button onClick={() => setShowActionModal(null)} className="text-slate-400 hover:text-slate-600">
-                                    <XCircle size={24} />
-                                </button>
-                            </div>
+                showActionModal && createPortal(
+                    (() => {
+                        const startCurrentOdometer = showActionModal.data?.vehicle?.odometer || 0;
+                        const startOdoDigits = resolveOdometerDigits(showActionModal.data?.vehicle);
+                        const startHasInput = actionData.km !== '' && actionData.km !== null && actionData.km !== undefined;
+                        const startProg = showActionModal.type === 'START' && startHasInput
+                            ? compareOdometerProgression(startCurrentOdometer, actionData.km, startOdoDigits)
+                            : null;
+                        const startIsDiscrepancy = Boolean(startProg?.valid && startProg.discrepancy > 1);
 
-                            {(showActionModal.type === 'REJECT' || showActionModal.type === 'CANCEL') && (
-                                <div className="space-y-4">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase">
-                                        {showActionModal.type === 'REJECT' ? 'Alasan Penolakan' : 'Alasan Pembatalan'}
-                                    </label>
-                                    <textarea
-                                        className={`w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 ${showActionModal.type === 'REJECT' ? 'focus:ring-red-500' : 'focus:ring-red-500'} outline-none`}
-                                        rows={3} autoFocus
-                                        placeholder="Wajib diisi..."
-                                        value={actionData.reason}
-                                        onChange={e => setActionData({ ...actionData, reason: e.target.value })}
-                                    />
-                                    <button
-                                        disabled={!actionData.reason || submitting}
-                                        onClick={showActionModal.type === 'REJECT' ? () => handleAction(showActionModal.data.id, 'REJECT') : handleCancelSubmit}
-                                        className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
-                                    >
-                                        {showActionModal.type === 'REJECT' ? 'Konfirmasi Tolak' : 'Konfirmasi Batal'}
-                                    </button>
-                                </div>
-                            )}
+                        return (
+                            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto overscroll-contain">
+                                <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md modal-panel-safe flex flex-col overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+                                    {/* Fixed Modal Header */}
+                                    <div className="shrink-0 flex justify-between items-center px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-white">
+                                        <h3 className="text-lg sm:text-xl font-bold text-slate-800">
+                                            {showActionModal.type === 'REJECT' && 'Tolak Permohonan'}
+                                            {showActionModal.type === 'CANCEL' && 'Batalkan Peminjaman'}
+                                            {showActionModal.type === 'START' && 'Mulai Perjalanan'}
+                                            {showActionModal.type === 'END' && 'Selesai Perjalanan'}
+                                            {showActionModal.type === 'EDIT_HISTORY' && 'Edit Riwayat Perjalanan'}
+                                            {showActionModal.type === 'EXTEND' && 'Perpanjang Jadwal'}
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowActionModal(null)}
+                                            className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                                            aria-label="Tutup modal"
+                                        >
+                                            <XCircle size={24} />
+                                        </button>
+                                    </div>
 
-                            {showActionModal.type === 'START' && (
-                                <div className="space-y-4">
-                                    {(() => {
-                                        const currentOdometer = showActionModal.data.vehicle?.odometer || 0;
-                                        const odoDigits = resolveOdometerDigits(showActionModal.data.vehicle);
-                                        const hasInput = actionData.km !== '' && actionData.km !== null && actionData.km !== undefined;
-                                        const startProg = hasInput ? compareOdometerProgression(currentOdometer, actionData.km, odoDigits) : null;
-                                        const isDiscrepancy = Boolean(startProg?.valid && startProg.discrepancy > 1);
+                                    {/* Scrollable Modal Body */}
+                                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:py-5">
+                                        {(showActionModal.type === 'REJECT' || showActionModal.type === 'CANCEL') && (
+                                            <div className="space-y-4">
+                                                <label className="block text-xs font-bold text-slate-500 uppercase">
+                                                    {showActionModal.type === 'REJECT' ? 'Alasan Penolakan' : 'Alasan Pembatalan'}
+                                                </label>
+                                                <textarea
+                                                    className={`w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 ${showActionModal.type === 'REJECT' ? 'focus:ring-red-500' : 'focus:ring-red-500'} outline-none`}
+                                                    rows={3} autoFocus
+                                                    placeholder="Wajib diisi..."
+                                                    value={actionData.reason}
+                                                    onChange={e => setActionData({ ...actionData, reason: e.target.value })}
+                                                />
+                                            </div>
+                                        )}
 
-                                        return (
-                                            <>
-                                                {isDiscrepancy ? (
+                                        {showActionModal.type === 'START' && (
+                                            <div className="space-y-4 pb-1">
+                                                {startIsDiscrepancy ? (
                                                     <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs space-y-1">
                                                         <div className="font-bold flex items-center gap-1.5 text-red-800">
                                                             <AlertCircle className="shrink-0 text-red-600" size={16} />
@@ -4227,23 +4230,23 @@ const VehicleBooking = () => {
 
                                                 <div>
                                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                                                        Kilometer Keberangkatan (Km Awal — Maks. {resolveOdometerDigits(showActionModal.data.vehicle)} Digit)
+                                                        Kilometer Keberangkatan (Km Awal — Maks. {startOdoDigits} Digit)
                                                     </label>
                                                     <div className="relative">
                                                         <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                                         <input
                                                             type="number"
                                                             min="0"
-                                                            max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
+                                                            max={getOdometerMax(startOdoDigits)}
                                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                            placeholder={`Maks. ${getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle)).toLocaleString('id-ID')} km`}
+                                                            placeholder={`Maks. ${getOdometerMax(startOdoDigits).toLocaleString('id-ID')} km`}
                                                             value={actionData.km}
-                                                            onChange={e => setActionData({ ...actionData, km: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
+                                                            onChange={e => setActionData({ ...actionData, km: sanitizeOdometerInput(e.target.value, startOdoDigits) })}
                                                         />
                                                     </div>
                                                     {startProg?.isRollover && (
                                                         <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
-                                                            ✓ Terdeteksi odometer memutar kembali (rollover dari {currentOdometer.toLocaleString('id-ID')} km, selisih {startProg.distance.toLocaleString('id-ID')} km).
+                                                            ✓ Terdeteksi odometer memutar kembali (rollover dari {startCurrentOdometer.toLocaleString('id-ID')} km, selisih {startProg.distance.toLocaleString('id-ID')} km).
                                                         </p>
                                                     )}
                                                 </div>
@@ -4252,21 +4255,21 @@ const VehicleBooking = () => {
                                                 <div>
                                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2 flex justify-between items-center">
                                                         <span>Foto Odometer / Fisik Awal</span>
-                                                        <span className={isDiscrepancy ? "text-red-600 font-extrabold text-[10px]" : "text-slate-400 font-normal text-[10px]"}>
-                                                            {isDiscrepancy ? "* WAJIB ADA" : "(Opsional)"}
+                                                        <span className={startIsDiscrepancy ? "text-red-600 font-extrabold text-[10px]" : "text-slate-400 font-normal text-[10px]"}>
+                                                            {startIsDiscrepancy ? "* WAJIB ADA" : "(Opsional)"}
                                                         </span>
                                                     </label>
                                                     <div className="space-y-2">
                                                         {actionData.photoPreview ? (
                                                             <div className={`relative flex items-center gap-3 p-2.5 rounded-xl border ${
-                                                                isDiscrepancy ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-200'
+                                                                startIsDiscrepancy ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-200'
                                                             }`}>
                                                                 <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-300 shrink-0">
                                                                     <img src={actionData.photoPreview} alt="Preview" className="w-full h-full object-cover" />
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="text-xs font-bold text-slate-700 truncate">{actionData.photo?.name || 'Foto Terpilih'}</p>
-                                                                    <p className={`text-[10px] font-semibold ${isDiscrepancy ? 'text-red-600' : 'text-slate-500'}`}>
+                                                                    <p className={`text-[10px] font-semibold ${startIsDiscrepancy ? 'text-red-600' : 'text-slate-500'}`}>
                                                                         Foto siap diunggah
                                                                     </p>
                                                                 </div>
@@ -4282,7 +4285,7 @@ const VehicleBooking = () => {
                                                         ) : (
                                                             <div className="grid grid-cols-2 gap-2">
                                                                 <label className={`border-2 border-dashed rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                                                                    isDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                                    startIsDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600'
                                                                 }`}>
                                                                     <Camera size={18} />
                                                                     <span className="text-xs font-bold">Kamera</span>
@@ -4305,7 +4308,7 @@ const VehicleBooking = () => {
                                                                     />
                                                                 </label>
                                                                 <label className={`border-2 border-dashed rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                                                                    isDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                                    startIsDiscrepancy && !actionData.photo ? 'border-red-300 bg-red-50/50 hover:bg-red-50 text-red-600' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600'
                                                                 }`}>
                                                                     <ImageIcon size={18} />
                                                                     <span className="text-xs font-bold">Galeri HP</span>
@@ -4401,452 +4404,476 @@ const VehicleBooking = () => {
                                                         />
                                                     </div>
                                                 </div>
-
-                                                <div className="flex gap-3 pt-2">
-                                                    <button
-                                                        disabled={!actionData.km || (isDiscrepancy && !actionData.photo) || submitting}
-                                                        onClick={handleStartTrip}
-                                                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
-                                                    >
-                                                        {submitting ? <Loader2 className="animate-spin" size={18} /> : null}
-                                                        Mulai Perjalanan
-                                                    </button>
-                                                </div>
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-                            )}
-
-                            {showActionModal.type === 'END' && (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                                            Kilometer Tiba (Km Akhir — Maks. {resolveOdometerDigits(showActionModal.data.vehicle)} Digit)
-                                        </label>
-                                        <div className="relative">
-                                            <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-green-500 outline-none"
-                                                placeholder={`Maks. ${getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle)).toLocaleString('id-ID')} km`}
-                                                value={actionData.km}
-                                                onChange={e => setActionData({ ...actionData, km: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
-                                            />
-                                        </div>
-                                        {actionData.km !== '' && (() => {
-                                            const endCheck = compareOdometerProgression(
-                                                showActionModal.data.startKm || 0,
-                                                actionData.km,
-                                                resolveOdometerDigits(showActionModal.data.vehicle)
-                                            );
-                                            if (endCheck.isRollover) {
-                                                return (
-                                                    <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
-                                                        ✓ Odometer memutar kembali (rollover): jarak tempuh perjalanan ini terhitung {endCheck.distance.toLocaleString('id-ID')} km.
-                                                    </p>
-                                                );
-                                            }
-                                            return null;
-                                        })()}
-                                    </div>
-
-                                    {/* Incident Toggle Section */}
-                                    <div className={`p-4 rounded-xl border transition-all ${
-                                        actionData.hasIncident ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'
-                                    }`}>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-tight text-slate-700">
-                                                <AlertCircle size={16} className={actionData.hasIncident ? "text-red-600 animate-pulse" : "text-slate-400"} />
-                                                Ada Kejadian / Kerusakan di Jalan?
-                                            </div>
-                                            <div
-                                                onClick={() => setActionData({ ...actionData, hasIncident: !actionData.hasIncident })}
-                                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.hasIncident ? 'bg-red-600' : 'bg-slate-300'}`}
-                                            >
-                                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.hasIncident ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </div>
-                                        </div>
-
-                                        {actionData.hasIncident && (
-                                            <div className="animate-in fade-in slide-in-from-top-2 duration-200 mt-4 space-y-3 pt-3 border-t border-red-200/80">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-red-700 uppercase mb-1 flex justify-between">
-                                                        <span>Foto Bukti Kejadian / Kerusakan</span>
-                                                        <span className="text-red-600 font-extrabold">* WAJIB</span>
-                                                    </label>
-                                                    <div className="space-y-2">
-                                                        {actionData.photoPreview ? (
-                                                            <div className="relative flex items-center gap-3 p-2.5 bg-white border border-red-200 rounded-xl">
-                                                                <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-red-300 shrink-0">
-                                                                    <img src={actionData.photoPreview} alt="Preview Insiden" className="w-full h-full object-cover" />
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-xs font-bold text-slate-700 truncate">{actionData.photo?.name || 'Foto Insiden'}</p>
-                                                                    <p className="text-[10px] text-red-600 font-semibold">Foto insiden siap diunggah</p>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setActionData({ ...actionData, photo: null, photoPreview: null })}
-                                                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                                                                    title="Hapus foto"
-                                                                >
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="grid grid-cols-2 gap-2">
-                                                                <label className="border-2 border-dashed border-red-300 bg-white rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50/50 transition-colors text-red-600">
-                                                                    <Camera size={18} />
-                                                                    <span className="text-xs font-bold text-slate-700">Kamera</span>
-                                                                    <input
-                                                                        type="file"
-                                                                        accept="image/*"
-                                                                        capture="environment"
-                                                                        className="hidden"
-                                                                        onChange={e => {
-                                                                            const file = e.target.files[0];
-                                                                            if (file) {
-                                                                                setActionData({
-                                                                                    ...actionData,
-                                                                                    photo: file,
-                                                                                    photoPreview: URL.createObjectURL(file)
-                                                                                });
-                                                                            }
-                                                                            e.target.value = '';
-                                                                        }}
-                                                                    />
-                                                                </label>
-                                                                <label className="border-2 border-dashed border-red-300 bg-white rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50/50 transition-colors text-red-600">
-                                                                    <ImageIcon size={18} />
-                                                                    <span className="text-xs font-bold text-slate-700">Galeri HP</span>
-                                                                    <input
-                                                                        type="file"
-                                                                        accept="image/*,image/jpeg,image/png,image/webp,image/jpg"
-                                                                        className="hidden"
-                                                                        onChange={e => {
-                                                                            const file = e.target.files[0];
-                                                                            if (file) {
-                                                                                setActionData({
-                                                                                    ...actionData,
-                                                                                    photo: file,
-                                                                                    photoPreview: URL.createObjectURL(file)
-                                                                                });
-                                                                            }
-                                                                            e.target.value = '';
-                                                                        }}
-                                                                    />
-                                                                </label>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-red-700 uppercase mb-1">
-                                                        Deskripsi Insiden / Kejadian <span className="text-red-600">* WAJIB</span>
-                                                    </label>
-                                                    <textarea
-                                                        className="w-full bg-white border border-red-200 rounded-xl p-3 text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none"
-                                                        rows={2}
-                                                        placeholder="Jelaskan detail kronologi / kerusakan..."
-                                                        value={actionData.incidentNotes || ''}
-                                                        onChange={e => setActionData({ ...actionData, incidentNotes: e.target.value })}
-                                                    />
-                                                </div>
-                                                <p className="text-[10px] text-red-600 italic">
-                                                    * Laporan insiden/kerusakan ini akan tersimpan pada catatan peminjaman dan dikirimkan kepada PIC Armada & Tim Sarpras.
-                                                </p>
                                             </div>
                                         )}
-                                    </div>
 
-                                    {/* Fuel Section */}
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
-                                                <Fuel size={16} className="text-orange-500" />
-                                                Isi BBM di Perjalanan?
-                                            </div>
-                                            <div
-                                                onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
-                                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
-                                            >
-                                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </div>
-                                        </div>
+                                        {showActionModal.type === 'END' && (
+                                            <div className="space-y-4 pb-1">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                                                        Kilometer Tiba (Km Akhir — Maks. {resolveOdometerDigits(showActionModal.data.vehicle)} Digit)
+                                                    </label>
+                                                    <div className="relative">
+                                                        <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-green-500 outline-none"
+                                                            placeholder={`Maks. ${getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle)).toLocaleString('id-ID')} km`}
+                                                            value={actionData.km}
+                                                            onChange={e => setActionData({ ...actionData, km: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
+                                                        />
+                                                    </div>
+                                                    {actionData.km !== '' && (() => {
+                                                        const endCheck = compareOdometerProgression(
+                                                            showActionModal.data.startKm || 0,
+                                                            actionData.km,
+                                                            resolveOdometerDigits(showActionModal.data.vehicle)
+                                                        );
+                                                        if (endCheck.isRollover) {
+                                                            return (
+                                                                <p className="text-[11px] text-emerald-700 font-semibold mt-1.5">
+                                                                    ✓ Odometer memutar kembali (rollover): jarak tempuh perjalanan ini terhitung {endCheck.distance.toLocaleString('id-ID')} km.
+                                                                </p>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
+                                                </div>
 
-                                        {actionData.fuelRefill && (
-                                            <div className="animate-in slide-in-from-top-2 duration-200 mt-4 space-y-3">
-                                                <div className="grid grid-cols-1 gap-3">
+                                                {/* Incident Toggle Section */}
+                                                <div className={`p-4 rounded-xl border transition-all ${
+                                                    actionData.hasIncident ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'
+                                                }`}>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-tight text-slate-700">
+                                                            <AlertCircle size={16} className={actionData.hasIncident ? "text-red-600 animate-pulse shrink-0" : "text-slate-400 shrink-0"} />
+                                                            Ada Kejadian / Kerusakan di Jalan?
+                                                        </div>
+                                                        <div
+                                                            onClick={() => setActionData({ ...actionData, hasIncident: !actionData.hasIncident })}
+                                                            className={`w-12 h-6 shrink-0 rounded-full p-1 cursor-pointer transition-colors ${actionData.hasIncident ? 'bg-red-600' : 'bg-slate-300'}`}
+                                                        >
+                                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.hasIncident ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                        </div>
+                                                    </div>
+
+                                                    {actionData.hasIncident && (
+                                                        <div className="animate-in fade-in slide-in-from-top-2 duration-200 mt-4 space-y-3 pt-3 border-t border-red-200/80">
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-red-700 uppercase mb-1 flex justify-between">
+                                                                    <span>Foto Bukti Kejadian / Kerusakan</span>
+                                                                    <span className="text-red-600 font-extrabold">* WAJIB</span>
+                                                                </label>
+                                                                <div className="space-y-2">
+                                                                    {actionData.photoPreview ? (
+                                                                        <div className="relative flex items-center gap-3 p-2.5 bg-white border border-red-200 rounded-xl">
+                                                                            <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-red-300 shrink-0">
+                                                                                <img src={actionData.photoPreview} alt="Preview Insiden" className="w-full h-full object-cover" />
+                                                                            </div>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <p className="text-xs font-bold text-slate-700 truncate">{actionData.photo?.name || 'Foto Insiden'}</p>
+                                                                                <p className="text-[10px] text-red-600 font-semibold">Foto insiden siap diunggah</p>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setActionData({ ...actionData, photo: null, photoPreview: null })}
+                                                                                className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                                title="Hapus foto"
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                            <label className="border-2 border-dashed border-red-300 bg-white rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50/50 transition-colors text-red-600">
+                                                                                <Camera size={18} />
+                                                                                <span className="text-xs font-bold text-slate-700">Kamera</span>
+                                                                                <input
+                                                                                    type="file"
+                                                                                    accept="image/*"
+                                                                                    capture="environment"
+                                                                                    className="hidden"
+                                                                                    onChange={e => {
+                                                                                        const file = e.target.files[0];
+                                                                                        if (file) {
+                                                                                            setActionData({
+                                                                                                ...actionData,
+                                                                                                photo: file,
+                                                                                                photoPreview: URL.createObjectURL(file)
+                                                                                            });
+                                                                                        }
+                                                                                        e.target.value = '';
+                                                                                    }}
+                                                                                />
+                                                                            </label>
+                                                                            <label className="border-2 border-dashed border-red-300 bg-white rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50/50 transition-colors text-red-600">
+                                                                                <ImageIcon size={18} />
+                                                                                <span className="text-xs font-bold text-slate-700">Galeri HP</span>
+                                                                                <input
+                                                                                    type="file"
+                                                                                    accept="image/*,image/jpeg,image/png,image/webp,image/jpg"
+                                                                                    className="hidden"
+                                                                                    onChange={e => {
+                                                                                        const file = e.target.files[0];
+                                                                                        if (file) {
+                                                                                            setActionData({
+                                                                                                ...actionData,
+                                                                                                photo: file,
+                                                                                                photoPreview: URL.createObjectURL(file)
+                                                                                            });
+                                                                                        }
+                                                                                        e.target.value = '';
+                                                                                    }}
+                                                                                />
+                                                                            </label>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-red-700 uppercase mb-1">
+                                                                    Deskripsi Insiden / Kejadian <span className="text-red-600">* WAJIB</span>
+                                                                </label>
+                                                                <textarea
+                                                                    className="w-full bg-white border border-red-200 rounded-xl p-3 text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none"
+                                                                    rows={2}
+                                                                    placeholder="Jelaskan detail kronologi / kerusakan..."
+                                                                    value={actionData.incidentNotes || ''}
+                                                                    onChange={e => setActionData({ ...actionData, incidentNotes: e.target.value })}
+                                                                />
+                                                            </div>
+                                                            <p className="text-[10px] text-red-600 italic">
+                                                                * Laporan insiden/kerusakan ini akan tersimpan pada catatan peminjaman dan dikirimkan kepada PIC Armada & Tim Sarpras.
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Fuel Section */}
+                                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
+                                                            <Fuel size={16} className="text-orange-500 shrink-0" />
+                                                            Isi BBM di Perjalanan?
+                                                        </div>
+                                                        <div
+                                                            onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
+                                                            className={`w-12 h-6 shrink-0 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
+                                                        >
+                                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                        </div>
+                                                    </div>
+
+                                                    {actionData.fuelRefill && (
+                                                        <div className="animate-in slide-in-from-top-2 duration-200 mt-4 space-y-3">
+                                                            <div className="grid grid-cols-1 gap-3">
+                                                                <div>
+                                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total Biaya (Rp)</label>
+                                                                    <div className="relative">
+                                                                        <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                                        <input
+                                                                            type="number"
+                                                                            className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
+                                                                            placeholder="Rp 0"
+                                                                            value={actionData.fuelPrice}
+                                                                            onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                                                        Kondisi BBM Saat Ini <span className="text-red-500">* WAJIB</span>
+                                                    </label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActionData({ ...actionData, fuelCondition: 'LOW' })}
+                                                            className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'LOW' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                                }`}
+                                                        >
+                                                            <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'LOW' ? 'bg-red-500' : 'bg-slate-300'}`}></div>
+                                                            &lt; 1/4
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActionData({ ...actionData, fuelCondition: 'MEDIUM' })}
+                                                            className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                                }`}
+                                                        >
+                                                            <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
+                                                            1/4 - 1/2
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setActionData({ ...actionData, fuelCondition: 'HIGH' })}
+                                                            className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'HIGH' ? 'bg-green-50 border-green-500 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                                }`}
+                                                        >
+                                                            <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'HIGH' ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                                            &gt; 1/2
+                                                        </button>
+                                                    </div>
+                                                    {(actionData.fuelCondition === 'LOW' || actionData.fuelCondition === 'MEDIUM') && (
+                                                        <p className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
+                                                            BBM di bawah 1/2: Setelah menekan <strong>Selesaikan Perjalanan</strong>, Anda akan diminta memilih apakah ingin mengisi BBM sendiri atau menyampaikan ke PIC kendaraan.
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Posisi Terakhir Kendaraan</label>
+                                                    <select
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none mb-2 text-slate-700"
+                                                        value={actionData.returnLocation || ''}
+                                                        onChange={e => setActionData({ ...actionData, returnLocation: e.target.value })}
+                                                    >
+                                                        <option value="" disabled>-- Pilih Lokasi Terakhir --</option>
+                                                        {['Lapai', 'Islamic', 'Pondok Putra', 'SD 2', 'Suratu TV/Deiped', 'MIT', 'SD 3', 'Limapuluh Kota', 'Lainnya'].map(loc => (
+                                                            <option key={loc} value={loc}>{loc}</option>
+                                                        ))}
+                                                    </select>
+                                                    {actionData.returnLocation === 'Lainnya' && (
+                                                        <input
+                                                            type="text"
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none animate-in fade-in slide-in-from-top-1"
+                                                            placeholder="Sebutkan lokasi..."
+                                                            value={actionData.customLocation}
+                                                            onChange={e => setActionData({ ...actionData, customLocation: e.target.value })}
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catatan Perjalanan (Opsional)</label>
+                                                    <textarea
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm"
+                                                        rows={2}
+                                                        placeholder="Kondisi jalan, cuaca, atau kendala..."
+                                                        value={actionData.notes}
+                                                        onChange={e => setActionData({ ...actionData, notes: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {showActionModal.type === 'EDIT_HISTORY' && (
+                                            <div className="space-y-4 pb-1">
+                                                <div className="grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total Biaya (Rp)</label>
+                                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">KM Awal</label>
                                                         <div className="relative">
-                                                            <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                            <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                             <input
                                                                 type="number"
-                                                                className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
-                                                                placeholder="Rp 0"
-                                                                value={actionData.fuelPrice}
-                                                                onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                                min="0"
+                                                                max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
+                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                placeholder="0"
+                                                                value={actionData.startKm || ''}
+                                                                onChange={e => setActionData({ ...actionData, startKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">KM Akhir</label>
+                                                        <div className="relative">
+                                                            <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
+                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                                                                placeholder="0"
+                                                                value={actionData.endKm || ''}
+                                                                onChange={e => setActionData({ ...actionData, endKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
                                                             />
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                                {/* Fuel Section in EDIT_HISTORY */}
+                                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
+                                                            <Fuel size={16} className="text-orange-500" />
+                                                            Isi BBM di Perjalanan?
+                                                        </div>
+                                                        <div
+                                                            onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
+                                                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
+                                                        >
+                                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                        </div>
+                                                    </div>
 
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                                            Kondisi BBM Saat Ini <span className="text-red-500">* WAJIB</span>
-                                        </label>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setActionData({ ...actionData, fuelCondition: 'LOW' })}
-                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'LOW' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                    }`}
-                                            >
-                                                <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'LOW' ? 'bg-red-500' : 'bg-slate-300'}`}></div>
-                                                &lt; 1/4
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setActionData({ ...actionData, fuelCondition: 'MEDIUM' })}
-                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                    }`}
-                                            >
-                                                <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
-                                                1/4 - 1/2
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setActionData({ ...actionData, fuelCondition: 'HIGH' })}
-                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'HIGH' ? 'bg-green-50 border-green-500 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                    }`}
-                                            >
-                                                <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'HIGH' ? 'bg-green-500' : 'bg-slate-300'}`}></div>
-                                                &gt; 1/2
-                                            </button>
-                                        </div>
-                                        {(actionData.fuelCondition === 'LOW' || actionData.fuelCondition === 'MEDIUM') && (
-                                            <p className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
-                                                BBM di bawah 1/2: Setelah menekan <strong>Selesaikan Perjalanan</strong>, Anda akan diminta memilih apakah ingin mengisi BBM sendiri atau menyampaikan ke PIC kendaraan.
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Posisi Terakhir Kendaraan</label>
-                                        <select
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none mb-2 text-slate-700"
-                                            value={actionData.returnLocation || ''}
-                                            onChange={e => setActionData({ ...actionData, returnLocation: e.target.value })}
-                                        >
-                                            <option value="" disabled>-- Pilih Lokasi Terakhir --</option>
-                                            {['Lapai', 'Islamic', 'Pondok Putra', 'SD 2', 'Suratu TV/Deiped', 'MIT', 'SD 3', 'Limapuluh Kota', 'Lainnya'].map(loc => (
-                                                <option key={loc} value={loc}>{loc}</option>
-                                            ))}
-                                        </select>
-                                        {actionData.returnLocation === 'Lainnya' && (
-                                            <input
-                                                type="text"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none animate-in fade-in slide-in-from-top-1"
-                                                placeholder="Sebutkan lokasi..."
-                                                value={actionData.customLocation}
-                                                onChange={e => setActionData({ ...actionData, customLocation: e.target.value })}
-                                            />
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catatan Perjalanan (Opsional)</label>
-                                        <textarea
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm"
-                                            rows={2}
-                                            placeholder="Kondisi jalan, cuaca, atau kendala..."
-                                            value={actionData.notes}
-                                            onChange={e => setActionData({ ...actionData, notes: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <button
-                                        disabled={!actionData.km || !actionData.fuelCondition || !actionData.returnLocation || (actionData.returnLocation === 'Lainnya' && !actionData.customLocation) || (actionData.hasIncident && (!actionData.photo || !actionData.incidentNotes?.trim())) || submitting}
-                                        onClick={handleEndTrip}
-                                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200 flex items-center justify-center gap-2"
-                                    >
-                                        {submitting ? <Loader2 className="animate-spin" size={18} /> : null}
-                                        Selesaikan Perjalanan
-                                    </button>
-                                </div>
-                            )}
-
-
-                            {showActionModal.type === 'EDIT_HISTORY' && (
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">KM Awal</label>
-                                            <div className="relative">
-                                                <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    placeholder="0"
-                                                    value={actionData.startKm || ''}
-                                                    onChange={e => setActionData({ ...actionData, startKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">KM Akhir</label>
-                                            <div className="relative">
-                                                <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max={getOdometerMax(resolveOdometerDigits(showActionModal.data.vehicle))}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none"
-                                                    placeholder="0"
-                                                    value={actionData.endKm || ''}
-                                                    onChange={e => setActionData({ ...actionData, endKm: sanitizeOdometerInput(e.target.value, resolveOdometerDigits(showActionModal.data.vehicle)) })}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {/* Fuel Section in EDIT_HISTORY */}
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
-                                                <Fuel size={16} className="text-orange-500" />
-                                                Isi BBM di Perjalanan?
-                                            </div>
-                                            <div
-                                                onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
-                                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
-                                            >
-                                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </div>
-                                        </div>
-
-                                        {actionData.fuelRefill ? (
-                                            <div className="animate-in slide-in-from-top-2 duration-200 mt-4 grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">BBM (Liter)</label>
-                                                    <input
-                                                        type="number"
-                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        placeholder="0"
-                                                        value={actionData.fuelLiters || ''}
-                                                        onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
-                                                    />
+                                                    {actionData.fuelRefill ? (
+                                                        <div className="animate-in slide-in-from-top-2 duration-200 mt-4 grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">BBM (Liter)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    placeholder="0"
+                                                                    value={actionData.fuelLiters || ''}
+                                                                    onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Biaya BBM (Rp)</label>
+                                                                <div className="relative">
+                                                                    <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                                    <input
+                                                                        type="number"
+                                                                        className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                        placeholder="Rp 0"
+                                                                        value={actionData.fuelPrice || ''}
+                                                                        onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-400 italic">Tidak ada pengisian BBM untuk perjalanan ini.</p>
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Biaya BBM (Rp)</label>
+                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Lokasi Akhir & Catatan</label>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2"
+                                                        placeholder="Lokasi pengembalian..."
+                                                        value={actionData.returnLocation || ''}
+                                                        onChange={e => setActionData({ ...actionData, returnLocation: e.target.value })}
+                                                    />
+                                                    <textarea
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        placeholder="Catatan..."
+                                                        rows="2"
+                                                        value={actionData.tripNotes || ''}
+                                                        onChange={e => setActionData({ ...actionData, tripNotes: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {showActionModal.type === 'EXTEND' && (
+                                            <div className="space-y-4 pb-1">
+                                                <div className="p-4 bg-amber-50 text-amber-700 rounded-xl flex gap-3 text-sm">
+                                                    <AlertCircle className="shrink-0" size={20} />
+                                                    <p>Perpanjangan jadwal hanya diperbolehkan apabila <b>terjadi kendala di perjalanan</b> (misal: cuaca, macet total, kondisi khusus).</p>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Batas Waktu Pengembalian Baru</label>
                                                     <div className="relative">
-                                                        <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                                         <input
-                                                            type="number"
-                                                            className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                            placeholder="Rp 0"
-                                                            value={actionData.fuelPrice || ''}
-                                                            onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                            type="datetime-local"
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none font-bold"
+                                                            value={actionData.newEndDate}
+                                                            onChange={e => setActionData({ ...actionData, newEndDate: e.target.value })}
                                                         />
                                                     </div>
                                                 </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Alasan Kendala</label>
+                                                    <textarea
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                                        rows={2}
+                                                        placeholder="Deskripsikan alasan mengapa terlambat..."
+                                                        value={actionData.extendReason}
+                                                        onChange={e => setActionData({ ...actionData, extendReason: e.target.value })}
+                                                    />
+                                                </div>
                                             </div>
-                                        ) : (
-                                            <p className="text-xs text-slate-400 italic">Tidak ada pengisian BBM untuk perjalanan ini.</p>
                                         )}
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Lokasi Akhir & Catatan</label>
-                                        <input
-                                            type="text"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2"
-                                            placeholder="Lokasi pengembalian..."
-                                            value={actionData.returnLocation || ''}
-                                            onChange={e => setActionData({ ...actionData, returnLocation: e.target.value })}
-                                        />
-                                        <textarea
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            placeholder="Catatan..."
-                                            rows="2"
-                                            value={actionData.tripNotes || ''}
-                                            onChange={e => setActionData({ ...actionData, tripNotes: e.target.value })}
-                                        />
-                                    </div>
 
-                                    <button
-                                        disabled={submitting}
-                                        onClick={handleEditHistory}
-                                        className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-lg shadow-amber-200"
-                                    >
-                                        Simpan Perubahan
-                                    </button>
+                                    {/* Pinned Modal Footer (always visible & reachable on all mobile screens) */}
+                                    <div className="shrink-0 px-5 pt-3 sm:px-6 sm:pt-4 modal-footer-safe border-t border-slate-100 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
+                                        {(showActionModal.type === 'REJECT' || showActionModal.type === 'CANCEL') && (
+                                            <button
+                                                type="button"
+                                                disabled={!actionData.reason || submitting}
+                                                onClick={showActionModal.type === 'REJECT' ? () => handleAction(showActionModal.data.id, 'REJECT') : handleCancelSubmit}
+                                                className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200 active:scale-[0.99]"
+                                            >
+                                                {showActionModal.type === 'REJECT' ? 'Konfirmasi Tolak' : 'Konfirmasi Batal'}
+                                            </button>
+                                        )}
+
+                                        {showActionModal.type === 'START' && (
+                                            <button
+                                                type="button"
+                                                disabled={!actionData.km || (startIsDiscrepancy && !actionData.photo) || submitting}
+                                                onClick={handleStartTrip}
+                                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-[0.99]"
+                                            >
+                                                {submitting ? <Loader2 className="animate-spin" size={18} /> : null}
+                                                Mulai Perjalanan
+                                            </button>
+                                        )}
+
+                                        {showActionModal.type === 'END' && (
+                                            <button
+                                                type="button"
+                                                disabled={!actionData.km || !actionData.fuelCondition || !actionData.returnLocation || (actionData.returnLocation === 'Lainnya' && !actionData.customLocation) || (actionData.hasIncident && (!actionData.photo || !actionData.incidentNotes?.trim())) || submitting}
+                                                onClick={handleEndTrip}
+                                                className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200 flex items-center justify-center gap-2 active:scale-[0.99]"
+                                            >
+                                                {submitting ? <Loader2 className="animate-spin" size={18} /> : null}
+                                                Selesaikan Perjalanan
+                                            </button>
+                                        )}
+
+                                        {showActionModal.type === 'EDIT_HISTORY' && (
+                                            <button
+                                                type="button"
+                                                disabled={submitting}
+                                                onClick={handleEditHistory}
+                                                className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-lg shadow-amber-200 active:scale-[0.99]"
+                                            >
+                                                Simpan Perubahan
+                                            </button>
+                                        )}
+
+                                        {showActionModal.type === 'EXTEND' && (
+                                            <button
+                                                type="button"
+                                                disabled={!actionData.newEndDate || !actionData.extendReason || submitting}
+                                                onClick={handleExtendTrip}
+                                                className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-lg shadow-amber-200 active:scale-[0.99]"
+                                            >
+                                                Ajukan Perpanjangan
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-
-                            {showActionModal.type === 'EXTEND' && (
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-amber-50 text-amber-700 rounded-xl flex gap-3 text-sm">
-                                        <AlertCircle className="shrink-0" size={20} />
-                                        <p>Perpanjangan jadwal hanya diperbolehkan apabila <b>terjadi kendala di perjalanan</b> (misal: cuaca, macet total, kondisi khusus).</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Batas Waktu Pengembalian Baru</label>
-                                        <div className="relative">
-                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                            <input
-                                                type="datetime-local"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none font-bold"
-                                                value={actionData.newEndDate}
-                                                onChange={e => setActionData({ ...actionData, newEndDate: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Alasan Kendala</label>
-                                        <textarea
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                                            rows={2}
-                                            placeholder="Deskripsikan alasan mengapa terlambat..."
-                                            value={actionData.extendReason}
-                                            onChange={e => setActionData({ ...actionData, extendReason: e.target.value })}
-                                        />
-                                    </div>
-                                    <button
-                                        disabled={!actionData.newEndDate || !actionData.extendReason || submitting}
-                                        onClick={handleExtendTrip}
-                                        className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-lg shadow-amber-200"
-                                    >
-                                        Ajukan Perpanjangan
-                                    </button>
-                                </div>
-                            )}
-
-                        </div>
-                    </div>
+                            </div>
+                        );
+                    })(),
+                    document.body
                 )
             }
 
             {/* Detail Modal */}
-            {showDetailModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">Detail Peminjaman</h3>
-                            <button onClick={() => setShowDetailModal(null)} className="text-slate-400 hover:text-slate-600">
+            {showDetailModal && createPortal(
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto overscroll-contain">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-lg modal-panel-safe flex flex-col overflow-hidden my-auto">
+                        <div className="shrink-0 flex justify-between items-center px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-white">
+                            <h3 className="text-lg sm:text-xl font-bold text-slate-800">Detail Peminjaman</h3>
+                            <button type="button" onClick={() => setShowDetailModal(null)} className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
                                 <XCircle size={24} />
                             </button>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:py-5 modal-footer-safe space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-slate-50 rounded-xl">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Armada</div>
@@ -4963,23 +4990,24 @@ const VehicleBooking = () => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Low BBM Warning Modal */}
-            {showLowFuelModal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-100">
-                        <div className="p-6 sm:p-8 space-y-5">
-                            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto shadow-inner border border-amber-100">
-                                <Fuel size={32} className="text-amber-500 animate-pulse" />
+            {showLowFuelModal && createPortal(
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-md modal-panel-safe flex flex-col overflow-hidden my-auto shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-100">
+                        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-7 modal-footer-safe space-y-4">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto shadow-inner border border-amber-100">
+                                <Fuel size={30} className="text-amber-500 animate-pulse" />
                             </div>
 
                             <div className="text-center space-y-2">
                                 <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-[11px] font-black rounded-full uppercase tracking-wider">
                                     BBM di Bawah Setengah (½)
                                 </span>
-                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Perhatian Pengisian BBM</h3>
+                                <h3 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">Perhatian Pengisian BBM</h3>
                                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                                     Jazakumullahu khairan telah menggunakan armada <strong className="text-slate-800 font-bold">{showLowFuelModal.vehicle?.name || 'kendaraan'}</strong> ({showLowFuelModal.vehicle?.licensePlate || ''}).
                                 </p>
@@ -5071,15 +5099,16 @@ const VehicleBooking = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Key Reminder Modal */}
-            {showKeyReminderModal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-100">
-                        <div className="p-8 text-center space-y-4">
-                            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-amber-100">
+            {showKeyReminderModal && createPortal(
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto overscroll-contain animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-sm modal-panel-safe overflow-y-auto my-auto shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-100">
+                        <div className="p-6 sm:p-8 modal-footer-safe text-center space-y-4">
+                            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner border border-amber-100">
                                 <Lock size={36} className="text-amber-500" strokeWidth={2.5} />
                             </div>
                             <h3 className="text-2xl font-black text-slate-800 tracking-tight">Kunci Kendaraan</h3>
@@ -5087,8 +5116,9 @@ const VehicleBooking = () => {
                                 Mohon pastikan Anda telah <strong className="text-amber-600 font-bold">mengembalikan kunci kendaraan</strong> ke Pos Satpam.
                             </p>
 
-                            <div className="pt-6">
+                            <div className="pt-4">
                                 <button
+                                    type="button"
                                     onClick={() => setShowKeyReminderModal(false)}
                                     className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3.5 font-black transition-all shadow-xl shadow-slate-900/20 active:scale-95"
                                 >
@@ -5097,7 +5127,8 @@ const VehicleBooking = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Sanction Propose Modal */}

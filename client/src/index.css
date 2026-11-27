@@ -64,6 +64,16 @@ input[type="number"] {
     appearance: textfield;
 }
 
+/* Mobile-safe modal viewport constraints (legacy Android WebView vh fallback + modern dvh) */
+.modal-panel-safe {
+    max-height: 88vh;
+    max-height: calc(100dvh - 1.5rem);
+}
+
+.modal-footer-safe {
+    padding-bottom: max(0.875rem, env(safe-area-inset-bottom));
+}
+
 /* Print Styles */
 @media print {
     aside,
